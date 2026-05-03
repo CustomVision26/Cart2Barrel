@@ -1,0 +1,11 @@
+---
+description: Poppins, default dark theme, Clerk modals and dark appearance
+alwaysApply: true
+---
+
+# Theme, fonts, and Clerk
+
+- **Font:** Use **Poppins** as the primary font for the entire app (`layout.tsx`, Tailwind/theme tokens). Do **not** keep **Geist Mono** as the global default body font.
+- **Theme:** **Dark mode should be the default** for the whole application (initial theme / class / `next-themes` or equivalent).
+- **Clerk:** Wire sign-in and sign-up **entry points with shadcn** so flows open as **modals** where possible (e.g. Dialog + Clerk components or Clerk modal APIs).
+- **Clerk appearance:** Configure Clerk UI (variables or appearance API) so it **matches dark mode** with the rest of the app.

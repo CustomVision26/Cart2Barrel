@@ -1,0 +1,11 @@
+---
+description: Reads in Server Components; mutations in Server Actions; Zod + typed inputs
+alwaysApply: true
+---
+
+# Server Components, Server Actions, and Zod
+
+- **Data retrieval:** Load application data for the UI in **Server Components** (async React Server Components calling Drizzle / `src/data` helpers). Do **not** move primary reads into client-side `fetch` loops, Route Handlers, or Server Actions used as a read API when a Server Component can fetch and pass props instead.
+- **Mutations:** All **insert, update, and delete** operations against the database go through **Server Actions** (`"use server"`). Do not perform writes from Client Components via direct DB access or ad hoc client-only APIs that bypass Server Actions.
+- **Validation:** Use **Zod** for all structured validation at trust boundaries (especially Server Action inputs and any parsed external payloads). Prefer shared schemas or `z.infer<typeof schema>` for types derived from the same source of truth.
+- **Server Action signatures:** Every Server Action that accepts client-submitted data must **parse/validate with Zod** and use a **plain TypeScript type** for the payload (typically `z.infer<typeof mySchema>` or an equivalent explicit interface aligned with the schema). **Do not** type the action’s argument as **`FormData`**—if a form posts `FormData`, extract fields into an object (or `Object.fromEntries`) and validate with Zod against a typed shape.

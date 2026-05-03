@@ -1,0 +1,13 @@
+---
+description: All DB access via Drizzle schema and query API (Neon)
+alwaysApply: true
+---
+
+# Drizzle + Neon (mandatory)
+
+- **Schema:** Define every table, column, and relation in `src/db/schema.ts` (or colocated files **imported into** that schema export). That file is the source of truth for the data model.
+- **Queries:** Use **`getDb()`** from `@/db` and **only** Drizzle APIs—`db.select()`, `db.insert()`, `db.update()`, `db.delete()`, `eq`, `and`, `sql` templating **as Drizzle documents**, relational `db.query`, etc. Prefer small helpers under `src/data/` that still call Drizzle, not raw drivers. **Reads** for UI should run from **Server Components** (or helpers they call); **writes** from **Server Actions**—see `.cursor/rules/cart2barrel-rsc-server-actions-zod.mdc`.
+- **Forbidden in app code:** Raw Neon `sql` strings for business logic, `Client`/`Pool` from `pg` for features, other ORMs, or `neon(...)\`SELECT ...\`` style queries **outside** Drizzle. Exception: **drizzle-kit** migrations / `drizzle-kit push` output under `drizzle/`.
+- **Secrets:** `DATABASE_URL` only in `.env`; never commit credentials.
+- **Tooling:** `drizzle.config.ts` points at `./src/db/schema.ts` and `./drizzle`; use `drizzle-kit push` or `generate` + `migrate` for schema changes.
+- **Per-user data:** User-owned tables must include an owner column (e.g. Clerk `userId`). All reads/writes for those tables must be **scoped in Drizzle** to the authenticated user from Clerk—see `.cursor/rules/cart2barrel-clerk-authz.mdc`.

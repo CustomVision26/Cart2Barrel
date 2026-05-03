@@ -1,0 +1,12 @@
+---
+description: Use shadcn/ui for Cart2Barrel UI components
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# shadcn/ui
+
+- Build UI with **shadcn/ui** primitives and patterns (Button, Dialog, Card, etc.), not ad-hoc styled HTML for the same role.
+- If shadcn is missing from the project, run `npx shadcn@latest init`.
+- Add components with `npx shadcn@latest add <component>` (e.g. `button`, `dialog`, `input`).
+- Prefer composing from installed shadcn components before adding new custom component libraries.

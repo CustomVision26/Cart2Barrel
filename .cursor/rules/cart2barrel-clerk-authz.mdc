@@ -1,0 +1,15 @@
+---
+description: Clerk-only auth; every request scoped so users access only their data
+alwaysApply: true
+---
+
+# Clerk authentication and authorization
+
+- **Authentication:** All end-user authentication is handled by **Clerk** only. Do not introduce parallel auth stacks (custom JWT login, separate session cookies for identity, etc.) unless they are explicitly subservient to Clerk as documented by Clerk.
+- **Identity:** Resolve the current user with Clerk’s server APIs (`auth()`, `currentUser()`, or framework-specific Clerk helpers). Treat the Clerk **user id** as the canonical subject for authorization.
+- **Data isolation:** Users must **only** read and mutate data that belongs to them. It must not be possible for one signed-in user to load, update, or delete another user’s records by changing IDs in the URL, form body, or client state.
+- **Schema:** User-owned tables must store an owner key (e.g. `userId` text matching Clerk’s user id). Prefer **foreign-key-style consistency** and indexes on that column for every query pattern.
+- **Queries (Drizzle):** Every `select` / `update` / `delete` for user-owned rows must include a **server-side** filter on the authenticated user’s id from Clerk—**in addition to** any id from the route or body. Never scope ownership using only client-supplied user ids.
+- **Inserts:** Set the owner column from the Clerk session on the server; do not trust the client to send the correct owner id (or overwrite it if the client sends one).
+- **IDs in routes:** When a route accepts a resource id (e.g. order id), load by id **and** `eq(table.userId, clerkUserId)` (or equivalent). If no row matches, return 404 / empty—do not leak whether the id exists for another user.
+- **Public routes:** If any API or page is public, explicitly document that it is intentionally unauthenticated; default for user data is authenticated + scoped.
