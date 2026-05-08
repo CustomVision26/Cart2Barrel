@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 
 import type { SaveProfileState } from "@/actions/profile";
-import { saveDeliveryProfileAction } from "@/actions/profile";
+import { saveContactProfileAction } from "@/actions/profile";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,35 +23,41 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { JAMAICA_PARISHES } from "@/lib/parishes";
 import type { Profile } from "@/db/schema";
-import { cn } from "@/lib/utils";
+import type { AfterSaveRedirect } from "@/lib/validations/profile-payload";
 
 const initialState: SaveProfileState = {};
 
 type ProfileFormProps = {
   profile: Profile;
+  /** Where to send the user after a successful save (allowlisted server-side). */
+  afterSaveRedirect?: AfterSaveRedirect;
 };
 
-export function ProfileForm({ profile }: ProfileFormProps) {
+/** Account name & phone (billing / legal contact). Shipping street lines use `ShippingAddressForm`. */
+export function ProfileForm({
+  profile,
+  afterSaveRedirect = "/",
+}: ProfileFormProps) {
   const [state, formAction, pending] = useActionState(
-    saveDeliveryProfileAction,
+    saveContactProfileAction,
     initialState
   );
 
   return (
     <Card className="w-full max-w-lg border-border/80 shadow-sm">
       <CardHeader>
-        <CardTitle>Delivery details</CardTitle>
+        <CardTitle>Account contact</CardTitle>
         <CardDescription>
-          We ship consolidated barrel orders to addresses in Jamaica. Add your
-          full name, phone, and local delivery address.
+          Legal name and phone for receipts, billing, and how we reach you. Your
+          Jamaican delivery street address is saved separately as a shipping label.
         </CardDescription>
       </CardHeader>
       <form action={formAction}>
+        <input type="hidden" name="afterSaveRedirect" value={afterSaveRedirect} />
         <CardContent>
           <FieldSet className="gap-6">
-            <FieldLegend variant="label">Contact &amp; name</FieldLegend>
+            <FieldLegend variant="label">Name &amp; phone</FieldLegend>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="fullName">Full name</FieldLabel>
@@ -68,7 +74,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
               <Field>
                 <FieldLabel htmlFor="phone">Phone number</FieldLabel>
                 <FieldDescription>
-                  Local or WhatsApp number you use for delivery coordination.
+                  Number we use for account, billing, and delivery coordination.
                 </FieldDescription>
                 <Input
                   id="phone"
@@ -80,73 +86,6 @@ export function ProfileForm({ profile }: ProfileFormProps) {
                   aria-invalid={!!state.fieldErrors?.phone}
                 />
                 <FieldError errors={fieldErr(state.fieldErrors?.phone)} />
-              </Field>
-            </FieldGroup>
-            <FieldSeparator />
-            <FieldLegend variant="label">Address in Jamaica</FieldLegend>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="addressLine1">Street address</FieldLabel>
-                <Input
-                  id="addressLine1"
-                  name="addressLine1"
-                  autoComplete="address-line1"
-                  placeholder="Street number, route, or P.O. box details"
-                  defaultValue={profile.addressLine1 ?? ""}
-                  aria-invalid={!!state.fieldErrors?.addressLine1}
-                />
-                <FieldError errors={fieldErr(state.fieldErrors?.addressLine1)} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="addressLine2">
-                  Address line 2{" "}
-                  <span className="font-normal text-muted-foreground">
-                    (optional)
-                  </span>
-                </FieldLabel>
-                <Input
-                  id="addressLine2"
-                  name="addressLine2"
-                  autoComplete="address-line2"
-                  placeholder="Apartment, building, district"
-                  defaultValue={profile.addressLine2 ?? ""}
-                  aria-invalid={!!state.fieldErrors?.addressLine2}
-                />
-                <FieldError errors={fieldErr(state.fieldErrors?.addressLine2)} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="cityOrTown">City or town</FieldLabel>
-                <Input
-                  id="cityOrTown"
-                  name="cityOrTown"
-                  autoComplete="address-level2"
-                  placeholder="e.g. May Pen, Montego Bay"
-                  defaultValue={profile.cityOrTown ?? ""}
-                  aria-invalid={!!state.fieldErrors?.cityOrTown}
-                />
-                <FieldError errors={fieldErr(state.fieldErrors?.cityOrTown)} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="parish">Parish</FieldLabel>
-                <select
-                  id="parish"
-                  name="parish"
-                  defaultValue={profile.parish ?? ""}
-                  aria-invalid={!!state.fieldErrors?.parish}
-                  className={cn(
-                    "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none md:text-sm",
-                    "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-                    "dark:bg-input/30"
-                  )}
-                >
-                  <option value="">Select parish</option>
-                  {JAMAICA_PARISHES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-                <FieldError errors={fieldErr(state.fieldErrors?.parish)} />
               </Field>
             </FieldGroup>
           </FieldSet>
@@ -161,16 +100,12 @@ export function ProfileForm({ profile }: ProfileFormProps) {
             </p>
           )}
           <Button type="submit" disabled={pending} size="lg">
-            {pending ? "Saving…" : "Save and continue"}
+            {pending ? "Saving…" : "Save contact"}
           </Button>
         </CardFooter>
       </form>
     </Card>
   );
-}
-
-function FieldSeparator() {
-  return <div className="border-t border-border/60" aria-hidden />;
 }
 
 function fieldErr(messages?: string[]) {

@@ -1,0 +1,1 @@
+ALTER TABLE "item_requests" ADD COLUMN "product_image_url" text;

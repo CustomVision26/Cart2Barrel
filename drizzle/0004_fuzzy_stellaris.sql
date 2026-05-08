@@ -1,0 +1,1 @@
+ALTER TYPE "public"."item_request_status" ADD VALUE 'withdrawn';

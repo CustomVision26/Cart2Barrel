@@ -1,0 +1,33 @@
+---
+description: Tiered service & handling fee per product unit (Cart2Barrel)
+globs:
+  - "**/admin-markup.ts"
+  - "**/admin-ai-estimate*"
+  - "**/item-quotes*"
+  - "**/actions/**"
+alwaysApply: false
+---
+
+# Service & handling fee (per item)
+
+Pricing is based on **each product’s unit price in USD** (before quantity). The fee is **per unit**, then multiplied by **quantity** for the line’s total service & handling.
+
+| Unit price (USD) | Fee per item |
+|-------------------|--------------|
+| $0.01 – $20.00 | $0.50 |
+| $20.01 – $40.00 | $1.00 |
+| $40.01 – $80.00 | $1.50 |
+| $80.01 – $100.00 | $2.00 |
+| $100.01 – $200.00 | $3.00 |
+| $200.01 and above | $5.00 |
+
+## Implementation
+
+- **Source of truth in code:** `src/lib/admin-markup.ts` — `serviceHandlingFeePerUnitCents()` and `computeLineEstimateCents()` (service total = per-unit fee × quantity).
+- **Estimates:** Admin AI estimate flow uses the same helper; do not duplicate tier tables elsewhere.
+- **Tax & shipping:** Still from env (`ADMIN_TAX_BPS`, `ADMIN_DEFAULT_SHIPPING_CENTS`) unless product rules change.
+
+## Agent checklist
+
+- When adding quotes, invoices, or cart totals that include “service & handling,” use the **tiered per-unit** rule above, not a flat percentage, unless the product owner explicitly changes the business rule and the code.
+- Do not put real `DATABASE_URL`, API keys, or secrets in this file.

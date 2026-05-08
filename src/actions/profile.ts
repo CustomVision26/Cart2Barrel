@@ -1,13 +1,14 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
-import { profileFormSchema } from "@/lib/validations/profile";
+import { getOrCreateProfile } from "@/data/profiles";
+import { parseProfileFormSubmission, resolveAfterSaveRedirect } from "@/lib/validations/profile-payload";
 
 export type SaveProfileState = {
   ok?: boolean;
@@ -15,35 +16,24 @@ export type SaveProfileState = {
   fieldErrors?: Record<string, string[] | undefined>;
 };
 
-export async function saveDeliveryProfileAction(
+/** Legal / billing contact (name & phone). Shipping street lines live on `addresses`. */
+export async function saveContactProfileAction(
   _prev: SaveProfileState,
-  formData: FormData
+  rawInput: unknown
 ): Promise<SaveProfileState> {
   const { userId } = await auth();
   if (!userId) {
     return { ok: false, message: "You must be signed in to save your profile." };
   }
 
-  const raw = {
-    fullName: formData.get("fullName"),
-    phone: formData.get("phone"),
-    addressLine1: formData.get("addressLine1"),
-    addressLine2: formData.get("addressLine2") || undefined,
-    cityOrTown: formData.get("cityOrTown"),
-    parish: formData.get("parish"),
-  };
+  const user = await currentUser();
+  const email =
+    user?.primaryEmailAddress?.emailAddress ??
+    user?.emailAddresses?.[0]?.emailAddress ??
+    null;
+  await getOrCreateProfile(userId, email);
 
-  const parsed = profileFormSchema.safeParse({
-    fullName: typeof raw.fullName === "string" ? raw.fullName : "",
-    phone: typeof raw.phone === "string" ? raw.phone : "",
-    addressLine1: typeof raw.addressLine1 === "string" ? raw.addressLine1 : "",
-    addressLine2:
-      typeof raw.addressLine2 === "string" && raw.addressLine2.trim()
-        ? raw.addressLine2
-        : undefined,
-    cityOrTown: typeof raw.cityOrTown === "string" ? raw.cityOrTown : "",
-    parish: typeof raw.parish === "string" ? raw.parish : "",
-  });
+  const parsed = parseProfileFormSubmission(rawInput);
 
   if (!parsed.success) {
     const fieldErrors: Record<string, string[]> = {};
@@ -65,11 +55,6 @@ export async function saveDeliveryProfileAction(
     .set({
       fullName: parsed.data.fullName,
       phone: parsed.data.phone,
-      addressLine1: parsed.data.addressLine1,
-      addressLine2: parsed.data.addressLine2 ?? null,
-      cityOrTown: parsed.data.cityOrTown,
-      parish: parsed.data.parish,
-      country: "Jamaica",
       profileCompletedAt: now,
       updatedAt: now,
     })
@@ -77,5 +62,7 @@ export async function saveDeliveryProfileAction(
 
   revalidatePath("/");
   revalidatePath("/onboarding");
-  redirect("/");
+  revalidatePath("/settings/delivery");
+  revalidatePath("/dashboard/settings");
+  redirect(resolveAfterSaveRedirect(rawInput));
 }

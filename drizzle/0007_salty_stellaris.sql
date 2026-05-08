@@ -1,0 +1,2 @@
+ALTER TYPE "public"."item_request_line_snapshot_phase" ADD VALUE 'customer_line_edit' BEFORE 'pre_admin_estimate_edit';--> statement-breakpoint
+ALTER TYPE "public"."item_request_line_snapshot_phase" ADD VALUE 'removed_from_cart' BEFORE 'pre_admin_estimate_edit';

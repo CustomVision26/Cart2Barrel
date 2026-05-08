@@ -1,6 +1,7 @@
-import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
+
+import { AppClerkProvider } from "@/components/providers/app-clerk-provider";
 
 import "./globals.css";
 
@@ -21,21 +22,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      appearance={{
-        baseTheme: "dark",
-      }}
+    <html
+      lang="en"
+      className={`dark ${poppins.variable} h-full antialiased`}
     >
-      <html
-        lang="en"
-        className={`dark ${poppins.variable} h-full antialiased`}
+      <body
+        className={`${poppins.className} min-h-full flex flex-col bg-background text-foreground`}
       >
-        <body
-          className={`${poppins.className} min-h-full flex flex-col bg-background text-foreground`}
-        >
-          {children}
-        </body>
-      </html>
-    </ClerkProvider>
+        <AppClerkProvider>{children}</AppClerkProvider>
+      </body>
+    </html>
   );
 }
