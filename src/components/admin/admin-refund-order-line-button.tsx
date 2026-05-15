@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { refundOrderLineAction } from "@/actions/refund-order-line";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,6 @@ export function AdminRefundOrderLineButton({
   const [open, setOpen] = useState(false);
   const [amountStr, setAmountStr] = useState(String(refundableCents));
   const [reason, setReason] = useState("");
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const onOpenChange = (next: boolean) => {
@@ -39,26 +39,26 @@ export function AdminRefundOrderLineButton({
     if (next) {
       setAmountStr(String(refundableCents));
       setReason("");
-      setFeedback(null);
     }
   };
 
   const submit = useCallback(() => {
     const parsed = Number.parseInt(amountStr.replace(/[, _]/g, "").trim(), 10);
     if (!Number.isFinite(parsed) || parsed < 1) {
-      setFeedback("Enter a whole number of cents (USD).");
+      toast.error("Enter a whole number of cents (USD).");
       return;
     }
-    setFeedback(null);
     startTransition(async () => {
       const res = await refundOrderLineAction({
         orderItemId,
         amountCents: parsed,
         reason: reason.trim() || undefined,
       });
-      setFeedback(res.message);
       if (res.ok) {
+        toast.success(res.message);
         setOpen(false);
+      } else {
+        toast.error(res.message);
       }
     });
   }, [amountStr, orderItemId, reason]);
@@ -117,9 +117,6 @@ export function AdminRefundOrderLineButton({
               />
             </div>
 
-            {feedback ? (
-              <p className="text-sm text-muted-foreground">{feedback}</p>
-            ) : null}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button

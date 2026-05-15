@@ -14,6 +14,7 @@ import {
 } from "@/data/item-request-line-snapshots";
 import { ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION } from "@/lib/item-quote-void-reason";
 import { parseCustomerItemRequestLineDetails } from "@/lib/validations/customer-item-request-line-details";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type RequestNewItemEstimateState = {
   ok: boolean;
@@ -79,9 +80,9 @@ export async function requestNewItemEstimateAction(
     });
   }
 
-  revalidatePath("/dashboard/items/new");
+  revalidateDashboardAddItem();
   revalidatePath("/dashboard/items");
-  revalidatePath("/admin/item-requests");
+  revalidatePath("/admin/item-requests", "layout");
   revalidatePath("/admin");
 
   return {

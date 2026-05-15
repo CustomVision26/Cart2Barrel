@@ -1,5 +1,9 @@
 import { AdminPaidOrdersTable } from "@/components/admin/admin-paid-orders-table";
-import { listAdminPaidOrderLines } from "@/data/admin-order-lines";
+import { AdminOrdersListControls } from "@/components/admin/admin-orders-list-controls";
+import { AdminOrdersTabNav } from "@/components/admin/admin-orders-tab-nav";
+import { parsePaidOrdersQuery } from "@/lib/paid-orders-list-params";
+import { listAdminPaidOrderLinesPage } from "@/data/admin-order-lines";
+import { mapLatestOperationalQuoteItemCostByRequestIds } from "@/data/item-quotes";
 import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsByRequestIds,
@@ -7,14 +11,18 @@ import {
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
-export default async function AdminOrdersPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const cu = await safeCurrentUser();
   if (!cu.ok) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Orders
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Orders</h1>
         <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-6 text-sm text-foreground">
           {cu.message}
         </p>
@@ -23,37 +31,93 @@ export default async function AdminOrdersPage() {
   }
 
   const admin = isClerkAdmin(cu.user);
-  const rows = await listAdminPaidOrderLines(cu.user);
-  const snapshotRows = await listItemRequestLineSnapshotsByRequestIds(cu.user, [
-    ...new Set(rows.map((row) => row.request.id)),
-  ]);
+  const rawSp = (await searchParams) ?? {};
+  const query = parsePaidOrdersQuery(rawSp);
+
+  const pagePack = !admin ?
+    {
+      rows: [],
+      totalOrders: 0,
+      page: 1,
+      totalPages: 1,
+      pageSize: query.ps,
+      query,
+    }
+  : await listAdminPaidOrderLinesPage(cu.user, query);
+
+  const snapshotRows =
+    admin && pagePack.rows.length > 0 ?
+      await listItemRequestLineSnapshotsByRequestIds(
+        cu.user,
+        [...new Set(pagePack.rows.map((row) => row.request.id))],
+      )
+    : [];
   const snapshotsByRequestId = Object.fromEntries(
-    groupItemRequestLineSnapshotsByRequestId(snapshotRows)
+    groupItemRequestLineSnapshotsByRequestId(snapshotRows),
   );
+
+  const quotedItemCostByRequestId =
+    admin && pagePack.rows.length > 0 ?
+      await mapLatestOperationalQuoteItemCostByRequestIds(
+        [...new Set(pagePack.rows.map((row) => row.request.id))],
+      )
+    : new Map<string, number | null>();
+
+  const hasActiveSearch = query.q.trim().length > 0;
+  const noOrdersAtAll = admin && pagePack.totalOrders === 0 && !hasActiveSearch;
+  const noSearchHits = admin && pagePack.totalOrders === 0 && hasActiveSearch;
 
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Orders
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Orders</h1>
         <p className="text-sm text-muted-foreground">
-          Paid checkout lines appear here with fulfillment status. Use{" "}
-          <span className="font-medium text-foreground">Purchase</span> after your team buys the product from the retailer.
-          Then use{" "}
-          <span className="font-medium text-foreground">Request delivery</span> to save a delivery record and send emails to operations and (by default) the customer.
+          Paid checkouts grouped by order — lines that still need{" "}
+          <span className="font-medium text-foreground">Review and approve</span>, return-shipment follow-up
+          (<span className="font-medium text-foreground">Product return: awaiting delivery</span>), or
+          other pre-delivery ops. Once a retailer purchase is confirmed (inbound), the line leaves this list
+          and shows under{" "}
+          <span className="font-medium text-foreground">Purchase orders</span> for shipment tracking and
+          refunds until delivery handoff is complete elsewhere.
         </p>
       </div>
 
-      {!admin ? (
+      <AdminOrdersTabNav activeTab="orders" />
+
+      {!admin ?
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
           You do not have admin access.
         </p>
-      ) : (
-        <AdminPaidOrdersTable
-          rows={rows}
-          snapshotsByRequestId={snapshotsByRequestId}
-        />
+      : (
+        <>
+          <AdminOrdersListControls
+            key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
+            query={pagePack.query}
+            totalOrders={pagePack.totalOrders}
+            page={pagePack.page}
+            totalPages={pagePack.totalPages}
+            pageSize={pagePack.pageSize}
+          />
+          {noOrdersAtAll ?
+            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+              No paid orders yet.
+            </p>
+          : null}
+          {noSearchHits ?
+            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+              No orders match your search. Try batch number or session UUID, order or line UUID,
+              Stripe payment-intent reference, customer email or name, buyer note text, or product wording.
+            </p>
+          : null}
+          {!noOrdersAtAll && !noSearchHits ?
+            <AdminPaidOrdersTable
+              rows={pagePack.rows}
+              snapshotsByRequestId={snapshotsByRequestId}
+              quotedItemCostByRequestId={quotedItemCostByRequestId}
+              orderAccordionResetKey={`${query.page}:${query.ps}:${query.sort}:${query.q}`}
+            />
+          : null}
+        </>
       )}
     </div>
   );

@@ -1,15 +1,15 @@
-import { and, desc, eq } from "drizzle-orm";
+import type { PendingRefundRequestBrief } from "@/data/order-item-refund-requests";
+import type { PaidOrdersQueryInput } from "@/lib/paid-orders-list-params";
 
-import { getDb } from "@/db";
+import type { PaidOrderLinesPageResult } from "@/data/paid-orders-queries";
+import { listPaidOrderLinesPage } from "@/data/paid-orders-queries";
 import {
-  itemRequests,
-  orderItems,
-  orders,
-  type ItemRequest,
-} from "@/db/schema";
-import { orderListSelect, type OrderListCore } from "@/data/order-list-select";
-import { sumRefundedCentsByOrderItemIds } from "@/data/order-item-refunds";
-import { isUndefinedColumnError } from "@/lib/db-column-missing";
+  listOrderItemRefundDetailsByOrderItemIds,
+  type OrderItemRefundDetail,
+} from "@/data/order-item-refunds";
+
+import { type ItemRequest, type OrderItem } from "@/db/schema";
+import { type OrderListCore } from "@/data/order-list-select";
 import type { OrderItemReadCore } from "@/lib/order-item-read-compat";
 
 export type DashboardPaidOrderLineRow = {
@@ -17,81 +17,81 @@ export type DashboardPaidOrderLineRow = {
   order: OrderListCore;
   request: ItemRequest;
   refundedCents: number;
+  refundDetails: OrderItemRefundDetail[];
+  pendingRefundRequest: PendingRefundRequestBrief | null;
+  customerEmail: string | null;
+  customerFullName: string | null;
+  resolvedBatchSessionId: string | null;
+  resolvedBatchNumber: string | null;
 };
 
-const orderItemCoreSelect = {
-  id: orderItems.id,
-  orderId: orderItems.orderId,
-  itemRequestId: orderItems.itemRequestId,
-  quantity: orderItems.quantity,
-  price: orderItems.price,
-} as const;
+export type DashboardPaidOrderLinesPageResult = Omit<
+  PaidOrderLinesPageResult,
+  "rows"
+> & {
+  rows: DashboardPaidOrderLineRow[];
+};
 
-const orderItemSelectWithFulfillment = {
-  ...orderItemCoreSelect,
-  fulfillmentStatus: orderItems.fulfillmentStatus,
-} as const;
+const DASHBOARD_PURCHASE_APPROVED_LINE_FULFILLMENTS: OrderItem["fulfillmentStatus"][] = [
+  "company_purchase_pending_delivery",
+  "delivery_requested_pending_fulfillment",
+  "delivery_received_good_awaiting_barrel",
+  "delivery_received_item_missing",
+  "delivery_received_item_damaged",
+  "delivery_received_wrong_item",
+  "product_return_awaiting_delivery",
+  "refunded",
+];
 
-async function attachOwnerRefundedCents(
-  rows: Omit<DashboardPaidOrderLineRow, "refundedCents">[]
-): Promise<DashboardPaidOrderLineRow[]> {
-  if (rows.length === 0) return [];
-  try {
-    const sums = await sumRefundedCentsByOrderItemIds(
-      rows.map((r) => r.orderItem.id)
-    );
-    return rows.map((r) => ({
-      ...r,
-      refundedCents: sums.get(r.orderItem.id) ?? 0,
-    }));
-  } catch {
-    return rows.map((r) => ({ ...r, refundedCents: 0 }));
-  }
+async function withDashboardRefundDetails(
+  pack: PaidOrderLinesPageResult,
+): Promise<DashboardPaidOrderLinesPageResult> {
+  const refundDetailsByOrderItemId = await listOrderItemRefundDetailsByOrderItemIds(
+    pack.rows.map((r) => r.orderItem.id),
+  );
+  const rows: DashboardPaidOrderLineRow[] = pack.rows.map((r) => ({
+    orderItem: r.orderItem,
+    order: r.order,
+    request: r.request,
+    refundedCents: r.refundedCents,
+    pendingRefundRequest: r.pendingRefundRequest,
+    customerEmail: r.customerEmail,
+    customerFullName: r.customerFullName,
+    resolvedBatchSessionId: r.resolvedBatchSessionId,
+    resolvedBatchNumber: r.resolvedBatchNumber,
+    refundDetails: refundDetailsByOrderItemId.get(r.orderItem.id) ?? [],
+  }));
+  return {
+    rows,
+    totalOrders: pack.totalOrders,
+    page: pack.page,
+    pageSize: pack.pageSize,
+    totalPages: pack.totalPages,
+    query: pack.query,
+  };
 }
 
-export async function listDashboardPaidOrderLinesForOwner(
-  clerkUserId: string
-): Promise<DashboardPaidOrderLineRow[]> {
-  const db = getDb();
+/** Paginates by order (paid only), with shared search/sort semantics as `/admin/orders`. */
+export async function listDashboardPaidOrderLinesPage(
+  clerkUserId: string,
+  query: PaidOrdersQueryInput,
+): Promise<DashboardPaidOrderLinesPageResult> {
+  const pack = await listPaidOrderLinesPage({
+    scope: { ownerClerkUserId: clerkUserId },
+    query,
+    lineFulfillmentIn: DASHBOARD_PURCHASE_APPROVED_LINE_FULFILLMENTS,
+  });
+  return withDashboardRefundDetails(pack);
+}
 
-  try {
-    const rows = await db
-      .select({
-        orderItem: orderItemSelectWithFulfillment,
-        order: orderListSelect,
-        request: itemRequests,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
-      .where(and(eq(orders.clerkUserId, clerkUserId), eq(orders.status, "paid")))
-      .orderBy(desc(orders.createdAt), desc(orderItems.id));
-    const base = rows.map((r) => ({
-      orderItem: r.orderItem,
-      order: r.order,
-      request: r.request,
-    }));
-    return attachOwnerRefundedCents(base);
-  } catch (e) {
-    if (!isUndefinedColumnError(e, "fulfillment_status")) {
-      throw e;
-    }
-    const rows = await db
-      .select({
-        orderItem: orderItemCoreSelect,
-        order: orderListSelect,
-        request: itemRequests,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
-      .where(and(eq(orders.clerkUserId, clerkUserId), eq(orders.status, "paid")))
-      .orderBy(desc(orders.createdAt), desc(orderItems.id));
-    const base = rows.map((r) => ({
-      orderItem: r.orderItem,
-      order: r.order,
-      request: r.request,
-    }));
-    return attachOwnerRefundedCents(base);
-  }
+/** Full paid checkout history for a dashboard user, scoped by Clerk user id. */
+export async function listDashboardPaidOrderHistoryLinesPage(
+  clerkUserId: string,
+  query: PaidOrdersQueryInput,
+): Promise<DashboardPaidOrderLinesPageResult> {
+  const pack = await listPaidOrderLinesPage({
+    scope: { ownerClerkUserId: clerkUserId },
+    query,
+  });
+  return withDashboardRefundDetails(pack);
 }

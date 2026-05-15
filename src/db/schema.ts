@@ -1,9 +1,12 @@
 import { relations, sql } from "drizzle-orm";
+
+import type { BatchQuoteSessionStatusEventDetail } from "@/types/batch-quote-history-snapshot";
 import {
   boolean,
   check,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -56,6 +59,43 @@ export const itemRequestLineSnapshotPhaseEnum = pgEnum(
     "checkout_paid_pending_delivery",
     /** Admin marked product purchased; awaiting delivery workflow. */
     "company_purchase_pending_delivery",
+    /** Frozen line copy bundled with batch estimate (customer-facing totals memo). */
+    "batch_estimate_customer_copy",
+    /** Frozen line copy bundled with batch estimate (admin-facing totals memo). */
+    "batch_estimate_admin_copy",
+    /** Product line as sent to staff (batch submitted or revision re-opened). */
+    "batch_request_submitted_to_staff",
+    /** Staff recorded physical receipt at warehouse (qty, condition, shelf, proof metadata). */
+    "warehouse_delivery_received",
+    /** Staff saved return-to-retailer shipment tracking after a problem receipt. */
+    "product_return_tracking_saved",
+    /** Customer submitted a refund request; pending staff approval. */
+    "customer_refund_request_submitted",
+  ],
+);
+
+/** Customer grouping of quoted lines for combined staff estimates. */
+export const batchQuoteSessionStatusEnum = pgEnum("batch_quote_session_status", [
+  "draft",
+  "submitted",
+  /** Staff saved batch estimate; queue item leaves admin batch tab. */
+  "estimated",
+  /** Shopper accepted the batch estimate into cart checkout. */
+  "in_cart",
+  /** Checkout succeeded — ops purchase workflow (mirrors paid order lines). */
+  "paid_pending_staff_purchase",
+]);
+
+/** Append-only lifecycle log for shopper-visible batch statuses. */
+export const batchQuoteSessionStatusEventKindEnum = pgEnum(
+  "batch_quote_session_status_event_kind",
+  [
+    "new_batch_request",
+    "quoted_batch",
+    "in_cart",
+    "paid_pending_staff_purchase",
+    "returned_to_quoted_batch",
+    "revision_reopened",
   ],
 );
 
@@ -65,6 +105,18 @@ export const orderItemFulfillmentEnum = pgEnum("order_item_fulfillment_status", 
   "company_purchase_pending_delivery",
   /** Full line amount was refunded in Stripe; line is closed. */
   "refunded",
+  /** Customer or staff confirmed inbound receipt — condition captured on order line. */
+  "delivery_received_good_awaiting_barrel",
+  "delivery_received_item_missing",
+  "delivery_received_item_damaged",
+  "delivery_received_wrong_item",
+  /**
+   * Present on some databases (added manually or via older tooling). Listed last so it matches
+   * Postgres `ADD VALUE` append order when present after the delivery_received_* labels.
+   */
+  "delivery_requested_pending_fulfillment",
+  /** Return shipment to retailer logged; line awaiting return delivery updates. */
+  "product_return_awaiting_delivery",
 ]);
 
 export const orderStatusEnum = pgEnum("order_status", [
@@ -73,6 +125,24 @@ export const orderStatusEnum = pgEnum("order_status", [
   "purchasing",
   "completed",
 ]);
+
+export const orderItemRefundReasonKindEnum = pgEnum(
+  "order_item_refund_reason_kind",
+  [
+    "defective_or_damaged",
+    "wrong_item",
+    "not_received",
+    "not_as_described",
+    "duplicate_charge",
+    "changed_mind",
+    "other",
+  ],
+);
+
+export const orderItemRefundRequestStatusEnum = pgEnum(
+  "order_item_refund_request_status",
+  ["pending_approval", "rejected", "fulfilled"],
+);
 
 export const barrelStatusEnum = pgEnum("barrel_status", [
   "filling",
@@ -110,6 +180,67 @@ export const addresses = pgTable(
   (t) => [index("addresses_clerk_user_id_idx").on(t.clerkUserId)],
 );
 
+export const batchQuoteSessions = pgTable(
+  "batch_quote_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    batchNumber: text("batch_number").notNull().unique(),
+    /** Canonical grouping key (`canonicalBatchSiteKey`) for mixed-site guards. */
+    siteKey: text("site_key").notNull(),
+    status: batchQuoteSessionStatusEnum("status").notNull().default("draft"),
+    submittedAt: timestamp("submitted_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    /** Set when shopper accepts combined batch estimate into cart checkout. */
+    cartAcceptanceAcceptedAt: timestamp("cart_acceptance_accepted_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    /** Estimate row totals locked into cart for this bundle (pricing snapshot). */
+    cartAcceptanceAcceptedEstimateId: uuid("cart_acceptance_accepted_estimate_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("batch_quote_sessions_clerk_user_id_created_at_idx").on(
+      t.clerkUserId,
+      t.createdAt,
+    ),
+    index("batch_quote_sessions_status_idx").on(t.status),
+  ],
+);
+
+export const batchQuoteSessionStatusEvents = pgTable(
+  "batch_quote_session_status_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    batchQuoteSessionId: uuid("batch_quote_session_id")
+      .notNull()
+      .references(() => batchQuoteSessions.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id").notNull(),
+    kind: batchQuoteSessionStatusEventKindEnum("kind").notNull(),
+    detail: jsonb("detail").$type<BatchQuoteSessionStatusEventDetail | null>(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("batch_quote_session_status_events_session_id_created_at_idx").on(
+      t.batchQuoteSessionId,
+      t.createdAt,
+    ),
+    index("batch_quote_session_status_events_clerk_user_id_created_at_idx").on(
+      t.clerkUserId,
+      t.createdAt,
+    ),
+  ],
+);
+
 /** User-submitted product links (MVP core). */
 export const itemRequests = pgTable(
   "item_requests",
@@ -129,6 +260,11 @@ export const itemRequests = pgTable(
     /** Retailer / site label (AI or hostname from product URL). */
     siteName: text("site_name"),
     status: itemRequestStatusEnum("status").notNull().default("pending"),
+    /** Present while the line sits in Batch Quotes draft/submitted queues. Cleared once staff saves a batch estimate. */
+    batchQuoteSessionId: uuid("batch_quote_session_id").references(
+      () => batchQuoteSessions.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -138,7 +274,57 @@ export const itemRequests = pgTable(
       t.clerkUserId,
       t.createdAt,
     ),
+    index("item_requests_batch_quote_session_id_idx").on(t.batchQuoteSessionId),
   ],
+);
+
+/** Lines attached to a customer batch quote session. */
+export const batchQuoteSessionLines = pgTable(
+  "batch_quote_session_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    batchQuoteSessionId: uuid("batch_quote_session_id")
+      .notNull()
+      .references(() => batchQuoteSessions.id, { onDelete: "cascade" }),
+    itemRequestId: uuid("item_request_id")
+      .notNull()
+      .references(() => itemRequests.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    uniqueIndex("batch_quote_session_lines_item_request_id_unique").on(
+      t.itemRequestId,
+    ),
+    index("batch_quote_session_lines_batch_session_idx").on(
+      t.batchQuoteSessionId,
+    ),
+  ],
+);
+
+/** Staff-produced combined estimate for a batch session (revisions void prior rows). */
+export const batchQuoteEstimates = pgTable(
+  "batch_quote_estimates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    batchQuoteSessionId: uuid("batch_quote_session_id")
+      .notNull()
+      .references(() => batchQuoteSessions.id, { onDelete: "cascade" }),
+    batchMerchandiseTotalCents: integer("batch_merchandise_total_cents").notNull(),
+    siteMerchandiseTotalCents: integer("site_merchandise_total_cents").notNull(),
+    itemDiscountCents: integer("item_discount_cents").notNull(),
+    serviceHandlingTotalCents: integer("service_handling_total_cents").notNull(),
+    batchShippingTotalCents: integer("batch_shipping_total_cents").notNull(),
+    siteShippingTotalCents: integer("site_shipping_total_cents").notNull(),
+    shippingDiscountCents: integer("shipping_discount_cents").notNull(),
+    batchSaleTaxTotalCents: integer("batch_sale_tax_total_cents").notNull(),
+    siteSaleTaxTotalCents: integer("site_sale_tax_total_cents").notNull(),
+    saleTaxDiscountCents: integer("sale_tax_discount_cents").notNull(),
+    subtotalCents: integer("subtotal_cents").notNull(),
+    voidedAt: timestamp("voided_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("batch_quote_estimates_session_id_idx").on(t.batchQuoteSessionId)],
 );
 
 /** Admin pricing for an item request. */
@@ -151,6 +337,11 @@ export const itemQuotes = pgTable(
       .references(() => itemRequests.id, { onDelete: "cascade" }),
     /** Amount in smallest currency unit (e.g. cents). */
     itemCost: integer("item_cost").notNull(),
+    /**
+     * Instant savings / promo deduction from the listed pack–bundle subtotal (estimate).
+     * Merchandise subtotal saved as `itemCost` is net; optional line in quote preview when set.
+     */
+    merchandiseSavingsCents: integer("merchandise_savings_cents"),
     serviceFee: integer("service_fee").notNull(),
     estimatedShipping: integer("estimated_shipping").notNull(),
     totalPrice: integer("total_price").notNull(),
@@ -169,6 +360,15 @@ export const itemQuotes = pgTable(
     requestProductSize: text("request_product_size"),
     requestProductColor: text("request_product_color"),
     requestProductName: text("request_product_name"),
+    /**
+     * When true, staff recorded that the retailer’s listed line price already bundles
+     * site shipping & sale tax into merchandise; `estimated_shipping` / implicit tax stay $0.
+     */
+    merchandiseIncludesSiteShippingTax: boolean(
+      "merchandise_includes_site_shipping_tax",
+    )
+      .notNull()
+      .default(false),
     /**
      * System timeline copies (not staff estimates). Excluded from cart / latest-quote logic.
      * Values: `paid` (customer paid), `company_purchase` (admin confirmed purchase).
@@ -195,6 +395,12 @@ export const itemRequestLineSnapshots = pgTable(
       onDelete: "set null",
     }),
     phase: itemRequestLineSnapshotPhaseEnum("phase").notNull(),
+    batchQuoteSessionId: uuid("batch_quote_session_id").references(
+      () => batchQuoteSessions.id,
+      { onDelete: "set null" },
+    ),
+    /** Batch estimate totals memo (Markdown/plain); preserves customer-facing request note untouched. */
+    auditMemo: text("audit_memo"),
     productUrl: text("product_url").notNull(),
     productName: text("product_name"),
     productSize: text("product_size"),
@@ -226,7 +432,25 @@ export const orders = pgTable(
     status: orderStatusEnum("status").notNull().default("pending"),
     /** Total charged, smallest currency unit. */
     totalAmount: integer("total_amount").notNull(),
+    /** Stripe Checkout Session id while status is pending (released when paid or expired). */
+    stripeCheckoutSessionId: text("stripe_checkout_session_id"),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
+    /**
+     * Sum of staff-quoted retailer/site sale tax intent (USD cents), stored when the checkout
+     * order is created — see `buildStripeLineItemsFromAssembledCart` /
+     * `quotedSalesTaxIntentCents`.
+     */
+    internalQuotedSaleTaxCents: integer("internal_quoted_sale_tax_cents"),
+    /**
+     * Stripe Checkout `total_details.amount_tax` (USD cents) captured when payment completes —
+     * Stripe’s view of tax on the session (may differ from quoted amounts).
+     */
+    stripeTotalDetailsTaxCents: integer("stripe_total_details_tax_cents"),
+    /**
+     * Stripe processing fee from the payment’s BalanceTransaction (USD cents); null if not
+     * fetched or unavailable.
+     */
+    stripeFeeCents: integer("stripe_fee_cents"),
     /** Set after the paid-order receipt email is sent successfully (idempotency). */
     receiptEmailSentAt: timestamp("receipt_email_sent_at", {
       withTimezone: true,
@@ -260,6 +484,34 @@ export const orderItems = pgTable(
     fulfillmentStatus: orderItemFulfillmentEnum("fulfillment_status")
       .notNull()
       .default("pending_payment"),
+    /** Tracking URL pasted when admin confirms retailer purchase (shipping portal link). */
+    companyPurchaseTrackingUrl: text("company_purchase_tracking_url"),
+    /** Carrier / retailer name for the tracking number below (optional pair with number). */
+    companyPurchaseRetailerTrackingCompany: text(
+      "company_purchase_retailer_tracking_company",
+    ),
+    companyPurchaseRetailerTrackingNumber: text(
+      "company_purchase_retailer_tracking_number",
+    ),
+    /** Retailer invoice / order confirmation screenshots stored as public blob URLs. */
+    companyPurchaseReceiptImageUrls: jsonb(
+      "company_purchase_receipt_image_urls",
+    ).$type<string[] | null>(),
+    warehouseReceivedAt: timestamp("warehouse_received_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    warehouseReceivedQty: integer("warehouse_received_qty"),
+    warehouseReceivedCondition: text("warehouse_received_condition"),
+    warehouseShelfLocation: text("warehouse_shelf_location"),
+    warehouseReceivedBarcode: text("warehouse_received_barcode"),
+    /** Photo of the package / SKU barcode stored as a public Vercel Blob URL. */
+    warehouseReceivedBarcodeImageUrl: text(
+      "warehouse_received_barcode_image_url",
+    ),
+    warehouseReceivedProofPhotoCount: integer(
+      "warehouse_received_proof_photo_count",
+    ),
   },
   (t) => [
     index("order_items_order_id_idx").on(t.orderId),
@@ -290,6 +542,40 @@ export const orderItemRefunds = pgTable(
   },
   (t) => [
     index("order_item_refunds_order_item_id_idx").on(t.orderItemId),
+  ],
+);
+
+/** Customer-initiated refund request; staff approves before Stripe refund. */
+export const orderItemRefundRequests = pgTable(
+  "order_item_refund_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderItemId: uuid("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "cascade" }),
+    /** Order owner (Clerk subject) submitting the request. */
+    clerkUserId: text("clerk_user_id").notNull(),
+    reasonKind: orderItemRefundReasonKindEnum("reason_kind").notNull(),
+    details: text("details").notNull(),
+    /**
+     * Requested refundable merchandise line total (USD cents), capped on approval.
+     * Null means customer asked for full remaining refundable amount on the line.
+     */
+    requestedAmountCents: integer("requested_amount_cents"),
+    status: orderItemRefundRequestStatusEnum("status")
+      .notNull()
+      .default("pending_approval"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "string" }),
+    reviewedByClerkUserId: text("reviewed_by_clerk_user_id"),
+    rejectionNote: text("rejection_note"),
+    fulfilledStripeRefundId: text("fulfilled_stripe_refund_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("order_item_refund_requests_order_item_id_idx").on(t.orderItemId),
+    index("order_item_refund_requests_status_idx").on(t.status),
   ],
 );
 
@@ -437,6 +723,7 @@ export const payments = pgTable(
 
 export const profilesRelations = relations(profiles, ({ many }) => ({
   addresses: many(addresses),
+  batchQuoteSessions: many(batchQuoteSessions),
   itemRequests: many(itemRequests),
   orders: many(orders),
   barrels: many(barrels),
@@ -450,10 +737,65 @@ export const addressesRelations = relations(addresses, ({ one }) => ({
   }),
 }));
 
+export const batchQuoteSessionsRelations = relations(
+  batchQuoteSessions,
+  ({ one, many }) => ({
+    profile: one(profiles, {
+      fields: [batchQuoteSessions.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+    lines: many(batchQuoteSessionLines),
+    estimates: many(batchQuoteEstimates),
+    cartAcceptedEstimate: one(batchQuoteEstimates, {
+      fields: [batchQuoteSessions.cartAcceptanceAcceptedEstimateId],
+      references: [batchQuoteEstimates.id],
+    }),
+    statusEvents: many(batchQuoteSessionStatusEvents),
+  }),
+);
+
+export const batchQuoteSessionStatusEventsRelations = relations(
+  batchQuoteSessionStatusEvents,
+  ({ one }) => ({
+    session: one(batchQuoteSessions, {
+      fields: [batchQuoteSessionStatusEvents.batchQuoteSessionId],
+      references: [batchQuoteSessions.id],
+    }),
+  }),
+);
+
+export const batchQuoteSessionLinesRelations = relations(
+  batchQuoteSessionLines,
+  ({ one }) => ({
+    session: one(batchQuoteSessions, {
+      fields: [batchQuoteSessionLines.batchQuoteSessionId],
+      references: [batchQuoteSessions.id],
+    }),
+    itemRequest: one(itemRequests, {
+      fields: [batchQuoteSessionLines.itemRequestId],
+      references: [itemRequests.id],
+    }),
+  }),
+);
+
+export const batchQuoteEstimatesRelations = relations(
+  batchQuoteEstimates,
+  ({ one }) => ({
+    session: one(batchQuoteSessions, {
+      fields: [batchQuoteEstimates.batchQuoteSessionId],
+      references: [batchQuoteSessions.id],
+    }),
+  }),
+);
+
 export const itemRequestsRelations = relations(itemRequests, ({ one, many }) => ({
   profile: one(profiles, {
     fields: [itemRequests.clerkUserId],
     references: [profiles.clerkUserId],
+  }),
+  batchQuoteSession: one(batchQuoteSessions, {
+    fields: [itemRequests.batchQuoteSessionId],
+    references: [batchQuoteSessions.id],
   }),
   quotes: many(itemQuotes),
   lineSnapshots: many(itemRequestLineSnapshots),
@@ -479,6 +821,10 @@ export const itemRequestLineSnapshotsRelations = relations(
       fields: [itemRequestLineSnapshots.itemQuoteId],
       references: [itemQuotes.id],
     }),
+    batchQuoteSession: one(batchQuoteSessions, {
+      fields: [itemRequestLineSnapshots.batchQuoteSessionId],
+      references: [batchQuoteSessions.id],
+    }),
   }),
 );
 
@@ -503,7 +849,18 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   packages: many(packages),
   deliveryRequests: many(deliveryRequests),
   refunds: many(orderItemRefunds),
+  refundRequests: many(orderItemRefundRequests),
 }));
+
+export const orderItemRefundRequestsRelations = relations(
+  orderItemRefundRequests,
+  ({ one }) => ({
+    orderItem: one(orderItems, {
+      fields: [orderItemRefundRequests.orderItemId],
+      references: [orderItems.id],
+    }),
+  }),
+);
 
 export const orderItemRefundsRelations = relations(orderItemRefunds, ({ one }) => ({
   orderItem: one(orderItems, {
@@ -586,6 +943,21 @@ export type ItemRequestLineSnapshot = typeof itemRequestLineSnapshots.$inferSele
 export type NewItemRequestLineSnapshot =
   typeof itemRequestLineSnapshots.$inferInsert;
 
+export type BatchQuoteSession = typeof batchQuoteSessions.$inferSelect;
+export type NewBatchQuoteSession = typeof batchQuoteSessions.$inferInsert;
+
+export type BatchQuoteSessionLine = typeof batchQuoteSessionLines.$inferSelect;
+export type NewBatchQuoteSessionLine =
+  typeof batchQuoteSessionLines.$inferInsert;
+
+export type BatchQuoteEstimate = typeof batchQuoteEstimates.$inferSelect;
+export type NewBatchQuoteEstimate = typeof batchQuoteEstimates.$inferInsert;
+
+export type BatchQuoteSessionStatusEvent =
+  typeof batchQuoteSessionStatusEvents.$inferSelect;
+export type BatchQuoteSessionEventKind =
+  BatchQuoteSessionStatusEvent["kind"];
+
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
 
@@ -594,6 +966,9 @@ export type NewOrderItem = typeof orderItems.$inferInsert;
 
 export type OrderItemRefund = typeof orderItemRefunds.$inferSelect;
 export type NewOrderItemRefund = typeof orderItemRefunds.$inferInsert;
+
+export type OrderItemRefundRequest = typeof orderItemRefundRequests.$inferSelect;
+export type NewOrderItemRefundRequest = typeof orderItemRefundRequests.$inferInsert;
 
 export type DeliveryRequest = typeof deliveryRequests.$inferSelect;
 export type NewDeliveryRequest = typeof deliveryRequests.$inferInsert;

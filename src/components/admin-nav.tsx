@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
+
 const links = [
   { href: "/admin", label: "Overview" },
-  { href: "/admin/item-requests", label: "Item requests" },
+  { href: ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue, label: "Item requests" },
   { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/purchase-orders", label: "Purchase orders" },
   { href: "/admin/packages", label: "Packages" },
   { href: "/admin/barrels", label: "Barrels" },
   { href: "/admin/shipments", label: "Shipments" },
@@ -21,7 +24,14 @@ export function AdminNav() {
         const active =
           href === "/admin"
             ? currentPath === "/admin"
-            : currentPath === href || currentPath.startsWith(`${href}/`);
+            : href === ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue
+              ? currentPath.startsWith("/admin/item-requests")
+              : href === "/admin/orders"
+                ? currentPath === "/admin/orders" ||
+                  currentPath.startsWith("/admin/orders/") ||
+                  currentPath === "/admin/orders-history" ||
+                  currentPath.startsWith("/admin/orders-history/")
+              : currentPath === href || currentPath.startsWith(`${href}/`);
         return (
           <Link
             key={href}

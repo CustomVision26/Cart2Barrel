@@ -1,14 +1,24 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { orders, orderItems } from "@/db/schema";
-import { listApprovedCartLinesForUser } from "@/data/cart";
+import {
+  assembleApprovedCartForUser,
+  buildCheckoutOrderLinesFromAssembledCart,
+  buildStripeLineItemsFromAssembledCart,
+} from "@/data/cart";
+import { getPrimaryShippingAddress } from "@/data/addresses";
 import { insertCheckoutOrderItems } from "@/data/insert-checkout-order-items";
 import { getOrCreateProfile } from "@/data/profiles";
+import {
+  checkoutProcessingFeeRegionLabel,
+  computeCheckoutProcessingSurchargeCents,
+  processingFeeRegionFromShippingCountry,
+} from "@/lib/checkout-processing-surcharge";
 import {
   combinedErrorText,
   getPgErrorCode,
@@ -53,10 +63,17 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
 
   const checkoutUiMode = stripeCheckoutUiMode();
 
-  const lines = await listApprovedCartLinesForUser(userId);
-  if (lines.length === 0) {
+  const assembled = await assembleApprovedCartForUser(userId);
+  if (
+    assembled.batchGroups.length === 0 &&
+    assembled.standaloneLines.length === 0
+  ) {
     return { ok: false, message: "Your cart is empty." };
   }
+
+  const orderLines = buildCheckoutOrderLinesFromAssembledCart(assembled);
+  const builtLines = buildStripeLineItemsFromAssembledCart(assembled);
+  const stripeLineItems = [...builtLines.lineItems];
 
   const cu = await currentUser();
   try {
@@ -70,19 +87,43 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     return { ok: false, message: "Could not prepare your account for checkout." };
   }
 
-  const totalAmount = lines.reduce((sum, line) => sum + line.quote.totalPrice, 0);
+  const merchandiseSubtotalCents = assembled.estimatedTotalCents;
+  const shipAddr = await getPrimaryShippingAddress(userId);
+  const processingFeeRegion = processingFeeRegionFromShippingCountry(
+    shipAddr?.country,
+  );
+  const processingFeeCents = computeCheckoutProcessingSurchargeCents(
+    merchandiseSubtotalCents,
+    processingFeeRegion,
+  );
+  if (processingFeeCents > 0) {
+    const regionLabel = checkoutProcessingFeeRegionLabel(processingFeeRegion);
+    stripeLineItems.push({
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: processingFeeCents,
+        product_data: {
+          name: "Card processing fee",
+          description: `Estimated pass-through for ${regionLabel} (non-refundable)`,
+        },
+      },
+    });
+  }
+
+  const totalAmount = merchandiseSubtotalCents + processingFeeCents;
   /** Stripe minimum charge for USD card payments (see Stripe currency docs). */
   const minUsdLineCents = 50;
-  const shortfallLine = lines.find(
-    (l) =>
-      !Number.isFinite(l.quote.totalPrice) ||
-      l.quote.totalPrice < minUsdLineCents
+  const shortfallStripe = stripeLineItems.find(
+    (row) =>
+      !Number.isFinite(row.price_data.unit_amount) ||
+      row.price_data.unit_amount < minUsdLineCents
   );
-  if (shortfallLine) {
+  if (shortfallStripe) {
     return {
       ok: false,
       message:
-        "Each cart line must total at least $0.50 USD (Stripe minimum). Ask staff to revise the estimate, then refresh.",
+        "Each checkout line must total at least $0.50 USD (Stripe minimum). Ask staff to revise the estimate, then refresh.",
     };
   }
   if (!Number.isFinite(totalAmount) || totalAmount < minUsdLineCents) {
@@ -93,7 +134,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     };
   }
 
-  const requestIds = lines.map((l) => l.request.id);
+  const requestIds = orderLines.map((l) => l.itemRequestId);
 
   const db = getDb();
   const taken = await db
@@ -114,6 +155,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       clerkUserId: userId,
       status: "pending",
       totalAmount,
+      internalQuotedSaleTaxCents: builtLines.quotedSalesTaxIntentCents,
     })
     .returning();
 
@@ -121,7 +163,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     return { ok: false, message: "Could not create order." };
   }
 
-  const reserve = await insertCheckoutOrderItems(order.id, lines);
+  const reserve = await insertCheckoutOrderItems(order.id, orderLines);
   if (!reserve.ok) {
     await db.delete(orders).where(eq(orders.id, order.id));
     const code = getPgErrorCode(reserve.cause);
@@ -161,22 +203,13 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       ...(excluded && excluded.length > 0
         ? { excluded_payment_method_types: excluded }
         : {}),
-      line_items: lines.map((line) => {
-        const name = line.request.productName?.trim() || "Requested item";
-        return {
-          quantity: 1,
-          price_data: {
-            currency: "usd",
-            unit_amount: line.quote.totalPrice,
-            product_data: {
-              name,
-              description: `Qty ${line.request.quantity}`,
-            },
-          },
-        };
-      }),
+      line_items: stripeLineItems,
       metadata: {
         orderId: order.id,
+        merchandiseSubtotalCents: String(merchandiseSubtotalCents),
+        processingFeeCents: String(processingFeeCents),
+        processingFeeRegion,
+        quotedSalesTaxIntentCents: String(builtLines.quotedSalesTaxIntentCents),
       },
     };
 
@@ -194,6 +227,11 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
             cancel_url: `${origin}/dashboard/cart?canceled=1&session_id={CHECKOUT_SESSION_ID}`,
           } as Parameters<Stripe["checkout"]["sessions"]["create"]>[0]);
 
+    await db
+      .update(orders)
+      .set({ stripeCheckoutSessionId: session.id })
+      .where(and(eq(orders.id, order.id), eq(orders.status, "pending")));
+
     if (checkoutUiMode === "embedded_page") {
       if (!session.client_secret) {
         await db.delete(orders).where(eq(orders.id, order.id));
@@ -202,8 +240,8 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
           message: "Stripe did not return embedded checkout credentials.",
         };
       }
-      revalidatePath("/dashboard/cart");
-      revalidatePath("/dashboard");
+      /* Do not revalidate cart here: the user is still on /dashboard/cart with reserved
+       * order_items; a refetch would flash an empty cart before `location.assign` to checkout. */
       return { ok: true, mode: "embedded_page", sessionId: session.id };
     }
 

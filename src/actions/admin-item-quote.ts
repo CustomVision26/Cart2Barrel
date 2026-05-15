@@ -18,6 +18,7 @@ import {
   voidActiveQuotesForItemRequest,
 } from "@/data/item-quotes";
 import { ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT } from "@/lib/item-quote-void-reason";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseSaveAdminItemQuoteInput } from "@/lib/validations/admin-item-quote";
 
@@ -50,6 +51,10 @@ export async function saveAdminItemQuoteAction(
 
   const d = parsed.data;
   const totalPrice = d.itemCost + d.serviceFee + d.estimatedShipping + d.tax;
+  const merchandiseSavingsCents =
+    d.merchandiseSavingsCents != null && d.merchandiseSavingsCents > 0
+      ? d.merchandiseSavingsCents
+      : null;
 
   try {
     const reqBefore = await getItemRequestById(d.itemRequestId);
@@ -85,9 +90,11 @@ export async function saveAdminItemQuoteAction(
     const snap = itemRequestSnapshotForQuote(req);
     const newQuote = await insertItemQuoteForRequest(d.itemRequestId, {
       itemCost: d.itemCost,
+      merchandiseSavingsCents,
       serviceFee: d.serviceFee,
       estimatedShipping: d.estimatedShipping,
       totalPrice,
+      merchandiseIncludesSiteShippingTax: d.merchandiseIncludesSiteShippingTax,
       ...snap,
     });
     await getDb()
@@ -105,10 +112,10 @@ export async function saveAdminItemQuoteAction(
     return { ok: false, message: msg };
   }
 
-  revalidatePath("/admin/item-requests");
+  revalidatePath("/admin/item-requests", "layout");
   revalidatePath("/admin");
   revalidatePath("/dashboard/items");
-  revalidatePath("/dashboard/items/new");
+  revalidateDashboardAddItem();
   revalidatePath("/dashboard/cart");
 
   return { ok: true, message: "Quote saved. Earlier estimates stay in quote history." };

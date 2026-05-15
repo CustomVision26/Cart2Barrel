@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
+import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
+
 const links = [
   { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/items", label: "Requested items" },
-  { href: "/dashboard/items/new", label: "Add item" },
+  { href: DASHBOARD_REQUESTED_ITEMS_ROUTE, label: "Requested items" },
+  { href: DASHBOARD_ADD_ITEM_ROUTES.productsActive, label: "Add item" },
   { href: "/dashboard/cart", label: "Cart" },
   { href: "/dashboard/orders", label: "Orders" },
   { href: "/dashboard/barrels", label: "Barrels" },
@@ -22,7 +25,16 @@ export function DashboardNav() {
         const active =
           href === "/dashboard"
             ? currentPath === "/dashboard"
-            : currentPath === href || currentPath.startsWith(`${href}/`);
+            : href === DASHBOARD_ADD_ITEM_ROUTES.productsActive
+              ? currentPath.startsWith(
+                  "/dashboard/items/new/add-item/products"
+                )
+              : href === "/dashboard/orders"
+                ? currentPath === "/dashboard/orders" ||
+                  currentPath.startsWith("/dashboard/orders/") ||
+                  currentPath === "/dashboard/orders-history" ||
+                  currentPath.startsWith("/dashboard/orders-history/")
+              : currentPath === href || currentPath.startsWith(`${href}/`);
         return (
           <Link
             key={href}

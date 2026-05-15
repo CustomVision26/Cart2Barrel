@@ -1,11 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 import { draftItemRequestFromUrlAction } from "@/actions/customer-ai-item-draft";
 import { createItemRequestAction } from "@/actions/item-request";
+import { uploadItemRequestProductImageAction } from "@/actions/upload-item-request-product-image";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -54,10 +56,6 @@ function parseQuantity(value: string): number | null {
   return n;
 }
 
-const SUBMIT_SUCCESS_TOAST_MS = 5_000;
-
-type RequestMode = "manual" | "ai";
-
 /** Snapshot after a successful AI draft; used for merchandise preview + stale detection. */
 type AiMerchPreviewState = {
   quantity: number;
@@ -69,7 +67,6 @@ type AiMerchPreviewState = {
 
 export function ItemRequestWorkspace() {
   const router = useRouter();
-  const [mode, setMode] = useState<RequestMode>("manual");
   const [isPending, startTransition] = useTransition();
   const [isAiPending, startAiTransition] = useTransition();
 
@@ -92,21 +89,17 @@ export function ItemRequestWorkspace() {
     Record<string, string[] | undefined> | undefined
   >();
   const [formResetKey, setFormResetKey] = useState(0);
+  /** From last AI draft — saved as https product_image_url on submit when present. */
+  const [draftProductImageUrl, setDraftProductImageUrl] = useState<string | null>(
+    null,
+  );
+  const [pendingProductPhoto, setPendingProductPhoto] = useState<File | null>(
+    null,
+  );
+  const productPhotoRef = useRef<HTMLInputElement>(null);
   const [aiMerchPreview, setAiMerchPreview] = useState<AiMerchPreviewState | null>(
-    null
+    null,
   );
-  const [submitSuccessToast, setSubmitSuccessToast] = useState<string | null>(
-    null
-  );
-
-  useEffect(() => {
-    if (!submitSuccessToast) return;
-    const id = window.setTimeout(
-      () => setSubmitSuccessToast(null),
-      SUBMIT_SUCCESS_TOAST_MS
-    );
-    return () => window.clearTimeout(id);
-  }, [submitSuccessToast]);
 
   const pricePreviewStale = useMemo(() => {
     if (!aiMerchPreview) return false;
@@ -162,8 +155,7 @@ export function ItemRequestWorkspace() {
   const urlsAligned = urlsMatchForSubmit(previewInput, productUrl);
   const quantityOk = parseQuantity(quantity) != null;
   const canSubmit = urlsAligned && quantityOk && !isPending;
-  const canRunAi =
-    urlsAligned && quantityOk && !isAiPending && mode === "ai";
+  const canRunAi = urlsAligned && quantityOk && !isAiPending;
 
   const fieldError = useMemo(
     () =>
@@ -176,6 +168,7 @@ export function ItemRequestWorkspace() {
     setAiMessage(null);
     setLastAiNotes(null);
     setDraftSiteName(null);
+    setDraftProductImageUrl(null);
     if (!urlsMatchForSubmit(previewInput, productUrl)) {
       setAiMessage(
         'Product URL (preview) and Product link must match. Use "Use preview URL above" so both fields use the same address.'
@@ -199,11 +192,13 @@ export function ItemRequestWorkspace() {
         }
         setAiMerchPreview(null);
         setDraftSiteName(null);
+        setDraftProductImageUrl(null);
         setAiMessage(res.message ?? "AI could not read this page.");
         return;
       }
       setFieldErrors(undefined);
       setDraftSiteName(res.siteName ?? null);
+      setDraftProductImageUrl(res.productImageUrl ?? null);
       if (res.productName) {
         setProductName(res.productName);
       }
@@ -262,16 +257,31 @@ export function ItemRequestWorkspace() {
       quantity,
       note: note.trim() || undefined,
       siteName: draftSiteName?.trim() || undefined,
+      productImageUrl: draftProductImageUrl?.trim() || undefined,
     };
+    const photoSnapshot = pendingProductPhoto;
     startTransition(async () => {
       const result = await createItemRequestAction(payload);
       if (result.ok) {
+        let photoUploadError: string | undefined;
+        if (result.itemRequestId && photoSnapshot) {
+          const fd = new FormData();
+          fd.set("itemRequestId", result.itemRequestId);
+          fd.append("file", photoSnapshot);
+          const up = await uploadItemRequestProductImageAction(fd);
+          if (!up.ok) {
+            photoUploadError = up.message;
+          }
+        }
         setFieldErrors(undefined);
         setFormMessage(null);
         setAiMessage(null);
         setLastAiNotes(null);
         setDraftSiteName(null);
+        setDraftProductImageUrl(null);
         setAiMerchPreview(null);
+        setPendingProductPhoto(null);
+        if (productPhotoRef.current) productPhotoRef.current.value = "";
         setPreviewInput("");
         setIframeSrc(null);
         setProductUrl("");
@@ -281,22 +291,30 @@ export function ItemRequestWorkspace() {
         setNote("");
         setQuantity("1");
         setFormResetKey((k) => k + 1);
-        setSubmitSuccessToast(
+        toast.success(
           result.message?.trim() ||
-            "Your item request was submitted. Staff will review it soon."
+            "Your item request was submitted. Staff will review it soon.",
         );
+        if (photoUploadError) {
+          toast.error(
+            `Your request was saved, but the product photo did not upload: ${photoUploadError}`,
+          );
+        }
         router.refresh();
         return;
       }
       if (result.fieldErrors) {
         setFieldErrors(result.fieldErrors);
-        setFormMessage(
-          result.message ?? "Please fix the highlighted fields and try again."
-        );
+        const msg =
+          result.message ?? "Please fix the highlighted fields and try again.";
+        setFormMessage(msg);
+        toast.error(msg);
         return;
       }
       setFieldErrors(undefined);
-      setFormMessage(result.message ?? "Could not submit request.");
+      const errMsg = result.message ?? "Could not submit request.";
+      setFormMessage(errMsg);
+      toast.error(errMsg);
     });
   }, [
     previewInput,
@@ -307,72 +325,28 @@ export function ItemRequestWorkspace() {
     quantity,
     note,
     draftSiteName,
+    draftProductImageUrl,
+    pendingProductPhoto,
     router,
   ]);
 
-  return (
-    <div className="space-y-6">
-      {submitSuccessToast ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-6 left-1/2 z-50 max-w-[min(100vw-2rem,24rem)] -translate-x-1/2 rounded-lg border border-emerald-500/45 bg-emerald-500/15 px-4 py-3 text-center text-sm text-emerald-950 shadow-lg backdrop-blur-sm dark:border-emerald-400/35 dark:bg-emerald-950/85 dark:text-emerald-50"
-        >
-          {submitSuccessToast}
-        </div>
-      ) : null}
-      <div
-        role="tablist"
-        aria-label="Request submission method"
-        className="flex flex-wrap gap-1 border-b border-border"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "manual"}
-          className={cn(
-            "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-            mode === "manual"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-          onClick={() => {
-            setMode("manual");
-            setAiMessage(null);
-            setAiMerchPreview(null);
-            setDraftSiteName(null);
-          }}
-        >
-          Manual request
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "ai"}
-          className={cn(
-            "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-            mode === "ai"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-          onClick={() => setMode("ai")}
-        >
-          <Sparkles className="size-3.5" aria-hidden />
-          AI-assisted request
-        </button>
-      </div>
+  const previewIframeClass =
+    "h-[min(72vh,560px)] w-full bg-background xl:h-[min(78vh,620px)]";
+  const previewPlaceholderClass =
+    "flex h-[min(50vh,360px)] w-full items-center justify-center px-6 text-center text-sm text-muted-foreground xl:min-h-[min(44vh,380px)]";
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Browse a store</CardTitle>
-          <CardDescription>
-            Enter a shop or product URL to load a preview below. Many large
-            retailers block embedded frames for security—if you see a blank area,
-            use <span className="font-medium text-foreground">Open in new tab</span>{" "}
-            to shop, then paste the product link into the request form.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+  const browseCard = (
+    <Card className="overflow-hidden shadow-sm">
+      <CardHeader className="border-b border-border/80 bg-muted/20 pb-4">
+        <CardTitle className="text-lg">Browse a store</CardTitle>
+        <CardDescription>
+          Enter a shop or product URL to load a preview below. Many large
+          retailers block embedded frames for security—if you see a blank area,
+          use <span className="font-medium text-foreground">Open in new tab</span>{" "}
+          to shop, then paste the product link into the request form.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
           <div className="space-y-2">
             <label
               htmlFor="item-preview-product-url"
@@ -422,11 +396,11 @@ export function ItemRequestWorkspace() {
               <iframe
                 title={IFRAME_TITLE}
                 src={iframeSrc}
-                className="h-[min(70vh,520px)] w-full bg-background"
+                className={previewIframeClass}
                 referrerPolicy="no-referrer-when-downgrade"
               />
             ) : (
-              <div className="flex h-[min(50vh,360px)] w-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+              <div className={previewPlaceholderClass}>
                 Preview will appear here after you enter a URL and choose Load
                 preview.
               </div>
@@ -434,30 +408,22 @@ export function ItemRequestWorkspace() {
           </div>
         </CardContent>
       </Card>
+  );
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Item request</CardTitle>
-          <CardDescription>
-            {mode === "manual" ? (
-              <>
-                Submit the exact product page link and details yourself. Staff will
-                review and send a quote.
-              </>
-            ) : (
-              <>
-                AI reads the listing for title, variant, and an estimated{" "}
-                <span className="font-medium text-foreground">merchandise</span> total
-                (what the store charges for the product line). Review the preview and
-                your fields, then submit to staff for an official quote.
-              </>
-            )}
-          </CardDescription>
-        </CardHeader>
+  const requestCard = (
+    <Card className="overflow-hidden shadow-sm ring-1 ring-border/50">
+      <CardHeader className="border-b border-border/80 bg-muted/15 pb-4">
+        <CardTitle className="text-lg">Item request</CardTitle>
+        <CardDescription>
+          AI reads the listing for title, variant, and an estimated{" "}
+          <span className="font-medium text-foreground">merchandise</span> total (what the
+          store charges for the product line). Review the preview and your fields, then
+          submit to staff for an official quote.
+        </CardDescription>
+      </CardHeader>
         <CardContent>
           <FieldSet key={formResetKey} className="gap-5">
-            {mode === "ai" ? (
-              <div className="space-y-3 rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+            <div className="space-y-3 rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
                 <div
                   role="note"
                   className="space-y-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-950 dark:text-amber-50/95"
@@ -590,7 +556,6 @@ export function ItemRequestWorkspace() {
                   </p>
                 ) : null}
               </div>
-            ) : null}
 
             <FieldGroup>
               <Field data-invalid={Boolean(fieldError("productUrl")?.length)}>
@@ -638,7 +603,7 @@ export function ItemRequestWorkspace() {
               <FieldLabel htmlFor="item-product-name">
                 Product name{" "}
                 <span className="font-normal text-muted-foreground">
-                  ({mode === "ai" ? "filled by AI or type" : "optional"})
+                  (filled by AI or type)
                 </span>
               </FieldLabel>
               <FieldContent>
@@ -706,6 +671,53 @@ export function ItemRequestWorkspace() {
                   aria-invalid={Boolean(fieldError("quantity")?.length)}
                 />
                 <FieldError errors={fieldError("quantity")?.map((m) => ({ message: m }))} />
+              </FieldContent>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="item-product-photo">
+                Product photo{" "}
+                <span className="font-normal text-muted-foreground">(optional)</span>
+              </FieldLabel>
+              <FieldContent className="space-y-2">
+                <FieldDescription>
+                  Upload a screenshot or photo when helpful. JPEG, PNG, WebP, or GIF up to 8 MB.
+                  Files are stored on Vercel Blob after your request is created.
+                </FieldDescription>
+                {draftProductImageUrl?.trim() ?
+                  <div className="flex flex-wrap items-start gap-3 rounded-md border border-border bg-muted/20 p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={draftProductImageUrl.trim()}
+                      alt=""
+                      className="h-20 w-20 shrink-0 rounded object-cover"
+                    />
+                    <p className="min-w-0 text-xs text-muted-foreground">
+                      Listing image from AI — saved with your request unless you pick your own file
+                      below (upload replaces it).
+                    </p>
+                  </div>
+                : null}
+                <input
+                  ref={productPhotoRef}
+                  id="item-product-photo"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setPendingProductPhoto(f);
+                    if (f) setDraftProductImageUrl(null);
+                  }}
+                />
+                {pendingProductPhoto ?
+                  <p className="text-xs text-muted-foreground">
+                    Selected:{" "}
+                    <span className="font-medium text-foreground">
+                      {pendingProductPhoto.name}
+                    </span>
+                  </p>
+                : null}
               </FieldContent>
             </Field>
 
@@ -782,6 +794,16 @@ export function ItemRequestWorkspace() {
           </FieldSet>
         </CardContent>
       </Card>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,26rem)] xl:items-start xl:gap-8">
+        <div className="min-w-0">{browseCard}</div>
+        <div className="min-w-0 xl:sticky xl:top-6 xl:z-10 xl:self-start">
+          {requestCard}
+        </div>
+      </div>
     </div>
   );
 }

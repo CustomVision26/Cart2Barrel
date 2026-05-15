@@ -1,8 +1,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ClerkUserButton } from "@/components/clerk-user-button";
 import { ProfileForm } from "@/components/profile-form";
 import { ShippingAddressForm } from "@/components/shipping-address-form";
 import { getPrimaryShippingAddress } from "@/data/addresses";
@@ -37,7 +37,7 @@ export default async function OnboardingPage() {
           >
             Cart2Barrel
           </Link>
-          <UserButton />
+          <ClerkUserButton />
         </div>
       </header>
       <main className="flex flex-1 flex-col items-center px-4 py-10">

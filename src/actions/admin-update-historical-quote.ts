@@ -18,6 +18,7 @@ import {
 import { ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT } from "@/lib/item-quote-void-reason";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminUpdateHistoricalQuoteInput } from "@/lib/validations/admin-update-historical-quote";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type AdminUpdateHistoricalQuoteState = {
   ok: boolean;
@@ -53,6 +54,10 @@ export async function adminUpdateHistoricalQuoteAction(
   }
 
   const totalPrice = d.itemCost + d.serviceFee + d.estimatedShipping + d.tax;
+  const merchandiseSavingsCents =
+    d.merchandiseSavingsCents != null && d.merchandiseSavingsCents > 0
+      ? d.merchandiseSavingsCents
+      : null;
 
   try {
     const reqBefore = await getItemRequestById(d.itemRequestId);
@@ -85,9 +90,11 @@ export async function adminUpdateHistoricalQuoteAction(
     const snap = itemRequestSnapshotForQuote(reqAfter);
     const newQuote = await insertItemQuoteForRequest(d.itemRequestId, {
       itemCost: d.itemCost,
+      merchandiseSavingsCents,
       serviceFee: d.serviceFee,
       estimatedShipping: d.estimatedShipping,
       totalPrice,
+      merchandiseIncludesSiteShippingTax: d.merchandiseIncludesSiteShippingTax,
       ...snap,
     });
     await insertItemRequestLineSnapshot({
@@ -101,10 +108,10 @@ export async function adminUpdateHistoricalQuoteAction(
     return { ok: false, message: msg };
   }
 
-  revalidatePath("/admin/item-requests");
+  revalidatePath("/admin/item-requests", "layout");
   revalidatePath("/admin");
   revalidatePath("/dashboard/items");
-  revalidatePath("/dashboard/items/new");
+  revalidateDashboardAddItem();
   revalidatePath("/dashboard/cart");
 
   return {

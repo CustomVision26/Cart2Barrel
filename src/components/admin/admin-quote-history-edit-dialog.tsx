@@ -89,6 +89,10 @@ export function AdminQuoteHistoryEditDialog({
   const [unitsPerPack, setUnitsPerPack] = useState("1");
   const [editConsumerUnitOverrideDollars, setEditConsumerUnitOverrideDollars] =
     useState("");
+  const [editSavingsDollars, setEditSavingsDollars] = useState("0.00");
+
+  const [merchandiseIncludesSiteShippingTax, setMerchandiseIncludesSiteShippingTax] =
+    useState(false);
 
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -110,6 +114,10 @@ export function AdminQuoteHistoryEditDialog({
     setIncludePackPriceInEstimate(true);
     setUnitsPerPack("1");
     setEditConsumerUnitOverrideDollars("");
+    setEditSavingsDollars("0.00");
+    setMerchandiseIncludesSiteShippingTax(
+      Boolean(line.quote.merchandiseIncludesSiteShippingTax)
+    );
     setAiResult(null);
     setSaveMessage(null);
     setSaveError(null);
@@ -126,6 +134,7 @@ export function AdminQuoteHistoryEditDialog({
     );
     setUnitsPerPack("1");
     setEditConsumerUnitOverrideDollars("");
+    setEditSavingsDollars("0.00");
     setIncludePackPriceInEstimate(true);
     setShippingDollars(
       centsToDollarInput(aiResult.estimate.estimatedShippingCents)
@@ -174,13 +183,20 @@ export function AdminQuoteHistoryEditDialog({
       consumerUnitPriceOverrideCents,
     });
 
+    const savingsRaw = parseDollarsToCents(editSavingsDollars);
+    const savingsCents = Math.min(
+      packLine.packBundleSubtotalCents,
+      Math.max(0, savingsRaw)
+    );
+    const merchNet = Math.max(
+      0,
+      packLine.merchandiseSubtotalCents - savingsCents
+    );
+
     const ship = parseDollarsToCents(shippingDollars);
     const tax = parseDollarsToCents(taxDollars);
     const total =
-      packLine.merchandiseSubtotalCents +
-      packLine.serviceFeeCents +
-      ship +
-      tax;
+      merchNet + packLine.serviceFeeCents + ship + tax;
 
     const impliedConsumerUnitCents =
       packLine.impliedConsumerUnitCents > 0
@@ -192,8 +208,9 @@ export function AdminQuoteHistoryEditDialog({
         : null;
 
     return {
-      merch: packLine.merchandiseSubtotalCents,
+      merch: merchNet,
       packBundle: packLine.packBundleSubtotalCents,
+      savingsCents,
       packListedSubtotalCents: Math.round(enteredPackCents * packCount),
       serv: packLine.serviceFeeCents,
       ship,
@@ -217,6 +234,7 @@ export function AdminQuoteHistoryEditDialog({
     packQty,
     shippingDollars,
     taxDollars,
+    editSavingsDollars,
   ]);
 
   const totalPreviewCents =
@@ -263,6 +281,10 @@ export function AdminQuoteHistoryEditDialog({
         quoteId: line.quote.id,
         itemRequestId: line.request.id,
         itemCost,
+        merchandiseSavingsCents:
+          aiResult?.ok && packDerived && packDerived.savingsCents > 0
+            ? packDerived.savingsCents
+            : undefined,
         serviceFee,
         estimatedShipping,
         tax,
@@ -271,6 +293,7 @@ export function AdminQuoteHistoryEditDialog({
         productColor: editColor.trim() || undefined,
         productSize: editSize.trim() || undefined,
         productImageUrl: editedImageUrl ?? null,
+        merchandiseIncludesSiteShippingTax,
       });
       if (res.ok) {
         setSaveMessage(res.message ?? "Saved.");
@@ -292,6 +315,7 @@ export function AdminQuoteHistoryEditDialog({
     editSize,
     editedImageUrl,
     router,
+    merchandiseIncludesSiteShippingTax,
   ]);
 
   if (!line) return null;
@@ -387,6 +411,21 @@ export function AdminQuoteHistoryEditDialog({
                 <div>
                   <p className="mb-1.5 text-xs font-medium text-foreground">Saved amounts</p>
                   <dl className="grid max-w-md grid-cols-[7.5rem_1fr] gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground sm:text-sm">
+                    {line.quote.merchandiseSavingsCents != null &&
+                    line.quote.merchandiseSavingsCents > 0 ? (
+                      <>
+                        <dt>Pack / bundle (listed)</dt>
+                        <dd className="text-foreground">
+                          {formatUsd(
+                            line.quote.itemCost + line.quote.merchandiseSavingsCents
+                          )}
+                        </dd>
+                        <dt>Savings</dt>
+                        <dd className="text-foreground">
+                          −{formatUsd(line.quote.merchandiseSavingsCents)}
+                        </dd>
+                      </>
+                    ) : null}
                     <dt>Merchandise</dt>
                     <dd className="text-foreground">{formatUsd(line.quote.itemCost)}</dd>
                     <dt>Service &amp; handling</dt>
@@ -476,6 +515,7 @@ export function AdminQuoteHistoryEditDialog({
                   variant="outline"
                   onClick={() => {
                     setAiResult(null);
+                    setEditSavingsDollars("0.00");
                     setSaveError(null);
                   }}
                 >
@@ -506,6 +546,14 @@ export function AdminQuoteHistoryEditDialog({
                 setEditShippingDollars={setShippingDollars}
                 editTaxDollars={taxDollars}
                 setEditTaxDollars={setTaxDollars}
+                editSavingsDollars={editSavingsDollars}
+                setEditSavingsDollars={setEditSavingsDollars}
+                merchandiseIncludesSiteShippingTax={
+                  merchandiseIncludesSiteShippingTax
+                }
+                setMerchandiseIncludesSiteShippingTax={
+                  setMerchandiseIncludesSiteShippingTax
+                }
                 idPrefix="qh-ai"
               />
             ) : null}
@@ -636,6 +684,27 @@ export function AdminQuoteHistoryEditDialog({
                     </FieldContent>
                   </Field>
                 </div>
+                <label
+                  htmlFor="qh-merch-includes-site-fees"
+                  className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground"
+                >
+                  <input
+                    id="qh-merch-includes-site-fees"
+                    type="checkbox"
+                    checked={merchandiseIncludesSiteShippingTax}
+                    onChange={(e) =>
+                      setMerchandiseIncludesSiteShippingTax(e.target.checked)
+                    }
+                    className="border-input text-primary focus-visible:ring-ring mt-0.5 size-4 shrink-0 rounded"
+                  />
+                  <span>
+                    Retailer-listed{" "}
+                    <span className="font-medium text-foreground">
+                      shipping &amp; sale tax
+                    </span>{" "}
+                    are bundled into merchandise ($0 on this line for those splits).
+                  </span>
+                </label>
               </>
             ) : null}
           </div>

@@ -8,8 +8,12 @@ import { formatUsd } from "@/lib/admin-markup";
 
 /** Merchandise/service cents from pack line model (see computePackLineMerchandiseAndServiceCents). */
 export type AiPackDerivedTotals = {
+  /** Merchandise after savings (pack line net). */
   merch: number;
+  /** Listed pack × pack count before savings. */
   packBundle: number;
+  /** Savings deducted from pack bundle for merchandise (cents). */
+  savingsCents: number;
   packListedSubtotalCents: number;
   serv: number;
   ship: number;
@@ -40,6 +44,11 @@ type AdminAiEstimateResultFieldsProps = {
   setEditShippingDollars: (v: string) => void;
   editTaxDollars: string;
   setEditTaxDollars: (v: string) => void;
+  editSavingsDollars: string;
+  setEditSavingsDollars: (v: string) => void;
+  /** Retailer-listed shipping/tax bundled into merchandise; line splits stay $0. */
+  merchandiseIncludesSiteShippingTax: boolean;
+  setMerchandiseIncludesSiteShippingTax: (v: boolean) => void;
   idPrefix: string;
 };
 
@@ -63,6 +72,10 @@ export function AdminAiEstimateResultFields({
   setEditShippingDollars,
   editTaxDollars,
   setEditTaxDollars,
+  editSavingsDollars,
+  setEditSavingsDollars,
+  merchandiseIncludesSiteShippingTax,
+  setMerchandiseIncludesSiteShippingTax,
   idPrefix,
 }: AdminAiEstimateResultFieldsProps) {
   return (
@@ -280,6 +293,37 @@ export function AdminAiEstimateResultFields({
               </span>
             </p>
           ) : null}
+          <Field className="gap-1.5">
+            <FieldLabel htmlFor={`${idPrefix}-savings`} className="text-xs">
+              Savings
+            </FieldLabel>
+            <FieldContent>
+              <p className="mb-1 text-xs text-muted-foreground">
+                Deduction from{" "}
+                <span className="font-medium text-foreground">
+                  pack / bundle subtotal
+                </span>{" "}
+                (promo, bundle discount, instant savings on the listing). This reduces{" "}
+                <span className="font-medium text-foreground">
+                  merchandise subtotal (pack line)
+                </span>{" "}
+                only—not service tier math.
+              </p>
+              <div className="relative max-w-xs">
+                <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs text-muted-foreground">
+                  $
+                </span>
+                <Input
+                  id={`${idPrefix}-savings`}
+                  className="pl-6"
+                  inputMode="decimal"
+                  value={editSavingsDollars}
+                  onChange={(e) => setEditSavingsDollars(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+            </FieldContent>
+          </Field>
           <p className="text-xs text-muted-foreground">
             Pack price × pack qty in the total only when{" "}
             <span className="font-medium text-foreground">Add to estimate</span> is
@@ -339,6 +383,22 @@ export function AdminAiEstimateResultFields({
               </p>
             </FieldContent>
           </Field>
+          <label
+            htmlFor={`${idPrefix}-merch-includes-site-fees`}
+            className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-background/80 px-2.5 py-2 text-xs text-muted-foreground"
+          >
+            <input
+              id={`${idPrefix}-merch-includes-site-fees`}
+              type="checkbox"
+              checked={merchandiseIncludesSiteShippingTax}
+              onChange={(e) => setMerchandiseIncludesSiteShippingTax(e.target.checked)}
+              className="border-input text-primary focus-visible:ring-ring mt-0.5 size-4 shrink-0 rounded"
+            />
+            <span>
+              Retailer-listed <span className="font-medium text-foreground">shipping &amp; sale tax</span>{" "}
+              are bundled into merchandise above ($0 quoted on this line for those splits).
+            </span>
+          </label>
           <div className="flex justify-between gap-2 border-t border-border pt-2 font-medium tabular-nums text-foreground">
             <span>Total</span>
             <span>{formatUsd(derived.total)}</span>

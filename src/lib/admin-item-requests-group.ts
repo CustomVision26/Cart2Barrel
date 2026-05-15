@@ -71,10 +71,15 @@ export function buildAdminItemRequestGroups(
       (r) => r.request.status === "quoted"
     ).length;
     const activeQueueRequests = b.requests
-      .filter(
-        (r) =>
-          r.request.status === "pending" || r.request.status === "quoted"
-      )
+      .filter((r) => {
+        const s = r.request.status;
+        if (s !== "pending" && s !== "quoted") return false;
+        // Quoted lines bundled into a customer batch are handled on Batch Items; hide here.
+        if (s === "quoted" && r.request.batchQuoteSessionId != null) {
+          return false;
+        }
+        return true;
+      })
       .sort((a, b) => {
         const d = activeQueueSortKey(a.queueKind) - activeQueueSortKey(b.queueKind);
         if (d !== 0) return d;

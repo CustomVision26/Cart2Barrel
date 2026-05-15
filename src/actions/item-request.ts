@@ -8,10 +8,13 @@ import { itemRequests } from "@/db/schema";
 import { insertItemRequestLineSnapshot } from "@/data/item-request-line-snapshots";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 import { parseCreateItemRequestInput } from "@/lib/validations/item-request";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type CreateItemRequestState = {
   ok: boolean;
   message?: string;
+  /** Present after a successful create — used to attach an optional product photo upload. */
+  itemRequestId?: string;
   fieldErrors?: Record<string, string[] | undefined>;
 };
 
@@ -53,6 +56,7 @@ export async function createItemRequestAction(
       quantity: parsed.data.quantity,
       note: parsed.data.note ?? null,
       siteName,
+      productImageUrl: parsed.data.productImageUrl?.trim() || null,
     })
     .returning();
 
@@ -76,8 +80,12 @@ export async function createItemRequestAction(
   });
 
   revalidatePath("/dashboard/items");
-  revalidatePath("/dashboard/items/new");
+  revalidateDashboardAddItem();
   revalidatePath("/dashboard");
 
-  return { ok: true, message: "Item request submitted." };
+  return {
+    ok: true,
+    message: "Item request submitted.",
+    itemRequestId: created.id,
+  };
 }

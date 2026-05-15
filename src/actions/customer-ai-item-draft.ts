@@ -21,6 +21,8 @@ export type CustomerAiItemDraftSuccess = {
   unitPriceCents: number | null;
   /** unitPriceCents × quantity when unit price known; null otherwise. */
   merchandiseSubtotalCents: number | null;
+  /** HTTPS image URL from the listing when the model or page meta exposes one. */
+  productImageUrl: string | null;
 };
 
 export type CustomerAiItemDraftFailure = {
@@ -92,6 +94,7 @@ export async function draftItemRequestFromUrlAction(
       quantity,
       unitPriceCents,
       merchandiseSubtotalCents,
+      productImageUrl: extraction.productImageUrl,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not extract product details.";

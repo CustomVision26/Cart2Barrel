@@ -449,8 +449,32 @@ export function QuoteEstimatePreviewDialog({
                   </div>
                 ) : null}
                 <ul className="space-y-2 tabular-nums text-muted-foreground">
+                  {quote.merchandiseSavingsCents != null &&
+                  quote.merchandiseSavingsCents > 0 ? (
+                    <>
+                      <li className="flex justify-between gap-2">
+                        <span>Pack / bundle subtotal (listed)</span>
+                        <span className="text-foreground">
+                          {formatUsd(
+                            quote.itemCost + quote.merchandiseSavingsCents
+                          )}
+                        </span>
+                      </li>
+                      <li className="flex justify-between gap-2">
+                        <span>Savings</span>
+                        <span className="text-foreground">
+                          −{formatUsd(quote.merchandiseSavingsCents)}
+                        </span>
+                      </li>
+                    </>
+                  ) : null}
                   <li className="flex justify-between gap-2">
-                    <span>Merchandise</span>
+                    <span>
+                      {quote.merchandiseSavingsCents != null &&
+                      quote.merchandiseSavingsCents > 0
+                        ? "Merchandise subtotal (pack line)"
+                        : "Merchandise"}
+                    </span>
                     <span className="text-foreground">{formatUsd(quote.itemCost)}</span>
                   </li>
                   <li className="flex justify-between gap-2">

@@ -1,12 +1,9 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { getDb } from "@/db";
-import { orders } from "@/db/schema";
-import { getStripeServer } from "@/lib/stripe-server";
+import { abandonPendingOrderFromStripeCheckoutSession } from "@/data/abandon-stripe-checkout-session";
 import { abandonStripeCheckoutSchema } from "@/lib/validations/stripe-checkout";
 
 export type AbandonStripeCheckoutState = { ok: boolean; message?: string };
@@ -24,29 +21,16 @@ export async function abandonStripeCheckoutAction(
     return { ok: false, message: "Invalid request." };
   }
 
-  const stripe = getStripeServer();
-  let session;
-  try {
-    session = await stripe.checkout.sessions.retrieve(
-      parsed.data.checkoutSessionId
-    );
-  } catch {
+  const result = await abandonPendingOrderFromStripeCheckoutSession(
+    userId,
+    parsed.data.checkoutSessionId,
+  );
+  if (!result.ok) {
+    if (result.reason === "wrong_user") {
+      return { ok: false, message: "Not your checkout session." };
+    }
     return { ok: false, message: "Invalid checkout session." };
   }
-
-  if (session.client_reference_id !== userId) {
-    return { ok: false, message: "Not your checkout session." };
-  }
-
-  const orderId = session.metadata?.orderId;
-  if (!orderId) {
-    return { ok: true };
-  }
-
-  const db = getDb();
-  await db
-    .delete(orders)
-    .where(and(eq(orders.id, orderId), eq(orders.status, "pending")));
 
   revalidatePath("/dashboard/cart");
   revalidatePath("/dashboard");

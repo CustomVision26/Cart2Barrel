@@ -3,40 +3,75 @@ import { revalidatePath } from "next/cache";
 import type Stripe from "stripe";
 
 import { applyPaidCheckoutFulfillmentForOrder } from "@/data/apply-paid-checkout-fulfillment";
+import { markInCartBatchSessionsPaidForCheckoutOrder } from "@/data/mark-in-cart-batch-sessions-paid";
 import { orderListSelect } from "@/data/order-list-select";
 import { trySendOwnerPaidOrderReceiptEmail } from "@/data/owner-paid-order-receipt";
 import { getDb } from "@/db";
 import { orders, payments } from "@/db/schema";
+import { fetchStripeFeeCentsForPaymentIntent } from "@/lib/stripe-balance-fee";
+import { getStripeServer } from "@/lib/stripe-server";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
+
+/** Call from route handlers, `after()`, etc. — not from React render / RSC body. */
+export function revalidateAfterPaidCheckoutFulfillment(): void {
+  revalidatePath("/dashboard/cart");
+  revalidatePath("/dashboard/orders");
+  revalidateDashboardAddItem();
+  revalidatePath("/dashboard");
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin");
+  revalidatePath("/admin/finance");
+  revalidatePath("/admin/item-requests", "layout");
+}
 
 /**
  * Marks an order paid, records payment, and advances line fulfillment — same rules as the
  * `checkout.session.completed` webhook. Idempotent: safe if the webhook already ran.
+ *
+ * @returns `true` when this invocation applied the paid transition (DB updated). `false` for
+ *   no-ops (already fulfilled, mismatch, etc.). Callers use this to decide when to revalidate.
  */
 export async function fulfillPaidCheckoutFromStripeSession(
   session: Stripe.Checkout.Session
-): Promise<void> {
+): Promise<boolean> {
   const orderId = session.metadata?.orderId;
   const userId = session.client_reference_id;
   if (!orderId || !userId) {
-    return;
+    return false;
   }
 
   if (session.payment_status !== "paid") {
-    return;
+    return false;
   }
 
   const piRaw = session.payment_intent;
   const paymentIntentId =
     typeof piRaw === "string" ? piRaw : piRaw?.id ?? null;
   if (!paymentIntentId) {
-    return;
+    return false;
   }
 
-  const amountTotal = session.amount_total;
+  /** Stripe sometimes omits `amount_total` on embedded flows; derive from PI when possible. */
+  let amountTotal = session.amount_total;
   if (amountTotal == null) {
-    return;
+    if (typeof piRaw === "object" && piRaw !== null) {
+      const piObj = piRaw as {
+        amount?: unknown;
+        amount_received?: unknown;
+      };
+      const received = Number(piObj.amount_received);
+      const auth = Number(piObj.amount);
+      if (Number.isFinite(received) && received > 0) {
+        amountTotal = received;
+      } else if (Number.isFinite(auth) && auth > 0) {
+        amountTotal = auth;
+      }
+    }
   }
 
+  if (amountTotal == null) {
+    return false;
+  }
   const db = getDb();
 
   const dup = await db
@@ -45,7 +80,7 @@ export async function fulfillPaidCheckoutFromStripeSession(
     .where(eq(orders.stripePaymentIntentId, paymentIntentId))
     .limit(1);
   if (dup[0]) {
-    return;
+    return false;
   }
 
   const [order] = await db
@@ -55,15 +90,31 @@ export async function fulfillPaidCheckoutFromStripeSession(
     .limit(1);
 
   if (!order || order.clerkUserId !== userId) {
-    return;
+    return false;
   }
 
   if (order.status !== "pending") {
-    return;
+    return false;
   }
 
   if (order.totalAmount !== amountTotal) {
-    return;
+    return false;
+  }
+
+  const stripeTaxRaw = session.total_details?.amount_tax;
+  const stripeTotalDetailsTaxCents =
+    typeof stripeTaxRaw === "number" && Number.isFinite(stripeTaxRaw) ?
+      stripeTaxRaw
+    : null;
+
+  let stripeFeeCents: number | null = null;
+  try {
+    stripeFeeCents = await fetchStripeFeeCentsForPaymentIntent(
+      getStripeServer(),
+      paymentIntentId,
+    );
+  } catch {
+    stripeFeeCents = null;
   }
 
   await db
@@ -71,6 +122,8 @@ export async function fulfillPaidCheckoutFromStripeSession(
     .set({
       status: "paid",
       stripePaymentIntentId: paymentIntentId,
+      stripeTotalDetailsTaxCents,
+      stripeFeeCents,
     })
     .where(eq(orders.id, order.id));
 
@@ -84,12 +137,9 @@ export async function fulfillPaidCheckoutFromStripeSession(
 
   await applyPaidCheckoutFulfillmentForOrder(order.id);
 
+  await markInCartBatchSessionsPaidForCheckoutOrder(order.id);
+
   await trySendOwnerPaidOrderReceiptEmail(order.id);
 
-  revalidatePath("/dashboard/cart");
-  revalidatePath("/dashboard/orders");
-  revalidatePath("/dashboard/items/new");
-  revalidatePath("/dashboard");
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/item-requests");
+  return true;
 }

@@ -11,8 +11,8 @@ import {
   type ItemRequest,
   type Order,
 } from "@/db/schema";
-import { itemQuoteCoreSelect } from "@/data/item-quotes";
-import { isUndefinedColumnError } from "@/lib/db-column-missing";
+import { itemQuoteCoreSelect, itemQuoteCoreSelectPreMerchandiseSavings } from "@/data/item-quotes";
+import { isMissingMerchandiseSavingsColumnError, isUndefinedColumnError } from "@/lib/db-column-missing";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION } from "@/lib/item-quote-void-reason";
 
@@ -77,33 +77,94 @@ async function fetchQuoteHistoryRows(db: ReturnType<typeof getDb>): Promise<Quot
       )
       .orderBy(desc(itemQuotes.createdAt));
   } catch (e) {
+    if (isMissingMerchandiseSavingsColumnError(e)) {
+      const narrow = await db
+        .select({
+          quote: itemQuoteCoreSelectPreMerchandiseSavings,
+          request: itemRequests,
+          userFullName: profiles.fullName,
+          userEmail: profiles.email,
+        })
+        .from(itemQuotes)
+        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
+        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
+        .where(
+          or(
+            isNull(itemQuotes.voidedAt),
+            isNull(itemQuotes.voidReason),
+            ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt));
+      return narrow.map((r) => ({
+        quote: { ...r.quote, merchandiseSavingsCents: null, merchandiseIncludesSiteShippingTax: false } as ItemQuote,
+        request: r.request,
+        userFullName: r.userFullName,
+        userEmail: r.userEmail,
+      }));
+    }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
       throw e;
     }
-    const narrow = await db
-      .select({
-        quote: itemQuoteCoreSelect,
-        request: itemRequests,
-        userFullName: profiles.fullName,
-        userEmail: profiles.email,
-      })
-      .from(itemQuotes)
-      .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
-      .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
-      .where(
-        or(
-          isNull(itemQuotes.voidedAt),
-          isNull(itemQuotes.voidReason),
-          ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION)
+    try {
+      const narrow = await db
+        .select({
+          quote: itemQuoteCoreSelect,
+          request: itemRequests,
+          userFullName: profiles.fullName,
+          userEmail: profiles.email,
+        })
+        .from(itemQuotes)
+        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
+        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
+        .where(
+          or(
+            isNull(itemQuotes.voidedAt),
+            isNull(itemQuotes.voidReason),
+            ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION)
+          )
         )
-      )
-      .orderBy(desc(itemQuotes.createdAt));
-    return narrow.map((r) => ({
-      quote: { ...r.quote, checkoutSnapshotKind: null },
-      request: r.request,
-      userFullName: r.userFullName,
-      userEmail: r.userEmail,
-    }));
+        .orderBy(desc(itemQuotes.createdAt));
+      return narrow.map((r) => ({
+        quote: { ...r.quote, checkoutSnapshotKind: null } as ItemQuote,
+        request: r.request,
+        userFullName: r.userFullName,
+        userEmail: r.userEmail,
+      }));
+    } catch (e2) {
+      if (!isMissingMerchandiseSavingsColumnError(e2)) {
+        throw e2;
+      }
+      const narrow = await db
+        .select({
+          quote: itemQuoteCoreSelectPreMerchandiseSavings,
+          request: itemRequests,
+          userFullName: profiles.fullName,
+          userEmail: profiles.email,
+        })
+        .from(itemQuotes)
+        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
+        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
+        .where(
+          or(
+            isNull(itemQuotes.voidedAt),
+            isNull(itemQuotes.voidReason),
+            ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt));
+      return narrow.map((r) => ({
+        quote: {
+          ...r.quote,
+          merchandiseSavingsCents: null,
+          merchandiseIncludesSiteShippingTax: false,
+          checkoutSnapshotKind: null,
+        } as ItemQuote,
+        request: r.request,
+        userFullName: r.userFullName,
+        userEmail: r.userEmail,
+      }));
+    }
   }
 }
 

@@ -1,14 +1,20 @@
-import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
+import { ClerkUserButton } from "@/components/clerk-user-button";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import { safeCurrentUser } from "@/lib/safe-current-user";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cu = await safeCurrentUser();
+  const showAdminEntry =
+    cu.ok && cu.user != null && isClerkAdmin(cu.user);
+
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background">
       <header className="border-b border-border/80 px-4 py-3">
@@ -26,8 +32,16 @@ export default function DashboardLayout({
             >
               Home
             </Link>
+            {showAdminEntry ?
+              <Link
+                href="/admin"
+                className="text-sm font-medium text-primary hover:text-primary/90"
+              >
+                Admin
+              </Link>
+            : null}
             <CartHeaderLink />
-            <UserButton />
+            <ClerkUserButton />
           </div>
         </div>
       </header>

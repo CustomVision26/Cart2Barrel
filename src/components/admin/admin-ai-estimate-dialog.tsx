@@ -76,6 +76,10 @@ export function AdminAiEstimateDialog({
     useState("");
   const [editShippingDollars, setEditShippingDollars] = useState("0.00");
   const [editTaxDollars, setEditTaxDollars] = useState("0.00");
+  /** Subtracted from pack/bundle subtotal for net merchandise (promos, instant savings). */
+  const [editSavingsDollars, setEditSavingsDollars] = useState("0.00");
+  const [merchandiseIncludesSiteShippingTax, setMerchandiseIncludesSiteShippingTax] =
+    useState(false);
 
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -89,6 +93,8 @@ export function AdminAiEstimateDialog({
     setEditPackPriceDollars("0.00");
     setIncludePackPriceInEstimate(true);
     setEditConsumerUnitOverrideDollars("");
+    setEditSavingsDollars("0.00");
+    setMerchandiseIncludesSiteShippingTax(false);
   }, [open, initialQuantity, initialProductSize, initialProductColor]);
 
   useEffect(() => {
@@ -111,6 +117,7 @@ export function AdminAiEstimateDialog({
       centsToDollarInput(result.estimate.estimatedShippingCents)
     );
     setEditTaxDollars(centsToDollarInput(result.estimate.taxCents));
+    setEditSavingsDollars("0.00");
     setSaveMessage(null);
     setSaveError(null);
   }, [result]);
@@ -158,13 +165,20 @@ export function AdminAiEstimateDialog({
       consumerUnitPriceOverrideCents,
     });
 
+    const savingsRaw = parseDollarsToCents(editSavingsDollars);
+    const savingsCents = Math.min(
+      packLine.packBundleSubtotalCents,
+      Math.max(0, savingsRaw)
+    );
+    const merchNet = Math.max(
+      0,
+      packLine.merchandiseSubtotalCents - savingsCents
+    );
+
     const ship = parseDollarsToCents(editShippingDollars);
     const tax = parseDollarsToCents(editTaxDollars);
     const total =
-      packLine.merchandiseSubtotalCents +
-      packLine.serviceFeeCents +
-      ship +
-      tax;
+      merchNet + packLine.serviceFeeCents + ship + tax;
 
     const impliedConsumerUnitCents =
       packLine.impliedConsumerUnitCents > 0
@@ -176,8 +190,9 @@ export function AdminAiEstimateDialog({
         : null;
 
     return {
-      merch: packLine.merchandiseSubtotalCents,
+      merch: merchNet,
       packBundle: packLine.packBundleSubtotalCents,
+      savingsCents,
       packListedSubtotalCents: Math.round(enteredPackCents * packCount),
       serv: packLine.serviceFeeCents,
       ship,
@@ -201,6 +216,7 @@ export function AdminAiEstimateDialog({
     quantity,
     editShippingDollars,
     editTaxDollars,
+    editSavingsDollars,
   ]);
 
   const save = useCallback(() => {
@@ -211,9 +227,12 @@ export function AdminAiEstimateDialog({
       const res = await saveAdminItemQuoteAction({
         itemRequestId,
         itemCost: derived.merch,
+        merchandiseSavingsCents:
+          derived.savingsCents > 0 ? derived.savingsCents : undefined,
         serviceFee: derived.serv,
         estimatedShipping: derived.ship,
         tax: derived.tax,
+        merchandiseIncludesSiteShippingTax,
         productColor: variantColor.trim() || undefined,
         productSize: variantSize.trim() || undefined,
         ...(result.extraction.productImageUrl?.trim()
@@ -234,6 +253,7 @@ export function AdminAiEstimateDialog({
     variantColor,
     variantSize,
     router,
+    merchandiseIncludesSiteShippingTax,
   ]);
 
   return (
@@ -248,8 +268,10 @@ export function AdminAiEstimateDialog({
           setEditPackPriceDollars("0.00");
           setIncludePackPriceInEstimate(true);
           setEditConsumerUnitOverrideDollars("");
+          setEditSavingsDollars("0.00");
           setSaveMessage(null);
           setSaveError(null);
+          setMerchandiseIncludesSiteShippingTax(false);
         }
       }}
     >
@@ -365,6 +387,14 @@ export function AdminAiEstimateDialog({
                 setEditShippingDollars={setEditShippingDollars}
                 editTaxDollars={editTaxDollars}
                 setEditTaxDollars={setEditTaxDollars}
+                editSavingsDollars={editSavingsDollars}
+                setEditSavingsDollars={setEditSavingsDollars}
+                merchandiseIncludesSiteShippingTax={
+                  merchandiseIncludesSiteShippingTax
+                }
+                setMerchandiseIncludesSiteShippingTax={
+                  setMerchandiseIncludesSiteShippingTax
+                }
                 idPrefix="ai-est"
               />
               {saveError ? (

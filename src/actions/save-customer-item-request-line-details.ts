@@ -12,6 +12,7 @@ import {
   lineSnapshotPayloadFromItemRequest,
 } from "@/data/item-request-line-snapshots";
 import { parseCustomerItemRequestLineDetails } from "@/lib/validations/customer-item-request-line-details";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type SaveCustomerItemRequestLineDetailsState = {
   ok: boolean;
@@ -54,9 +55,9 @@ export async function saveCustomerItemRequestLineDetailsAction(
     });
   }
 
-  revalidatePath("/dashboard/items/new");
+  revalidateDashboardAddItem();
   revalidatePath("/dashboard/items");
-  revalidatePath("/admin/item-requests");
+  revalidatePath("/admin/item-requests", "layout");
 
   return { ok: true, message: "Saved." };
 }

@@ -15,6 +15,7 @@ import {
 import { applyAiExtractionPatchToItemRequest } from "@/data/item-requests";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminAiEstimateRequest } from "@/lib/validations/admin-ai-estimate";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type AdminAiEstimateSuccess = {
   ok: true;
@@ -81,10 +82,10 @@ export async function adminAiEstimateFromUrlAction(
         productName: extraction.productName,
         siteName: extraction.siteName,
       });
-      revalidatePath("/admin/item-requests");
+      revalidatePath("/admin/item-requests", "layout");
       revalidatePath("/admin");
       revalidatePath("/dashboard/items");
-      revalidatePath("/dashboard/items/new");
+      revalidateDashboardAddItem();
       revalidatePath("/dashboard/cart");
     }
 

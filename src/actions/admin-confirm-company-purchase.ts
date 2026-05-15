@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
-import { orderListSelect } from "@/data/order-list-select";
+import {
+  orderItemFulfillmentCoreSelect,
+  orderListSelect,
+} from "@/data/order-list-select";
 import {
   getLatestQuoteForItemRequest,
   insertCheckoutTimelineQuote,
@@ -21,6 +24,7 @@ import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { confirmCompanyPurchaseSchema } from "@/lib/validations/admin-order-item";
 import { safeCurrentUser } from "@/lib/safe-current-user";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type ConfirmCompanyPurchaseState =
   | { ok: true; message: string }
@@ -36,13 +40,21 @@ export async function confirmCompanyPurchaseAction(
 
   const parsed = confirmCompanyPurchaseSchema.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, message: "Invalid request." };
+    const first =
+      parsed.error.flatten().fieldErrors.retailerTrackingCompany?.[0] ??
+      parsed.error.flatten().fieldErrors.retailerTrackingNumber?.[0] ??
+      parsed.error.flatten().fieldErrors.trackingUrl?.[0] ??
+      parsed.error.flatten().fieldErrors.orderItemId?.[0];
+    return {
+      ok: false,
+      message: first ?? "Invalid request.",
+    };
   }
 
   const db = getDb();
   const [row] = await db
     .select({
-      orderItem: orderItems,
+      orderItem: orderItemFulfillmentCoreSelect,
       order: orderListSelect,
     })
     .from(orderItems)
@@ -86,7 +98,14 @@ export async function confirmCompanyPurchaseAction(
 
   await db
     .update(orderItems)
-    .set({ fulfillmentStatus: "company_purchase_pending_delivery" })
+    .set({
+      fulfillmentStatus: "company_purchase_pending_delivery",
+      companyPurchaseTrackingUrl: parsed.data.trackingUrl ?? null,
+      companyPurchaseRetailerTrackingCompany:
+        parsed.data.retailerTrackingCompany ?? null,
+      companyPurchaseRetailerTrackingNumber:
+        parsed.data.retailerTrackingNumber ?? null,
+    })
     .where(eq(orderItems.id, row.orderItem.id));
 
   const quote = await getLatestQuoteForItemRequest(row.orderItem.itemRequestId);
@@ -108,9 +127,10 @@ export async function confirmCompanyPurchaseAction(
   }
 
   revalidatePath("/admin/orders");
-  revalidatePath("/admin/item-requests");
+  revalidatePath("/admin/purchase-orders");
+  revalidatePath("/admin/item-requests", "layout");
   revalidatePath("/dashboard/orders");
-  revalidatePath("/dashboard/items/new");
+  revalidateDashboardAddItem();
 
   return { ok: true, message: "Recorded company purchase for this line." };
 }

@@ -1,7 +1,12 @@
-import { inArray, sql } from "drizzle-orm";
+import { asc, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { orderItemRefunds } from "@/db/schema";
+
+export type OrderItemRefundDetail = Pick<
+  typeof orderItemRefunds.$inferSelect,
+  "id" | "orderItemId" | "amountCents" | "stripeRefundId" | "reason" | "createdAt"
+>;
 
 export async function sumRefundedCentsByOrderItemIds(
   orderItemIds: string[]
@@ -35,4 +40,32 @@ export async function insertOrderItemRefundRow(params: {
     reason: params.reason,
     createdByClerkUserId: params.createdByClerkUserId,
   });
+}
+
+export async function listOrderItemRefundDetailsByOrderItemIds(
+  orderItemIds: string[],
+): Promise<Map<string, OrderItemRefundDetail[]>> {
+  if (orderItemIds.length === 0) return new Map();
+
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: orderItemRefunds.id,
+      orderItemId: orderItemRefunds.orderItemId,
+      amountCents: orderItemRefunds.amountCents,
+      stripeRefundId: orderItemRefunds.stripeRefundId,
+      reason: orderItemRefunds.reason,
+      createdAt: orderItemRefunds.createdAt,
+    })
+    .from(orderItemRefunds)
+    .where(inArray(orderItemRefunds.orderItemId, orderItemIds))
+    .orderBy(asc(orderItemRefunds.createdAt));
+
+  const byOrderItemId = new Map<string, OrderItemRefundDetail[]>();
+  for (const row of rows) {
+    const list = byOrderItemId.get(row.orderItemId);
+    if (list) list.push(row);
+    else byOrderItemId.set(row.orderItemId, [row]);
+  }
+  return byOrderItemId;
 }

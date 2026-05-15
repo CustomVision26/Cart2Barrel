@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { itemQuotes, itemRequests, type ItemQuote } from "@/db/schema";
@@ -8,7 +8,7 @@ import {
   type ItemQuoteCheckoutSnapshotKind,
   isOperationalQuoteRow,
 } from "@/lib/checkout-snapshot-kind";
-import { isUndefinedColumnError } from "@/lib/db-column-missing";
+import { isMissingMerchandiseSavingsColumnError, isUndefinedColumnError } from "@/lib/db-column-missing";
 import { getNeonSql } from "@/lib/neon-sql";
 import {
   ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT,
@@ -17,6 +17,28 @@ import {
 
 /** All `item_quotes` columns except `checkout_snapshot_kind` (migration 0009). */
 export const itemQuoteCoreSelect = {
+  id: itemQuotes.id,
+  itemRequestId: itemQuotes.itemRequestId,
+  itemCost: itemQuotes.itemCost,
+  merchandiseSavingsCents: itemQuotes.merchandiseSavingsCents,
+  serviceFee: itemQuotes.serviceFee,
+  estimatedShipping: itemQuotes.estimatedShipping,
+  totalPrice: itemQuotes.totalPrice,
+  voidedAt: itemQuotes.voidedAt,
+  voidReason: itemQuotes.voidReason,
+  requestQuantity: itemQuotes.requestQuantity,
+  requestProductSize: itemQuotes.requestProductSize,
+  requestProductColor: itemQuotes.requestProductColor,
+  requestProductName: itemQuotes.requestProductName,
+  merchandiseIncludesSiteShippingTax: itemQuotes.merchandiseIncludesSiteShippingTax,
+  createdAt: itemQuotes.createdAt,
+} as const;
+
+/**
+ * Same shapes as {@link itemQuoteCoreSelect} but without `merchandise_savings_cents`
+ * for databases that have not applied that migration yet.
+ */
+export const itemQuoteCoreSelectPreMerchandiseSavings = {
   id: itemQuotes.id,
   itemRequestId: itemQuotes.itemRequestId,
   itemCost: itemQuotes.itemCost,
@@ -49,6 +71,10 @@ function operationalCheckoutSnapshotWhere() {
 
 export type ItemQuoteInsertRow = {
   itemCost: number;
+  /**
+   * Listed pack/bundle savings before net merchandise (`itemCost`); omit or null if none.
+   */
+  merchandiseSavingsCents?: number | null;
   serviceFee: number;
   estimatedShipping: number;
   totalPrice: number;
@@ -56,6 +82,8 @@ export type ItemQuoteInsertRow = {
   requestProductSize: string | null;
   requestProductColor: string | null;
   requestProductName: string | null;
+  /** Retailer-listed shipping/tax bundled into merchandise; line splits stay $0. */
+  merchandiseIncludesSiteShippingTax?: boolean;
 };
 
 export function itemRequestSnapshotForQuote(req: {
@@ -99,6 +127,14 @@ function rowRecordToItemQuote(
       r.request_product_color != null ? String(r.request_product_color) : null,
     requestProductName:
       r.request_product_name != null ? String(r.request_product_name) : null,
+    merchandiseSavingsCents:
+      r.merchandise_savings_cents != null &&
+      r.merchandise_savings_cents !== ""
+        ? Number(r.merchandise_savings_cents)
+        : null,
+    merchandiseIncludesSiteShippingTax: Boolean(
+      r.merchandise_includes_site_shipping_tax,
+    ),
     checkoutSnapshotKind,
     createdAt: String(r.created_at),
   };
@@ -108,9 +144,11 @@ function rowRecordToItemQuote(
 async function insertItemQuoteNarrowSql(values: {
   itemRequestId: string;
   itemCost: number;
+  merchandiseSavingsCents: number | null;
   serviceFee: number;
   estimatedShipping: number;
   totalPrice: number;
+  merchandiseIncludesSiteShippingTax: boolean;
   requestQuantity: number | null;
   requestProductSize: string | null;
   requestProductColor: string | null;
@@ -121,9 +159,11 @@ async function insertItemQuoteNarrowSql(values: {
     INSERT INTO item_quotes (
       item_request_id,
       item_cost,
+      merchandise_savings_cents,
       service_fee,
       estimated_shipping,
       total_price,
+      merchandise_includes_site_shipping_tax,
       request_quantity,
       request_product_size,
       request_product_color,
@@ -131,9 +171,11 @@ async function insertItemQuoteNarrowSql(values: {
     ) VALUES (
       ${values.itemRequestId}::uuid,
       ${values.itemCost},
+      ${values.merchandiseSavingsCents},
       ${values.serviceFee},
       ${values.estimatedShipping},
       ${values.totalPrice},
+      ${values.merchandiseIncludesSiteShippingTax},
       ${values.requestQuantity},
       ${values.requestProductSize},
       ${values.requestProductColor},
@@ -143,11 +185,13 @@ async function insertItemQuoteNarrowSql(values: {
       id,
       item_request_id,
       item_cost,
+      merchandise_savings_cents,
       service_fee,
       estimated_shipping,
       total_price,
       voided_at,
       void_reason,
+      merchandise_includes_site_shipping_tax,
       request_quantity,
       request_product_size,
       request_product_color,
@@ -175,9 +219,11 @@ export async function insertCheckoutTimelineQuote(params: {
       .values({
         itemRequestId: params.itemRequestId,
         itemCost: src.itemCost,
+        merchandiseSavingsCents: src.merchandiseSavingsCents ?? null,
         serviceFee: src.serviceFee,
         estimatedShipping: src.estimatedShipping,
         totalPrice: src.totalPrice,
+        merchandiseIncludesSiteShippingTax: src.merchandiseIncludesSiteShippingTax,
         requestQuantity: src.requestQuantity,
         requestProductSize: src.requestProductSize,
         requestProductColor: src.requestProductColor,
@@ -196,9 +242,11 @@ export async function insertCheckoutTimelineQuote(params: {
     const inserted = await insertItemQuoteNarrowSql({
       itemRequestId: params.itemRequestId,
       itemCost: src.itemCost,
+      merchandiseSavingsCents: src.merchandiseSavingsCents ?? null,
       serviceFee: src.serviceFee,
       estimatedShipping: src.estimatedShipping,
       totalPrice: src.totalPrice,
+      merchandiseIncludesSiteShippingTax: src.merchandiseIncludesSiteShippingTax,
       requestQuantity: src.requestQuantity,
       requestProductSize: src.requestProductSize,
       requestProductColor: src.requestProductColor,
@@ -222,9 +270,11 @@ export async function insertItemQuoteForRequest(
       .values({
         itemRequestId,
         itemCost: row.itemCost,
+        merchandiseSavingsCents: row.merchandiseSavingsCents ?? null,
         serviceFee: row.serviceFee,
         estimatedShipping: row.estimatedShipping,
         totalPrice: row.totalPrice,
+        merchandiseIncludesSiteShippingTax: row.merchandiseIncludesSiteShippingTax ?? false,
         requestQuantity: row.requestQuantity,
         requestProductSize: row.requestProductSize,
         requestProductColor: row.requestProductColor,
@@ -242,9 +292,11 @@ export async function insertItemQuoteForRequest(
     return insertItemQuoteNarrowSql({
       itemRequestId,
       itemCost: row.itemCost,
+      merchandiseSavingsCents: row.merchandiseSavingsCents ?? null,
       serviceFee: row.serviceFee,
       estimatedShipping: row.estimatedShipping,
       totalPrice: row.totalPrice,
+      merchandiseIncludesSiteShippingTax: row.merchandiseIncludesSiteShippingTax ?? false,
       requestQuantity: row.requestQuantity,
       requestProductSize: row.requestProductSize,
       requestProductColor: row.requestProductColor,
@@ -367,56 +419,186 @@ export async function restoreOrphanQuotedItemRequestQuote(
       voidReason: null,
     };
   } catch (e) {
+    if (isMissingMerchandiseSavingsColumnError(e)) {
+      const activeRows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNull(itemQuotes.voidedAt)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(50);
+
+      if (
+        activeRows.some((r) =>
+          isOperationalQuoteRow({
+            ...r,
+            checkoutSnapshotKind: null,
+            merchandiseSavingsCents: null,
+            merchandiseIncludesSiteShippingTax: false,
+          } as ItemQuote)
+        )
+      ) {
+        return undefined;
+      }
+
+      const voidedRows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNotNull(itemQuotes.voidedAt)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(50);
+
+      const pick = voidedRows.find(
+        (r) => r.voidReason === ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT
+      );
+      if (!pick) {
+        return undefined;
+      }
+
+      await db
+        .update(itemQuotes)
+        .set({ voidedAt: null, voidReason: null })
+        .where(eq(itemQuotes.id, pick.id));
+
+      return {
+        ...pick,
+        voidedAt: null,
+        voidReason: null,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        checkoutSnapshotKind: null,
+      };
+    }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
       throw e;
     }
 
-    const activeRows = await db
-      .select(itemQuoteCoreSelect)
-      .from(itemQuotes)
-      .where(
-        and(
-          eq(itemQuotes.itemRequestId, itemRequestId),
-          isNull(itemQuotes.voidedAt)
+    try {
+      const activeRows = await db
+        .select(itemQuoteCoreSelect)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNull(itemQuotes.voidedAt)
+          )
         )
-      )
-      .orderBy(desc(itemQuotes.createdAt))
-      .limit(50);
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(50);
 
-    if (activeRows.length > 0) {
-      return undefined;
-    }
-
-    const voidedRows = await db
-      .select(itemQuoteCoreSelect)
-      .from(itemQuotes)
-      .where(
-        and(
-          eq(itemQuotes.itemRequestId, itemRequestId),
-          isNotNull(itemQuotes.voidedAt)
+      if (
+        activeRows.some((r) =>
+          isOperationalQuoteRow({
+            ...r,
+            checkoutSnapshotKind: null,
+          } as ItemQuote)
         )
-      )
-      .orderBy(desc(itemQuotes.createdAt))
-      .limit(50);
+      ) {
+        return undefined;
+      }
 
-    const pick = voidedRows.find(
-      (r) => r.voidReason === ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT
-    );
-    if (!pick) {
-      return undefined;
+      const voidedRows = await db
+        .select(itemQuoteCoreSelect)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNotNull(itemQuotes.voidedAt)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(50);
+
+      const pick = voidedRows.find(
+        (r) => r.voidReason === ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT
+      );
+      if (!pick) {
+        return undefined;
+      }
+
+      await db
+        .update(itemQuotes)
+        .set({ voidedAt: null, voidReason: null })
+        .where(eq(itemQuotes.id, pick.id));
+
+      return {
+        ...pick,
+        voidedAt: null,
+        voidReason: null,
+        checkoutSnapshotKind: null,
+      };
+    } catch (e2) {
+      if (!isMissingMerchandiseSavingsColumnError(e2)) {
+        throw e2;
+      }
+
+      const activeRows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNull(itemQuotes.voidedAt)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(50);
+
+      if (
+        activeRows.some((r) =>
+          isOperationalQuoteRow({
+            ...r,
+            checkoutSnapshotKind: null,
+            merchandiseSavingsCents: null,
+            merchandiseIncludesSiteShippingTax: false,
+          } as ItemQuote)
+        )
+      ) {
+        return undefined;
+      }
+
+      const voidedRows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNotNull(itemQuotes.voidedAt)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(50);
+
+      const pick = voidedRows.find(
+        (r) => r.voidReason === ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT
+      );
+      if (!pick) {
+        return undefined;
+      }
+
+      await db
+        .update(itemQuotes)
+        .set({ voidedAt: null, voidReason: null })
+        .where(eq(itemQuotes.id, pick.id));
+
+      return {
+        ...pick,
+        voidedAt: null,
+        voidReason: null,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        checkoutSnapshotKind: null,
+      };
     }
-
-    await db
-      .update(itemQuotes)
-      .set({ voidedAt: null, voidReason: null })
-      .where(eq(itemQuotes.id, pick.id));
-
-    return {
-      ...pick,
-      voidedAt: null,
-      voidReason: null,
-      checkoutSnapshotKind: null,
-    };
   }
 }
 
@@ -460,23 +642,69 @@ export async function getLatestQuoteForItemRequest(
     }
     return undefined;
   } catch (e) {
+    if (isMissingMerchandiseSavingsColumnError(e)) {
+      const rows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNull(itemQuotes.voidedAt)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return undefined;
+      return {
+        ...row,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        checkoutSnapshotKind: null,
+      };
+    }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
       throw e;
     }
-    const rows = await db
-      .select(itemQuoteCoreSelect)
-      .from(itemQuotes)
-      .where(
-        and(
-          eq(itemQuotes.itemRequestId, itemRequestId),
-          isNull(itemQuotes.voidedAt)
+    try {
+      const rows = await db
+        .select(itemQuoteCoreSelect)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNull(itemQuotes.voidedAt)
+          )
         )
-      )
-      .orderBy(desc(itemQuotes.createdAt))
-      .limit(1);
-    const row = rows[0];
-    if (!row) return undefined;
-    return { ...row, checkoutSnapshotKind: null };
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return undefined;
+      return { ...row, checkoutSnapshotKind: null };
+    } catch (e2) {
+      if (!isMissingMerchandiseSavingsColumnError(e2)) {
+        throw e2;
+      }
+      const rows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(
+          and(
+            eq(itemQuotes.itemRequestId, itemRequestId),
+            isNull(itemQuotes.voidedAt)
+          )
+        )
+        .orderBy(desc(itemQuotes.createdAt))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return undefined;
+      return {
+        ...row,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        checkoutSnapshotKind: null,
+      };
+    }
   }
 }
 
@@ -492,17 +720,149 @@ export async function getItemQuoteById(
       .limit(1);
     return rows[0];
   } catch (e) {
+    if (isMissingMerchandiseSavingsColumnError(e)) {
+      const rows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(eq(itemQuotes.id, quoteId))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return undefined;
+      return {
+        ...row,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        checkoutSnapshotKind: null,
+      };
+    }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
       throw e;
     }
+    try {
+      const rows = await db
+        .select(itemQuoteCoreSelect)
+        .from(itemQuotes)
+        .where(eq(itemQuotes.id, quoteId))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return undefined;
+      return { ...row, checkoutSnapshotKind: null };
+    } catch (e2) {
+      if (!isMissingMerchandiseSavingsColumnError(e2)) {
+        throw e2;
+      }
+      const rows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(eq(itemQuotes.id, quoteId))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return undefined;
+      return {
+        ...row,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        checkoutSnapshotKind: null,
+      };
+    }
+  }
+}
+
+/** Operational quote `item_cost` by request id (parallel lookups; OK for ~page-sized batches). */
+export async function mapLatestOperationalQuoteItemCostByRequestIds(
+  itemRequestIds: string[],
+): Promise<Map<string, number | null>> {
+  const unique = [...new Set(itemRequestIds)];
+  const map = new Map<string, number | null>();
+  await Promise.all(
+    unique.map(async (id) => {
+      const q = await getLatestQuoteForItemRequest(id);
+      map.set(id, q?.itemCost ?? null);
+    }),
+  );
+  return map;
+}
+
+/** All quote rows for owner-visible product history, grouped by request id by the caller. */
+export async function listItemQuotesForOwnerByRequestIds(
+  clerkUserId: string,
+  itemRequestIds: string[],
+): Promise<ItemQuote[]> {
+  const unique = [...new Set(itemRequestIds)];
+  if (unique.length === 0) return [];
+
+  const db = getDb();
+  try {
     const rows = await db
-      .select(itemQuoteCoreSelect)
+      .select({ quote: itemQuotes })
       .from(itemQuotes)
-      .where(eq(itemQuotes.id, quoteId))
-      .limit(1);
-    const row = rows[0];
-    if (!row) return undefined;
-    return { ...row, checkoutSnapshotKind: null };
+      .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
+      .where(
+        and(
+          eq(itemRequests.clerkUserId, clerkUserId),
+          inArray(itemQuotes.itemRequestId, unique),
+        ),
+      )
+      .orderBy(desc(itemQuotes.createdAt));
+    return rows.map((r) => r.quote);
+  } catch (e) {
+    if (isMissingMerchandiseSavingsColumnError(e)) {
+      const rows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemQuotes.itemRequestId, unique),
+          ),
+        )
+        .orderBy(desc(itemQuotes.createdAt));
+      return rows.map((row) => ({
+        ...row,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        checkoutSnapshotKind: null,
+      }));
+    }
+    if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
+      throw e;
+    }
+    try {
+      const rows = await db
+        .select(itemQuoteCoreSelect)
+        .from(itemQuotes)
+        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemQuotes.itemRequestId, unique),
+          ),
+        )
+        .orderBy(desc(itemQuotes.createdAt));
+      return rows.map((row) => ({ ...row, checkoutSnapshotKind: null }));
+    } catch (e2) {
+      if (!isMissingMerchandiseSavingsColumnError(e2)) {
+        throw e2;
+      }
+      const rows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemQuotes.itemRequestId, unique),
+          ),
+        )
+        .orderBy(desc(itemQuotes.createdAt));
+      return rows.map((row) => ({
+        ...row,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        checkoutSnapshotKind: null,
+      }));
+    }
   }
 }
 

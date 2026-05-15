@@ -1,10 +1,10 @@
 import type { ItemRequest, Order } from "@/db/schema";
 
 const LABELS: Record<ItemRequest["status"], string> = {
-  pending: "Pending",
+  pending: "New request",
   quoted: "Quoted",
-  approved: "In cart",
-  rejected: "Rejected",
+  approved: "In Cart",
+  rejected: "Missing Item",
   withdrawn: "Deleted from cart",
 };
 
@@ -27,10 +27,10 @@ export function adminItemRequestStatusDisplay(
     return LABELS.approved;
   }
   const orderLabels: Record<Order["status"], string> = {
-    pending: "In order (payment pending)",
-    paid: "In order (paid)",
-    purchasing: "In order (purchasing)",
-    completed: "In order (completed)",
+    pending: "Awaiting Purchase",
+    paid: "Awaiting Purchase",
+    purchasing: "Purchasing",
+    completed: "Fully Received",
   };
   return orderLabels[orderStatus];
 }

@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 
 type PromoSlide = {
   title: string;
@@ -95,7 +96,9 @@ type HomeStorefrontProps = {
 export function HomeStorefront({ isSignedIn }: HomeStorefrontProps) {
   const primaryHref = isSignedIn ? "/dashboard" : "/signup";
   const primaryLabel = isSignedIn ? "Open dashboard" : "Start shopping";
-  const secondaryHref = isSignedIn ? "/dashboard/items/new" : "/how-it-works";
+  const secondaryHref = isSignedIn
+    ? DASHBOARD_ADD_ITEM_ROUTES.productsActive
+    : "/how-it-works";
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-12 px-4 py-10 md:py-14">
@@ -247,7 +250,15 @@ export function HomeStorefront({ isSignedIn }: HomeStorefrontProps) {
                           size="sm"
                           className="w-full"
                           nativeButton={false}
-                          render={<Link href={isSignedIn ? "/dashboard/items/new" : "/signup"} />}
+                          render={
+                            <Link
+                              href={
+                                isSignedIn
+                                  ? DASHBOARD_ADD_ITEM_ROUTES.productsActive
+                                  : "/signup"
+                              }
+                            />
+                          }
                         >
                           {isSignedIn ? "Request an item" : "Get started"}
                         </Button>

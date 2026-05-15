@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useId, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import { AdminAiEstimateDialog } from "@/components/admin/admin-ai-estimate-dialog";
@@ -9,6 +15,17 @@ import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { SortableTh, SortableThCompact } from "@/components/sortable-th";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { displaySiteName } from "@/lib/site-name";
 import type { SortDir } from "@/lib/table-sort";
@@ -19,32 +36,11 @@ import {
 } from "@/lib/table-sort";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import type { AdminItemRequestGroup } from "@/lib/admin-item-requests-group";
+import { adminRequestQueueKindBadgeKind } from "@/lib/status-badge-map";
 import type {
   AdminItemRequestWithUserRow,
   AdminRequestQueueKind,
 } from "@/data/admin-item-requests";
-
-function QueueKindBadge({ kind }: { kind: AdminRequestQueueKind }) {
-  if (kind === "new") {
-    return (
-      <span className="inline-flex rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-400">
-        New request
-      </span>
-    );
-  }
-  if (kind === "resend") {
-    return (
-      <span className="inline-flex rounded-md bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-400">
-        Customer resend
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex rounded-md bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-foreground">
-      Quoted
-    </span>
-  );
-}
 
 function submitterDisplayName(
   fullName: string | null,
@@ -71,6 +67,76 @@ function queueKindOrder(kind: AdminRequestQueueKind): number {
   if (kind === "resend") return 0;
   if (kind === "new") return 1;
   return 2;
+}
+
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
+
+const SELECT_CLASS =
+  "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+
+function normalizeSearchQ(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+function queueKindSearchTokens(kind: AdminRequestQueueKind): string[] {
+  if (kind === "new") return ["new", "request", "first"];
+  if (kind === "resend") return ["resend", "customer", "estimate"];
+  return ["quoted", "acceptance"];
+}
+
+function activeQueueRowMatchesQuery(
+  row: AdminItemRequestWithUserRow,
+  q: string
+): boolean {
+  if (!q) return true;
+  const { request: r, queueKind } = row;
+  const chunks: Array<string | null | undefined> = [
+    r.id,
+    r.productName,
+    r.productUrl,
+    displaySiteName(r.siteName, r.productUrl),
+    r.status,
+    ...queueKindSearchTokens(queueKind),
+  ];
+  return chunks.some(
+    (chunk) =>
+      chunk != null && String(chunk).toLowerCase().includes(q)
+  );
+}
+
+/**
+ * Filters account groups by search. Header match keeps all active-queue lines;
+ * line-only match narrows to matching rows for lookup.
+ */
+function filterActiveQueueGroups(
+  source: AdminItemRequestGroup[],
+  qRaw: string
+): AdminItemRequestGroup[] {
+  const q = normalizeSearchQ(qRaw);
+  if (!q) return source;
+
+  const next: AdminItemRequestGroup[] = [];
+  for (const g of source) {
+    const name = submitterDisplayName(g.userFullName, g.userEmail).toLowerCase();
+    const email = (g.userEmail ?? "").trim().toLowerCase();
+    const uid = g.clerkUserId.toLowerCase();
+    const headerMatch =
+      name.includes(q) || email.includes(q) || uid.includes(q);
+    const lineHits = g.activeQueueRequests.filter((row) =>
+      activeQueueRowMatchesQuery(row, q)
+    );
+
+    if (headerMatch) {
+      next.push(g);
+    } else if (lineHits.length > 0) {
+      next.push({
+        ...g,
+        activeQueueRequests: lineHits,
+        activeQueueCount: lineHits.length,
+      });
+    }
+  }
+  return next;
 }
 
 function sortActiveQueueRows(
@@ -130,6 +196,11 @@ export function AdminItemRequestsGroupedTable({
   const [groupSortDir, setGroupSortDir] = useState<SortDir>("asc");
   const [lineSortKey, setLineSortKey] = useState<LineSortKey>("submitted");
   const [lineSortDir, setLineSortDir] = useState<SortDir>("desc");
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] =
+    useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
+  const [page, setPage] = useState(1);
+  const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
   const baseId = useId();
 
   const toggle = useCallback((clerkUserId: string) => {
@@ -154,8 +225,13 @@ export function AdminItemRequestsGroupedTable({
     [lineSortKey, lineSortDir]
   );
 
+  const filteredGroups = useMemo(
+    () => filterActiveQueueGroups(groups, search),
+    [groups, search]
+  );
+
   const sortedGroups = useMemo(() => {
-    const next = [...groups];
+    const next = [...filteredGroups];
     const dir = groupSortDir;
     next.sort((a, b) => {
       switch (groupSortKey) {
@@ -184,11 +260,128 @@ export function AdminItemRequestsGroupedTable({
       }
     });
     return next;
-  }, [groups, groupSortKey, groupSortDir]);
+  }, [filteredGroups, groupSortKey, groupSortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedGroups.length / pageSize));
+  const pageSafe = Math.min(Math.max(1, page), totalPages);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, groupSortKey, groupSortDir, pageSize]);
+
+  useEffect(() => {
+    if (page !== pageSafe) setPage(pageSafe);
+  }, [page, pageSafe]);
+
+  const pageSlice = useMemo(() => {
+    const start = (pageSafe - 1) * pageSize;
+    return sortedGroups.slice(start, start + pageSize);
+  }, [sortedGroups, pageSafe, pageSize]);
+
+  const showFrom =
+    sortedGroups.length === 0 ? 0 : (pageSafe - 1) * pageSize + 1;
+  const showTo = Math.min(pageSafe * pageSize, sortedGroups.length);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full min-w-[36rem] text-left text-sm">
+    <div className="space-y-3">
+      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-medium text-foreground">Find & organize</p>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="admin-active-queue-find-organize"
+              className="cursor-pointer text-xs font-normal text-muted-foreground"
+            >
+              Show filters and sort
+            </Label>
+            <Switch
+              id="admin-active-queue-find-organize"
+              checked={findOrganizeVisible}
+              onCheckedChange={setFindOrganizeVisible}
+            />
+          </div>
+        </div>
+
+        {findOrganizeVisible ? (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Field className="gap-1.5 sm:col-span-2 lg:col-span-2">
+                <FieldLabel htmlFor="active-queue-search" className="text-xs">
+                  Search
+                </FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="active-queue-search"
+                    placeholder="Customer, email, product, URL, request id, queue type…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    autoComplete="off"
+                  />
+                </FieldContent>
+                <FieldDescription>
+                  Case-insensitive substring match. Column headers sort the
+                  current result set; expand a row for line-level sort.
+                </FieldDescription>
+              </Field>
+
+              <Field className="gap-1.5">
+                <FieldLabel htmlFor="active-queue-page-size" className="text-xs">
+                  Accounts per page
+                </FieldLabel>
+                <FieldContent>
+                  <select
+                    id="active-queue-page-size"
+                    className={SELECT_CLASS}
+                    value={pageSize}
+                    onChange={(e) =>
+                      setPageSize(
+                        Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]
+                      )
+                    }
+                  >
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </FieldContent>
+              </Field>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {sortedGroups.length === 0 ? (
+                <>No accounts match the current search.</>
+              ) : (
+                <>
+                  Showing{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {showFrom}–{showTo}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {sortedGroups.length}
+                  </span>{" "}
+                  account{sortedGroups.length === 1 ? "" : "s"} with queue
+                  activity
+                  {sortedGroups.length < groups.length ? (
+                    <>
+                      {" "}
+                      (<span className="tabular-nums">{groups.length}</span>{" "}
+                      total loaded)
+                    </>
+                  ) : null}
+                </>
+              )}
+            </p>
+          </>
+        ) : null}
+      </div>
+
+      {sortedGroups.length === 0 ? null : (
+        <>
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[36rem] text-left text-sm">
         <thead className="border-b border-border bg-muted/40">
           <tr>
             <th className="w-10 px-2 py-2.5" aria-hidden />
@@ -240,7 +433,7 @@ export function AdminItemRequestsGroupedTable({
             />
           </tr>
         </thead>
-        {sortedGroups.map((g) => {
+        {pageSlice.map((g) => {
           const expanded = openClerkUserId === g.clerkUserId;
           const panelId = `${baseId}-pending-${g.clerkUserId}`;
           const name = submitterDisplayName(g.userFullName, g.userEmail);
@@ -381,7 +574,17 @@ export function AdminItemRequestsGroupedTable({
                                 return (
                                 <tr key={r.id} className="hover:bg-muted/30">
                                   <td className="whitespace-nowrap px-2 py-2 align-top">
-                                    <QueueKindBadge kind={queueKind} />
+                                    <StatusBadge
+                                      kind={adminRequestQueueKindBadgeKind(
+                                        queueKind
+                                      )}
+                                    >
+                                      {queueKind === "new" ?
+                                        "New request"
+                                      : queueKind === "resend" ?
+                                        "Customer resend"
+                                      : "Quoted"}
+                                    </StatusBadge>
                                   </td>
                                   <td className="px-2 py-2 align-top">
                                     <ProductRequestThumbnail
@@ -445,7 +648,43 @@ export function AdminItemRequestsGroupedTable({
             </tbody>
           );
         })}
-      </table>
+            </table>
+          </div>
+
+          <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Page{" "}
+              <span className="font-medium tabular-nums text-foreground">
+                {pageSafe}
+              </span>{" "}
+              of{" "}
+              <span className="font-medium tabular-nums text-foreground">
+                {totalPages}
+              </span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pageSafe <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pageSafe >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

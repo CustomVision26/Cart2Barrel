@@ -17,6 +17,11 @@ const previewSchema = z.object({
 
 export type QuoteEstimatePreviewRow = {
   itemCost: number;
+  /**
+   * Deduction from listed pack/bundle subtotal (estimate); net merchandise is `itemCost`.
+   * Null/omitted for legacy quotes without this line.
+   */
+  merchandiseSavingsCents: number | null;
   serviceFee: number;
   estimatedShipping: number;
   totalPrice: number;
@@ -127,6 +132,7 @@ export async function getQuoteEstimatePreviewAction(
     ok: true,
     quote: {
       itemCost: quote.itemCost,
+      merchandiseSavingsCents: quote.merchandiseSavingsCents ?? null,
       serviceFee: quote.serviceFee,
       estimatedShipping: quote.estimatedShipping,
       totalPrice: quote.totalPrice,

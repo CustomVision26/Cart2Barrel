@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 
+import { ClerkUserButton } from "@/components/clerk-user-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { UserButton } from "@clerk/nextjs";
 
 export default async function HowItWorksPage() {
   const { userId } = await auth();
@@ -40,7 +40,7 @@ export default async function HowItWorksPage() {
                 >
                   Dashboard
                 </Button>
-                <UserButton />
+                <ClerkUserButton />
               </>
             ) : (
               <>

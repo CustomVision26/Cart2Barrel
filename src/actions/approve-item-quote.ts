@@ -12,6 +12,7 @@ import {
 } from "@/data/item-quotes";
 import { getItemRequestById } from "@/data/item-requests";
 import { approveItemQuoteSchema } from "@/lib/validations/approve-item-quote";
+import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type ApproveItemQuoteState = {
   ok: boolean;
@@ -65,7 +66,7 @@ export async function approveItemQuoteAction(
     .where(eq(itemRequests.id, request.id));
 
   revalidatePath("/dashboard/items");
-  revalidatePath("/dashboard/items/new");
+  revalidateDashboardAddItem();
   revalidatePath("/dashboard/cart");
   revalidatePath("/dashboard");
 

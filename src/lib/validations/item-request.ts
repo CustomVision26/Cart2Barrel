@@ -38,6 +38,29 @@ export const createItemRequestSchema = z.object({
     .max(200)
     .optional()
     .transform((s) => (s && s.length > 0 ? s : undefined)),
+  productImageUrl: z
+    .string()
+    .trim()
+    .max(2000)
+    .optional()
+    .transform((s) => (s && s.length > 0 ? s : undefined))
+    .superRefine((val, ctx) => {
+      if (!val) return;
+      try {
+        const u = new URL(val);
+        if (u.protocol !== "https:") {
+          ctx.addIssue({
+            code: "custom",
+            message: "Image URL must use https.",
+          });
+        }
+      } catch {
+        ctx.addIssue({
+          code: "custom",
+          message: "Enter a valid image URL.",
+        });
+      }
+    }),
 });
 
 export type CreateItemRequestInput = z.infer<typeof createItemRequestSchema>;

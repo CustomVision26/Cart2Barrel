@@ -85,6 +85,76 @@
       "when": 1778600000000,
       "tag": "0011_order_receipt_and_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778432493380,
+      "tag": "0012_batch_quote_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779200000000,
+      "tag": "0015_item_quotes_merchandise_includes_site_ship_tax",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779300000000,
+      "tag": "0016_batch_cart_acceptance",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1779400000000,
+      "tag": "0017_batch_quote_session_status_cart_flow",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779500000000,
+      "tag": "0018_orders_stripe_checkout_session_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1779600000000,
+      "tag": "0021_order_item_retailer_tracking_pair",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779700000000,
+      "tag": "0022_warehouse_delivery_received_snapshot_phase",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779800000000,
+      "tag": "0023_order_items_warehouse_receipt",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1779900000000,
+      "tag": "0024_order_item_delivery_received_fulfillment",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0027_order_item_refund_requests",
+      "breakpoints": true
     }
   ]
 }

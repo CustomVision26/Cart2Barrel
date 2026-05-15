@@ -1,6 +1,6 @@
 import { getDb } from "@/db";
 import { orderItems } from "@/db/schema";
-import type { CartLine } from "@/data/cart";
+import type { CheckoutOrderLineInput } from "@/data/cart";
 import { isUndefinedColumnError } from "@/lib/db-column-missing";
 import { getNeonSql } from "@/lib/neon-sql";
 
@@ -10,16 +10,16 @@ import { getNeonSql } from "@/lib/neon-sql";
  */
 export async function insertCheckoutOrderItems(
   orderId: string,
-  lines: CartLine[]
+  lines: CheckoutOrderLineInput[]
 ): Promise<{ ok: true } | { ok: false; cause: unknown }> {
   const db = getDb();
   try {
     await db.insert(orderItems).values(
       lines.map((line) => ({
         orderId,
-        itemRequestId: line.request.id,
-        quantity: line.request.quantity,
-        price: line.quote.totalPrice,
+        itemRequestId: line.itemRequestId,
+        quantity: line.quantity,
+        price: line.priceCents,
       }))
     );
     return { ok: true };
@@ -36,9 +36,9 @@ export async function insertCheckoutOrderItems(
         INSERT INTO order_items (order_id, item_request_id, quantity, price)
         VALUES (
           ${orderId}::uuid,
-          ${line.request.id}::uuid,
-          ${line.request.quantity},
-          ${line.quote.totalPrice}
+          ${line.itemRequestId}::uuid,
+          ${line.quantity},
+          ${line.priceCents}
         )
       `;
     }

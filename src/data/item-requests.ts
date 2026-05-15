@@ -2,7 +2,33 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { itemRequests, type ItemRequest } from "@/db/schema";
+import { isMissingBatchQuoteSessionIdColumnError } from "@/lib/db-column-missing";
 import { hostnameFromProductUrl } from "@/lib/site-name";
+
+/**
+ * `item_requests` columns when `batch_quote_session_id` is not migrated yet.
+ * Keep in sync with schema (excluding the batch FK only).
+ */
+export const itemRequestsRowLegacySelect = {
+  id: itemRequests.id,
+  clerkUserId: itemRequests.clerkUserId,
+  productUrl: itemRequests.productUrl,
+  productName: itemRequests.productName,
+  productSize: itemRequests.productSize,
+  productColor: itemRequests.productColor,
+  quantity: itemRequests.quantity,
+  note: itemRequests.note,
+  productImageUrl: itemRequests.productImageUrl,
+  siteName: itemRequests.siteName,
+  status: itemRequests.status,
+  createdAt: itemRequests.createdAt,
+} as const;
+
+function withNullBatchQuoteSessionId(
+  row: Omit<ItemRequest, "batchQuoteSessionId">
+): ItemRequest {
+  return { ...row, batchQuoteSessionId: null };
+}
 
 const ACTIVE_REQUEST_STATUSES = ["pending", "quoted"] as const satisfies Readonly<
   ItemRequest["status"][]
@@ -17,29 +43,57 @@ export async function getItemRequestById(
   id: string
 ): Promise<ItemRequest | undefined> {
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(itemRequests)
-    .where(eq(itemRequests.id, id))
-    .limit(1);
-  return rows[0];
+  try {
+    const rows = await db
+      .select()
+      .from(itemRequests)
+      .where(eq(itemRequests.id, id))
+      .limit(1);
+    return rows[0];
+  } catch (e) {
+    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
+    const rows = await db
+      .select(itemRequestsRowLegacySelect)
+      .from(itemRequests)
+      .where(eq(itemRequests.id, id))
+      .limit(1);
+    const row = rows[0];
+    return row ? withNullBatchQuoteSessionId(row) : undefined;
+  }
 }
 
-/** In-flight requests (not in cart, not closed). Approved items live in cart only. */
+/** In-flight requests (not in cart, not closed). Includes rows attached to a batch quote
+ *  (`batch_quote_session_id`) so the Products tab can show them as inactive alongside
+ *  unbatched lines. Approved items live in cart only. */
 export async function listActiveItemRequestsForUser(
   clerkUserId: string
 ): Promise<ItemRequest[]> {
   const db = getDb();
-  return db
-    .select()
-    .from(itemRequests)
-    .where(
-      and(
-        eq(itemRequests.clerkUserId, clerkUserId),
-        inArray(itemRequests.status, [...ACTIVE_REQUEST_STATUSES])
+  try {
+    return await db
+      .select()
+      .from(itemRequests)
+      .where(
+        and(
+          eq(itemRequests.clerkUserId, clerkUserId),
+          inArray(itemRequests.status, [...ACTIVE_REQUEST_STATUSES])
+        )
       )
-    )
-    .orderBy(desc(itemRequests.createdAt));
+      .orderBy(desc(itemRequests.createdAt));
+  } catch (e) {
+    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
+    const rows = await db
+      .select(itemRequestsRowLegacySelect)
+      .from(itemRequests)
+      .where(
+        and(
+          eq(itemRequests.clerkUserId, clerkUserId),
+          inArray(itemRequests.status, [...ACTIVE_REQUEST_STATUSES])
+        )
+      )
+      .orderBy(desc(itemRequests.createdAt));
+    return rows.map(withNullBatchQuoteSessionId);
+  }
 }
 
 /** Approved (in cart), removed-from-cart, and rejected records. */
@@ -47,16 +101,31 @@ export async function listProductHistoryForUser(
   clerkUserId: string
 ): Promise<ItemRequest[]> {
   const db = getDb();
-  return db
-    .select()
-    .from(itemRequests)
-    .where(
-      and(
-        eq(itemRequests.clerkUserId, clerkUserId),
-        inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+  try {
+    return await db
+      .select()
+      .from(itemRequests)
+      .where(
+        and(
+          eq(itemRequests.clerkUserId, clerkUserId),
+          inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+        )
       )
-    )
-    .orderBy(desc(itemRequests.createdAt));
+      .orderBy(desc(itemRequests.createdAt));
+  } catch (e) {
+    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
+    const rows = await db
+      .select(itemRequestsRowLegacySelect)
+      .from(itemRequests)
+      .where(
+        and(
+          eq(itemRequests.clerkUserId, clerkUserId),
+          inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+        )
+      )
+      .orderBy(desc(itemRequests.createdAt));
+    return rows.map(withNullBatchQuoteSessionId);
+  }
 }
 
 const CUSTOMER_EDITABLE_STATUSES = ["pending", "quoted"] as const satisfies Readonly<

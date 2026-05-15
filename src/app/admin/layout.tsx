@@ -1,7 +1,7 @@
-import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ClerkUserButton } from "@/components/clerk-user-button";
 import { AdminNav } from "@/components/admin-nav";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
@@ -47,7 +47,7 @@ export default async function AdminLayout({
             >
               User app
             </Link>
-            <UserButton />
+            <ClerkUserButton />
           </div>
         </div>
       </header>

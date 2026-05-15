@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 
-import { AppClerkProvider } from "@/components/providers/app-clerk-provider";
+import { Toaster } from "sonner";
+
+import { AppProviders } from "./providers";
 
 import "./globals.css";
 
@@ -29,7 +31,10 @@ export default function RootLayout({
       <body
         className={`${poppins.className} min-h-full flex flex-col bg-background text-foreground`}
       >
-        <AppClerkProvider>{children}</AppClerkProvider>
+        <AppProviders>
+          {children}
+          <Toaster richColors closeButton theme="dark" />
+        </AppProviders>
       </body>
     </html>
   );

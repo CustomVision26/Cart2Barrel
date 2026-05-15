@@ -2,11 +2,11 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ClerkUserButton } from "@/components/clerk-user-button";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { HomeStorefront } from "@/components/marketing/home-storefront";
 import { Button } from "@/components/ui/button";
 import { getProfileByClerkId, isOnboardingComplete } from "@/data/profiles";
-import { UserButton } from "@clerk/nextjs";
 
 export default async function Home() {
   const { userId } = await auth();
@@ -38,7 +38,7 @@ export default async function Home() {
                   Dashboard
                 </Button>
                 <CartHeaderLink />
-                <UserButton />
+                <ClerkUserButton />
               </>
             ) : (
               <>

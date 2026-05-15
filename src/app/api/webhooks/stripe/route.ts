@@ -3,7 +3,10 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import Stripe from "stripe";
 
-import { fulfillPaidCheckoutFromStripeSession } from "@/data/fulfill-stripe-checkout-session";
+import {
+  fulfillPaidCheckoutFromStripeSession,
+  revalidateAfterPaidCheckoutFulfillment,
+} from "@/data/fulfill-stripe-checkout-session";
 import { getDb } from "@/db";
 import { orders } from "@/db/schema";
 import { getStripeServer } from "@/lib/stripe-server";
@@ -49,7 +52,10 @@ export async function POST(req: Request) {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      await fulfillPaidCheckoutFromStripeSession(session);
+      const fulfilled = await fulfillPaidCheckoutFromStripeSession(session);
+      if (fulfilled) {
+        revalidateAfterPaidCheckoutFulfillment();
+      }
       break;
     }
     case "checkout.session.expired": {

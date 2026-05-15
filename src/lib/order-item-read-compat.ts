@@ -9,6 +9,17 @@ export type OrderItemReadCore = Pick<
   "id" | "orderId" | "itemRequestId" | "quantity" | "price"
 > & {
   fulfillmentStatus?: OrderItem["fulfillmentStatus"];
+  companyPurchaseTrackingUrl?: string | null;
+  companyPurchaseRetailerTrackingCompany?: string | null;
+  companyPurchaseRetailerTrackingNumber?: string | null;
+  companyPurchaseReceiptImageUrls?: string[] | null;
+  warehouseReceivedAt?: OrderItem["warehouseReceivedAt"];
+  warehouseReceivedQty?: OrderItem["warehouseReceivedQty"];
+  warehouseReceivedCondition?: OrderItem["warehouseReceivedCondition"];
+  warehouseShelfLocation?: OrderItem["warehouseShelfLocation"];
+  warehouseReceivedBarcode?: OrderItem["warehouseReceivedBarcode"];
+  warehouseReceivedBarcodeImageUrl?: OrderItem["warehouseReceivedBarcodeImageUrl"];
+  warehouseReceivedProofPhotoCount?: OrderItem["warehouseReceivedProofPhotoCount"];
 };
 
 export function effectiveOrderItemFulfillmentStatus(

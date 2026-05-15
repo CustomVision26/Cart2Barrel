@@ -12,12 +12,164 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
+import { formatUsd } from "@/lib/admin-markup";
+import {
+  auditSnapshotChangeSummary,
+  auditSnapshotStatusHeadline,
+} from "@/lib/item-request-line-audit-status";
+import { parseProductReturnTrackingMemo } from "@/lib/product-return-tracking-memo";
+import {
+  parseRefundRequestAuditMemo,
+  refundRequestReasonKindLabel,
+} from "@/lib/refund-request-audit-memo";
+import { parseWarehouseReceiptMemo } from "@/lib/warehouse-receipt-snapshot-memo";
+import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
 import { displaySiteName } from "@/lib/site-name";
 
 import { AdminProductUrlDialog } from "./admin-product-url-dialog";
 
-function AuditSnapshotPreviewPanel({ row }: { row: ItemRequestLineSnapshot }) {
+function ProductReturnTrackingSnapshotPanel({
+  row,
+}: {
+  row: ItemRequestLineSnapshot;
+}) {
+  const memo = parseProductReturnTrackingMemo(row.auditMemo);
+  if (!memo) return null;
+  return (
+    <div className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
+        Return shipment tracking
+      </p>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <dt className="text-xs font-medium text-muted-foreground">Tracking URL</dt>
+          <dd className="mt-0.5 break-all font-mono text-xs">
+            {memo.trackingUrl?.trim() || "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">Carrier / retailer</dt>
+          <dd>{memo.retailerTrackingCompany?.trim() || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">Tracking number</dt>
+          <dd className="font-mono text-xs">{memo.retailerTrackingNumber?.trim() || "—"}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function WarehouseReceiptSnapshotPanel({
+  row,
+}: {
+  row: ItemRequestLineSnapshot;
+}) {
+  const wr = parseWarehouseReceiptMemo(row.auditMemo);
+  if (!wr) return null;
+  return (
+    <div className="rounded-lg border border-primary/25 bg-primary/5 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-primary">
+        Warehouse receipt details
+      </p>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">
+            Ordered qty
+          </dt>
+          <dd className="tabular-nums font-medium">{wr.orderedQty}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">
+            Received qty
+          </dt>
+          <dd className="tabular-nums font-medium">{wr.receivedQty}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">
+            Condition
+          </dt>
+          <dd>{warehouseReceiveConditionLabel(wr.condition)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">
+            Shelf / bin
+          </dt>
+          <dd>{wr.shelfLocation.trim() || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">
+            Proof photos (session count)
+          </dt>
+          <dd className="tabular-nums">{wr.proofPhotoCount}</dd>
+        </div>
+        {wr.barcodeValue?.trim() ?
+          <div className="sm:col-span-2">
+            <dt className="text-xs font-medium text-muted-foreground">
+              Barcode / SKU
+            </dt>
+            <dd className="mt-0.5 font-mono text-xs">{wr.barcodeValue.trim()}</dd>
+          </div>
+        : null}
+      </dl>
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+        Product image below is the request-line snapshot. Proof counts are recorded above;
+        barcode photos from shoppers/staff are stored as URLs on the order line (Vercel Blob).
+      </p>
+    </div>
+  );
+}
+
+function CustomerRefundRequestSnapshotPanel({
+  row,
+}: {
+  row: ItemRequestLineSnapshot;
+}) {
+  const memo = parseRefundRequestAuditMemo(row.auditMemo);
+  if (!memo) return null;
+  const amountLabel =
+    memo.requestedAmountCents == null ?
+      "Full refundable remainder on line (requested)"
+    : `${formatUsd(memo.requestedAmountCents)} (requested cap)`;
+  return (
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.08] p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-amber-900 dark:text-amber-200">
+        Customer refund submission
+      </p>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <dt className="text-xs font-medium text-muted-foreground">Reason category</dt>
+          <dd className="mt-0.5 font-medium text-foreground">
+            {refundRequestReasonKindLabel(memo.reasonKind)}
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-xs font-medium text-muted-foreground">
+            Amount preference
+          </dt>
+          <dd className="mt-0.5 text-foreground">{amountLabel}</dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-xs font-medium text-muted-foreground">
+            Explanation (customer)
+          </dt>
+          <dd className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+            {memo.details.trim() || "—"}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function AuditSnapshotPreviewPanel({
+  row,
+  prevRow,
+}: {
+  row: ItemRequestLineSnapshot;
+  prevRow: ItemRequestLineSnapshot | null;
+}) {
   return (
     <div className="space-y-4 text-foreground">
       <div>
@@ -28,6 +180,26 @@ function AuditSnapshotPreviewPanel({ row }: { row: ItemRequestLineSnapshot }) {
           {itemRequestLineSnapshotPhaseLabel(row.phase)}
         </p>
       </div>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Status
+        </p>
+        <p className="text-base font-medium leading-snug">
+          {auditSnapshotStatusHeadline(row)}
+        </p>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          {auditSnapshotChangeSummary(row, prevRow)}
+        </p>
+      </div>
+      {row.phase === "warehouse_delivery_received" ? (
+        <WarehouseReceiptSnapshotPanel row={row} />
+      ) : null}
+      {row.phase === "product_return_tracking_saved" ? (
+        <ProductReturnTrackingSnapshotPanel row={row} />
+      ) : null}
+      {row.phase === "customer_refund_request_submitted" ? (
+        <CustomerRefundRequestSnapshotPanel row={row} />
+      ) : null}
       <div>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Recorded at
@@ -59,7 +231,16 @@ function AuditSnapshotPreviewPanel({ row }: { row: ItemRequestLineSnapshot }) {
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Qty
           </p>
-          <p className="tabular-nums">{row.quantity}</p>
+          <p className="tabular-nums">
+            {row.phase === "warehouse_delivery_received" ?
+              (() => {
+                const wrMemo = parseWarehouseReceiptMemo(row.auditMemo);
+                return wrMemo ?
+                    `${wrMemo.receivedQty} received (ordered ${wrMemo.orderedQty})`
+                  : row.quantity;
+              })()
+            : row.quantity}
+          </p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -102,6 +283,16 @@ function AuditSnapshotPreviewPanel({ row }: { row: ItemRequestLineSnapshot }) {
           {row.note?.trim() || "—"}
         </p>
       </div>
+      {row.auditMemo?.trim() ? (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Batch / estimate audit memo
+          </p>
+          <p className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-muted/25 px-3 py-3 font-mono text-xs leading-relaxed text-foreground">
+            {row.auditMemo.trim()}
+          </p>
+        </div>
+      ) : null}
       {row.productImageUrl?.trim() ? (
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -162,6 +353,14 @@ export function ItemRequestLineAuditDialog({
     previewId === null
       ? null
       : (displaySnapshots.find((r) => r.id === previewId) ?? null);
+  const previewIndex =
+    previewRow ?
+      displaySnapshots.findIndex((r) => r.id === previewRow.id)
+    : -1;
+  const previewPrev =
+    previewRow && previewIndex > 0 ?
+      (displaySnapshots[previewIndex - 1] ?? null)
+    : null;
 
   return (
     <>
@@ -206,10 +405,11 @@ export function ItemRequestLineAuditDialog({
         ) : (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_min(22rem,34%)] lg:items-start">
             <div className="min-w-0 overflow-x-auto rounded-md border border-border">
-              <table className="w-full min-w-[56rem] text-left text-sm sm:text-[0.9375rem]">
+              <table className="w-full min-w-[72rem] text-left text-sm sm:text-[0.9375rem]">
                 <thead className="border-b border-border bg-muted/50">
                   <tr>
                     <th className="px-3 py-3 font-medium text-foreground">Phase</th>
+                    <th className="px-3 py-3 font-medium text-foreground">Status</th>
                     <th className="px-3 py-3 font-medium text-foreground">Time</th>
                     <th className="px-3 py-3 font-medium text-foreground">Product</th>
                     <th className="px-3 py-3 font-medium text-foreground">URL</th>
@@ -221,8 +421,11 @@ export function ItemRequestLineAuditDialog({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {displaySnapshots.map((row) => {
+                  {displaySnapshots.map((row, rowIndex) => {
+                    const wrMemo = parseWarehouseReceiptMemo(row.auditMemo);
                     const selected = previewId === row.id;
+                    const prevRow =
+                      rowIndex > 0 ? (displaySnapshots[rowIndex - 1] ?? null) : null;
                     return (
                       <tr
                         key={row.id}
@@ -238,6 +441,14 @@ export function ItemRequestLineAuditDialog({
                       >
                         <td className="whitespace-nowrap px-3 py-3 text-foreground">
                           {itemRequestLineSnapshotPhaseLabel(row.phase)}
+                        </td>
+                        <td className="max-w-[22rem] px-3 py-3 align-top text-foreground">
+                          <span className="line-clamp-2 font-medium leading-snug">
+                            {auditSnapshotStatusHeadline(row)}
+                          </span>
+                          <span className="mt-1 block line-clamp-3 whitespace-normal text-xs leading-relaxed text-muted-foreground">
+                            {auditSnapshotChangeSummary(row, prevRow)}
+                          </span>
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">
                           <time dateTime={row.createdAt}>
@@ -264,7 +475,9 @@ export function ItemRequestLineAuditDialog({
                           {row.productColor?.trim() || "—"}
                         </td>
                         <td className="px-3 py-3 tabular-nums text-foreground">
-                          {row.quantity}
+                          {wrMemo ?
+                            `${wrMemo.receivedQty} / ${wrMemo.orderedQty}`
+                          : row.quantity}
                         </td>
                         <td className="max-w-[18rem] px-3 py-3 text-muted-foreground">
                           <span className="line-clamp-4 whitespace-pre-wrap">
@@ -282,7 +495,7 @@ export function ItemRequestLineAuditDialog({
             </div>
             <aside className="rounded-xl border border-border bg-muted/15 p-4 lg:max-h-[min(52rem,72vh)] lg:overflow-y-auto">
               {previewRow ? (
-                <AuditSnapshotPreviewPanel row={previewRow} />
+                <AuditSnapshotPreviewPanel row={previewRow} prevRow={previewPrev} />
               ) : (
                 <p className="text-sm leading-relaxed text-muted-foreground">
                   <span className="font-medium text-foreground">Preview</span> — double-click a

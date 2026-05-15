@@ -7,9 +7,92 @@ import {
   type ItemRequest,
   type ItemRequestLineSnapshot,
 } from "@/db/schema";
+import { isUndefinedColumnError } from "@/lib/db-column-missing";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 
 import type { User } from "@clerk/nextjs/server";
+
+/**
+ * Columns when `batch_quote_session_id` / `audit_memo` are not migrated (`0012` not applied).
+ */
+const itemRequestLineSnapshotsLegacyNoBatchAudit = {
+  id: itemRequestLineSnapshots.id,
+  itemRequestId: itemRequestLineSnapshots.itemRequestId,
+  itemQuoteId: itemRequestLineSnapshots.itemQuoteId,
+  phase: itemRequestLineSnapshots.phase,
+  productUrl: itemRequestLineSnapshots.productUrl,
+  productName: itemRequestLineSnapshots.productName,
+  productSize: itemRequestLineSnapshots.productSize,
+  productColor: itemRequestLineSnapshots.productColor,
+  quantity: itemRequestLineSnapshots.quantity,
+  note: itemRequestLineSnapshots.note,
+  productImageUrl: itemRequestLineSnapshots.productImageUrl,
+  siteName: itemRequestLineSnapshots.siteName,
+  createdAt: itemRequestLineSnapshots.createdAt,
+} as const;
+
+/** Columns before snapshots had `site_name` (`0008`). */
+const itemRequestLineSnapshotsLegacyMinimal = {
+  id: itemRequestLineSnapshots.id,
+  itemRequestId: itemRequestLineSnapshots.itemRequestId,
+  itemQuoteId: itemRequestLineSnapshots.itemQuoteId,
+  phase: itemRequestLineSnapshots.phase,
+  productUrl: itemRequestLineSnapshots.productUrl,
+  productName: itemRequestLineSnapshots.productName,
+  productSize: itemRequestLineSnapshots.productSize,
+  productColor: itemRequestLineSnapshots.productColor,
+  quantity: itemRequestLineSnapshots.quantity,
+  note: itemRequestLineSnapshots.note,
+  productImageUrl: itemRequestLineSnapshots.productImageUrl,
+  createdAt: itemRequestLineSnapshots.createdAt,
+} as const;
+
+function isWideSnapshotLegacyColumnError(e: unknown): boolean {
+  return (
+    isUndefinedColumnError(e, "batch_quote_session_id") ||
+    isUndefinedColumnError(e, "audit_memo")
+  );
+}
+
+async function querySnapshotsRowsForRequestIdsOrdered(
+  itemRequestDbIds: string[]
+): Promise<ItemRequestLineSnapshot[]> {
+  const db = getDb();
+  try {
+    return await db
+      .select()
+      .from(itemRequestLineSnapshots)
+      .where(inArray(itemRequestLineSnapshots.itemRequestId, itemRequestDbIds))
+      .orderBy(asc(itemRequestLineSnapshots.createdAt));
+  } catch (e) {
+    if (!isWideSnapshotLegacyColumnError(e)) throw e;
+    try {
+      const rows = await db
+        .select(itemRequestLineSnapshotsLegacyNoBatchAudit)
+        .from(itemRequestLineSnapshots)
+        .where(inArray(itemRequestLineSnapshots.itemRequestId, itemRequestDbIds))
+        .orderBy(asc(itemRequestLineSnapshots.createdAt));
+      return rows.map((r) => ({
+        ...r,
+        batchQuoteSessionId: null,
+        auditMemo: null,
+      }));
+    } catch (e2) {
+      if (!isUndefinedColumnError(e2, "site_name")) throw e2;
+      const rows = await db
+        .select(itemRequestLineSnapshotsLegacyMinimal)
+        .from(itemRequestLineSnapshots)
+        .where(inArray(itemRequestLineSnapshots.itemRequestId, itemRequestDbIds))
+        .orderBy(asc(itemRequestLineSnapshots.createdAt));
+      return rows.map((r) => ({
+        ...r,
+        siteName: null,
+        batchQuoteSessionId: null,
+        auditMemo: null,
+      }));
+    }
+  }
+}
 
 export type ItemRequestLineSnapshotPayload = Pick<
   ItemRequest,
@@ -42,6 +125,8 @@ export async function insertItemRequestLineSnapshot(params: {
   itemRequestId: string;
   phase: ItemRequestLineSnapshot["phase"];
   itemQuoteId?: string | null;
+  batchQuoteSessionId?: string | null;
+  auditMemo?: string | null;
   line: ItemRequestLineSnapshotPayload;
 }): Promise<void> {
   const db = getDb();
@@ -50,6 +135,8 @@ export async function insertItemRequestLineSnapshot(params: {
     itemRequestId: params.itemRequestId,
     phase: params.phase,
     itemQuoteId: params.itemQuoteId ?? null,
+    batchQuoteSessionId: params.batchQuoteSessionId ?? null,
+    auditMemo: params.auditMemo ?? null,
     productUrl: line.productUrl,
     productName: line.productName,
     productSize: line.productSize,
@@ -91,12 +178,7 @@ export async function listItemRequestLineSnapshotsByRequestIds(
   }
 
   try {
-    const db = getDb();
-    return await db
-      .select()
-      .from(itemRequestLineSnapshots)
-      .where(inArray(itemRequestLineSnapshots.itemRequestId, itemRequestIds))
-      .orderBy(asc(itemRequestLineSnapshots.createdAt));
+    return await querySnapshotsRowsForRequestIdsOrdered(itemRequestIds);
   } catch (e) {
     if (isMissingLineSnapshotsRelationError(e)) {
       console.warn(
@@ -144,11 +226,7 @@ export async function listItemRequestLineSnapshotsForOwnerByRequestIds(
     const ids = owned.map((r) => r.id);
     if (ids.length === 0) return [];
 
-    return await db
-      .select()
-      .from(itemRequestLineSnapshots)
-      .where(inArray(itemRequestLineSnapshots.itemRequestId, ids))
-      .orderBy(asc(itemRequestLineSnapshots.createdAt));
+    return await querySnapshotsRowsForRequestIdsOrdered(ids);
   } catch (e) {
     if (isMissingLineSnapshotsRelationError(e)) {
       console.warn(
