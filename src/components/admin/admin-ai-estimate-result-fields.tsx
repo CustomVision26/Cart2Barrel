@@ -18,6 +18,8 @@ export type AiPackDerivedTotals = {
   packListedSubtotalCents: number;
   serv: number;
   ship: number;
+  /** Flat packing once per line (cents). */
+  pack: number;
   tax: number;
   total: number;
   packCount: number;
@@ -360,6 +362,12 @@ export function AdminAiEstimateResultFields({
             <span>Service &amp; handling</span>
             <span className="text-foreground">{formatUsd(derived.serv)}</span>
           </div>
+          {derived.pack > 0 ? (
+            <div className="flex justify-between gap-2 tabular-nums text-muted-foreground">
+              <span>Packing (per line)</span>
+              <span className="text-foreground">{formatUsd(derived.pack)}</span>
+            </div>
+          ) : null}
           <Field className="gap-1.5">
             <FieldLabel htmlFor={`${idPrefix}-shipping`} className="text-xs">
               Shipping (flat)

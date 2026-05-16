@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { itemRequestLineSnapshots, orderItems, orders } from "@/db/schema";
+import { ensureInboundPackageForOrderItem } from "@/data/ensure-inbound-package-for-order-item";
 import {
   orderItemFulfillmentCoreSelectWithWarehouse,
   orderListSelect,
@@ -170,6 +171,12 @@ export async function applyWarehouseReceiptLines(
           warehouseReceivedProofPhotoCount: line.proofPhotoCount,
         })
         .where(eq(orderItems.id, line.orderItemId));
+      if (
+        fulfillmentStatusFromWarehouseReceiveCondition(line.condition) ===
+        "delivery_received_good_awaiting_barrel"
+      ) {
+        await ensureInboundPackageForOrderItem(line.orderItemId, receivedAt);
+      }
       await db.insert(itemRequestLineSnapshots).values(snapshotRows[i]!);
     }
 

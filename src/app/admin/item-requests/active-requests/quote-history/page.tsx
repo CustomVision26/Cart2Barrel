@@ -1,8 +1,10 @@
 import { AdminQuoteHistoryGroupedTable } from "@/components/admin/admin-quote-history-grouped-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 
 export default async function AdminActiveRequestsQuoteHistoryPage() {
   const result = await loadAdminItemRequestsPagePayload();
+  const merchantEstimateFees = await getMerchantPricingForEstimates();
 
   if (!result.ok || result.payload.noData) {
     return null;
@@ -14,6 +16,7 @@ export default async function AdminActiveRequestsQuoteHistoryPage() {
     <AdminQuoteHistoryGroupedTable
       groups={quoteHistoryGroups}
       snapshotsByRequestId={snapshotsByRequestId}
+      merchantEstimateFees={merchantEstimateFees}
     />
   );
 }

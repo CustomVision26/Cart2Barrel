@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { AdminQuoteHistoryGroup, AdminQuoteHistoryLine } from "@/data/admin-quote-history";
+import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
 import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -203,11 +204,13 @@ function sortQuoteHistoryLines(
 type AdminQuoteHistoryGroupedTableProps = {
   groups: AdminQuoteHistoryGroup[];
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
 export function AdminQuoteHistoryGroupedTable({
   groups,
   snapshotsByRequestId,
+  merchantEstimateFees,
 }: AdminQuoteHistoryGroupedTableProps) {
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
@@ -826,6 +829,7 @@ export function AdminQuoteHistoryGroupedTable({
           if (!next) setSelectedQuoteId(null);
         }}
         line={selectedLine}
+        merchantEstimateFees={merchantEstimateFees}
       />
     </div>
   );

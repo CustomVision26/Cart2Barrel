@@ -75,6 +75,7 @@ export default async function DashboardBarrelsPage() {
                   id: offering.id,
                   name: offering.name,
                   sizeLabel: offering.sizeLabel,
+                  kind: offering.kind,
                   priceUsdCents: offering.priceUsdCents,
                   isActive: offering.isActive,
                 }}

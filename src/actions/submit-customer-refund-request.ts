@@ -195,7 +195,7 @@ export async function submitCustomerRefundRequestAction(
 
   revalidatePath("/dashboard/orders");
   revalidatePath("/dashboard");
-  revalidatePath("/admin");
+  revalidatePath("/admin/overview");
   revalidatePath("/admin/orders");
   revalidatePath("/admin/purchase-orders");
   revalidatePath("/admin/packages");

@@ -83,7 +83,7 @@ export async function requestNewItemEstimateAction(
   revalidateDashboardAddItem();
   revalidatePath("/dashboard/items");
   revalidatePath("/admin/item-requests", "layout");
-  revalidatePath("/admin");
+  revalidatePath("/admin/overview");
 
   return {
     ok: true,

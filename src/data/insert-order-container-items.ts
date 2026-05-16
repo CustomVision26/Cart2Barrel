@@ -18,6 +18,7 @@ export async function insertOrderContainerItems(
         lineTotalCents: l.lineTotalCents,
         nameSnapshot: l.name,
         sizeSnapshot: l.sizeLabel,
+        kindSnapshot: l.kind,
       })),
     );
     return { ok: true };

@@ -151,11 +151,22 @@ export const barrelStatusEnum = pgEnum("barrel_status", [
   "delivered",
 ]);
 
+export const barrelPackageAssignmentActionEnum = pgEnum(
+  "barrel_package_assignment_action",
+  ["assigned", "reassigned", "removed"],
+);
+
 export const shipmentStatusEnum = pgEnum("shipment_status", [
   "packed",
   "shipped",
   "in_transit",
   "delivered",
+]);
+
+/** Admin catalog: physical container style shown on `/dashboard/barrels`. */
+export const containerOfferingKindEnum = pgEnum("container_offering_kind", [
+  "barrel",
+  "bin",
 ]);
 
 /** Shipping / delivery destinations (saved labels). Source of truth for where barrels ship. */
@@ -343,6 +354,8 @@ export const itemQuotes = pgTable(
      */
     merchandiseSavingsCents: integer("merchandise_savings_cents"),
     serviceFee: integer("service_fee").notNull(),
+    /** Flat packing once per quoted line (cents); included in `totalPrice`. */
+    packingFeeCents: integer("packing_fee_cents").notNull().default(0),
     estimatedShipping: integer("estimated_shipping").notNull(),
     totalPrice: integer("total_price").notNull(),
     /**
@@ -611,6 +624,58 @@ export const deliveryRequests = pgTable(
   ],
 );
 
+/** Singleton row: flat packing + container shipping fees (cents). */
+export const merchantPackingFeeSettings = pgTable("merchant_packing_fee_settings", {
+  singletonKey: text("singleton_key").primaryKey().default("default"),
+  packingFeePerLineCents: integer("packing_fee_per_line_cents").notNull().default(0),
+  /** Base shipping fee when customer selects a barrel-type container (cents). */
+  barrelShippingFeeCents: integer("barrel_shipping_fee_cents").notNull().default(0),
+  /** Base shipping fee when customer selects a bin-type container (cents). */
+  binShippingFeeCents: integer("bin_shipping_fee_cents").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+});
+
+/**
+ * Manual total packing/shipping fee (cents) for a cart mix of barrel vs bin container counts.
+ * Lookup: exact match on (barrel_count, bin_count) after summing quantities by offering kind.
+ */
+export const merchantPackingComboFees = pgTable(
+  "merchant_packing_combo_fees",
+  {
+    id: serial("id").primaryKey(),
+    barrelCount: integer("barrel_count").notNull(),
+    binCount: integer("bin_count").notNull(),
+    feeCents: integer("fee_cents").notNull(),
+    sortIndex: integer("sort_index").notNull(),
+  },
+  (t) => [
+    uniqueIndex("merchant_packing_combo_fees_barrel_bin_uidx").on(
+      t.barrelCount,
+      t.binCount,
+    ),
+    uniqueIndex("merchant_packing_combo_fees_sort_uidx").on(t.sortIndex),
+  ],
+);
+
+/**
+ * Tiered service & handling: applies when consumer unit price (cents) is at most
+ * `maxUnitPriceInclusiveCents` (rows sorted ascending by that bound).
+ */
+export const serviceHandlingFeeTiers = pgTable(
+  "service_handling_fee_tiers",
+  {
+    id: serial("id").primaryKey(),
+    maxUnitPriceInclusiveCents: integer("max_unit_price_inclusive_cents").notNull(),
+    feePerUnitCents: integer("fee_per_unit_cents").notNull(),
+    sortIndex: integer("sort_index").notNull(),
+  },
+  (t) => [
+    uniqueIndex("service_handling_fee_tiers_sort_idx").on(t.sortIndex),
+  ],
+);
+
 /** Inbound package to ops (linked to a paid line item). */
 export const packages = pgTable(
   "packages",
@@ -642,11 +707,24 @@ export const barrels = pgTable(
       .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
     status: barrelStatusEnum("status").notNull().default("filling"),
     capacityPercentage: integer("capacity_percentage").notNull().default(0),
+    /**
+     * When this row was provisioned from a paid container checkout line, links back to that
+     * snapshot so the shopper UI can show which purchased container slot this physical barrel is.
+     */
+    orderContainerItemId: uuid("order_container_item_id").references(
+      () => orderContainerItems.id,
+      { onDelete: "set null" },
+    ),
+    /** 1-based index within the purchased quantity for that `order_container_items` row. */
+    unitOrdinal: integer("unit_ordinal").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
   },
-  (t) => [index("barrels_clerk_user_id_idx").on(t.clerkUserId)],
+  (t) => [
+    index("barrels_clerk_user_id_idx").on(t.clerkUserId),
+    index("barrels_order_container_item_id_idx").on(t.orderContainerItemId),
+  ],
 );
 
 export const barrelItems = pgTable(
@@ -663,6 +741,42 @@ export const barrelItems = pgTable(
   (t) => [
     index("barrel_items_barrel_id_idx").on(t.barrelId),
     uniqueIndex("barrel_items_package_id_unique").on(t.packageId),
+  ],
+);
+
+/** Append-only audit of shopper / staff moves of inbound packages into physical barrels. */
+export const barrelPackageAssignmentEvents = pgTable(
+  "barrel_package_assignment_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerClerkUserId: text("owner_clerk_user_id").notNull(),
+    packageId: uuid("package_id")
+      .notNull()
+      .references(() => packages.id, { onDelete: "cascade" }),
+    orderItemId: uuid("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "cascade" }),
+    fromBarrelId: uuid("from_barrel_id").references(() => barrels.id, {
+      onDelete: "set null",
+    }),
+    toBarrelId: uuid("to_barrel_id").references(() => barrels.id, {
+      onDelete: "set null",
+    }),
+    action: barrelPackageAssignmentActionEnum("action").notNull(),
+    actorClerkUserId: text("actor_clerk_user_id").notNull(),
+    adminNote: text("admin_note"),
+    productNameSnapshot: text("product_name_snapshot"),
+    barrelLabelSnapshot: text("barrel_label_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("barrel_pkg_assign_events_owner_created_idx").on(
+      t.ownerClerkUserId,
+      t.createdAt,
+    ),
+    index("barrel_pkg_assign_events_package_idx").on(t.packageId),
   ],
 );
 
@@ -728,6 +842,7 @@ export const containerOfferings = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
     sizeLabel: text("size_label").notNull(),
+    kind: containerOfferingKindEnum("kind").notNull().default("barrel"),
     priceUsdCents: integer("price_usd_cents").notNull(),
     isActive: boolean("is_active").notNull().default(true),
     sortIndex: integer("sort_index").notNull().default(0),
@@ -797,6 +912,8 @@ export const orderContainerItems = pgTable(
     lineTotalCents: integer("line_total_cents").notNull(),
     nameSnapshot: text("name_snapshot").notNull(),
     sizeSnapshot: text("size_snapshot").notNull(),
+    /** `barrel` | `bin` at checkout (matches `container_offering_kind`). */
+    kindSnapshot: text("kind_snapshot").notNull().default("barrel"),
   },
   (t) => [index("order_container_items_order_id_idx").on(t.orderId)],
 );
@@ -956,7 +1073,7 @@ export const userContainerCartLinesRelations = relations(
 
 export const orderContainerItemsRelations = relations(
   orderContainerItems,
-  ({ one }) => ({
+  ({ one, many }) => ({
     order: one(orders, {
       fields: [orderContainerItems.orderId],
       references: [orders.id],
@@ -965,6 +1082,7 @@ export const orderContainerItemsRelations = relations(
       fields: [orderContainerItems.containerOfferingId],
       references: [containerOfferings.id],
     }),
+    provisionedBarrels: many(barrels),
   }),
 );
 
@@ -981,6 +1099,7 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   deliveryRequests: many(deliveryRequests),
   refunds: many(orderItemRefunds),
   refundRequests: many(orderItemRefundRequests),
+  barrelAssignmentEvents: many(barrelPackageAssignmentEvents),
 }));
 
 export const orderItemRefundRequestsRelations = relations(
@@ -1013,12 +1132,17 @@ export const packagesRelations = relations(packages, ({ one, many }) => ({
     references: [orderItems.id],
   }),
   barrelItems: many(barrelItems),
+  assignmentEvents: many(barrelPackageAssignmentEvents),
 }));
 
 export const barrelsRelations = relations(barrels, ({ one, many }) => ({
   profile: one(profiles, {
     fields: [barrels.clerkUserId],
     references: [profiles.clerkUserId],
+  }),
+  orderContainerItem: one(orderContainerItems, {
+    fields: [barrels.orderContainerItemId],
+    references: [orderContainerItems.id],
   }),
   barrelItems: many(barrelItems),
   shipments: many(shipments),
@@ -1034,6 +1158,20 @@ export const barrelItemsRelations = relations(barrelItems, ({ one }) => ({
     references: [packages.id],
   }),
 }));
+
+export const barrelPackageAssignmentEventsRelations = relations(
+  barrelPackageAssignmentEvents,
+  ({ one }) => ({
+    inboundPackage: one(packages, {
+      fields: [barrelPackageAssignmentEvents.packageId],
+      references: [packages.id],
+    }),
+    orderItem: one(orderItems, {
+      fields: [barrelPackageAssignmentEvents.orderItemId],
+      references: [orderItems.id],
+    }),
+  }),
+);
 
 export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
   barrel: one(barrels, {
@@ -1104,6 +1242,14 @@ export type NewOrderItemRefundRequest = typeof orderItemRefundRequests.$inferIns
 export type DeliveryRequest = typeof deliveryRequests.$inferSelect;
 export type NewDeliveryRequest = typeof deliveryRequests.$inferInsert;
 
+export type MerchantPackingFeeSetting = typeof merchantPackingFeeSettings.$inferSelect;
+export type NewMerchantPackingFeeSetting = typeof merchantPackingFeeSettings.$inferInsert;
+export type MerchantPackingComboFee = typeof merchantPackingComboFees.$inferSelect;
+export type NewMerchantPackingComboFee = typeof merchantPackingComboFees.$inferInsert;
+
+export type ServiceHandlingFeeTier = typeof serviceHandlingFeeTiers.$inferSelect;
+export type NewServiceHandlingFeeTier = typeof serviceHandlingFeeTiers.$inferInsert;
+
 export type Package = typeof packages.$inferSelect;
 export type NewPackage = typeof packages.$inferInsert;
 
@@ -1128,6 +1274,11 @@ export type NewContainerOfferingImage =
 
 export type UserContainerCartLine = typeof userContainerCartLines.$inferSelect;
 export type NewUserContainerCartLine = typeof userContainerCartLines.$inferInsert;
+
+export type BarrelPackageAssignmentEvent =
+  typeof barrelPackageAssignmentEvents.$inferSelect;
+export type NewBarrelPackageAssignmentEvent =
+  typeof barrelPackageAssignmentEvents.$inferInsert;
 
 export type OrderContainerItem = typeof orderContainerItems.$inferSelect;
 export type NewOrderContainerItem = typeof orderContainerItems.$inferInsert;

@@ -24,12 +24,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  containerOfferingKindLabel,
+  type ContainerOfferingKind,
+} from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
 
 export type SerializableContainerOffering = {
   id: string;
   name: string;
   sizeLabel: string;
+  kind: ContainerOfferingKind;
   priceUsdCents: number;
   isActive: boolean;
 };
@@ -78,7 +83,12 @@ export function DashboardBarrelOfferingCard({
   return (
     <Card className="overflow-hidden border-border/80">
       <CardHeader className="space-y-1 pb-2">
-        <CardTitle className="text-lg">{offering.name}</CardTitle>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <CardTitle className="text-lg">{offering.name}</CardTitle>
+          <span className="shrink-0 rounded-full border border-border/80 bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-foreground">
+            {containerOfferingKindLabel(offering.kind)}
+          </span>
+        </div>
         <CardDescription>
           {offering.sizeLabel} · {priceLabel} each
         </CardDescription>

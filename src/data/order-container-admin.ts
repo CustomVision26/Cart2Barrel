@@ -8,6 +8,7 @@ export type OrderContainerLineAdmin = {
   orderId: string;
   nameSnapshot: string;
   sizeSnapshot: string;
+  kindSnapshot: string;
   quantity: number;
   unitPriceCents: number;
   lineTotalCents: number;
@@ -29,6 +30,7 @@ export async function listOrderContainerItemsByOrderIds(
       orderId: orderContainerItems.orderId,
       nameSnapshot: orderContainerItems.nameSnapshot,
       sizeSnapshot: orderContainerItems.sizeSnapshot,
+      kindSnapshot: orderContainerItems.kindSnapshot,
       quantity: orderContainerItems.quantity,
       unitPriceCents: orderContainerItems.unitPriceCents,
       lineTotalCents: orderContainerItems.lineTotalCents,

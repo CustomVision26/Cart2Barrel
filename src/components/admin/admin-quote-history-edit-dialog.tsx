@@ -26,6 +26,7 @@ import {
   computePackLineMerchandiseAndServiceCents,
   formatUsd,
 } from "@/lib/admin-markup";
+import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
 
 function parseDollarsToCents(raw: string): number {
   const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");
@@ -49,9 +50,10 @@ function parseQuantityInput(raw: string, fallback: number): number {
 
 function lineTaxCents(line: AdminQuoteHistoryLine): number {
   const q = line.quote;
+  const pack = q.packingFeeCents ?? 0;
   return Math.max(
     0,
-    q.totalPrice - q.itemCost - q.serviceFee - q.estimatedShipping
+    q.totalPrice - q.itemCost - q.serviceFee - q.estimatedShipping - pack
   );
 }
 
@@ -59,12 +61,14 @@ type AdminQuoteHistoryEditDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   line: AdminQuoteHistoryLine | null;
+  merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
 export function AdminQuoteHistoryEditDialog({
   open,
   onOpenChange,
   line,
+  merchantEstimateFees,
 }: AdminQuoteHistoryEditDialogProps) {
   const router = useRouter();
   const [isAiPending, startAiTransition] = useTransition();
@@ -155,8 +159,9 @@ export function AdminQuoteHistoryEditDialog({
     const serv = parseDollarsToCents(serviceDollars);
     const ship = parseDollarsToCents(shippingDollars);
     const tax = parseDollarsToCents(taxDollars);
-    return { merch, serv, ship, tax, total: merch + serv + ship + tax };
-  }, [merchDollars, serviceDollars, shippingDollars, taxDollars]);
+    const pack = merchantEstimateFees?.packingFeePerLineCents ?? 0;
+    return { merch, serv, ship, tax, pack, total: merch + serv + ship + tax + pack };
+  }, [merchDollars, serviceDollars, shippingDollars, taxDollars, merchantEstimateFees]);
 
   const packDerived = useMemo(() => {
     if (!aiResult?.ok) return null;
@@ -178,11 +183,14 @@ export function AdminQuoteHistoryEditDialog({
         ? null
         : overrideCentsRaw;
 
+    const packingCents = merchantEstimateFees?.packingFeePerLineCents ?? 0;
+
     const packLine = computePackLineMerchandiseAndServiceCents({
       packPriceCents: packCents,
       packCount,
       unitsPerPack: upp,
       consumerUnitPriceOverrideCents,
+      serviceTiers: merchantEstimateFees?.serviceTiers,
     });
 
     const savingsRaw = parseDollarsToCents(editSavingsDollars);
@@ -198,7 +206,7 @@ export function AdminQuoteHistoryEditDialog({
     const ship = parseDollarsToCents(shippingDollars);
     const tax = parseDollarsToCents(taxDollars);
     const total =
-      merchNet + packLine.serviceFeeCents + ship + tax;
+      merchNet + packLine.serviceFeeCents + ship + tax + packingCents;
 
     const impliedConsumerUnitCents =
       packLine.impliedConsumerUnitCents > 0
@@ -217,6 +225,7 @@ export function AdminQuoteHistoryEditDialog({
       serv: packLine.serviceFeeCents,
       ship,
       tax,
+      pack: packingCents,
       total,
       packCount,
       upp,
@@ -237,6 +246,7 @@ export function AdminQuoteHistoryEditDialog({
     shippingDollars,
     taxDollars,
     editSavingsDollars,
+    merchantEstimateFees,
   ]);
 
   const totalPreviewCents =

@@ -1,8 +1,10 @@
 import { AdminItemRequestsGroupedTable } from "@/components/admin/admin-item-requests-grouped-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 
 export default async function AdminItemRequestsQueuePage() {
   const result = await loadAdminItemRequestsPagePayload();
+  const merchantEstimateFees = await getMerchantPricingForEstimates();
 
   if (!result.ok || result.payload.noData) {
     return null;
@@ -25,6 +27,7 @@ export default async function AdminItemRequestsQueuePage() {
         groups={queueGroups}
         snapshotsByRequestId={snapshotsByRequestId}
         latestQuotesByRequestId={activeQueueLatestQuotesByRequestId}
+        merchantEstimateFees={merchantEstimateFees}
       />
     );
   }

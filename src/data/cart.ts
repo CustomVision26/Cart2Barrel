@@ -23,6 +23,9 @@ import { itemQuoteCoreSelect, itemQuoteCoreSelectPreMerchandiseSavings } from "@
 import { orderListSelect } from "@/data/order-list-select";
 import type { ContainerCheckoutLine } from "@/data/user-container-cart";
 import { allocateBundleSubtotalAcrossLineTotalsCents } from "@/lib/batch-cart-allocation";
+import {
+  containerOfferingKindLabel,
+} from "@/lib/validations/container-offering";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
 import {
   isMissingBatchQuoteSessionIdColumnError,
@@ -599,7 +602,7 @@ export function buildStripeLineItemsFromContainerCheckoutLines(
       unit_amount: line.lineTotalCents,
       product_data: {
         name: `Container: ${line.name}`,
-        description: `${line.sizeLabel} · Qty ${line.quantity}`,
+        description: `${containerOfferingKindLabel(line.kind)} · ${line.sizeLabel} · Qty ${line.quantity}`,
       },
     },
   }));
@@ -626,6 +629,7 @@ export type CartCheckoutContainerSummaryLine = {
   id: string;
   nameSnapshot: string;
   sizeSnapshot: string;
+  kindSnapshot: string;
   quantity: number;
   lineTotalCents: number;
 };
@@ -747,6 +751,7 @@ export async function getCartCheckoutOrderSummaryForUser(
       id: orderContainerItems.id,
       nameSnapshot: orderContainerItems.nameSnapshot,
       sizeSnapshot: orderContainerItems.sizeSnapshot,
+      kindSnapshot: orderContainerItems.kindSnapshot,
       quantity: orderContainerItems.quantity,
       lineTotalCents: orderContainerItems.lineTotalCents,
     })

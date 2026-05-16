@@ -30,6 +30,10 @@ export async function saveWarehouseReceiptSnapshotsAction(
     revalidatePath("/admin/purchase-orders");
     revalidatePath("/admin/orders");
     revalidatePath("/admin/packages");
+    revalidatePath("/admin/barrels/assign-to-barrel");
+    revalidatePath("/admin/barrels/assign-to-barrel-history");
+    revalidatePath("/dashboard/barrels/product-to-barrel");
+    revalidatePath("/dashboard/barrels/product-to-barrel-history");
     revalidatePath("/admin/item-requests", "layout");
     revalidatePath("/dashboard/orders");
   }

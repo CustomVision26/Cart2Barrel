@@ -1,14 +1,32 @@
 /**
  * Admin-configurable knobs (env): tax (bps), flat shipping cents.
- * Service & handling uses fixed **per-unit USD tiers** (see `.cursor/rules/cart2barrel-service-handling-fees.mdc`).
+ * Service & handling tiers and packing fee can be edited in
+ * `/admin/overview?tab=set-fee-n-rate` (stored in Postgres); this module holds defaults and math.
  */
 
 export type AdminMarkupSettings = {
-  /** Tax applied to merchandise + shipping + service (simplified). */
+  /** Tax applied to merchandise + shipping + service + packing (simplified). */
   taxBps: number;
   /** Flat estimated outbound shipping in cents (per line / MVP). */
   defaultShippingCents: number;
 };
+
+/** One row from `service_handling_fee_tiers` (or the built-in default ladder). */
+export type MerchantServiceTierRow = {
+  maxUnitPriceInclusiveCents: number;
+  feePerUnitCents: number;
+};
+
+/** Matches legacy hardcoded tiers; used when DB has no rows yet. */
+export const DEFAULT_MERCHANT_SERVICE_TIERS: readonly MerchantServiceTierRow[] =
+  [
+    { maxUnitPriceInclusiveCents: 2000, feePerUnitCents: 50 },
+    { maxUnitPriceInclusiveCents: 4000, feePerUnitCents: 100 },
+    { maxUnitPriceInclusiveCents: 8000, feePerUnitCents: 150 },
+    { maxUnitPriceInclusiveCents: 10000, feePerUnitCents: 200 },
+    { maxUnitPriceInclusiveCents: 20000, feePerUnitCents: 300 },
+    { maxUnitPriceInclusiveCents: 2_147_483_647, feePerUnitCents: 500 },
+  ] as const;
 
 function parseBps(raw: string | undefined, fallback: number): number {
   if (raw == null || raw.trim() === "") return fallback;
@@ -31,19 +49,39 @@ export function getAdminMarkupSettings(): AdminMarkupSettings {
   };
 }
 
-/**
- * Service & handling fee in cents for **one** item, from its unit price (cents).
- * Tiers match Cart2Barrel product rules (USD).
- */
-export function serviceHandlingFeePerUnitCents(unitPriceCents: number): number {
-  if (!Number.isFinite(unitPriceCents) || unitPriceCents <= 0) return 0;
-  if (unitPriceCents <= 2000) return 50;
-  if (unitPriceCents <= 4000) return 100;
-  if (unitPriceCents <= 8000) return 150;
-  if (unitPriceCents <= 10000) return 200;
-  if (unitPriceCents <= 20000) return 300;
-  return 500;
+function resolveTiers(
+  tiers?: readonly MerchantServiceTierRow[] | null,
+): readonly MerchantServiceTierRow[] {
+  return tiers && tiers.length > 0 ? tiers : DEFAULT_MERCHANT_SERVICE_TIERS;
 }
+
+/**
+ * Service & handling fee in cents for **one** item, from its unit price (cents),
+ * using tier rows sorted ascending by `maxUnitPriceInclusiveCents`.
+ */
+export function serviceHandlingFeePerUnitCents(
+  unitPriceCents: number,
+  tiers?: readonly MerchantServiceTierRow[] | null,
+): number {
+  if (!Number.isFinite(unitPriceCents) || unitPriceCents <= 0) return 0;
+  const list = [...resolveTiers(tiers)].sort(
+    (a, b) => a.maxUnitPriceInclusiveCents - b.maxUnitPriceInclusiveCents,
+  );
+  for (const row of list) {
+    if (unitPriceCents <= row.maxUnitPriceInclusiveCents) {
+      return row.feePerUnitCents;
+    }
+  }
+  const last = list[list.length - 1];
+  return last ? last.feePerUnitCents : 0;
+}
+
+/** Optional DB-backed tiers + packing for line estimates. */
+export type LineEstimateFeeOptions = {
+  serviceTiers?: readonly MerchantServiceTierRow[] | null;
+  /** Added once per line (not multiplied by quantity). */
+  packingFeePerLineCents?: number | null;
+};
 
 /** Inputs for pack/bundle/case lines (merchandise and tiered service). */
 export type PackLinePricingInput = {
@@ -62,6 +100,8 @@ export type PackLinePricingInput = {
    * pack price × pack count. When null/omit, tiers use implied unit from pack.
    */
   consumerUnitPriceOverrideCents?: number | null;
+  /** When set, overrides default tier ladder for service fee only. */
+  serviceTiers?: readonly MerchantServiceTierRow[] | null;
 };
 
 export type PackLinePricingResult = {
@@ -111,8 +151,10 @@ export function computePackLineMerchandiseAndServiceCents(
   const serviceFeeCents =
     effectiveConsumerUnitCents > 0 && consumerUnits > 0
       ? Math.round(
-          serviceHandlingFeePerUnitCents(effectiveConsumerUnitCents) *
-            consumerUnits
+          serviceHandlingFeePerUnitCents(
+            effectiveConsumerUnitCents,
+            input.serviceTiers,
+          ) * consumerUnits
         )
       : 0;
 
@@ -131,21 +173,28 @@ export type LineEstimateCents = {
   unitPriceCents: number | null;
   merchandiseSubtotalCents: number | null;
   serviceFeeCents: number | null;
+  /** Flat packing once per quoted line (cents). */
+  packingFeeCents: number;
   estimatedShippingCents: number;
   taxCents: number;
   totalCents: number | null;
 };
 
 /**
- * Merchandise = unit × qty. Service = per-unit tier fee × qty. Shipping flat.
- * Tax = bps × (merchandise + service + shipping).
+ * Merchandise = unit × qty. Service = per-unit tier fee × qty. Shipping flat. Packing flat per line.
+ * Tax = bps × (merchandise + service + shipping + packing).
  */
 export function computeLineEstimateCents(
   unitPriceCents: number | null,
   quantity: number,
-  settings: AdminMarkupSettings
+  settings: AdminMarkupSettings,
+  feeOptions?: LineEstimateFeeOptions | null,
 ): LineEstimateCents {
   const estimatedShippingCents = settings.defaultShippingCents;
+  const packingFeeCents = Math.max(
+    0,
+    Math.round(Number(feeOptions?.packingFeePerLineCents) || 0),
+  );
 
   if (unitPriceCents == null || unitPriceCents < 0) {
     return {
@@ -153,6 +202,7 @@ export function computeLineEstimateCents(
       unitPriceCents: null,
       merchandiseSubtotalCents: null,
       serviceFeeCents: null,
+      packingFeeCents,
       estimatedShippingCents,
       taxCents: 0,
       totalCents: null,
@@ -160,10 +210,16 @@ export function computeLineEstimateCents(
   }
 
   const merchandiseSubtotalCents = Math.round(unitPriceCents * quantity);
-  const perUnit = serviceHandlingFeePerUnitCents(unitPriceCents);
+  const perUnit = serviceHandlingFeePerUnitCents(
+    unitPriceCents,
+    feeOptions?.serviceTiers,
+  );
   const serviceFeeCents = Math.round(perUnit * quantity);
   const preTax =
-    merchandiseSubtotalCents + serviceFeeCents + estimatedShippingCents;
+    merchandiseSubtotalCents +
+    serviceFeeCents +
+    estimatedShippingCents +
+    packingFeeCents;
   const taxCents =
     settings.taxBps > 0 ? Math.round((preTax * settings.taxBps) / 10_000) : 0;
   const totalCents = preTax + taxCents;
@@ -173,6 +229,7 @@ export function computeLineEstimateCents(
     unitPriceCents,
     merchandiseSubtotalCents,
     serviceFeeCents,
+    packingFeeCents,
     estimatedShippingCents,
     taxCents,
     totalCents,

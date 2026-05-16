@@ -108,7 +108,7 @@ export async function adminUploadItemRequestProductImageAction(
   });
 
   revalidatePath("/admin/item-requests", "layout");
-  revalidatePath("/admin");
+  revalidatePath("/admin/overview");
   revalidatePath("/dashboard/items");
   revalidateDashboardAddItem();
   revalidatePath("/dashboard/cart");

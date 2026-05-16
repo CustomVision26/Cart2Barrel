@@ -115,7 +115,7 @@ export async function approveOrderItemRefundRequestAction(
     })
     .where(eq(orderItemRefundRequests.id, row.req.id));
 
-  revalidatePath("/admin");
+  revalidatePath("/admin/overview");
   revalidatePath("/admin/orders");
   revalidatePath("/admin/purchase-orders");
   revalidatePath("/admin/packages");

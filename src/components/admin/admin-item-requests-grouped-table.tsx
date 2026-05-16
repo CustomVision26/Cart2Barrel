@@ -36,6 +36,7 @@ import {
 } from "@/lib/table-sort";
 import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
 import type { AdminQuoteHistoryLine } from "@/data/admin-quote-history";
+import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
 import type { AdminItemRequestGroup } from "@/lib/admin-item-requests-group";
 import { adminRequestQueueKindBadgeKind } from "@/lib/status-badge-map";
@@ -232,6 +233,7 @@ function ActiveQueueLineTableRow({
   latestQuotesByRequestId,
   onEditQuote,
   showAccountColumns = false,
+  merchantEstimateFees,
 }: {
   group: AdminItemRequestGroup;
   row: AdminItemRequestWithUserRow;
@@ -240,6 +242,7 @@ function ActiveQueueLineTableRow({
   onEditQuote: (line: AdminQuoteHistoryLine) => void;
   /** When true, prepend Account and Email cells (flat paginated-by-line table). */
   showAccountColumns?: boolean;
+  merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 }) {
   const { request: r, queueKind } = row;
   const allowAiEstimate = queueKind === "new" || queueKind === "resend";
@@ -299,6 +302,7 @@ function ActiveQueueLineTableRow({
             initialQuantity={r.quantity}
             initialProductSize={r.productSize}
             initialProductColor={r.productColor}
+            merchantEstimateFees={merchantEstimateFees}
           />
         ) : canEditQuote && latestQuote ? (
           <Button
@@ -346,12 +350,14 @@ type AdminItemRequestsGroupedTableProps = {
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   /** Latest operational quote per request (for Edit quote on quoted queue rows). */
   latestQuotesByRequestId?: Record<string, ItemQuote>;
+  merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
 export function AdminItemRequestsGroupedTable({
   groups,
   snapshotsByRequestId,
   latestQuotesByRequestId = {},
+  merchantEstimateFees,
 }: AdminItemRequestsGroupedTableProps) {
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
   const [editQuoteOpen, setEditQuoteOpen] = useState(false);
@@ -873,6 +879,7 @@ export function AdminItemRequestsGroupedTable({
                                   snapshotsByRequestId={snapshotsByRequestId}
                                   latestQuotesByRequestId={latestQuotesByRequestId}
                                   onEditQuote={openEditQuote}
+                                  merchantEstimateFees={merchantEstimateFees}
                                 />
                               ))}
                             </tbody>
@@ -981,6 +988,7 @@ export function AdminItemRequestsGroupedTable({
                       snapshotsByRequestId={snapshotsByRequestId}
                       latestQuotesByRequestId={latestQuotesByRequestId}
                       onEditQuote={openEditQuote}
+                      merchantEstimateFees={merchantEstimateFees}
                     />
                   ))}
                 </tbody>
@@ -1033,6 +1041,7 @@ export function AdminItemRequestsGroupedTable({
           if (!next) setEditQuoteLine(null);
         }}
         line={editQuoteLine}
+        merchantEstimateFees={merchantEstimateFees}
       />
     </div>
   );

@@ -13,6 +13,7 @@ import {
   type LineEstimateCents,
 } from "@/lib/admin-markup";
 import { applyAiExtractionPatchToItemRequest } from "@/data/item-requests";
+import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminAiEstimateRequest } from "@/lib/validations/admin-ai-estimate";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
@@ -57,6 +58,7 @@ export async function adminAiEstimateFromUrlAction(
   const { productUrl, quantity, productSize, productColor, itemRequestId } =
     parsed.data;
   const settings = getAdminMarkupSettings();
+  const feeSnap = await getMerchantPricingForEstimates();
 
   try {
     const html = await fetchPageHtmlForAi(productUrl);
@@ -74,7 +76,10 @@ export async function adminAiEstimateFromUrlAction(
       extraction.unitPriceUsd != null
         ? Math.round(extraction.unitPriceUsd * 100)
         : null;
-    const estimate = computeLineEstimateCents(unitPriceCents, quantity, settings);
+    const estimate = computeLineEstimateCents(unitPriceCents, quantity, settings, {
+      serviceTiers: feeSnap.serviceTiers,
+      packingFeePerLineCents: feeSnap.packingFeePerLineCents,
+    });
 
     if (itemRequestId) {
       await applyAiExtractionPatchToItemRequest(itemRequestId, {
@@ -83,7 +88,7 @@ export async function adminAiEstimateFromUrlAction(
         siteName: extraction.siteName,
       });
       revalidatePath("/admin/item-requests", "layout");
-      revalidatePath("/admin");
+      revalidatePath("/admin/overview");
       revalidatePath("/dashboard/items");
       revalidateDashboardAddItem();
       revalidatePath("/dashboard/cart");

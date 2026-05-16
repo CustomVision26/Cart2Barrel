@@ -34,7 +34,7 @@ export default async function DashboardLayout({
             </Link>
             {showAdminEntry ?
               <Link
-                href="/admin"
+                href="/admin/overview?tab=summary"
                 className="text-sm font-medium text-primary hover:text-primary/90"
               >
                 Admin

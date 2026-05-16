@@ -19,9 +19,10 @@ export function revalidateAfterPaidCheckoutFulfillment(): void {
   revalidateDashboardAddItem();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/barrels");
+  revalidatePath("/dashboard/barrels/product-to-barrel");
+  revalidatePath("/dashboard/barrels/product-to-barrel-history");
   revalidatePath("/admin/orders");
-  revalidatePath("/admin");
-  revalidatePath("/admin/finance");
+  revalidatePath("/admin/overview");
   revalidatePath("/admin/item-requests", "layout");
 }
 

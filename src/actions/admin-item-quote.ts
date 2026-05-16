@@ -17,6 +17,7 @@ import {
   patchItemRequestDisplayFieldsOnly,
   voidActiveQuotesForItemRequest,
 } from "@/data/item-quotes";
+import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT } from "@/lib/item-quote-void-reason";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
@@ -50,7 +51,10 @@ export async function saveAdminItemQuoteAction(
   }
 
   const d = parsed.data;
-  const totalPrice = d.itemCost + d.serviceFee + d.estimatedShipping + d.tax;
+  const { packingFeePerLineCents } = await getMerchantPricingForEstimates();
+  const packingFeeCents = Math.max(0, Math.round(Number(packingFeePerLineCents) || 0));
+  const totalPrice =
+    d.itemCost + d.serviceFee + d.estimatedShipping + d.tax + packingFeeCents;
   const merchandiseSavingsCents =
     d.merchandiseSavingsCents != null && d.merchandiseSavingsCents > 0
       ? d.merchandiseSavingsCents
@@ -92,6 +96,7 @@ export async function saveAdminItemQuoteAction(
       itemCost: d.itemCost,
       merchandiseSavingsCents,
       serviceFee: d.serviceFee,
+      packingFeeCents,
       estimatedShipping: d.estimatedShipping,
       totalPrice,
       merchandiseIncludesSiteShippingTax: d.merchandiseIncludesSiteShippingTax,
@@ -113,7 +118,7 @@ export async function saveAdminItemQuoteAction(
   }
 
   revalidatePath("/admin/item-requests", "layout");
-  revalidatePath("/admin");
+  revalidatePath("/admin/overview");
   revalidatePath("/dashboard/items");
   revalidateDashboardAddItem();
   revalidatePath("/dashboard/cart");

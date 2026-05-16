@@ -22,6 +22,7 @@ export const itemQuoteCoreSelect = {
   itemCost: itemQuotes.itemCost,
   merchandiseSavingsCents: itemQuotes.merchandiseSavingsCents,
   serviceFee: itemQuotes.serviceFee,
+  packingFeeCents: itemQuotes.packingFeeCents,
   estimatedShipping: itemQuotes.estimatedShipping,
   totalPrice: itemQuotes.totalPrice,
   voidedAt: itemQuotes.voidedAt,
@@ -43,6 +44,7 @@ export const itemQuoteCoreSelectPreMerchandiseSavings = {
   itemRequestId: itemQuotes.itemRequestId,
   itemCost: itemQuotes.itemCost,
   serviceFee: itemQuotes.serviceFee,
+  packingFeeCents: itemQuotes.packingFeeCents,
   estimatedShipping: itemQuotes.estimatedShipping,
   totalPrice: itemQuotes.totalPrice,
   voidedAt: itemQuotes.voidedAt,
@@ -76,6 +78,7 @@ export type ItemQuoteInsertRow = {
    */
   merchandiseSavingsCents?: number | null;
   serviceFee: number;
+  packingFeeCents?: number;
   estimatedShipping: number;
   totalPrice: number;
   requestQuantity: number;
@@ -115,6 +118,10 @@ function rowRecordToItemQuote(
     itemRequestId: String(r.item_request_id),
     itemCost: Number(r.item_cost),
     serviceFee: Number(r.service_fee),
+    packingFeeCents:
+      r.packing_fee_cents != null && r.packing_fee_cents !== ""
+        ? Number(r.packing_fee_cents)
+        : 0,
     estimatedShipping: Number(r.estimated_shipping),
     totalPrice: Number(r.total_price),
     voidedAt: r.voided_at != null ? String(r.voided_at) : null,
@@ -146,6 +153,7 @@ async function insertItemQuoteNarrowSql(values: {
   itemCost: number;
   merchandiseSavingsCents: number | null;
   serviceFee: number;
+  packingFeeCents: number;
   estimatedShipping: number;
   totalPrice: number;
   merchandiseIncludesSiteShippingTax: boolean;
@@ -161,6 +169,7 @@ async function insertItemQuoteNarrowSql(values: {
       item_cost,
       merchandise_savings_cents,
       service_fee,
+      packing_fee_cents,
       estimated_shipping,
       total_price,
       merchandise_includes_site_shipping_tax,
@@ -173,6 +182,7 @@ async function insertItemQuoteNarrowSql(values: {
       ${values.itemCost},
       ${values.merchandiseSavingsCents},
       ${values.serviceFee},
+      ${values.packingFeeCents},
       ${values.estimatedShipping},
       ${values.totalPrice},
       ${values.merchandiseIncludesSiteShippingTax},
@@ -187,6 +197,7 @@ async function insertItemQuoteNarrowSql(values: {
       item_cost,
       merchandise_savings_cents,
       service_fee,
+      packing_fee_cents,
       estimated_shipping,
       total_price,
       voided_at,
@@ -221,6 +232,7 @@ export async function insertCheckoutTimelineQuote(params: {
         itemCost: src.itemCost,
         merchandiseSavingsCents: src.merchandiseSavingsCents ?? null,
         serviceFee: src.serviceFee,
+        packingFeeCents: src.packingFeeCents ?? 0,
         estimatedShipping: src.estimatedShipping,
         totalPrice: src.totalPrice,
         merchandiseIncludesSiteShippingTax: src.merchandiseIncludesSiteShippingTax,
@@ -244,6 +256,7 @@ export async function insertCheckoutTimelineQuote(params: {
       itemCost: src.itemCost,
       merchandiseSavingsCents: src.merchandiseSavingsCents ?? null,
       serviceFee: src.serviceFee,
+      packingFeeCents: src.packingFeeCents ?? 0,
       estimatedShipping: src.estimatedShipping,
       totalPrice: src.totalPrice,
       merchandiseIncludesSiteShippingTax: src.merchandiseIncludesSiteShippingTax,
@@ -272,6 +285,7 @@ export async function insertItemQuoteForRequest(
         itemCost: row.itemCost,
         merchandiseSavingsCents: row.merchandiseSavingsCents ?? null,
         serviceFee: row.serviceFee,
+        packingFeeCents: row.packingFeeCents ?? 0,
         estimatedShipping: row.estimatedShipping,
         totalPrice: row.totalPrice,
         merchandiseIncludesSiteShippingTax: row.merchandiseIncludesSiteShippingTax ?? false,
@@ -294,6 +308,7 @@ export async function insertItemQuoteForRequest(
       itemCost: row.itemCost,
       merchandiseSavingsCents: row.merchandiseSavingsCents ?? null,
       serviceFee: row.serviceFee,
+      packingFeeCents: row.packingFeeCents ?? 0,
       estimatedShipping: row.estimatedShipping,
       totalPrice: row.totalPrice,
       merchandiseIncludesSiteShippingTax: row.merchandiseIncludesSiteShippingTax ?? false,

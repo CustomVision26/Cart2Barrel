@@ -12,6 +12,10 @@ import {
 import type { CartCheckoutOrderSummary } from "@/data/cart";
 import { formatUsd } from "@/lib/admin-markup";
 import { CART_CHECKOUT_USD_DISCLAIMER } from "@/lib/cart-checkout-disclaimer";
+import {
+  containerOfferingKindLabel,
+  parseContainerOfferingKind,
+} from "@/lib/validations/container-offering";
 import { statusBadgeClassName } from "@/lib/status-badge-kinds";
 import { cn } from "@/lib/utils";
 
@@ -182,7 +186,12 @@ export function CartCheckoutSummaryCard({
                             </span>
                           : null}
                         </p>
-                        <p className="text-xs text-muted-foreground">{line.sizeSnapshot}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {containerOfferingKindLabel(
+                            parseContainerOfferingKind(line.kindSnapshot),
+                          )}{" "}
+                          · {line.sizeSnapshot}
+                        </p>
                       </div>
                       <div className="flex shrink-0 flex-col items-stretch justify-between border-t border-border/50 pt-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
                         <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground sm:text-right">

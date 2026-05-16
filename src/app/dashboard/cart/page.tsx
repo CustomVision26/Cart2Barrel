@@ -23,6 +23,9 @@ import { listUserContainerCartWithOfferings } from "@/data/user-container-cart";
 import { formatUsd } from "@/lib/admin-markup";
 import { CART_CHECKOUT_USD_DISCLAIMER } from "@/lib/cart-checkout-disclaimer";
 import {
+  containerOfferingKindLabel,
+} from "@/lib/validations/container-offering";
+import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
   isCheckoutProcessingSurchargeEnabled,
@@ -315,6 +318,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                         <div className="min-w-0 space-y-1">
                           <p className="font-medium text-foreground">{offering.name}</p>
                           <p className="text-xs text-muted-foreground">
+                            {containerOfferingKindLabel(offering.kind)} ·{" "}
                             {offering.sizeLabel} · Qty {quantity} ·{" "}
                             {formatUsd(offering.priceUsdCents)} each
                           </p>

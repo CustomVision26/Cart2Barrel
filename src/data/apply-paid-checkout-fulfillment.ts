@@ -14,6 +14,7 @@ import {
   insertItemRequestLineSnapshot,
   lineSnapshotPayloadFromItemRequest,
 } from "@/data/item-request-line-snapshots";
+import { ensureBarrelsProvisionedForPaidOrder } from "@/data/ensure-paid-order-barrels";
 import { getItemRequestById } from "@/data/item-requests";
 import { ITEM_QUOTE_CHECKOUT_SNAPSHOT_PAID } from "@/lib/checkout-snapshot-kind";
 import { formatUsd } from "@/lib/admin-markup";
@@ -87,4 +88,6 @@ export async function applyPaidCheckoutFulfillmentForOrder(
       },
     });
   }
+
+  await ensureBarrelsProvisionedForPaidOrder(orderId);
 }

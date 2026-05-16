@@ -33,7 +33,7 @@ export default async function AdminLayout({
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link
-              href="/admin"
+              href="/admin/overview?tab=summary"
               className="text-base font-semibold tracking-tight text-foreground"
             >
               Admin

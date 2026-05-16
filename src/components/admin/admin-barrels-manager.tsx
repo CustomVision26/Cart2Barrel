@@ -22,12 +22,21 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  containerOfferingKindLabel,
+  type ContainerOfferingKind,
+} from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
+
+const barrelsFieldSelectClassName = cn(
+  "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
+);
 
 export type AdminSerializableOffering = {
   id: string;
   name: string;
   sizeLabel: string;
+  kind: ContainerOfferingKind;
   priceUsdCents: number;
   isActive: boolean;
 };
@@ -49,6 +58,7 @@ function centsToUsdInput(cents: number): string {
 export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
   const router = useRouter();
   const [createMsg, setCreateMsg] = useState<string | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(true);
   const [pending, startTransition] = useTransition();
   const createFormRef = useRef<HTMLFormElement>(null);
 
@@ -58,8 +68,8 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
         <CardHeader>
           <CardTitle className="text-lg">New container</CardTitle>
           <CardDescription>
-            Add a name, size label, and price. Upload one or more photos after the container
-            is created.
+            Add a name, type (barrel or bin), size label, and price. Upload one or more photos
+            after the container is created.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -72,6 +82,7 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
                 const res = await adminCreateContainerOfferingAction({
                   name: String(fd.get("name") ?? ""),
                   sizeLabel: String(fd.get("sizeLabel") ?? ""),
+                  kind: String(fd.get("kind") ?? "barrel"),
                   priceUsd: String(fd.get("priceUsd") ?? ""),
                 });
                 if (!res.ok) {
@@ -90,6 +101,19 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
             <div className="space-y-2">
               <Label htmlFor="new-size">Size</Label>
               <Input id="new-size" name="sizeLabel" required placeholder='e.g. 55 gal' />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-kind">Type</Label>
+              <select
+                id="new-kind"
+                name="kind"
+                required
+                defaultValue="barrel"
+                className={barrelsFieldSelectClassName}
+              >
+                <option value="barrel">Barrel</option>
+                <option value="bin">Bin</option>
+              </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-price">Price (USD)</Label>
@@ -114,23 +138,47 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
       </Card>
 
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Catalog</h2>
-        {offerings.length === 0 ?
-          <p className="text-sm text-muted-foreground">No containers yet.</p>
-        : (
-          <ul className="space-y-6">
-            {offerings.map(({ offering: o, images }) => (
-              <li key={o.id}>
-                <AdminOfferingRow
-                  offering={o}
-                  images={images}
-                  disabledAll={pending}
-                  onRefresh={() => router.refresh()}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+        <button
+          type="button"
+          id="admin-barrels-catalog-heading"
+          onClick={() => setCatalogOpen((open) => !open)}
+          className={cn(
+            "flex w-full items-center justify-between gap-3 rounded-md border border-border bg-card/40 px-3 py-2.5 text-left transition-colors",
+            "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          )}
+          aria-expanded={catalogOpen}
+          aria-controls="admin-barrels-catalog-panel"
+        >
+          <span className="text-lg font-semibold text-foreground">Catalog</span>
+          {catalogOpen ?
+            <ChevronUp className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+          : <ChevronDown className="size-5 shrink-0 text-muted-foreground" aria-hidden />}
+        </button>
+        {catalogOpen ?
+          <div
+            id="admin-barrels-catalog-panel"
+            role="region"
+            aria-labelledby="admin-barrels-catalog-heading"
+            className="space-y-4"
+          >
+            {offerings.length === 0 ?
+              <p className="text-sm text-muted-foreground">No containers yet.</p>
+            : (
+              <ul className="space-y-6">
+                {offerings.map(({ offering: o, images }) => (
+                  <li key={o.id}>
+                    <AdminOfferingRow
+                      offering={o}
+                      images={images}
+                      disabledAll={pending}
+                      onRefresh={() => router.refresh()}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        : null}
       </div>
     </div>
   );
@@ -154,18 +202,21 @@ function AdminOfferingRow({
 
   const [name, setName] = useState(offering.name);
   const [sizeLabel, setSizeLabel] = useState(offering.sizeLabel);
+  const [kind, setKind] = useState<ContainerOfferingKind>(offering.kind);
   const [priceUsd, setPriceUsd] = useState(centsToUsdInput(offering.priceUsdCents));
   const [isActive, setIsActive] = useState(offering.isActive);
 
   useEffect(() => {
     setName(offering.name);
     setSizeLabel(offering.sizeLabel);
+    setKind(offering.kind);
     setPriceUsd(centsToUsdInput(offering.priceUsdCents));
     setIsActive(offering.isActive);
   }, [
     offering.id,
     offering.name,
     offering.sizeLabel,
+    offering.kind,
     offering.priceUsdCents,
     offering.isActive,
   ]);
@@ -175,21 +226,30 @@ function AdminOfferingRow({
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-base">{offering.name}</CardTitle>
+            <CardTitle className="text-base">{name}</CardTitle>
             <CardDescription className="font-mono text-[11px]">
               {offering.id}
             </CardDescription>
           </div>
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-xs font-medium",
-              offering.isActive ?
-                "bg-emerald-500/15 text-emerald-200"
-              : "bg-muted text-muted-foreground",
-            )}
-          >
-            {offering.isActive ? "Active" : "Hidden"}
-          </span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span
+              className={cn(
+                "rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground",
+              )}
+            >
+              {containerOfferingKindLabel(kind)}
+            </span>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs font-medium",
+                isActive ?
+                  "bg-emerald-500/15 text-emerald-200"
+                : "bg-muted text-muted-foreground",
+              )}
+            >
+              {isActive ? "Active" : "Hidden"}
+            </span>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -203,6 +263,7 @@ function AdminOfferingRow({
                 id: offering.id,
                 name,
                 sizeLabel,
+                kind,
                 priceUsd,
                 isActive,
               });
@@ -231,6 +292,21 @@ function AdminOfferingRow({
               value={sizeLabel}
               onChange={(e) => setSizeLabel(e.target.value)}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`kind-${offering.id}`}>Type</Label>
+            <select
+              id={`kind-${offering.id}`}
+              required
+              value={kind}
+              onChange={(e) =>
+                setKind(e.target.value as ContainerOfferingKind)
+              }
+              className={barrelsFieldSelectClassName}
+            >
+              <option value="barrel">Barrel</option>
+              <option value="bin">Bin</option>
+            </select>
           </div>
           <div className="space-y-2">
             <Label htmlFor={`price-${offering.id}`}>Price (USD)</Label>

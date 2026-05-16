@@ -43,7 +43,7 @@ export async function adminCreateContainerOfferingAction(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { name, sizeLabel, priceUsd } = parsed.data;
+  const { name, sizeLabel, kind, priceUsd } = parsed.data;
   const cents = priceUsdStringToCents(priceUsd);
   if (cents < 50) {
     return { ok: false, message: "Price must be at least $0.50 USD (Stripe minimum per line)." };
@@ -53,11 +53,13 @@ export async function adminCreateContainerOfferingAction(
   await db.insert(containerOfferings).values({
     name: name.trim(),
     sizeLabel: sizeLabel.trim(),
+    kind,
     priceUsdCents: cents,
     isActive: true,
   });
 
   revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
   revalidatePath("/dashboard/barrels");
   return { ok: true };
 }
@@ -73,7 +75,7 @@ export async function adminUpdateContainerOfferingAction(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { id, name, sizeLabel, priceUsd, isActive } = parsed.data;
+  const { id, name, sizeLabel, kind, priceUsd, isActive } = parsed.data;
   const cents = priceUsdStringToCents(priceUsd);
   if (cents < 50) {
     return { ok: false, message: "Price must be at least $0.50 USD (Stripe minimum per line)." };
@@ -85,6 +87,7 @@ export async function adminUpdateContainerOfferingAction(
     .set({
       name: name.trim(),
       sizeLabel: sizeLabel.trim(),
+      kind,
       priceUsdCents: cents,
       isActive,
     })
@@ -96,6 +99,7 @@ export async function adminUpdateContainerOfferingAction(
   }
 
   revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
   revalidatePath("/dashboard/barrels");
   return { ok: true };
 }
@@ -191,6 +195,7 @@ export async function adminUploadContainerOfferingImagesAction(
   }
 
   revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
   revalidatePath("/dashboard/barrels");
   return { ok: true, uploaded };
 }
@@ -218,6 +223,7 @@ export async function adminDeleteContainerOfferingImageAction(input: {
   }
 
   revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
   revalidatePath("/dashboard/barrels");
   return { ok: true };
 }
@@ -271,6 +277,7 @@ export async function adminMoveContainerOfferingImageAction(
   }
 
   revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
   revalidatePath("/dashboard/barrels");
   return { ok: true };
 }

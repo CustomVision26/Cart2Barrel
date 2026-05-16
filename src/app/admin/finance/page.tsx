@@ -11,7 +11,7 @@ function first(
 }
 
 /**
- * Legacy route: finance UI lives under `/admin?tab=finance`.
+ * Legacy route: finance UI lives under `/admin/overview?tab=finance`.
  */
 export default async function AdminFinanceRedirect({ searchParams }: PageProps) {
   const rawSp = (await searchParams) ?? {};
@@ -21,5 +21,5 @@ export default async function AdminFinanceRedirect({ searchParams }: PageProps) 
   const to = first(rawSp.to)?.trim();
   if (from) qs.set("from", from);
   if (to) qs.set("to", to);
-  redirect(`/admin?${qs.toString()}`);
+  redirect(`/admin/overview?${qs.toString()}`);
 }

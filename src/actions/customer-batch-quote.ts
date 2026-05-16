@@ -147,7 +147,7 @@ export async function requestBatchEstimateRevisionAction(
   revalidatePath("/dashboard/items");
   revalidatePath("/admin/item-requests", "layout");
   revalidatePath("/admin/item-requests/batch-items/batch-history");
-  revalidatePath("/admin");
+  revalidatePath("/admin/overview");
 
   return {
     ok: true,

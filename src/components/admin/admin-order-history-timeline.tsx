@@ -11,6 +11,10 @@ import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
+  containerOfferingKindLabel,
+  parseContainerOfferingKind,
+} from "@/lib/validations/container-offering";
+import {
   auditSnapshotChangeSummary,
   auditSnapshotStatusHeadline,
 } from "@/lib/item-request-line-audit-status";
@@ -511,7 +515,10 @@ export function AdminOrderHistoryTimeline({
                       >
                         <p className="font-medium text-foreground">{c.nameSnapshot}</p>
                         <p className="text-xs text-muted-foreground">
-                          {c.sizeSnapshot} · Qty {c.quantity} ·{" "}
+                          {containerOfferingKindLabel(
+                            parseContainerOfferingKind(c.kindSnapshot),
+                          )}{" "}
+                          · {c.sizeSnapshot} · Qty {c.quantity} ·{" "}
                           {formatUsd(c.unitPriceCents)} each · Line{" "}
                           <span className="font-mono">{shortId(c.id)}</span>
                         </p>

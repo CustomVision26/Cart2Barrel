@@ -262,7 +262,7 @@ export async function saveAdminBatchQuoteEstimateAction(
   revalidatePath("/admin/item-requests/batch-items/batch-history");
   revalidatePath("/admin/item-requests/batch-items/batch-estimates");
   revalidatePath("/admin/item-requests/batch-items/submitted");
-  revalidatePath("/admin");
+  revalidatePath("/admin/overview");
   revalidatePath("/dashboard/items");
   revalidateDashboardAddItem();
 

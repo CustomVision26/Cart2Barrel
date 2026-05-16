@@ -9,11 +9,13 @@ import {
   type ContainerOfferingImage,
   type OrderContainerItem,
 } from "@/db/schema";
+import type { ContainerOfferingKind } from "@/lib/validations/container-offering";
 
 export type ContainerCheckoutLine = {
   offeringId: string;
   name: string;
   sizeLabel: string;
+  kind: ContainerOfferingKind;
   quantity: number;
   unitPriceCents: number;
   lineTotalCents: number;
@@ -103,6 +105,7 @@ export async function listContainerCheckoutLinesForUser(
       offeringId: r.offering.id,
       name: r.offering.name.trim() || "Container",
       sizeLabel: r.offering.sizeLabel.trim() || "—",
+      kind: r.offering.kind,
       quantity: r.quantity,
       unitPriceCents: unit,
       lineTotalCents: lineTotal,

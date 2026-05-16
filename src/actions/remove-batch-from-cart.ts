@@ -196,7 +196,7 @@ export async function removeBatchFromCartAction(
   revalidatePath("/dashboard/items");
   revalidatePath("/dashboard");
   revalidatePath("/admin/item-requests", "layout");
-  revalidatePath("/admin");
+  revalidatePath("/admin/overview");
 
   return {
     ok: true,

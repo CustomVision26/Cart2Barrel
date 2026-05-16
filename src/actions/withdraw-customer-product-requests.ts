@@ -36,7 +36,7 @@ export async function withdrawCustomerProductRequestsAction(
     revalidatePath("/dashboard/items/requested-items");
     revalidatePath("/dashboard");
     revalidatePath("/admin/item-requests", "layout");
-    revalidatePath("/admin");
+    revalidatePath("/admin/overview");
 
     const message =
       count === 1

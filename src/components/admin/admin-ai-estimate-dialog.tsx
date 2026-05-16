@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import {
   computePackLineMerchandiseAndServiceCents,
 } from "@/lib/admin-markup";
+import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
 
 function parseDollarsToCents(raw: string): number {
   const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");
@@ -43,6 +44,7 @@ type AdminAiEstimateDialogProps = {
   initialQuantity: number;
   initialProductSize?: string | null;
   initialProductColor?: string | null;
+  merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
 export function AdminAiEstimateDialog({
@@ -51,6 +53,7 @@ export function AdminAiEstimateDialog({
   initialQuantity,
   initialProductSize = null,
   initialProductColor = null,
+  merchantEstimateFees,
 }: AdminAiEstimateDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -167,11 +170,14 @@ export function AdminAiEstimateDialog({
         ? null
         : overrideCentsRaw;
 
+    const packingCents = merchantEstimateFees?.packingFeePerLineCents ?? 0;
+
     const packLine = computePackLineMerchandiseAndServiceCents({
       packPriceCents: packCents,
       packCount,
       unitsPerPack: upp,
       consumerUnitPriceOverrideCents,
+      serviceTiers: merchantEstimateFees?.serviceTiers,
     });
 
     const savingsRaw = parseDollarsToCents(editSavingsDollars);
@@ -187,7 +193,7 @@ export function AdminAiEstimateDialog({
     const ship = parseDollarsToCents(editShippingDollars);
     const tax = parseDollarsToCents(editTaxDollars);
     const total =
-      merchNet + packLine.serviceFeeCents + ship + tax;
+      merchNet + packLine.serviceFeeCents + ship + tax + packingCents;
 
     const impliedConsumerUnitCents =
       packLine.impliedConsumerUnitCents > 0
@@ -206,6 +212,7 @@ export function AdminAiEstimateDialog({
       serv: packLine.serviceFeeCents,
       ship,
       tax,
+      pack: packingCents,
       total,
       packCount,
       upp,
@@ -226,6 +233,7 @@ export function AdminAiEstimateDialog({
     editShippingDollars,
     editTaxDollars,
     editSavingsDollars,
+    merchantEstimateFees,
   ]);
 
   const save = useCallback(() => {

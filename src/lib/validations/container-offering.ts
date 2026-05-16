@@ -1,8 +1,32 @@
 import { z } from "zod";
 
+export const containerOfferingKindSchema = z.enum(["barrel", "bin"]);
+
+export type ContainerOfferingKind = z.infer<typeof containerOfferingKindSchema>;
+
+export function containerOfferingKindLabel(kind: ContainerOfferingKind): string {
+  switch (kind) {
+    case "barrel":
+      return "Barrel";
+    case "bin":
+      return "Bin";
+    default: {
+      const _x: never = kind;
+      return _x;
+    }
+  }
+}
+
+/** Snapshot / legacy rows: unknown values fall back to barrel. */
+export function parseContainerOfferingKind(raw: unknown): ContainerOfferingKind {
+  const parsed = containerOfferingKindSchema.safeParse(raw);
+  return parsed.success ? parsed.data : "barrel";
+}
+
 export const adminCreateContainerOfferingSchema = z.object({
   name: z.string().trim().min(1).max(200),
   sizeLabel: z.string().trim().min(1).max(200),
+  kind: containerOfferingKindSchema,
   /** USD dollars as decimal string or whole number, e.g. "12.99" or "13" */
   priceUsd: z
     .string()
@@ -21,6 +45,7 @@ export const adminUpdateContainerOfferingSchema = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(200),
   sizeLabel: z.string().trim().min(1).max(200),
+  kind: containerOfferingKindSchema,
   priceUsd: z
     .string()
     .trim()

@@ -5,7 +5,9 @@ import { ChevronDownIcon } from "lucide-react";
 
 import { AdminRefundRequestControls } from "@/components/admin/admin-refund-request-controls";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Switch } from "@/components/ui/switch";
 import {
   CONDITION_OPTIONS,
   type WarehouseReceiveCondition,
@@ -62,6 +64,25 @@ function shortId(id: string): string {
   return id.length > 8 ? `${id.slice(0, 8)}...` : id;
 }
 
+/** True when the line would show the standard "good — awaiting barrel" headline (not refund-pending). */
+function isLineAwaitingBarrelGoodStatus(line: WarehouseReceivingLine): boolean {
+  const orderSlice = { status: line.orderStatus };
+  const fulfillment = effectiveOrderItemFulfillmentStatus(
+    line.orderItem,
+    orderSlice,
+  );
+  if (line.pendingRefundRequest != null) return false;
+  return fulfillment === "delivery_received_good_awaiting_barrel";
+}
+
+function packageLineBatchLabel(line: WarehouseReceivingLine): string {
+  const bn = line.batchNumber?.trim();
+  if (bn) return bn;
+  const sid = line.batchSessionId?.trim();
+  if (sid) return `Session ${shortId(sid)}`;
+  return "Single package";
+}
+
 function PackageMeta({
   label,
   value,
@@ -106,10 +127,7 @@ function PackageInventoryCard({
     orderSlice,
   );
   const pendingRefund = line.pendingRefundRequest != null;
-  const batchDisplay =
-    line.batchNumber?.trim() ? line.batchNumber.trim()
-    : line.batchSessionId?.trim() ? `Session ${shortId(line.batchSessionId)}`
-    : "Single package";
+  const batchDisplay = packageLineBatchLabel(line);
   const receiptProgress =
     line.orderedQty <= 0 ?
       0
@@ -340,6 +358,73 @@ function PackageInventoryCard({
   );
 }
 
+function AwaitingBarrelPackagesTable({ lines }: { lines: WarehouseReceivingLine[] }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="w-full min-w-[56rem] text-left text-sm">
+        <thead className="border-b border-border bg-muted/40">
+          <tr>
+            <th className="px-3 py-2.5 font-medium text-foreground">Customer</th>
+            <th className="px-3 py-2.5 font-medium text-foreground">Product</th>
+            <th className="px-3 py-2.5 font-medium text-foreground">Status</th>
+            <th className="whitespace-nowrap px-3 py-2.5 font-medium text-foreground">Qty</th>
+            <th className="whitespace-nowrap px-3 py-2.5 font-medium text-foreground">
+              Line value
+            </th>
+            <th className="px-3 py-2.5 font-medium text-foreground">Order</th>
+            <th className="px-3 py-2.5 font-medium text-foreground">Order item</th>
+            <th className="px-3 py-2.5 font-medium text-foreground">Batch</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line) => {
+            const orderSlice = { status: line.orderStatus };
+            const fulfillment = effectiveOrderItemFulfillmentStatus(
+              line.orderItem,
+              orderSlice,
+            );
+            const pendingRefund = line.pendingRefundRequest != null;
+            const statusLabel = adminOrderLineStatusLabel(fulfillment, {
+              pendingRefundRequest: pendingRefund,
+            });
+            return (
+              <tr
+                key={line.id}
+                className="border-b border-border bg-background last:border-b-0 odd:bg-muted/15"
+              >
+                <td className="max-w-[12rem] px-3 py-2 align-top text-foreground">
+                  <span className="line-clamp-2">{line.customerDisplayLabel}</span>
+                </td>
+                <td className="max-w-[14rem] px-3 py-2 align-top font-medium text-foreground">
+                  <span className="line-clamp-2">{line.productName}</span>
+                </td>
+                <td className="max-w-[14rem] px-3 py-2 align-top text-muted-foreground">
+                  <span className="line-clamp-2 text-xs leading-snug">{statusLabel}</span>
+                </td>
+                <td className="px-3 py-2 align-top tabular-nums text-foreground">
+                  {line.orderedQty}
+                </td>
+                <td className="px-3 py-2 align-top tabular-nums text-foreground">
+                  {formatUsd(line.orderItem.price)}
+                </td>
+                <td className="px-3 py-2 align-top font-mono text-xs text-foreground">
+                  {shortId(line.orderNumber)}
+                </td>
+                <td className="px-3 py-2 align-top font-mono text-xs text-foreground">
+                  {shortId(line.id)}
+                </td>
+                <td className="max-w-[10rem] px-3 py-2 align-top text-xs text-foreground">
+                  <span className="line-clamp-2">{packageLineBatchLabel(line)}</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function CustomerPackageGroup({
   group,
   rows,
@@ -411,6 +496,7 @@ export function AdminWarehouseReceivingSection({
 }: {
   lines: WarehouseReceivingLine[];
 }) {
+  const [tableView, setTableView] = useState(false);
   const [rows, setRows] = useState<Record<string, RowState>>(() => {
     const map: Record<string, RowState> = {};
     for (const line of lines) {
@@ -457,6 +543,12 @@ export function AdminWarehouseReceivingSection({
     return groups;
   }, [lines]);
 
+  const tableLines = useMemo(
+    () => lines.filter(isLineAwaitingBarrelGoodStatus),
+    [lines],
+  );
+  const summaryLines = tableView ? tableLines : lines;
+
   if (lines.length === 0) {
     return (
       <section className="space-y-4">
@@ -495,31 +587,58 @@ export function AdminWarehouseReceivingSection({
                 consolidation workflow.
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-xs sm:min-w-[24rem]">
-              <PackageMeta label="Package files" value={lines.length} />
-              <PackageMeta
-                label="Units expected"
-                value={lines.reduce((sum, line) => sum + line.orderedQty, 0)}
-              />
-              <PackageMeta
-                label="Inventory value"
-                value={formatUsd(
-                  lines.reduce((sum, line) => sum + line.orderItem.price, 0),
-                )}
-              />
+            <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[24rem]">
+              <div className="flex flex-wrap items-center justify-end gap-2 lg:justify-start">
+                <Switch
+                  id="admin-packages-table-view"
+                  checked={tableView}
+                  onCheckedChange={setTableView}
+                  aria-label="Switch to table view listing only good receipt awaiting barrel lines"
+                />
+                <Label
+                  htmlFor="admin-packages-table-view"
+                  className="cursor-pointer text-xs font-normal text-muted-foreground"
+                >
+                  Table view (awaiting barrel only)
+                </Label>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs sm:min-w-[24rem]">
+                <PackageMeta label="Package files" value={summaryLines.length} />
+                <PackageMeta
+                  label="Units expected"
+                  value={summaryLines.reduce((sum, line) => sum + line.orderedQty, 0)}
+                />
+                <PackageMeta
+                  label="Inventory value"
+                  value={formatUsd(
+                    summaryLines.reduce((sum, line) => sum + line.orderItem.price, 0),
+                  )}
+                />
+              </div>
             </div>
           </div>
         </div>
 
         <div className="space-y-5 p-4">
-          {customerLineGroups.map((group) => (
-            <CustomerPackageGroup
-              key={group.clerkUserId}
-              group={group}
-              rows={rows}
-              onUpdate={updateRow}
-            />
-          ))}
+          {tableView ?
+            tableLines.length === 0 ?
+              <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                No package lines on this page currently show{" "}
+                <span className="font-medium text-foreground">
+                  Delivery received: good - awaiting barrel
+                </span>{" "}
+                (for example, a pending refund changes the headline). Turn off table view to see
+                all package files.
+              </p>
+            : <AwaitingBarrelPackagesTable lines={tableLines} />
+          : customerLineGroups.map((group) => (
+              <CustomerPackageGroup
+                key={group.clerkUserId}
+                group={group}
+                rows={rows}
+                onUpdate={updateRow}
+              />
+            ))}
         </div>
       </div>
     </section>

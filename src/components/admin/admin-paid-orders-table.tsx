@@ -14,6 +14,10 @@ import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
+  containerOfferingKindLabel,
+  parseContainerOfferingKind,
+} from "@/lib/validations/container-offering";
+import {
   groupPaidRowsStableByOrder,
   partitionPaidLinesIntoBatchBuckets,
 } from "@/lib/partition-paid-order-batch-groups";
@@ -345,7 +349,10 @@ function AdminOrderContainerLineRow({
       </td>
       <td className="max-w-[10rem] px-3 py-3 align-top font-medium text-foreground">
         <span className="line-clamp-2">{row.nameSnapshot}</span>
-        <p className="mt-1 text-xs text-muted-foreground">{row.sizeSnapshot}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {containerOfferingKindLabel(parseContainerOfferingKind(row.kindSnapshot))} ·{" "}
+          {row.sizeSnapshot}
+        </p>
         <p className="mt-1 font-mono text-[10px] text-muted-foreground" title={row.id}>
           Line {row.id.slice(0, 8)}…
         </p>

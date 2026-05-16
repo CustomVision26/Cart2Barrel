@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
 
 const links = [
-  { href: "/admin", label: "Overview" },
+  { href: "/admin/overview", label: "Overview" },
   { href: ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue, label: "Item requests" },
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/purchase-orders", label: "Purchase orders" },
@@ -22,8 +22,8 @@ export function AdminNav() {
     <nav className="flex flex-col gap-1">
       {links.map(({ href, label }) => {
         const active =
-          href === "/admin"
-            ? currentPath === "/admin"
+          href === "/admin/overview"
+            ? currentPath === "/admin/overview" || currentPath === "/admin"
             : href === ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue
               ? currentPath.startsWith("/admin/item-requests")
               : href === "/admin/orders"
