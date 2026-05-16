@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Package } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
+import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -362,9 +363,11 @@ function ProductHistoryCard({
 export function AdminOrderHistoryTimeline({
   rows,
   snapshotsByRequestId = {},
+  orderContainerLinesByOrderId = {},
 }: {
   rows: AdminPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
+  orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
 }) {
   if (rows.length === 0) {
     return (
@@ -405,6 +408,7 @@ export function AdminOrderHistoryTimeline({
         >
           {customerGroup.orderGroups.map(({ order, lines }) => {
             const buckets = partitionPaidLinesIntoBatchBuckets(lines);
+            const containerLines = orderContainerLinesByOrderId[order.id] ?? [];
             return (
               <ToggleSection
                 key={order.id}
@@ -426,6 +430,12 @@ export function AdminOrderHistoryTimeline({
                     {" - "}
                     <span>
                       {lines.length} product{lines.length === 1 ? "" : "s"}
+                      {containerLines.length > 0 ?
+                        <>
+                          , {containerLines.length} container
+                          {containerLines.length === 1 ? "" : "s"}
+                        </>
+                      : null}
                     </span>
                     {" - "}
                     <time dateTime={order.createdAt}>
@@ -479,6 +489,39 @@ export function AdminOrderHistoryTimeline({
                     </ToggleSection>
                   );
                 })}
+                {containerLines.length > 0 ?
+                  <ToggleSection
+                    ariaLabel="Toggle shipping containers for this order"
+                    title={
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Package className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="font-medium text-foreground">Shipping containers</span>
+                      </div>
+                    }
+                    summary={`${containerLines.length} checkout line${
+                      containerLines.length === 1 ? "" : "s"
+                    }`}
+                    className="bg-background/70"
+                    bodyClassName="space-y-2"
+                  >
+                    {containerLines.map((c) => (
+                      <div
+                        key={c.id}
+                        className="rounded-lg border border-border/80 bg-muted/10 px-3 py-2 text-sm"
+                      >
+                        <p className="font-medium text-foreground">{c.nameSnapshot}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {c.sizeSnapshot} · Qty {c.quantity} ·{" "}
+                          {formatUsd(c.unitPriceCents)} each · Line{" "}
+                          <span className="font-mono">{shortId(c.id)}</span>
+                        </p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+                          {formatUsd(c.lineTotalCents)}
+                        </p>
+                      </div>
+                    ))}
+                  </ToggleSection>
+                : null}
               </ToggleSection>
             );
           })}

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { CartBatchBundleCard } from "@/components/dashboard/cart-batch-bundle-card";
 import { CartCheckoutButton } from "@/components/dashboard/cart-checkout-button";
+import { ContainerCartRemoveButton } from "@/components/dashboard/container-cart-remove-button";
 import { CartRemoveButton } from "@/components/dashboard/cart-remove-button";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +19,7 @@ import { abandonPendingOrderFromStripeCheckoutSession } from "@/data/abandon-str
 import { getPrimaryShippingAddress } from "@/data/addresses";
 import { assembleApprovedCartForUser } from "@/data/cart";
 import { syncPendingCartCheckoutsBeforeCartPage } from "@/data/sync-pending-cart-checkouts";
+import { listUserContainerCartWithOfferings } from "@/data/user-container-cart";
 import { formatUsd } from "@/lib/admin-markup";
 import { CART_CHECKOUT_USD_DISCLAIMER } from "@/lib/cart-checkout-disclaimer";
 import {
@@ -66,13 +68,22 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
   const checkoutSync = await syncPendingCartCheckoutsBeforeCartPage(userId);
 
   const assembled = await assembleApprovedCartForUser(userId);
-  const hasAny =
+  const containerCartRows = await listUserContainerCartWithOfferings(userId);
+  const containerSubtotalCents = containerCartRows.reduce(
+    (s, r) => s + r.offering.priceUsdCents * r.quantity,
+    0,
+  );
+
+  const hasQuotedLines =
     assembled.batchGroups.length > 0 || assembled.standaloneLines.length > 0;
+  const hasAny = hasQuotedLines || containerCartRows.length > 0;
   const lineCount =
     assembled.batchGroups.reduce((n, g) => n + g.lines.length, 0) +
-    assembled.standaloneLines.length;
+    assembled.standaloneLines.length +
+    containerCartRows.length;
 
-  const merchandiseSubtotalCents = assembled.estimatedTotalCents;
+  const merchandiseSubtotalCents =
+    assembled.estimatedTotalCents + containerSubtotalCents;
   const shipAddr = hasAny ? await getPrimaryShippingAddress(userId) : undefined;
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,
@@ -138,9 +149,16 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
           Cart
         </h1>
         <p className="text-sm text-muted-foreground">
-          Accepted quotes appear here. When you accepted a bundled batch estimate, the cart
-          uses the staff&nbsp;combined subtotal at checkout (not the sum of each
-          standalone line preview). Photos use your saved request image where available.
+          Accepted quotes and any shipping containers you added from{" "}
+          <Link
+            href="/dashboard/barrels"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Barrels
+          </Link>{" "}
+          appear here. When you accepted a bundled batch estimate, the cart uses the staff&nbsp;combined
+          subtotal at checkout (not the sum of each standalone line preview). Photos use your saved
+          request image where available.
         </p>
       </div>
 
@@ -151,15 +169,29 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
             <CardDescription>
               When you receive a quote on a requested item, use{" "}
               <span className="font-medium text-foreground">Accept estimate</span>{" "}
-              on your batch or product flows to add it here.
+              on your batch or product flows to add it here. You can also add shipping containers
+              from{" "}
+              <Link
+                href="/dashboard/barrels"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Barrels
+              </Link>
+              .
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Link
               href={DASHBOARD_ADD_ITEM_ROUTES.productsActive}
               className="text-sm font-medium text-primary underline-offset-4 hover:underline"
             >
               Go to your requests
+            </Link>
+            <Link
+              href="/dashboard/barrels"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Browse containers
             </Link>
           </CardContent>
         </Card>
@@ -263,6 +295,51 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                 </div>
               </li>
             ))}
+
+            {containerCartRows.map(({ offering, quantity, images }) => {
+              const thumb = images[0]?.imageUrl ?? null;
+              const lineTotal = offering.priceUsdCents * quantity;
+              return (
+                <li
+                  key={offering.id}
+                  className="border-b border-border px-4 py-4 last:border-b-0"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                    <ProductRequestThumbnail
+                      variant="cart"
+                      imageUrl={thumb}
+                      productLabel={offering.name}
+                    />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium text-foreground">{offering.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {offering.sizeLabel} · Qty {quantity} ·{" "}
+                            {formatUsd(offering.priceUsdCents)} each
+                          </p>
+                          <Link
+                            href="/dashboard/barrels"
+                            className="text-xs text-primary underline-offset-2 hover:underline"
+                          >
+                            Change on Barrels page
+                          </Link>
+                        </div>
+                        <div className="flex shrink-0 items-start gap-1 sm:gap-2">
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-foreground">
+                              {formatUsd(lineTotal)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Container</p>
+                          </div>
+                          <ContainerCartRemoveButton offeringId={offering.id} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
 
           <Separator />
@@ -271,15 +348,15 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">Estimated total</CardTitle>
               <CardDescription>
-                Quoted lines below, plus an estimated card-processing fee from your default
-                shipping jurisdiction where surcharges are enabled.
+                Lines below (quoted requests and any containers), plus an estimated card-processing
+                fee from your default shipping jurisdiction where surcharges are enabled.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {processingPreviewCents > 0 ?
                 <div className="space-y-3 rounded-lg border border-border/60 bg-muted/10 p-4 text-sm">
                   <div className="flex items-baseline justify-between gap-4">
-                    <span className="text-muted-foreground">Quoted subtotal</span>
+                    <span className="text-muted-foreground">Merchandise subtotal</span>
                     <span className="font-medium tabular-nums text-foreground">
                       {formatUsd(merchandiseSubtotalCents)}
                     </span>
@@ -329,11 +406,13 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                   </>}
               </p>
               <p className="text-xs text-muted-foreground">
-                {lineCount} quoted {lineCount === 1 ? "line" : "lines"} (
+                {lineCount} cart {lineCount === 1 ? "line" : "lines"} (
                 {assembled.batchGroups.length}{" "}
                 {assembled.batchGroups.length === 1 ? "batch" : "batches"},{" "}
                 {assembled.standaloneLines.length}{" "}
-                {assembled.standaloneLines.length === 1 ? "individual" : "individuals"})
+                {assembled.standaloneLines.length === 1 ? "individual" : "individuals"},{" "}
+                {containerCartRows.length}{" "}
+                {containerCartRows.length === 1 ? "container" : "containers"})
               </p>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
                 {CART_CHECKOUT_USD_DISCLAIMER}

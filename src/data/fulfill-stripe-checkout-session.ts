@@ -18,6 +18,7 @@ export function revalidateAfterPaidCheckoutFulfillment(): void {
   revalidatePath("/dashboard/orders");
   revalidateDashboardAddItem();
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/barrels");
   revalidatePath("/admin/orders");
   revalidatePath("/admin");
   revalidatePath("/admin/finance");

@@ -83,6 +83,10 @@ export function AdminAiEstimateDialog({
 
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** Blob URL after admin manual upload when AI found no listing image. */
+  const [uploadedProductImageUrl, setUploadedProductImageUrl] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!open) return;
@@ -95,6 +99,7 @@ export function AdminAiEstimateDialog({
     setEditConsumerUnitOverrideDollars("");
     setEditSavingsDollars("0.00");
     setMerchandiseIncludesSiteShippingTax(false);
+    setUploadedProductImageUrl(null);
   }, [open, initialQuantity, initialProductSize, initialProductColor]);
 
   useEffect(() => {
@@ -118,12 +123,16 @@ export function AdminAiEstimateDialog({
     );
     setEditTaxDollars(centsToDollarInput(result.estimate.taxCents));
     setEditSavingsDollars("0.00");
+    if (result.extraction.productImageUrl?.trim()) {
+      setUploadedProductImageUrl(result.extraction.productImageUrl.trim());
+    }
     setSaveMessage(null);
     setSaveError(null);
   }, [result]);
 
   const runAi = useCallback(() => {
     setResult(null);
+    setUploadedProductImageUrl(null);
     setSaveMessage(null);
     setSaveError(null);
     startAiTransition(async () => {
@@ -235,8 +244,15 @@ export function AdminAiEstimateDialog({
         merchandiseIncludesSiteShippingTax,
         productColor: variantColor.trim() || undefined,
         productSize: variantSize.trim() || undefined,
-        ...(result.extraction.productImageUrl?.trim()
-          ? { productImageUrl: result.extraction.productImageUrl.trim() }
+        ...(uploadedProductImageUrl?.trim() ||
+        result.extraction.productImageUrl?.trim()
+          ? {
+              productImageUrl: (
+                uploadedProductImageUrl?.trim() ||
+                result.extraction.productImageUrl?.trim() ||
+                ""
+              ).trim(),
+            }
           : {}),
       });
       if (res.ok) {
@@ -254,6 +270,7 @@ export function AdminAiEstimateDialog({
     variantSize,
     router,
     merchandiseIncludesSiteShippingTax,
+    uploadedProductImageUrl,
   ]);
 
   return (
@@ -272,6 +289,7 @@ export function AdminAiEstimateDialog({
           setSaveMessage(null);
           setSaveError(null);
           setMerchandiseIncludesSiteShippingTax(false);
+          setUploadedProductImageUrl(null);
         }
       }}
     >
@@ -290,9 +308,11 @@ export function AdminAiEstimateDialog({
           <DialogDescription>
             Run AI on the product URL to extract details and the primary product image.
             When extraction succeeds, the HTTPS image URL is saved on the request right
-            away for cart and shopper-facing lists;{" "}
-            <span className="font-medium text-foreground">Save quote</span> also keeps it
-            when the model returns an image (URLs only—not downloaded files).
+            away for cart and shopper-facing lists. If AI finds no image, use{" "}
+            <span className="font-medium text-foreground">Upload product image</span> to
+            store a file on Vercel Blob.{" "}
+            <span className="font-medium text-foreground">Save quote</span> keeps the image
+            on the request when one is set.
           </DialogDescription>
         </DialogHeader>
 
@@ -396,6 +416,9 @@ export function AdminAiEstimateDialog({
                   setMerchandiseIncludesSiteShippingTax
                 }
                 idPrefix="ai-est"
+                itemRequestId={itemRequestId}
+                productImageUrl={uploadedProductImageUrl}
+                onProductImageUploaded={setUploadedProductImageUrl}
               />
               {saveError ? (
                 <p className="text-sm text-destructive" role="alert">

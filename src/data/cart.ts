@@ -8,6 +8,7 @@ import {
   itemQuotes,
   itemRequestLineSnapshots,
   itemRequests,
+  orderContainerItems,
   orderItems,
   orders,
   type BatchQuoteEstimate,
@@ -20,6 +21,7 @@ import {
 } from "@/data/item-requests";
 import { itemQuoteCoreSelect, itemQuoteCoreSelectPreMerchandiseSavings } from "@/data/item-quotes";
 import { orderListSelect } from "@/data/order-list-select";
+import type { ContainerCheckoutLine } from "@/data/user-container-cart";
 import { allocateBundleSubtotalAcrossLineTotalsCents } from "@/lib/batch-cart-allocation";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
 import {
@@ -587,6 +589,22 @@ export function buildStripeLineItemsFromAssembledCart(assembled: AssembledCart):
   return { lineItems: items, quotedSalesTaxIntentCents };
 }
 
+export function buildStripeLineItemsFromContainerCheckoutLines(
+  lines: ContainerCheckoutLine[],
+): StripeCheckoutPriceDataLine[] {
+  return lines.map((line) => ({
+    quantity: 1,
+    price_data: {
+      currency: "usd",
+      unit_amount: line.lineTotalCents,
+      product_data: {
+        name: `Container: ${line.name}`,
+        description: `${line.sizeLabel} · Qty ${line.quantity}`,
+      },
+    },
+  }));
+}
+
 export type CartCheckoutSummaryLine = {
   itemRequestId: string;
   productName: string | null;
@@ -604,12 +622,21 @@ export type CartCheckoutBatchBundleSummary = {
   lines: CartCheckoutSummaryLine[];
 };
 
+export type CartCheckoutContainerSummaryLine = {
+  id: string;
+  nameSnapshot: string;
+  sizeSnapshot: string;
+  quantity: number;
+  lineTotalCents: number;
+};
+
 export type CartCheckoutOrderSummary = {
   orderId: string;
   status: Order["status"];
   totalAmount: number;
   batchBundles: CartCheckoutBatchBundleSummary[];
   standaloneLines: CartCheckoutSummaryLine[];
+  containerLines: CartCheckoutContainerSummaryLine[];
 };
 
 /**
@@ -715,11 +742,23 @@ export async function getCartCheckoutOrderSummaryForUser(
     },
   );
 
+  const containerRows = await db
+    .select({
+      id: orderContainerItems.id,
+      nameSnapshot: orderContainerItems.nameSnapshot,
+      sizeSnapshot: orderContainerItems.sizeSnapshot,
+      quantity: orderContainerItems.quantity,
+      lineTotalCents: orderContainerItems.lineTotalCents,
+    })
+    .from(orderContainerItems)
+    .where(eq(orderContainerItems.orderId, orderId));
+
   return {
     orderId: order.id,
     status: order.status,
     totalAmount: order.totalAmount,
     batchBundles,
     standaloneLines,
+    containerLines: containerRows,
   };
 }

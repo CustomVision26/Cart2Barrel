@@ -5,20 +5,29 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
-import { orders, orderItems } from "@/db/schema";
+import { orderItems, orders } from "@/db/schema";
 import {
   assembleApprovedCartForUser,
   buildCheckoutOrderLinesFromAssembledCart,
   buildStripeLineItemsFromAssembledCart,
+  buildStripeLineItemsFromContainerCheckoutLines,
 } from "@/data/cart";
+import { deletePendingOrderAndRestoreContainerCart } from "@/data/delete-pending-order-with-container-restore";
 import { getPrimaryShippingAddress } from "@/data/addresses";
 import { insertCheckoutOrderItems } from "@/data/insert-checkout-order-items";
+import { insertOrderContainerItems } from "@/data/insert-order-container-items";
 import { getOrCreateProfile } from "@/data/profiles";
+import {
+  clearUserContainerCartLinesForOfferings,
+  listContainerCheckoutLinesForUser,
+  sumContainerCheckoutLinesCents,
+} from "@/data/user-container-cart";
 import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
   processingFeeRegionFromShippingCountry,
 } from "@/lib/checkout-processing-surcharge";
+import { checkoutExcludedPaymentMethodTypes } from "@/lib/stripe-checkout-exclusions";
 import {
   combinedErrorText,
   getPgErrorCode,
@@ -31,7 +40,6 @@ import {
   isStripeCartCheckoutConfigured,
   stripeCheckoutUiMode,
 } from "@/lib/stripe-server";
-import { checkoutExcludedPaymentMethodTypes } from "@/lib/stripe-checkout-exclusions";
 import type Stripe from "stripe";
 
 export type CreateCartCheckoutState =
@@ -64,16 +72,23 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const checkoutUiMode = stripeCheckoutUiMode();
 
   const assembled = await assembleApprovedCartForUser(userId);
+  const containerCheckoutLines = await listContainerCheckoutLinesForUser(userId);
+  const containerSubtotalCents = sumContainerCheckoutLinesCents(containerCheckoutLines);
+
   if (
     assembled.batchGroups.length === 0 &&
-    assembled.standaloneLines.length === 0
+    assembled.standaloneLines.length === 0 &&
+    containerCheckoutLines.length === 0
   ) {
     return { ok: false, message: "Your cart is empty." };
   }
 
   const orderLines = buildCheckoutOrderLinesFromAssembledCart(assembled);
   const builtLines = buildStripeLineItemsFromAssembledCart(assembled);
-  const stripeLineItems = [...builtLines.lineItems];
+  const stripeLineItems = [
+    ...builtLines.lineItems,
+    ...buildStripeLineItemsFromContainerCheckoutLines(containerCheckoutLines),
+  ];
 
   const cu = await currentUser();
   try {
@@ -87,7 +102,8 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     return { ok: false, message: "Could not prepare your account for checkout." };
   }
 
-  const merchandiseSubtotalCents = assembled.estimatedTotalCents;
+  const merchandiseSubtotalCents =
+    assembled.estimatedTotalCents + containerSubtotalCents;
   const shipAddr = await getPrimaryShippingAddress(userId);
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,
@@ -137,16 +153,18 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const requestIds = orderLines.map((l) => l.itemRequestId);
 
   const db = getDb();
-  const taken = await db
-    .select({ itemRequestId: orderItems.itemRequestId })
-    .from(orderItems)
-    .where(inArray(orderItems.itemRequestId, requestIds));
+  if (requestIds.length > 0) {
+    const taken = await db
+      .select({ itemRequestId: orderItems.itemRequestId })
+      .from(orderItems)
+      .where(inArray(orderItems.itemRequestId, requestIds));
 
-  if (taken.length > 0) {
-    return {
-      ok: false,
-      message: "Your cart changed while checking out. Refresh the page and try again.",
-    };
+    if (taken.length > 0) {
+      return {
+        ok: false,
+        message: "Your cart changed while checking out. Refresh the page and try again.",
+      };
+    }
   }
 
   const [order] = await db
@@ -165,7 +183,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
 
   const reserve = await insertCheckoutOrderItems(order.id, orderLines);
   if (!reserve.ok) {
-    await db.delete(orders).where(eq(orders.id, order.id));
+    await deletePendingOrderAndRestoreContainerCart(order.id, userId);
     const code = getPgErrorCode(reserve.cause);
     console.error("[createCartCheckout] order_items insert failed", reserve.cause);
 
@@ -186,6 +204,30 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       }
     }
     return { ok: false, message };
+  }
+
+  const containerReserve = await insertOrderContainerItems(
+    order.id,
+    containerCheckoutLines,
+  );
+  if (!containerReserve.ok) {
+    await deletePendingOrderAndRestoreContainerCart(order.id, userId);
+    console.error(
+      "[createCartCheckout] order_container_items insert failed",
+      containerReserve.cause,
+    );
+    return {
+      ok: false,
+      message:
+        "Could not reserve container lines. If this persists, run database migrations and try again.",
+    };
+  }
+
+  if (containerCheckoutLines.length > 0) {
+    await clearUserContainerCartLinesForOfferings(
+      userId,
+      containerCheckoutLines.map((l) => l.offeringId),
+    );
   }
 
   const origin = getAppOrigin();
@@ -234,7 +276,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
 
     if (checkoutUiMode === "embedded_page") {
       if (!session.client_secret) {
-        await db.delete(orders).where(eq(orders.id, order.id));
+        await deletePendingOrderAndRestoreContainerCart(order.id, userId);
         return {
           ok: false,
           message: "Stripe did not return embedded checkout credentials.",
@@ -246,7 +288,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     }
 
     if (!session.url) {
-      await db.delete(orders).where(eq(orders.id, order.id));
+      await deletePendingOrderAndRestoreContainerCart(order.id, userId);
       return { ok: false, message: "Stripe did not return a checkout URL." };
     }
 
@@ -255,7 +297,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
 
     return { ok: true, mode: "hosted", checkoutUrl: session.url };
   } catch (e) {
-    await db.delete(orders).where(eq(orders.id, order.id));
+    await deletePendingOrderAndRestoreContainerCart(order.id, userId);
     console.error("[createCartCheckout] Stripe checkout.sessions.create failed", e);
     const detail = formatStripeApiErrorForUi(e);
     const base = "Could not start Stripe checkout.";

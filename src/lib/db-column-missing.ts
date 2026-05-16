@@ -242,3 +242,19 @@ export function shouldBestEffortSkipBatchQuoteSessionStatusEventWrite(
 
   return false;
 }
+
+/** Missing container catalog tables until migration `0028_container_offerings_cart` or `npm run db:push`. */
+export function isMissingContainerCatalogSchemaError(e: unknown): boolean {
+  const code = getPgErrorCode(e);
+  const low = `${combinedErrorText(e)}\n${String(e)}`.toLowerCase();
+  const mentions =
+    low.includes("container_offerings") ||
+    low.includes("container_offering_images") ||
+    low.includes("user_container_cart_lines") ||
+    low.includes("order_container_items");
+  if (!mentions) return false;
+  if (code === "42P01") return true;
+  if (/does not exist/.test(low) && /relation/.test(low)) return true;
+  if (/failed query/i.test(low)) return true;
+  return false;
+}

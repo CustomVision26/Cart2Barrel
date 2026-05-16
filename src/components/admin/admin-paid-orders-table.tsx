@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { FlagIcon } from "lucide-react";
+import { FlagIcon, Package } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
@@ -10,6 +10,7 @@ import { PaidOrderAccordionRoot } from "@/components/orders/paid-order-accordion
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
+import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -28,6 +29,8 @@ import { cn } from "@/lib/utils";
 
 /** Stable default avoids allocating a new Map per render when the prop is omitted. */
 const EMPTY_QUOTE_MAP = new Map<string, number | null>();
+
+const EMPTY_ORDER_CONTAINERS: Record<string, OrderContainerLineAdmin[]> = {};
 
 function subgroupColSpan(): number {
   return 13;
@@ -95,11 +98,14 @@ export function AdminPaidOrdersTable({
   snapshotsByRequestId = {},
   orderAccordionResetKey,
   quotedItemCostByRequestId = EMPTY_QUOTE_MAP,
+  orderContainerLinesByOrderId = EMPTY_ORDER_CONTAINERS,
 }: {
   rows: AdminPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
   /** Per request id: latest operational `item_cost` for the purchase-review dialog. */
   quotedItemCostByRequestId?: Map<string, number | null>;
+  /** Per order id: barrel/container checkout lines from the same paid order. */
+  orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
   /** Paging/search/sort key so only one order stays expanded across result-set changes. */
   orderAccordionResetKey: string;
 }) {
@@ -161,6 +167,7 @@ export function AdminPaidOrdersTable({
                   lines={lines}
                   snapshotsByRequestId={snapshotsByRequestId}
                   quotedItemCostByRequestId={quotedItemCostByRequestId}
+                  containerLines={orderContainerLinesByOrderId[order.id] ?? []}
                 />
               ))}
             </Fragment>
@@ -177,23 +184,28 @@ function OrderBlock({
   lines,
   snapshotsByRequestId,
   quotedItemCostByRequestId,
+  containerLines,
 }: {
   order: AdminPaidOrderLineRow["order"];
   lines: AdminPaidOrderLineRow[];
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   quotedItemCostByRequestId: Map<string, number | null>;
+  containerLines: OrderContainerLineAdmin[];
 }) {
   const buckets = partitionPaidLinesIntoBatchBuckets(lines);
   const hasBatchMix = buckets.some((b) => b.kind === "batch");
   const hasSinglesMix = buckets.some((b) => b.kind === "single");
   const onlySinglesSubgroup = buckets.length === 1 && buckets[0]!.kind === "single";
-  const lineCount = lines.length;
+  const productLineCount = lines.length;
+  const totalLineCount = productLineCount + containerLines.length;
+  const customerLabelForContainers =
+    lines[0] != null ? customerLabel(lines[0]) : "—";
 
   return (
     <CollapsibleOrderTableSection
       orderId={order.id}
       colSpan={subgroupColSpan()}
-      lineCount={lineCount}
+      lineCount={totalLineCount}
       summaryContent={
         <>
           <span className="min-w-0 font-medium text-foreground">
@@ -212,7 +224,7 @@ function OrderBlock({
             <time dateTime={order.createdAt}>{new Date(order.createdAt).toLocaleString()}</time>
           </span>
           <span className="hidden text-muted-foreground sm:inline">
-            · {lineCount === 1 ? "1 line" : `${lineCount} lines`}
+            · {totalLineCount === 1 ? "1 line" : `${totalLineCount} lines`}
           </span>
         </>
       }
@@ -294,7 +306,71 @@ function OrderBlock({
           );
         })
       }
+      {containerLines.length > 0 ?
+        <FragmentBucket title="Shipping containers" muted>
+          {containerLines.map((c) => (
+            <AdminOrderContainerLineRow
+              key={c.id}
+              row={c}
+              customerLabelText={customerLabelForContainers}
+              orderCreatedAt={order.createdAt}
+            />
+          ))}
+        </FragmentBucket>
+      : null}
     </CollapsibleOrderTableSection>
+  );
+}
+
+function AdminOrderContainerLineRow({
+  row,
+  customerLabelText,
+  orderCreatedAt,
+}: {
+  row: OrderContainerLineAdmin;
+  customerLabelText: string;
+  orderCreatedAt: string;
+}) {
+  return (
+    <tr className="align-top bg-muted/15">
+      <td className="px-3 py-3 align-top">
+        <span className="flex size-12 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-muted-foreground">
+          <Package className="size-6 shrink-0" aria-hidden />
+        </span>
+      </td>
+      <td className="max-w-[11rem] px-3 py-3 align-top text-muted-foreground">
+        <span className="inline-flex rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground">
+          Container
+        </span>
+      </td>
+      <td className="max-w-[10rem] px-3 py-3 align-top font-medium text-foreground">
+        <span className="line-clamp-2">{row.nameSnapshot}</span>
+        <p className="mt-1 text-xs text-muted-foreground">{row.sizeSnapshot}</p>
+        <p className="mt-1 font-mono text-[10px] text-muted-foreground" title={row.id}>
+          Line {row.id.slice(0, 8)}…
+        </p>
+      </td>
+      <td className="max-w-[10rem] px-3 py-3 align-top text-muted-foreground">
+        <span className="line-clamp-2 text-xs sm:text-sm">{customerLabelText}</span>
+      </td>
+      <td className="max-w-[8rem] px-3 py-3 align-top text-muted-foreground">
+        <span className="text-sm">—</span>
+      </td>
+      <td className="whitespace-nowrap px-3 py-3 align-top text-muted-foreground">—</td>
+      <td className="px-3 py-3 align-top tabular-nums text-muted-foreground">{row.quantity}</td>
+      <td className="px-3 py-3 align-top font-medium tabular-nums text-foreground">
+        {formatUsd(row.lineTotalCents)}
+      </td>
+      <td className="px-3 py-3 align-top tabular-nums text-muted-foreground">—</td>
+      <td className="max-w-[11rem] px-3 py-3 align-top">
+        <span className="text-xs text-muted-foreground">Checkout merchandise</span>
+      </td>
+      <td className="px-3 py-3 align-top text-muted-foreground">—</td>
+      <td className="px-3 py-3 align-top text-muted-foreground">—</td>
+      <td className="whitespace-nowrap px-3 py-3 align-top text-xs text-muted-foreground">
+        <time dateTime={orderCreatedAt}>{new Date(orderCreatedAt).toLocaleString()}</time>
+      </td>
+    </tr>
   );
 }
 

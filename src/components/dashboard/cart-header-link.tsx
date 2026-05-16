@@ -4,10 +4,15 @@ import { ShoppingCart } from "lucide-react";
 import { auth } from "@clerk/nextjs/server";
 
 import { countApprovedCartItemsForUser } from "@/data/cart";
+import { countUserContainerCartLineRows } from "@/data/user-container-cart";
 
 export async function CartHeaderLink() {
   const { userId } = await auth();
-  const count = userId ? await countApprovedCartItemsForUser(userId) : 0;
+  const count =
+    userId ?
+      (await countApprovedCartItemsForUser(userId)) +
+      (await countUserContainerCartLineRows(userId))
+    : 0;
 
   return (
     <Link

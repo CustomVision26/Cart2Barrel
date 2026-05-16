@@ -705,7 +705,7 @@ export function AdminQuoteHistoryGroupedTable({
                                                   setEditOpen(true);
                                                 }}
                                               >
-                                                Edit
+                                                Edit quote
                                               </Button>
                                             ) : null}
                                           </div>

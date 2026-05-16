@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
+import { deletePendingOrderAndRestoreContainerCart } from "@/data/delete-pending-order-with-container-restore";
 import { orders } from "@/db/schema";
 import {
   getStripeServer,
@@ -52,11 +53,11 @@ export async function syncPendingCartCheckoutsBeforeCartPage(
         Number.isFinite(createdMs) &&
         now - createdMs > LEGACY_PENDING_UNLINKED_ORDER_MAX_AGE_MS
       ) {
-        const deleted = await db
-          .delete(orders)
-          .where(and(eq(orders.id, row.id), eq(orders.status, "pending")))
-          .returning({ id: orders.id });
-        if (deleted.length > 0) releasedCount++;
+        const cleared = await deletePendingOrderAndRestoreContainerCart(
+          row.id,
+          row.clerkUserId,
+        );
+        if (cleared) releasedCount++;
       }
       continue;
     }
@@ -68,11 +69,11 @@ export async function syncPendingCartCheckoutsBeforeCartPage(
     try {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       if (session.status === "expired") {
-        const deleted = await db
-          .delete(orders)
-          .where(and(eq(orders.id, row.id), eq(orders.status, "pending")))
-          .returning({ id: orders.id });
-        if (deleted.length > 0) releasedCount++;
+        const cleared = await deletePendingOrderAndRestoreContainerCart(
+          row.id,
+          row.clerkUserId,
+        );
+        if (cleared) releasedCount++;
         continue;
       }
       if (session.status === "open" && !openSeen.has(sessionId)) {
@@ -82,11 +83,11 @@ export async function syncPendingCartCheckoutsBeforeCartPage(
     } catch (e) {
       const code = (e as { code?: string }).code;
       if (code === "resource_missing") {
-        const deleted = await db
-          .delete(orders)
-          .where(and(eq(orders.id, row.id), eq(orders.status, "pending")))
-          .returning({ id: orders.id });
-        if (deleted.length > 0) releasedCount++;
+        const cleared = await deletePendingOrderAndRestoreContainerCart(
+          row.id,
+          row.clerkUserId,
+        );
+        if (cleared) releasedCount++;
       }
     }
   }

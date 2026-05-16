@@ -6,6 +6,7 @@ import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
+import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parsePaidOrdersQuery } from "@/lib/paid-orders-list-params";
 import { safeCurrentUser } from "@/lib/safe-current-user";
@@ -56,6 +57,15 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
   const snapshotsByRequestId = Object.fromEntries(
     groupItemRequestLineSnapshotsByRequestId(snapshotRows),
   );
+
+  const orderIdsOnPage =
+    admin && pagePack.rows.length > 0
+      ? [...new Set(pagePack.rows.map((row) => row.order.id))]
+      : [];
+  const orderContainerLinesByOrderId =
+    admin && orderIdsOnPage.length > 0
+      ? Object.fromEntries(await listOrderContainerItemsByOrderIds(orderIdsOnPage))
+      : {};
 
   const hasActiveSearch = query.q.trim().length > 0;
   const noHistoryAtAll = admin && pagePack.totalOrders === 0 && !hasActiveSearch;
@@ -108,6 +118,7 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
             <AdminOrderHistoryTimeline
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
+              orderContainerLinesByOrderId={orderContainerLinesByOrderId}
             />
           ) : null}
         </>

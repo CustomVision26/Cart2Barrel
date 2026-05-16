@@ -1,7 +1,4 @@
-import { and, eq } from "drizzle-orm";
-
-import { getDb } from "@/db";
-import { orders } from "@/db/schema";
+import { deletePendingOrderAndRestoreContainerCart } from "@/data/delete-pending-order-with-container-restore";
 import { getStripeServer } from "@/lib/stripe-server";
 
 export type AbandonPendingCheckoutResult =
@@ -33,11 +30,10 @@ export async function abandonPendingOrderFromStripeCheckoutSession(
     return { ok: true, hadOrderToClear: false };
   }
 
-  const db = getDb();
-  const deleted = await db
-    .delete(orders)
-    .where(and(eq(orders.id, orderId), eq(orders.status, "pending")))
-    .returning({ id: orders.id });
+  const cleared = await deletePendingOrderAndRestoreContainerCart(
+    orderId,
+    clerkUserId,
+  );
 
-  return { ok: true, hadOrderToClear: deleted.length > 0 };
+  return { ok: true, hadOrderToClear: cleared };
 }

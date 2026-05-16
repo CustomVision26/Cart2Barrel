@@ -22,6 +22,7 @@ Use this command to **regenerate or align** Cart2Barrel Cursor rules (`.cursor/r
 | Data loading | **Server Components** for retrieving data to render (Drizzle/`getDb()` via RSC or shared server helpers—not client as the primary read path) |
 | Mutations | **Server Actions** only for **insert / update / delete** to the database |
 | Validation | **Zod** at validation boundaries; Server Action payloads validated with Zod and typed (e.g. `z.infer<typeof schema>`)—**never** use **`FormData` as the TypeScript type** for the action argument |
+| File storage | **Vercel Blob** via `@vercel/blob`; **`BLOB_READ_WRITE_TOKEN`** in `.env` / Vercel project env only; uploads in **Server Actions** (`put()`), not client-exposed tokens |
 
 **Database access:** All persistence **must** go through **Drizzle**—tables/columns defined in `src/db/schema.ts`, reads/writes via **`getDb()`** and Drizzle’s query API (`db.select`, `db.insert`, `db.update`, `db.delete`, `eq`, etc.) or relational helpers. **Do not** use the Neon/`pg` client for ad‑hoc SQL in app code, raw string SQL in server actions/API routes, or ORMs other than Drizzle. (Generated SQL from **`drizzle-kit`** migrations/push is fine.)
 
@@ -93,5 +94,14 @@ npx drizzle-kit push
 ```bash
 npx tsx src/index.ts
 ```
+
+**Vercel Blob**
+
+- Connect a **public** Blob store to the Vercel project (injects `BLOB_READ_WRITE_TOKEN`). Locally: `vercel link` + `vercel env pull`, or paste token into `.env` — never commit.
+- Package: `npm install @vercel/blob` (already in this repo).
+- **Do not** copy Vercel’s avatar **Route Handler** quickstart for new features; follow existing **Server Actions** in `src/actions/upload-*.ts` and `.cursor/rules/cart2barrel-vercel-blob.mdc`.
+- Server uploads on Vercel are capped at **~4.5 MB** per file; larger files need [client uploads](https://vercel.com/docs/vercel-blob/client-upload).
+
+Example agent prompt: *Wire Vercel Blob using `BLOB_READ_WRITE_TOKEN`, upload via Server Action + `put({ access: 'public', token })`, save URL in Drizzle, scope by Clerk user id.*
 
 This command will be available in chat with **/generate-cursor-rule**.

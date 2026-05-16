@@ -143,7 +143,9 @@ export function AdminQuoteHistoryEditDialog({
     if (aiResult.extraction.productName?.trim()) {
       setEditProductName(aiResult.extraction.productName.trim());
     }
-    setEditedImageUrl(aiResult.extraction.productImageUrl ?? null);
+    if (aiResult.extraction.productImageUrl?.trim()) {
+      setEditedImageUrl(aiResult.extraction.productImageUrl.trim());
+    }
     setSaveMessage(null);
     setSaveError(null);
   }, [aiResult]);
@@ -328,7 +330,7 @@ export function AdminQuoteHistoryEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[min(92vh,720px)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit saved quote</DialogTitle>
+          <DialogTitle>Edit quote</DialogTitle>
           <DialogDescription>
             Same AI workflow as new quotes: run extraction, tune pack / bundle
             pricing, shipping, and tax, then{" "}
@@ -555,6 +557,9 @@ export function AdminQuoteHistoryEditDialog({
                   setMerchandiseIncludesSiteShippingTax
                 }
                 idPrefix="qh-ai"
+                itemRequestId={line?.request.id}
+                productImageUrl={editedImageUrl}
+                onProductImageUploaded={setEditedImageUrl}
               />
             ) : null}
           </div>

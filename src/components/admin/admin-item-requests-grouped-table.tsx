@@ -11,6 +11,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import { AdminAiEstimateDialog } from "@/components/admin/admin-ai-estimate-dialog";
 import { AdminProductUrlDialog } from "@/components/admin/admin-product-url-dialog";
+import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-history-edit-dialog";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
@@ -23,9 +24,8 @@ import {
   FieldDescription,
   FieldLabel,
 } from "@/components/ui/field";
+import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { displaySiteName } from "@/lib/site-name";
 import type { SortDir } from "@/lib/table-sort";
@@ -34,7 +34,9 @@ import {
   compareNum,
   nextSortState,
 } from "@/lib/table-sort";
-import type { ItemRequestLineSnapshot } from "@/db/schema";
+import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
+import type { AdminQuoteHistoryLine } from "@/data/admin-quote-history";
+import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
 import type { AdminItemRequestGroup } from "@/lib/admin-item-requests-group";
 import { adminRequestQueueKindBadgeKind } from "@/lib/status-badge-map";
 import type {
@@ -71,6 +73,12 @@ function queueKindOrder(kind: AdminRequestQueueKind): number {
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
 
+/** Account table columns (expand + metrics). */
+const ACTIVE_QUEUE_GROUP_COL_SPAN = 7;
+
+/** Flat queue-line table columns (account + email + line cells). */
+const ACTIVE_QUEUE_FLAT_COL_SPAN = 11;
+
 const SELECT_CLASS =
   "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
@@ -104,9 +112,23 @@ function activeQueueRowMatchesQuery(
   );
 }
 
+function narrowActiveQueueGroupToLines(
+  g: AdminItemRequestGroup,
+  lineHits: AdminItemRequestWithUserRow[]
+): AdminItemRequestGroup {
+  return {
+    ...g,
+    activeQueueRequests: lineHits,
+    activeQueueCount: lineHits.length,
+    pendingCount: lineHits.filter((r) => r.request.status === "pending").length,
+    quotedCount: lineHits.filter((r) => r.request.status === "quoted").length,
+  };
+}
+
 /**
- * Filters account groups by search. Header match keeps all active-queue lines;
- * line-only match narrows to matching rows for lookup.
+ * Filters account groups by search. When the query matches queue-line fields,
+ * visible rows are narrowed to those hits (including if the account header
+ * also matched, so counts stay aligned with the table).
  */
 function filterActiveQueueGroups(
   source: AdminItemRequestGroup[],
@@ -126,17 +148,53 @@ function filterActiveQueueGroups(
       activeQueueRowMatchesQuery(row, q)
     );
 
-    if (headerMatch) {
+    if (headerMatch && lineHits.length === 0) {
       next.push(g);
     } else if (lineHits.length > 0) {
-      next.push({
-        ...g,
-        activeQueueRequests: lineHits,
-        activeQueueCount: lineHits.length,
-      });
+      next.push(narrowActiveQueueGroupToLines(g, lineHits));
     }
   }
   return next;
+}
+
+function compareActiveQueueRows(
+  a: AdminItemRequestWithUserRow,
+  b: AdminItemRequestWithUserRow,
+  key: LineSortKey,
+  dir: SortDir
+): number {
+  const ra = a.request;
+  const rb = b.request;
+  switch (key) {
+    case "kind":
+      return compareNum(
+        queueKindOrder(a.queueKind),
+        queueKindOrder(b.queueKind),
+        dir
+      );
+    case "product":
+      return compareLocale(
+        ra.productName?.trim() || "",
+        rb.productName?.trim() || "",
+        dir
+      );
+    case "site":
+      return compareLocale(
+        displaySiteName(ra.siteName, ra.productUrl),
+        displaySiteName(rb.siteName, rb.productUrl),
+        dir
+      );
+    case "url":
+      return compareLocale(ra.productUrl, rb.productUrl, dir);
+    case "submitted":
+      return compareNum(
+        new Date(ra.createdAt).getTime(),
+        new Date(rb.createdAt).getTime(),
+        dir
+      );
+    default:
+      return 0;
+  }
 }
 
 function sortActiveQueueRows(
@@ -145,53 +203,161 @@ function sortActiveQueueRows(
   dir: SortDir
 ): AdminItemRequestWithUserRow[] {
   const copy = [...rows];
-  copy.sort((a, b) => {
-    const ra = a.request;
-    const rb = b.request;
-    switch (key) {
-      case "kind":
-        return compareNum(
-          queueKindOrder(a.queueKind),
-          queueKindOrder(b.queueKind),
-          dir
-        );
-      case "product":
-        return compareLocale(
-          ra.productName?.trim() || "",
-          rb.productName?.trim() || "",
-          dir
-        );
-      case "site":
-        return compareLocale(
-          displaySiteName(ra.siteName, ra.productUrl),
-          displaySiteName(rb.siteName, rb.productUrl),
-          dir
-        );
-      case "url":
-        return compareLocale(ra.productUrl, rb.productUrl, dir);
-      case "submitted":
-        return compareNum(
-          new Date(ra.createdAt).getTime(),
-          new Date(rb.createdAt).getTime(),
-          dir
-        );
-      default:
-        return 0;
-    }
-  });
+  copy.sort((a, b) => compareActiveQueueRows(a, b, key, dir));
   return copy;
+}
+
+type ActiveQueuePaginationMode = "accounts" | "queue_lines";
+
+type ActiveQueueLineEntry = {
+  group: AdminItemRequestGroup;
+  row: AdminItemRequestWithUserRow;
+};
+
+function sortActiveQueueLineEntries(
+  entries: ActiveQueueLineEntry[],
+  key: LineSortKey,
+  dir: SortDir
+): ActiveQueueLineEntry[] {
+  const copy = [...entries];
+  copy.sort((a, b) => compareActiveQueueRows(a.row, b.row, key, dir));
+  return copy;
+}
+
+/** One active-queue line (shared by grouped expand panel and flat line view). */
+function ActiveQueueLineTableRow({
+  group,
+  row,
+  snapshotsByRequestId,
+  latestQuotesByRequestId,
+  onEditQuote,
+  showAccountColumns = false,
+}: {
+  group: AdminItemRequestGroup;
+  row: AdminItemRequestWithUserRow;
+  snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  latestQuotesByRequestId: Record<string, ItemQuote>;
+  onEditQuote: (line: AdminQuoteHistoryLine) => void;
+  /** When true, prepend Account and Email cells (flat paginated-by-line table). */
+  showAccountColumns?: boolean;
+}) {
+  const { request: r, queueKind } = row;
+  const allowAiEstimate = queueKind === "new" || queueKind === "resend";
+  const latestQuote = latestQuotesByRequestId[r.id];
+  const canEditQuote =
+    queueKind === "quoted" &&
+    latestQuote != null &&
+    isOperationalQuoteRow(latestQuote);
+  const accountName = submitterDisplayName(group.userFullName, group.userEmail);
+
+  return (
+    <tr className="hover:bg-muted/30">
+      {showAccountColumns ? (
+        <>
+          <td className="px-3 py-2 align-top">
+            <div className="font-medium text-foreground">{accountName}</div>
+          </td>
+          <td className="max-w-[14rem] px-3 py-2 align-top">
+            <span className="truncate text-muted-foreground">
+              {group.userEmail?.trim() || "—"}
+            </span>
+          </td>
+        </>
+      ) : null}
+      <td className="whitespace-nowrap px-2 py-2 align-top">
+        <StatusBadge kind={adminRequestQueueKindBadgeKind(queueKind)}>
+          {queueKind === "new" ?
+            "New request"
+          : queueKind === "resend" ?
+            "Customer resend"
+          : "Quoted"}
+        </StatusBadge>
+      </td>
+      <td className="px-2 py-2 align-top">
+        <ProductRequestThumbnail
+          variant="admin"
+          imageUrl={r.productImageUrl}
+          productLabel={r.productName}
+        />
+      </td>
+      <td className="max-w-[9rem] px-2 py-2 align-top text-foreground">
+        <span className="line-clamp-2">{r.productName?.trim() || "—"}</span>
+      </td>
+      <td className="max-w-[8rem] px-2 py-2 align-top text-muted-foreground">
+        <span className="line-clamp-2">
+          {displaySiteName(r.siteName, r.productUrl)}
+        </span>
+      </td>
+      <td className="px-2 py-2 align-top">
+        <AdminProductUrlDialog productUrl={r.productUrl} />
+      </td>
+      <td className="px-2 py-2 align-top">
+        {allowAiEstimate ? (
+          <AdminAiEstimateDialog
+            itemRequestId={r.id}
+            productUrl={r.productUrl}
+            initialQuantity={r.quantity}
+            initialProductSize={r.productSize}
+            initialProductColor={r.productColor}
+          />
+        ) : canEditQuote && latestQuote ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="whitespace-nowrap"
+            onClick={() => {
+              onEditQuote({
+                quote: latestQuote,
+                request: r,
+                userFullName: group.userFullName,
+                userEmail: group.userEmail,
+                orderStatus: null,
+              });
+            }}
+          >
+            Edit quote
+          </Button>
+        ) : queueKind === "quoted" ? (
+          <span className="text-xs text-muted-foreground">No quote</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="px-2 py-2 align-top">
+        <QuoteEstimatePreviewDialog itemRequestId={r.id} />
+      </td>
+      <td className="px-2 py-2 align-top">
+        <ItemRequestLineAuditDialog
+          itemRequestId={r.id}
+          productLabel={r.productName?.trim() || ""}
+          snapshots={snapshotsByRequestId[r.id] ?? []}
+        />
+      </td>
+      <td className="whitespace-nowrap px-2 py-2 align-top text-muted-foreground">
+        <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleString()}</time>
+      </td>
+    </tr>
+  );
 }
 
 type AdminItemRequestsGroupedTableProps = {
   groups: AdminItemRequestGroup[];
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  /** Latest operational quote per request (for Edit quote on quoted queue rows). */
+  latestQuotesByRequestId?: Record<string, ItemQuote>;
 };
 
 export function AdminItemRequestsGroupedTable({
   groups,
   snapshotsByRequestId,
+  latestQuotesByRequestId = {},
 }: AdminItemRequestsGroupedTableProps) {
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
+  const [editQuoteOpen, setEditQuoteOpen] = useState(false);
+  const [editQuoteLine, setEditQuoteLine] = useState<AdminQuoteHistoryLine | null>(
+    null,
+  );
   const [groupSortKey, setGroupSortKey] = useState<GroupSortKey>("account");
   const [groupSortDir, setGroupSortDir] = useState<SortDir>("asc");
   const [lineSortKey, setLineSortKey] = useState<LineSortKey>("submitted");
@@ -200,8 +366,11 @@ export function AdminItemRequestsGroupedTable({
   const [pageSize, setPageSize] =
     useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
   const [page, setPage] = useState(1);
+  const [paginationMode, setPaginationMode] =
+    useState<ActiveQueuePaginationMode>("accounts");
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
   const baseId = useId();
+  const findOrganizeSwitchId = `${baseId}-find-organize`;
 
   const toggle = useCallback((clerkUserId: string) => {
     setOpenClerkUserId((prev) => (prev === clerkUserId ? null : clerkUserId));
@@ -229,6 +398,17 @@ export function AdminItemRequestsGroupedTable({
     () => filterActiveQueueGroups(groups, search),
     [groups, search]
   );
+
+  const flatLineEntries = useMemo(() => {
+    if (paginationMode !== "queue_lines") return [];
+    const flat: ActiveQueueLineEntry[] = [];
+    for (const g of filteredGroups) {
+      for (const row of g.activeQueueRequests) {
+        flat.push({ group: g, row });
+      }
+    }
+    return sortActiveQueueLineEntries(flat, lineSortKey, lineSortDir);
+  }, [filteredGroups, lineSortKey, lineSortDir, paginationMode]);
 
   const sortedGroups = useMemo(() => {
     const next = [...filteredGroups];
@@ -262,71 +442,133 @@ export function AdminItemRequestsGroupedTable({
     return next;
   }, [filteredGroups, groupSortKey, groupSortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedGroups.length / pageSize));
+  const itemCount =
+    paginationMode === "accounts"
+      ? sortedGroups.length
+      : flatLineEntries.length;
+
+  const totalPages = Math.max(1, Math.ceil(itemCount / pageSize));
   const pageSafe = Math.min(Math.max(1, page), totalPages);
+
+  const accountsInLineView = useMemo(() => {
+    if (paginationMode !== "queue_lines" || flatLineEntries.length === 0) {
+      return 0;
+    }
+    return new Set(flatLineEntries.map((e) => e.group.clerkUserId)).size;
+  }, [flatLineEntries, paginationMode]);
+
+  useEffect(() => {
+    if (paginationMode !== "accounts") setOpenClerkUserId(null);
+  }, [paginationMode]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, groupSortKey, groupSortDir, pageSize]);
+  }, [search, groupSortKey, groupSortDir, pageSize, paginationMode]);
+
+  useEffect(() => {
+    if (paginationMode !== "queue_lines") return;
+    setPage(1);
+  }, [lineSortKey, lineSortDir, paginationMode]);
 
   useEffect(() => {
     if (page !== pageSafe) setPage(pageSafe);
   }, [page, pageSafe]);
 
-  const pageSlice = useMemo(() => {
+  const accountPageSlice = useMemo(() => {
     const start = (pageSafe - 1) * pageSize;
     return sortedGroups.slice(start, start + pageSize);
   }, [sortedGroups, pageSafe, pageSize]);
 
-  const showFrom =
-    sortedGroups.length === 0 ? 0 : (pageSafe - 1) * pageSize + 1;
-  const showTo = Math.min(pageSafe * pageSize, sortedGroups.length);
+  const linePageSlice = useMemo(() => {
+    const start = (pageSafe - 1) * pageSize;
+    return flatLineEntries.slice(start, start + pageSize);
+  }, [flatLineEntries, pageSafe, pageSize]);
+
+  const showFrom = itemCount === 0 ? 0 : (pageSafe - 1) * pageSize + 1;
+  const showTo = Math.min(pageSafe * pageSize, itemCount);
+
+  const openEditQuote = useCallback((line: AdminQuoteHistoryLine) => {
+    setEditQuoteLine(line);
+    setEditQuoteOpen(true);
+  }, []);
 
   return (
     <div className="space-y-3">
       <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-medium text-foreground">Find & organize</p>
-          <div className="flex items-center gap-2">
-            <Label
-              htmlFor="admin-active-queue-find-organize"
-              className="cursor-pointer text-xs font-normal text-muted-foreground"
-            >
-              Show filters and sort
-            </Label>
-            <Switch
-              id="admin-active-queue-find-organize"
-              checked={findOrganizeVisible}
-              onCheckedChange={setFindOrganizeVisible}
-            />
-          </div>
-        </div>
+        <AdminFindOrganizeVisibilityToggle
+          id={findOrganizeSwitchId}
+          visible={findOrganizeVisible}
+          onVisibleChange={setFindOrganizeVisible}
+        />
 
         {findOrganizeVisible ? (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field className="gap-1.5 sm:col-span-2 lg:col-span-2">
                 <FieldLabel htmlFor="active-queue-search" className="text-xs">
                   Search
                 </FieldLabel>
                 <FieldContent>
-                  <Input
-                    id="active-queue-search"
-                    placeholder="Customer, email, product, URL, request id, queue type…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    autoComplete="off"
-                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      id="active-queue-search"
+                      placeholder="Customer, email, product, URL, request id, queue type…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      autoComplete="off"
+                      className="min-w-0 flex-1"
+                    />
+                    {search.trim() ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0"
+                        onClick={() => setSearch("")}
+                      >
+                        Clear
+                      </Button>
+                    ) : null}
+                  </div>
                 </FieldContent>
                 <FieldDescription>
-                  Case-insensitive substring match. Column headers sort the
-                  current result set; expand a row for line-level sort.
+                  Case-insensitive substring match.{" "}
+                  {paginationMode === "accounts" ?
+                    "Account headers sort the account list; expand a row for line-level sort in the panel."
+                  : "Column headers sort the flat queue lines."}
+                </FieldDescription>
+              </Field>
+
+              <Field className="gap-1.5">
+                <FieldLabel htmlFor="active-queue-pagination-mode" className="text-xs">
+                  Paginate by
+                </FieldLabel>
+                <FieldContent>
+                  <select
+                    id="active-queue-pagination-mode"
+                    className={SELECT_CLASS}
+                    value={paginationMode}
+                    onChange={(e) =>
+                      setPaginationMode(
+                        e.target.value as ActiveQueuePaginationMode
+                      )
+                    }
+                  >
+                    <option value="accounts">Account groups</option>
+                    <option value="queue_lines">Queue lines (flat)</option>
+                  </select>
+                </FieldContent>
+                <FieldDescription>
+                  Account groups: one table row per shopper; expand for lines. Queue
+                  lines: one row per active-queue item with its own page size.
                 </FieldDescription>
               </Field>
 
               <Field className="gap-1.5">
                 <FieldLabel htmlFor="active-queue-page-size" className="text-xs">
-                  Accounts per page
+                  {paginationMode === "queue_lines" ?
+                    "Queue lines per page"
+                  : "Accounts per page"}
                 </FieldLabel>
                 <FieldContent>
                   <select
@@ -350,8 +592,39 @@ export function AdminItemRequestsGroupedTable({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              {sortedGroups.length === 0 ? (
-                <>No accounts match the current search.</>
+              {itemCount === 0 ? (
+                paginationMode === "queue_lines" ?
+                  <>No queue lines match the current search.</>
+                : <>No accounts match the current search.</>
+              ) : paginationMode === "queue_lines" ? (
+                <>
+                  Showing{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {showFrom}–{showTo}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {itemCount}
+                  </span>{" "}
+                  queue line{itemCount === 1 ? "" : "s"}
+                  {accountsInLineView > 0 ? (
+                    <>
+                      {" "}
+                      across{" "}
+                      <span className="font-medium tabular-nums text-foreground">
+                        {accountsInLineView}
+                      </span>{" "}
+                      account{accountsInLineView === 1 ? "" : "s"}
+                    </>
+                  ) : null}
+                  {sortedGroups.length < groups.length ? (
+                    <>
+                      {" "}
+                      (<span className="tabular-nums">{groups.length}</span>{" "}
+                      accounts loaded)
+                    </>
+                  ) : null}
+                </>
               ) : (
                 <>
                   Showing{" "}
@@ -378,8 +651,9 @@ export function AdminItemRequestsGroupedTable({
         ) : null}
       </div>
 
-      {sortedGroups.length === 0 ? null : (
+      {groups.length > 0 ? (
         <>
+        {paginationMode === "accounts" ? (
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full min-w-[36rem] text-left text-sm">
         <thead className="border-b border-border bg-muted/40">
@@ -433,7 +707,30 @@ export function AdminItemRequestsGroupedTable({
             />
           </tr>
         </thead>
-        {pageSlice.map((g) => {
+        {accountPageSlice.length === 0 ? (
+          <tbody>
+            <tr>
+              <td
+                colSpan={ACTIVE_QUEUE_GROUP_COL_SPAN}
+                className="px-4 py-10 text-center text-sm text-muted-foreground"
+              >
+                <p>No accounts match the current search.</p>
+                {search.trim() ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="mt-2 h-auto px-0"
+                    onClick={() => setSearch("")}
+                  >
+                    Clear search
+                  </Button>
+                ) : null}
+              </td>
+            </tr>
+          </tbody>
+        ) : null}
+        {accountPageSlice.map((g) => {
           const expanded = openClerkUserId === g.clerkUserId;
           const panelId = `${baseId}-pending-${g.clerkUserId}`;
           const name = submitterDisplayName(g.userFullName, g.userEmail);
@@ -546,7 +843,7 @@ export function AdminItemRequestsGroupedTable({
                                   onSort={() => cycleLineSort("url")}
                                 />
                                 <th className="px-2 py-2 font-medium text-foreground">
-                                  AI estimate
+                                  Quote actions
                                 </th>
                                 <th className="px-2 py-2 font-medium text-foreground">
                                   Quote preview
@@ -568,75 +865,16 @@ export function AdminItemRequestsGroupedTable({
                                 g.activeQueueRequests,
                                 lineSortKey,
                                 lineSortDir
-                              ).map(({ request: r, queueKind }) => {
-                                const allowAiEstimate =
-                                  queueKind === "new" || queueKind === "resend";
-                                return (
-                                <tr key={r.id} className="hover:bg-muted/30">
-                                  <td className="whitespace-nowrap px-2 py-2 align-top">
-                                    <StatusBadge
-                                      kind={adminRequestQueueKindBadgeKind(
-                                        queueKind
-                                      )}
-                                    >
-                                      {queueKind === "new" ?
-                                        "New request"
-                                      : queueKind === "resend" ?
-                                        "Customer resend"
-                                      : "Quoted"}
-                                    </StatusBadge>
-                                  </td>
-                                  <td className="px-2 py-2 align-top">
-                                    <ProductRequestThumbnail
-                                      variant="admin"
-                                      imageUrl={r.productImageUrl}
-                                      productLabel={r.productName}
-                                    />
-                                  </td>
-                                  <td className="max-w-[9rem] px-2 py-2 align-top text-foreground">
-                                    <span className="line-clamp-2">
-                                      {r.productName?.trim() || "—"}
-                                    </span>
-                                  </td>
-                                  <td className="max-w-[8rem] px-2 py-2 align-top text-muted-foreground">
-                                    <span className="line-clamp-2">
-                                      {displaySiteName(r.siteName, r.productUrl)}
-                                    </span>
-                                  </td>
-                                  <td className="px-2 py-2 align-top">
-                                    <AdminProductUrlDialog productUrl={r.productUrl} />
-                                  </td>
-                                  <td className="px-2 py-2 align-top">
-                                    {allowAiEstimate ? (
-                                      <AdminAiEstimateDialog
-                                        itemRequestId={r.id}
-                                        productUrl={r.productUrl}
-                                        initialQuantity={r.quantity}
-                                        initialProductSize={r.productSize}
-                                        initialProductColor={r.productColor}
-                                      />
-                                    ) : (
-                                      <span className="text-muted-foreground">—</span>
-                                    )}
-                                  </td>
-                                  <td className="px-2 py-2 align-top">
-                                    <QuoteEstimatePreviewDialog itemRequestId={r.id} />
-                                  </td>
-                                  <td className="px-2 py-2 align-top">
-                                    <ItemRequestLineAuditDialog
-                                      itemRequestId={r.id}
-                                      productLabel={r.productName?.trim() || ""}
-                                      snapshots={snapshotsByRequestId[r.id] ?? []}
-                                    />
-                                  </td>
-                                  <td className="whitespace-nowrap px-2 py-2 align-top text-muted-foreground">
-                                    <time dateTime={r.createdAt}>
-                                      {new Date(r.createdAt).toLocaleString()}
-                                    </time>
-                                  </td>
-                                </tr>
-                                );
-                              })}
+                              ).map((row) => (
+                                <ActiveQueueLineTableRow
+                                  key={row.request.id}
+                                  group={g}
+                                  row={row}
+                                  snapshotsByRequestId={snapshotsByRequestId}
+                                  latestQuotesByRequestId={latestQuotesByRequestId}
+                                  onEditQuote={openEditQuote}
+                                />
+                              ))}
                             </tbody>
                           </table>
                         </div>
@@ -650,41 +888,152 @@ export function AdminItemRequestsGroupedTable({
         })}
             </table>
           </div>
-
-          <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-muted-foreground">
-              Page{" "}
-              <span className="font-medium tabular-nums text-foreground">
-                {pageSafe}
-              </span>{" "}
-              of{" "}
-              <span className="font-medium tabular-nums text-foreground">
-                {totalPages}
-              </span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={pageSafe >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next
-              </Button>
-            </div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[72rem] text-left text-xs sm:text-sm">
+              <thead className="border-b border-border bg-muted/40">
+                <tr>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-foreground">
+                    Account
+                  </th>
+                  <th className="max-w-[14rem] px-3 py-2.5 text-left text-xs font-medium text-foreground">
+                    Email
+                  </th>
+                  <SortableThCompact
+                    columnId="flat-line-kind"
+                    label="Type"
+                    active={lineSortKey === "kind"}
+                    dir={lineSortDir}
+                    onSort={() => cycleLineSort("kind")}
+                  />
+                  <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
+                    Photo
+                  </th>
+                  <SortableThCompact
+                    columnId="flat-line-product"
+                    label="Product"
+                    active={lineSortKey === "product"}
+                    dir={lineSortDir}
+                    onSort={() => cycleLineSort("product")}
+                  />
+                  <SortableThCompact
+                    columnId="flat-line-site"
+                    label="Site name"
+                    active={lineSortKey === "site"}
+                    dir={lineSortDir}
+                    onSort={() => cycleLineSort("site")}
+                  />
+                  <SortableThCompact
+                    columnId="flat-line-url"
+                    label="Product URL"
+                    active={lineSortKey === "url"}
+                    dir={lineSortDir}
+                    onSort={() => cycleLineSort("url")}
+                  />
+                  <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
+                    Quote actions
+                  </th>
+                  <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
+                    Quote preview
+                  </th>
+                  <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
+                    Audit
+                  </th>
+                  <SortableThCompact
+                    columnId="flat-line-submitted"
+                    label="Submitted"
+                    active={lineSortKey === "submitted"}
+                    dir={lineSortDir}
+                    onSort={() => cycleLineSort("submitted")}
+                  />
+                </tr>
+              </thead>
+              {linePageSlice.length === 0 ? (
+                <tbody>
+                  <tr>
+                    <td
+                      colSpan={ACTIVE_QUEUE_FLAT_COL_SPAN}
+                      className="px-4 py-10 text-center text-sm text-muted-foreground"
+                    >
+                      <p>No queue lines match the current search.</p>
+                      {search.trim() ? (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="mt-2 h-auto px-0"
+                          onClick={() => setSearch("")}
+                        >
+                          Clear search
+                        </Button>
+                      ) : null}
+                    </td>
+                  </tr>
+                </tbody>
+              ) : (
+                <tbody className="divide-y divide-border">
+                  {linePageSlice.map(({ group: g, row }) => (
+                    <ActiveQueueLineTableRow
+                      key={row.request.id}
+                      group={g}
+                      row={row}
+                      showAccountColumns
+                      snapshotsByRequestId={snapshotsByRequestId}
+                      latestQuotesByRequestId={latestQuotesByRequestId}
+                      onEditQuote={openEditQuote}
+                    />
+                  ))}
+                </tbody>
+              )}
+            </table>
           </div>
+        )}
+
+          {itemCount > 0 ? (
+            <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Page{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {pageSafe}
+                </span>{" "}
+                of{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {totalPages}
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pageSafe <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pageSafe >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </>
-      )}
+      ) : null}
+
+      <AdminQuoteHistoryEditDialog
+        open={editQuoteOpen && Boolean(editQuoteLine)}
+        onOpenChange={(next) => {
+          setEditQuoteOpen(next);
+          if (!next) setEditQuoteLine(null);
+        }}
+        line={editQuoteLine}
+      />
     </div>
   );
 }

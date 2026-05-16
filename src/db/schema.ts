@@ -719,6 +719,88 @@ export const payments = pgTable(
   ],
 );
 
+/**
+ * Admin-managed shipping container / barrel SKUs shown on the shopper catalog (`/dashboard/barrels`).
+ */
+export const containerOfferings = pgTable(
+  "container_offerings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    sizeLabel: text("size_label").notNull(),
+    priceUsdCents: integer("price_usd_cents").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortIndex: integer("sort_index").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("container_offerings_active_sort_idx").on(t.isActive, t.sortIndex),
+  ],
+);
+
+export const containerOfferingImages = pgTable(
+  "container_offering_images",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    containerOfferingId: uuid("container_offering_id")
+      .notNull()
+      .references(() => containerOfferings.id, { onDelete: "cascade" }),
+    imageUrl: text("image_url").notNull(),
+    sortIndex: integer("sort_index").notNull().default(0),
+  },
+  (t) => [
+    index("container_offering_images_offering_id_idx").on(t.containerOfferingId),
+  ],
+);
+
+/** Shopper staging for container SKUs before checkout (cleared when a pending order reserves them). */
+export const userContainerCartLines = pgTable(
+  "user_container_cart_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    containerOfferingId: uuid("container_offering_id")
+      .notNull()
+      .references(() => containerOfferings.id, { onDelete: "cascade" }),
+    quantity: integer("quantity").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("user_container_cart_lines_user_offering_unique").on(
+      t.clerkUserId,
+      t.containerOfferingId,
+    ),
+    index("user_container_cart_lines_clerk_user_id_idx").on(t.clerkUserId),
+  ],
+);
+
+/** Paid / pending-checkout snapshot of container lines (restored to user cart if pending order is released). */
+export const orderContainerItems = pgTable(
+  "order_container_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    containerOfferingId: uuid("container_offering_id").references(
+      () => containerOfferings.id,
+      { onDelete: "set null" },
+    ),
+    quantity: integer("quantity").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    lineTotalCents: integer("line_total_cents").notNull(),
+    nameSnapshot: text("name_snapshot").notNull(),
+    sizeSnapshot: text("size_snapshot").notNull(),
+  },
+  (t) => [index("order_container_items_order_id_idx").on(t.orderId)],
+);
+
 /* --- Relations (db.query graph) --- */
 
 export const profilesRelations = relations(profiles, ({ many }) => ({
@@ -728,6 +810,7 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
   orders: many(orders),
   barrels: many(barrels),
   payments: many(payments),
+  containerCartLines: many(userContainerCartLines),
 }));
 
 export const addressesRelations = relations(addresses, ({ one }) => ({
@@ -835,7 +918,55 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   }),
   items: many(orderItems),
   payments: many(payments),
+  containerItems: many(orderContainerItems),
 }));
+
+export const containerOfferingsRelations = relations(
+  containerOfferings,
+  ({ many }) => ({
+    images: many(containerOfferingImages),
+    cartLines: many(userContainerCartLines),
+    orderItems: many(orderContainerItems),
+  }),
+);
+
+export const containerOfferingImagesRelations = relations(
+  containerOfferingImages,
+  ({ one }) => ({
+    offering: one(containerOfferings, {
+      fields: [containerOfferingImages.containerOfferingId],
+      references: [containerOfferings.id],
+    }),
+  }),
+);
+
+export const userContainerCartLinesRelations = relations(
+  userContainerCartLines,
+  ({ one }) => ({
+    profile: one(profiles, {
+      fields: [userContainerCartLines.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+    offering: one(containerOfferings, {
+      fields: [userContainerCartLines.containerOfferingId],
+      references: [containerOfferings.id],
+    }),
+  }),
+);
+
+export const orderContainerItemsRelations = relations(
+  orderContainerItems,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [orderContainerItems.orderId],
+      references: [orders.id],
+    }),
+    offering: one(containerOfferings, {
+      fields: [orderContainerItems.containerOfferingId],
+      references: [containerOfferings.id],
+    }),
+  }),
+);
 
 export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   order: one(orders, {
@@ -987,3 +1118,16 @@ export type NewShipment = typeof shipments.$inferInsert;
 
 export type Payment = typeof payments.$inferSelect;
 export type NewPayment = typeof payments.$inferInsert;
+
+export type ContainerOffering = typeof containerOfferings.$inferSelect;
+export type NewContainerOffering = typeof containerOfferings.$inferInsert;
+
+export type ContainerOfferingImage = typeof containerOfferingImages.$inferSelect;
+export type NewContainerOfferingImage =
+  typeof containerOfferingImages.$inferInsert;
+
+export type UserContainerCartLine = typeof userContainerCartLines.$inferSelect;
+export type NewUserContainerCartLine = typeof userContainerCartLines.$inferInsert;
+
+export type OrderContainerItem = typeof orderContainerItems.$inferSelect;
+export type NewOrderContainerItem = typeof orderContainerItems.$inferInsert;

@@ -12,6 +12,7 @@ export async function insertCheckoutOrderItems(
   orderId: string,
   lines: CheckoutOrderLineInput[]
 ): Promise<{ ok: true } | { ok: false; cause: unknown }> {
+  if (lines.length === 0) return { ok: true };
   const db = getDb();
   try {
     await db.insert(orderItems).values(

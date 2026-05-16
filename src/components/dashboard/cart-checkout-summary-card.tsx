@@ -65,7 +65,8 @@ export function CartCheckoutSummaryCard({
   const bundleLineTotal =
     dbSummary?.batchBundles.reduce((n, b) => n + b.lines.length, 0) ?? 0;
   const standaloneCount = dbSummary?.standaloneLines.length ?? 0;
-  const dbLineTotal = bundleLineTotal + standaloneCount;
+  const containerCount = dbSummary?.containerLines.length ?? 0;
+  const dbLineTotal = bundleLineTotal + standaloneCount + containerCount;
 
   const lineCount = dbLineTotal > 0 ? dbLineTotal : stripeLines.length;
 
@@ -152,6 +153,36 @@ export function CartCheckoutSummaryCard({
                             productUrl={line.productUrl}
                           />
                         : null}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-stretch justify-between border-t border-border/50 pt-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
+                        <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground sm:text-right">
+                          Amount
+                        </span>
+                        <span className="text-base font-semibold tabular-nums text-foreground sm:text-right">
+                          {formatUsd(line.lineTotalCents)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              ))}
+              {dbSummary.containerLines.map((line) => (
+                <li key={line.id}>
+                  <div className="rounded-lg border border-border bg-background/80 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                          Container
+                        </p>
+                        <p className="break-words text-sm font-medium leading-snug text-foreground">
+                          {line.nameSnapshot}
+                          {line.quantity > 1 ?
+                            <span className="ml-1.5 font-normal text-muted-foreground">
+                              ×{line.quantity}
+                            </span>
+                          : null}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{line.sizeSnapshot}</p>
                       </div>
                       <div className="flex shrink-0 flex-col items-stretch justify-between border-t border-border/50 pt-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
                         <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground sm:text-right">

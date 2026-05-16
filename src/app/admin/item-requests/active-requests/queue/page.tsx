@@ -9,7 +9,12 @@ export default async function AdminItemRequestsQueuePage() {
   }
 
   const {
-    payload: { groups, hasActiveQueue, snapshotsByRequestId },
+    payload: {
+      groups,
+      hasActiveQueue,
+      snapshotsByRequestId,
+      activeQueueLatestQuotesByRequestId,
+    },
   } = result;
 
   const queueGroups = groups.filter((g) => g.activeQueueCount > 0);
@@ -19,6 +24,7 @@ export default async function AdminItemRequestsQueuePage() {
       <AdminItemRequestsGroupedTable
         groups={queueGroups}
         snapshotsByRequestId={snapshotsByRequestId}
+        latestQuotesByRequestId={activeQueueLatestQuotesByRequestId}
       />
     );
   }

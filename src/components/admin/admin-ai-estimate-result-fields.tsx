@@ -4,6 +4,7 @@ import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import type { AdminAiEstimateSuccess } from "@/actions/admin-ai-estimate";
+import { AdminItemRequestProductImageUpload } from "@/components/admin/admin-item-request-product-image-upload";
 import { formatUsd } from "@/lib/admin-markup";
 
 /** Merchandise/service cents from pack line model (see computePackLineMerchandiseAndServiceCents). */
@@ -50,6 +51,11 @@ type AdminAiEstimateResultFieldsProps = {
   merchandiseIncludesSiteShippingTax: boolean;
   setMerchandiseIncludesSiteShippingTax: (v: boolean) => void;
   idPrefix: string;
+  /** When set, enables manual Blob upload if AI did not return an image. */
+  itemRequestId?: string;
+  /** Manual or persisted image URL (wins over AI extraction URL for display). */
+  productImageUrl?: string | null;
+  onProductImageUploaded?: (imageUrl: string) => void;
 };
 
 /**
@@ -77,19 +83,25 @@ export function AdminAiEstimateResultFields({
   merchandiseIncludesSiteShippingTax,
   setMerchandiseIncludesSiteShippingTax,
   idPrefix,
+  itemRequestId,
+  productImageUrl,
+  onProductImageUploaded,
 }: AdminAiEstimateResultFieldsProps) {
+  const displayImageUrl =
+    productImageUrl?.trim() || result.extraction.productImageUrl?.trim() || null;
+
   return (
     <div className="space-y-4 text-sm">
       <Separator />
-      {result.extraction.productImageUrl ? (
+      {displayImageUrl ? (
         <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
-          {/* eslint-disable-next-line @next/next/no-img-element -- external retailer URLs */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- retailer or Blob URLs */}
           <img
-            src={result.extraction.productImageUrl}
+            src={displayImageUrl}
             alt={
               result.extraction.productName?.trim()
                 ? `Product: ${result.extraction.productName.trim()}`
-                : "Product image from listing"
+                : "Product image"
             }
             className="mx-auto max-h-52 w-full object-contain"
             loading="lazy"
@@ -97,9 +109,17 @@ export function AdminAiEstimateResultFields({
           />
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
-          No product image found on this page (try another listing or check OG tags).
-        </p>
+        <div className="space-y-3 rounded-lg border border-dashed border-border px-3 py-5">
+          <p className="text-center text-xs text-muted-foreground">
+            No product image found on this page (try another listing or check OG tags).
+          </p>
+          {itemRequestId ? (
+            <AdminItemRequestProductImageUpload
+              itemRequestId={itemRequestId}
+              onUploaded={onProductImageUploaded}
+            />
+          ) : null}
+        </div>
       )}
       <div className="space-y-3">
         <p className="font-medium text-foreground">Extracted</p>

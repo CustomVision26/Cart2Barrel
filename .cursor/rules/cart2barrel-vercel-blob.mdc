@@ -1,63 +1,81 @@
 ---
-description: Vercel Blob for uploads — tokens, paths, authz, Drizzle URL storage
+description: Vercel Blob — setup, Server Action uploads, paths, authz, Drizzle URL storage
 alwaysApply: false
 globs:
-  - src/actions/**/*.ts
+  - src/actions/**/*upload*.ts
+  - src/actions/upload-*.ts
+  - src/actions/admin-upload-item-request-product-image.ts
+  - src/components/admin/admin-item-request-product-image-upload.tsx
+  - src/components/admin/admin-ai-estimate-result-fields.tsx
   - src/lib/vercel-blob-env.ts
   - src/lib/retailer-receipt-images.ts
   - src/components/orders/**/*.tsx
   - src/components/admin/admin-retailer-receipt-images-field.tsx
   - src/components/dashboard/item-request-workspace.tsx
-  - src/components/dashboard/dashboard-paid-orders-table.tsx
-  - src/components/admin/admin-purchase-orders-table.tsx
+  - .env.example
 ---
 
 # Vercel Blob (Cart2Barrel)
 
-Official overview: [Vercel Blob](https://vercel.com/docs/vercel-blob); SDK and uploads: [Using the Blob SDK](https://vercel.com/docs/storage/vercel-blob/using-blob-sdk), [server upload](https://vercel.com/docs/storage/vercel-blob/server-upload).
+Docs: [Vercel Blob](https://vercel.com/docs/vercel-blob), [Blob SDK](https://vercel.com/docs/vercel-blob/using-blob-sdk), [server upload](https://vercel.com/docs/vercel-blob/server-upload).
 
-## Secrets and env
+## Project setup (Vercel dashboard + local)
 
-- **`BLOB_READ_WRITE_TOKEN`** lives **only** in `.env` / Vercel project env. Never commit tokens or paste real values into rules, README, or tracked docs.
-- Prefer **`getBlobReadWriteToken()`** / **`blobReadWriteNotConfiguredMessage()`** from `src/lib/vercel-blob-env.ts` so missing-token errors stay consistent.
+1. **Connect Blob to the Vercel project** — Storage → Blob → create/connect store. This injects **`BLOB_READ_WRITE_TOKEN`** into the project env. Use a **public** store (this app saves public URLs in Postgres).
+2. **Local env** — `vercel link` then `vercel env pull`, or copy a read/write token into **`.env`** only (never commit). Restart `npm run dev` after changing env.
+3. **Package** — `@vercel/blob` is already a dependency; do not add a second blob client.
+4. **Placeholder** — `.env.example` documents `BLOB_READ_WRITE_TOKEN=`; never paste real tokens into rules, commands, or tracked files.
 
-## Where uploads run
+## How this repo uploads (not the Vercel avatar template)
 
-- Perform **`put()`** from **`@vercel/blob`** inside **Server Actions** (or other trusted server code), not from the client with the write token exposed.
-- After upload, persist the returned **`url`** (and any metadata you need) via **Drizzle** on the appropriate row — see `.cursor/rules/cart2barrel-drizzle-neon.mdc`.
+Vercel’s Next.js quickstart uses a **Route Handler** (`/api/.../route.ts`) + client `fetch`. **Do not add that pattern** for new features unless explicitly requested.
+
+Cart2Barrel uploads via **Server Actions** that call `put()` from `@vercel/blob`, then persist `blob.url` with **Drizzle**:
+
+- `src/actions/upload-item-request-product-image.ts` — `product-images/{itemRequestId}/…`
+- `src/actions/admin-upload-retailer-receipt-images.ts` — `retailer-receipts/{orderItemId}/…`
+- `src/actions/upload-warehouse-barcode-image.ts` — `warehouse-barcodes/{orderItemId}/…`
+
+Use **`getBlobReadWriteToken()`** / **`blobReadWriteNotConfiguredMessage()`** from `src/lib/vercel-blob-env.ts` when the token is missing.
+
+```typescript
+const token = getBlobReadWriteToken();
+if (!token) return { ok: false, message: blobReadWriteNotConfiguredMessage() };
+
+const blob = await put(pathname, file, {
+  access: "public",
+  token,
+  contentType: file.type || undefined,
+});
+// then db.update(...).set({ ...Url: blob.url })
+```
+
+## Size limits
+
+- **Vercel server upload** (file through your server / Server Action on Vercel): **~4.5 MB** max per request. See [client uploads](https://vercel.com/docs/vercel-blob/client-upload) if you need larger files.
+- App validation today allows up to **8 MB** (`RETAILER_RECEIPT_IMAGE_MAX_BYTES` in `src/lib/retailer-receipt-images.ts`) — uploads **> 4.5 MB will fail on Vercel** unless you switch to client uploads or lower the app limit.
 
 ## Access mode
 
-- This app stores **public** blob URLs in Postgres (`access: 'public'`). Anyone with the URL can fetch the object; do **not** put secrets or pre‑authorized documents in public blobs.
-- **Private** Blob stores need reads through your app (e.g. Route Handler + `get()`). If you switch a feature to private storage, design explicit authorization — see `.cursor/rules/cart2barrel-clerk-authz.mdc`.
+- **`access: 'public'`** — anyone with the URL can fetch; do not store secrets in public blobs.
+- Private blobs need authorized reads in your app (`get()` + Clerk); see `.cursor/rules/cart2barrel-clerk-authz.mdc`.
 
-## Pathnames (immutable uploads)
+## Pathnames
 
-- Treat uploads as **immutable**: use **unique pathnames** (e.g. UUID segment per file), matching Vercel’s guidance to avoid overwrite/cache surprises.
-- Do **not** rely on overwriting the same pathname unless you intentionally use `allowOverwrite` and understand **CDN/browser caching** (updates can lag; see Vercel Blob caching docs).
-
-## Canonical path prefixes (this repo)
-
-Keep prefixes stable so listings and ops stay predictable:
+- **Immutable paths** — `{prefix}/{resourceId}/{uuid}.{ext}`; avoid reusing the same pathname (CDN/cache).
 
 | Prefix | Use |
 |--------|-----|
-| `retailer-receipts/{orderItemId}/…` | Paid-line retailer receipt screenshots |
-| `product-images/{itemRequestId}/…` | Customer product photo uploads |
+| `product-images/{itemRequestId}/…` | Customer product photos |
+| `retailer-receipts/{orderItemId}/…` | Admin receipt screenshots |
 | `warehouse-barcodes/{orderItemId}/…` | Inbound barcode photos |
 
-## Authorization
+## Auth, validation, UI
 
-- Every upload or DB update that attaches a blob URL must **verify the Clerk user** may modify that resource (**owner** or **admin**), scoped in Drizzle — same rules as other mutations (`.cursor/rules/cart2barrel-clerk-authz.mdc`).
-
-## Validation
-
-- Validate identifiers (**UUIDs**, etc.) with **Zod** at the trust boundary. Multipart/file uploads may use `FormData` internally, but **do not** type the exported action argument as `FormData` — extract fields, validate with Zod, then call `put()` (`.cursor/rules/cart2barrel-rsc-server-actions-zod.mdc`).
+- **Clerk** — verify owner or admin before `put()` and DB updates (`.cursor/rules/cart2barrel-clerk-authz.mdc`).
+- **Zod** — validate ids at the trust boundary; multipart may use `FormData` internally but **do not** type the exported action arg as `FormData` (`.cursor/rules/cart2barrel-rsc-server-actions-zod.mdc`).
+- **UI** — shadcn file inputs; use `<img>` or configure `next/image` `remotePatterns` for blob hosts (`.cursor/rules/cart2barrel-shadcn-ui.mdc`).
 
 ## Deletes
 
-- Clearing a URL in the database **does not** delete the blob object. Use **`del()`** from `@vercel/blob` only when product intent is to remove storage; handle missing-token and idempotency as appropriate.
-
-## UI
-
-- File pickers and dialogs should use **shadcn/ui** patterns (`.cursor/rules/cart2barrel-shadcn-ui.mdc`). Prefer **`next/image`** only when `remotePatterns` (or equivalent) cover blob hosts; otherwise use documented alternatives (e.g. `<img>` for arbitrary blob URLs) without weakening CSP casually.
+- Clearing a URL in Postgres **does not** delete the blob; call **`del()`** only when product intent is to remove storage.

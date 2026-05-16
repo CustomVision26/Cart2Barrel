@@ -33,6 +33,8 @@ export type AdminItemRequestsPagePayload = {
   batchQuoteHistoryBundles: AdminSubmittedBatchBundle[];
   batchHistoryBundles: AdminBatchHistoryBundle[];
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  /** Latest operational quotes for quoted rows in the active ops queue. */
+  activeQueueLatestQuotesByRequestId: Record<string, ItemQuote>;
   /** Latest item quotes keyed by request id — used for combined batch estimate line previews. */
   batchQuoteHistoryLatestQuotesByRequestId: Record<string, ItemQuote>;
   hasActiveQueue: boolean;
@@ -74,6 +76,17 @@ async function computePayload(user: User | null): Promise<AdminItemRequestsPageP
     batchQuoteHistoryLatestQuotes,
   );
 
+  const quotedActiveRequestIds = rows
+    .filter((row) => row.request.status === "quoted")
+    .map((row) => row.request.id);
+  const activeQueueLatestQuotes =
+    quotedActiveRequestIds.length === 0
+      ? new Map<string, ItemQuote>()
+      : await collectLatestQuotesForRequests(quotedActiveRequestIds);
+  const activeQueueLatestQuotesByRequestId = Object.fromEntries(
+    activeQueueLatestQuotes,
+  );
+
   const snapshotRows = await listItemRequestLineSnapshotsByRequestIds(user, [
     ...requestIds,
   ]);
@@ -100,6 +113,7 @@ async function computePayload(user: User | null): Promise<AdminItemRequestsPageP
     batchQuoteHistoryBundles,
     batchHistoryBundles,
     snapshotsByRequestId,
+    activeQueueLatestQuotesByRequestId,
     batchQuoteHistoryLatestQuotesByRequestId,
     hasActiveQueue,
     noData,
