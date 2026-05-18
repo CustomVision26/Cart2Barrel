@@ -8,15 +8,21 @@ import { toast } from "sonner";
 import { adminUploadItemRequestProductImageAction } from "@/actions/admin-upload-item-request-product-image";
 import { Button } from "@/components/ui/button";
 import { RETAILER_RECEIPT_IMAGE_MAX_BYTES } from "@/lib/retailer-receipt-images";
+import { validateProductImageFile } from "@/lib/staged-product-image";
 
 export function AdminItemRequestProductImageUpload({
   itemRequestId,
   disabled = false,
+  /** When true, only stage a local preview until the parent saves the quote. */
+  deferPersist = false,
   onUploaded,
+  onStaged,
 }: {
   itemRequestId: string;
   disabled?: boolean;
+  deferPersist?: boolean;
   onUploaded?: (imageUrl: string) => void;
+  onStaged?: (file: File, previewUrl: string) => void;
 }) {
   const inputId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -29,10 +35,25 @@ export function AdminItemRequestProductImageUpload({
       const file = fileList[0];
       if (!file) return;
 
+      const validationError = validateProductImageFile(file);
+      if (validationError) {
+        toast.error(validationError);
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
+
+      if (fileRef.current) fileRef.current.value = "";
+
+      if (deferPersist) {
+        const previewUrl = URL.createObjectURL(file);
+        onStaged?.(file, previewUrl);
+        toast.success("Image ready — save the quote to apply it.");
+        return;
+      }
+
       const fd = new FormData();
       fd.set("itemRequestId", itemRequestId);
       fd.append("file", file);
-      if (fileRef.current) fileRef.current.value = "";
 
       startTransition(async () => {
         const res = await adminUploadItemRequestProductImageAction(fd);
@@ -45,7 +66,7 @@ export function AdminItemRequestProductImageUpload({
         }
       });
     },
-    [disabled, itemRequestId, onUploaded, pending, router],
+    [deferPersist, disabled, itemRequestId, onStaged, onUploaded, pending, router],
   );
 
   const maxMb = Math.round(RETAILER_RECEIPT_IMAGE_MAX_BYTES / (1024 * 1024));
@@ -82,8 +103,10 @@ export function AdminItemRequestProductImageUpload({
         )}
       </Button>
       <p className="text-center text-[11px] text-muted-foreground">
-        JPEG, PNG, WebP, or GIF up to {maxMb} MB. Saved on Vercel Blob for cart and
-        shopper lists.
+        JPEG, PNG, WebP, or GIF up to {maxMb} MB.
+        {deferPersist ?
+          " Preview only until you save the quote."
+        : " Saved on Vercel Blob for cart and shopper lists."}
       </p>
     </div>
   );

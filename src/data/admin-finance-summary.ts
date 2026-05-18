@@ -1,7 +1,7 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orderItemRefunds, orders, payments } from "@/db/schema";
+import { orderItemRefunds, orderItems, orders, payments } from "@/db/schema";
 
 export type FinanceDateRange = {
   fromIso: string;
@@ -57,15 +57,23 @@ export type AdminFinanceSummary = {
  */
 export async function getAdminFinanceSummary(
   range: FinanceDateRange,
+  clerkUserId?: string,
 ): Promise<AdminFinanceSummary> {
   const { start, end } = toUtcBounds(range);
   const db = getDb();
 
-  const paidInRange = and(
-    eq(orders.status, "paid"),
-    gte(orders.createdAt, start),
-    lte(orders.createdAt, end),
-  );
+  const paidInRange = clerkUserId ?
+    and(
+      eq(orders.status, "paid"),
+      eq(orders.clerkUserId, clerkUserId),
+      gte(orders.createdAt, start),
+      lte(orders.createdAt, end),
+    )!
+  : and(
+      eq(orders.status, "paid"),
+      gte(orders.createdAt, start),
+      lte(orders.createdAt, end),
+    );
 
   const [revenueRow] = await db
     .select({
@@ -104,20 +112,33 @@ export async function getAdminFinanceSummary(
     .from(orders)
     .where(paidInRange);
 
-  const [refundRow] = await db
-    .select({
-      total:
-        sql<number>`coalesce(sum(${orderItemRefunds.amountCents}), 0)::bigint`.as(
-          "total",
-        ),
-    })
-    .from(orderItemRefunds)
-    .where(
-      and(
-        gte(orderItemRefunds.createdAt, start),
-        lte(orderItemRefunds.createdAt, end),
-      ),
-    );
+  const refundTimeRange = and(
+    gte(orderItemRefunds.createdAt, start),
+    lte(orderItemRefunds.createdAt, end),
+  );
+
+  const [refundRow] =
+    clerkUserId ?
+      await db
+        .select({
+          total:
+            sql<number>`coalesce(sum(${orderItemRefunds.amountCents}), 0)::bigint`.as(
+              "total",
+            ),
+        })
+        .from(orderItemRefunds)
+        .innerJoin(orderItems, eq(orderItemRefunds.orderItemId, orderItems.id))
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .where(and(refundTimeRange, eq(orders.clerkUserId, clerkUserId))!)
+    : await db
+        .select({
+          total:
+            sql<number>`coalesce(sum(${orderItemRefunds.amountCents}), 0)::bigint`.as(
+              "total",
+            ),
+        })
+        .from(orderItemRefunds)
+        .where(refundTimeRange);
 
   const [countRow] = await db
     .select({

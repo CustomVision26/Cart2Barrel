@@ -9,6 +9,7 @@ import { AdminRefundOrderLineButton } from "@/components/admin/admin-refund-orde
 import { AdminRefundRequestControls } from "@/components/admin/admin-refund-request-controls";
 import type { OrderItem } from "@/db/schema";
 import type { PendingRefundRequestBrief } from "@/data/order-item-refund-requests";
+import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
 
 /** Staff quote row `item_cost` plus display fields — used only for pending company purchase UI. */
 export type AdminPurchaseReviewContext = {
@@ -56,6 +57,12 @@ export function AdminOrderLineActions({
   pendingRefundRequest?: PendingRefundRequestBrief | null;
 }) {
   const refundableCents = Math.max(0, linePriceCents - refundedCents);
+
+  if (fulfillmentStatus === BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID) {
+    return (
+      <span className="text-xs text-muted-foreground">—</span>
+    );
+  }
 
   if (
     fulfillmentStatus === "refunded" ||
@@ -120,6 +127,7 @@ export function AdminOrderLineActions({
     fulfillmentStatus === "company_purchase_pending_delivery" ||
     fulfillmentStatus === "delivery_requested_pending_fulfillment" ||
     fulfillmentStatus === "delivery_received_good_awaiting_barrel" ||
+    fulfillmentStatus === "in_barrel_awaiting_shipping" ||
     fulfillmentStatus === "delivery_received_item_missing" ||
     fulfillmentStatus === "delivery_received_item_damaged" ||
     fulfillmentStatus === "delivery_received_wrong_item" ||

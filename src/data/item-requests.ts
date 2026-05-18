@@ -2,13 +2,18 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { itemRequests, type ItemRequest } from "@/db/schema";
-import { isMissingBatchQuoteSessionIdColumnError } from "@/lib/db-column-missing";
+import {
+  isMissingBatchQuoteSessionIdColumnError,
+  isMissingItemRequestOutOfStockStatusError,
+  isMissingOutsidePurchaseReceiptImageUrlColumnError,
+} from "@/lib/db-column-missing";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 
 /**
  * `item_requests` columns when `batch_quote_session_id` is not migrated yet.
  * Keep in sync with schema (excluding the batch FK only).
  */
+/** All `item_requests` columns except `batch_quote_session_id`. */
 export const itemRequestsRowLegacySelect = {
   id: itemRequests.id,
   clerkUserId: itemRequests.clerkUserId,
@@ -21,16 +26,96 @@ export const itemRequestsRowLegacySelect = {
   productImageUrl: itemRequests.productImageUrl,
   siteName: itemRequests.siteName,
   status: itemRequests.status,
+  source: itemRequests.source,
+  outsidePurchaseReference: itemRequests.outsidePurchaseReference,
+  outsidePurchasePaymentPromptedAt: itemRequests.outsidePurchasePaymentPromptedAt,
+  outsidePurchaseReceiptImageUrl: itemRequests.outsidePurchaseReceiptImageUrl,
+  outsidePurchaseReceivedCondition: itemRequests.outsidePurchaseReceivedCondition,
+  outsidePurchaseShelfLocation: itemRequests.outsidePurchaseShelfLocation,
   createdAt: itemRequests.createdAt,
 } as const;
 
-function withNullBatchQuoteSessionId(
-  row: Omit<ItemRequest, "batchQuoteSessionId">
+/** Legacy select when `outside_purchase_receipt_image_url` is not migrated yet. */
+export const itemRequestsRowLegacySelectWithoutReceiptImage = {
+  id: itemRequests.id,
+  clerkUserId: itemRequests.clerkUserId,
+  productUrl: itemRequests.productUrl,
+  productName: itemRequests.productName,
+  productSize: itemRequests.productSize,
+  productColor: itemRequests.productColor,
+  quantity: itemRequests.quantity,
+  note: itemRequests.note,
+  productImageUrl: itemRequests.productImageUrl,
+  siteName: itemRequests.siteName,
+  status: itemRequests.status,
+  source: itemRequests.source,
+  outsidePurchaseReference: itemRequests.outsidePurchaseReference,
+  outsidePurchasePaymentPromptedAt: itemRequests.outsidePurchasePaymentPromptedAt,
+  createdAt: itemRequests.createdAt,
+} as const;
+
+/** Full row select when only the receipt-image column is missing. */
+export const itemRequestsRowSelectWithoutReceiptImage = {
+  ...itemRequestsRowLegacySelectWithoutReceiptImage,
+  batchQuoteSessionId: itemRequests.batchQuoteSessionId,
+} as const;
+
+type ItemRequestLegacyRow = Omit<ItemRequest, "batchQuoteSessionId">;
+type OutsidePurchaseIntakeOptionalColumns =
+  | "outsidePurchaseReceiptImageUrl"
+  | "outsidePurchaseReceivedCondition"
+  | "outsidePurchaseShelfLocation";
+type ItemRequestLegacyRowWithoutReceipt = Omit<
+  ItemRequestLegacyRow,
+  OutsidePurchaseIntakeOptionalColumns
+>;
+
+export function withLegacyItemRequestDefaults(
+  row: ItemRequestLegacyRow | ItemRequestLegacyRowWithoutReceipt,
 ): ItemRequest {
-  return { ...row, batchQuoteSessionId: null };
+  return {
+    ...row,
+    batchQuoteSessionId: null,
+    outsidePurchaseReceiptImageUrl:
+      "outsidePurchaseReceiptImageUrl" in row ?
+        (row.outsidePurchaseReceiptImageUrl ?? null)
+      : null,
+    outsidePurchaseReceivedCondition:
+      "outsidePurchaseReceivedCondition" in row ?
+        (row.outsidePurchaseReceivedCondition ?? null)
+      : null,
+    outsidePurchaseShelfLocation:
+      "outsidePurchaseShelfLocation" in row ?
+        (row.outsidePurchaseShelfLocation ?? null)
+      : null,
+  };
 }
 
-const ACTIVE_REQUEST_STATUSES = ["pending", "quoted"] as const satisfies Readonly<
+export function itemRequestFromRowWithoutReceiptImage(
+  row: Omit<ItemRequest, OutsidePurchaseIntakeOptionalColumns> & {
+    batchQuoteSessionId?: string | null;
+  },
+): ItemRequest {
+  return {
+    ...row,
+    batchQuoteSessionId: row.batchQuoteSessionId ?? null,
+    outsidePurchaseReceiptImageUrl: null,
+    outsidePurchaseReceivedCondition: null,
+    outsidePurchaseShelfLocation: null,
+  };
+}
+
+export function isMissingItemRequestReceiptImageColumnError(
+  e: unknown,
+): boolean {
+  return isMissingOutsidePurchaseReceiptImageUrlColumnError(e);
+}
+
+const ACTIVE_REQUEST_STATUSES = ["pending", "quoted", "out_of_stock"] as const satisfies Readonly<
+  ItemRequest["status"][]
+>;
+
+const ACTIVE_REQUEST_STATUSES_LEGACY = ["pending", "quoted"] as const satisfies Readonly<
   ItemRequest["status"][]
 >;
 
@@ -51,15 +136,83 @@ export async function getItemRequestById(
       .limit(1);
     return rows[0];
   } catch (e) {
+    if (isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) {
+      const rows = await db
+        .select(itemRequestsRowSelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(eq(itemRequests.id, id))
+        .limit(1);
+      const row = rows[0];
+      return row ? itemRequestFromRowWithoutReceiptImage(row) : undefined;
+    }
     if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
-    const rows = await db
-      .select(itemRequestsRowLegacySelect)
-      .from(itemRequests)
-      .where(eq(itemRequests.id, id))
-      .limit(1);
-    const row = rows[0];
-    return row ? withNullBatchQuoteSessionId(row) : undefined;
+    try {
+      const rows = await db
+        .select(itemRequestsRowLegacySelect)
+        .from(itemRequests)
+        .where(eq(itemRequests.id, id))
+        .limit(1);
+      const row = rows[0];
+      return row ? withLegacyItemRequestDefaults(row) : undefined;
+    } catch (legacyErr) {
+      if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(legacyErr)) {
+        throw legacyErr;
+      }
+      const rows = await db
+        .select(itemRequestsRowLegacySelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(eq(itemRequests.id, id))
+        .limit(1);
+      const row = rows[0];
+      return row ? withLegacyItemRequestDefaults(row) : undefined;
+    }
   }
+}
+
+async function listActiveItemRequestsForUserQuery(
+  clerkUserId: string,
+  statuses: readonly ItemRequest["status"][],
+  legacySelect: boolean
+): Promise<ItemRequest[]> {
+  const db = getDb();
+  if (legacySelect) {
+    try {
+      const rows = await db
+        .select(itemRequestsRowLegacySelect)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.status, [...statuses])
+          )
+        )
+        .orderBy(desc(itemRequests.createdAt));
+      return rows.map(withLegacyItemRequestDefaults);
+    } catch (e) {
+      if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) throw e;
+      const rows = await db
+        .select(itemRequestsRowLegacySelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.status, [...statuses])
+          )
+        )
+        .orderBy(desc(itemRequests.createdAt));
+      return rows.map(withLegacyItemRequestDefaults);
+    }
+  }
+  return db
+    .select()
+    .from(itemRequests)
+    .where(
+      and(
+        eq(itemRequests.clerkUserId, clerkUserId),
+        inArray(itemRequests.status, [...statuses])
+      )
+    )
+    .orderBy(desc(itemRequests.createdAt));
 }
 
 /** In-flight requests (not in cart, not closed). Includes rows attached to a batch quote
@@ -68,31 +221,62 @@ export async function getItemRequestById(
 export async function listActiveItemRequestsForUser(
   clerkUserId: string
 ): Promise<ItemRequest[]> {
-  const db = getDb();
   try {
-    return await db
-      .select()
-      .from(itemRequests)
-      .where(
-        and(
-          eq(itemRequests.clerkUserId, clerkUserId),
-          inArray(itemRequests.status, [...ACTIVE_REQUEST_STATUSES])
-        )
-      )
-      .orderBy(desc(itemRequests.createdAt));
+    return await listActiveItemRequestsForUserQuery(
+      clerkUserId,
+      ACTIVE_REQUEST_STATUSES,
+      false
+    );
   } catch (e) {
-    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
-    const rows = await db
-      .select(itemRequestsRowLegacySelect)
-      .from(itemRequests)
-      .where(
-        and(
-          eq(itemRequests.clerkUserId, clerkUserId),
-          inArray(itemRequests.status, [...ACTIVE_REQUEST_STATUSES])
+    if (isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) {
+      const db = getDb();
+      const rows = await db
+        .select(itemRequestsRowSelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.status, [...ACTIVE_REQUEST_STATUSES])
+          )
         )
-      )
-      .orderBy(desc(itemRequests.createdAt));
-    return rows.map(withNullBatchQuoteSessionId);
+        .orderBy(desc(itemRequests.createdAt));
+      return rows.map(itemRequestFromRowWithoutReceiptImage);
+    }
+    if (isMissingItemRequestOutOfStockStatusError(e)) {
+      try {
+        return await listActiveItemRequestsForUserQuery(
+          clerkUserId,
+          ACTIVE_REQUEST_STATUSES_LEGACY,
+          false
+        );
+      } catch (legacyEnumErr) {
+        if (!isMissingBatchQuoteSessionIdColumnError(legacyEnumErr)) {
+          throw legacyEnumErr;
+        }
+        return listActiveItemRequestsForUserQuery(
+          clerkUserId,
+          ACTIVE_REQUEST_STATUSES_LEGACY,
+          true
+        );
+      }
+    }
+    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
+    try {
+      return await listActiveItemRequestsForUserQuery(
+        clerkUserId,
+        ACTIVE_REQUEST_STATUSES,
+        true
+      );
+    } catch (legacyBatchErr) {
+      if (!isMissingItemRequestOutOfStockStatusError(legacyBatchErr)) {
+        throw legacyBatchErr;
+      }
+      return listActiveItemRequestsForUserQuery(
+        clerkUserId,
+        ACTIVE_REQUEST_STATUSES_LEGACY,
+        true
+      );
+    }
   }
 }
 
@@ -113,18 +297,48 @@ export async function listProductHistoryForUser(
       )
       .orderBy(desc(itemRequests.createdAt));
   } catch (e) {
-    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
-    const rows = await db
-      .select(itemRequestsRowLegacySelect)
-      .from(itemRequests)
-      .where(
-        and(
-          eq(itemRequests.clerkUserId, clerkUserId),
-          inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+    if (isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) {
+      const rows = await db
+        .select(itemRequestsRowSelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+          )
         )
-      )
-      .orderBy(desc(itemRequests.createdAt));
-    return rows.map(withNullBatchQuoteSessionId);
+        .orderBy(desc(itemRequests.createdAt));
+      return rows.map(itemRequestFromRowWithoutReceiptImage);
+    }
+    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
+    try {
+      const rows = await db
+        .select(itemRequestsRowLegacySelect)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+          )
+        )
+        .orderBy(desc(itemRequests.createdAt));
+      return rows.map(withLegacyItemRequestDefaults);
+    } catch (legacyErr) {
+      if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(legacyErr)) {
+        throw legacyErr;
+      }
+      const rows = await db
+        .select(itemRequestsRowLegacySelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+          )
+        )
+        .orderBy(desc(itemRequests.createdAt));
+      return rows.map(withLegacyItemRequestDefaults);
+    }
   }
 }
 

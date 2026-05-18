@@ -34,6 +34,7 @@ import { formatUsd } from "@/lib/admin-markup";
 import type { AdminSubmittedBatchListQuery } from "@/lib/admin-submitted-batch-list-params";
 import {
   isMissingBatchQuoteSessionIdColumnError,
+  isMissingOutsidePurchaseReceiptImageUrlColumnError,
   isUndefinedColumnError,
   shouldUseBatchQuoteSchemaFallback,
 } from "@/lib/db-column-missing";
@@ -43,7 +44,11 @@ import {
   getLatestQuoteForItemRequest,
   restoreOrphanQuotedItemRequestQuote,
 } from "@/data/item-quotes";
-import { itemRequestsRowLegacySelect } from "@/data/item-requests";
+import {
+  itemRequestsRowLegacySelect,
+  itemRequestsRowLegacySelectWithoutReceiptImage,
+  withLegacyItemRequestDefaults,
+} from "@/data/item-requests";
 import {
   appendBatchQuoteSessionStatusEvent,
   listBatchQuoteSessionStatusEventsForSessions,
@@ -80,16 +85,32 @@ async function selectOwnedItemRequestsByIds(
       );
   } catch (e) {
     if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
-    const rows = await db
-      .select(itemRequestsRowLegacySelect)
-      .from(itemRequests)
-      .where(
-        and(
-          eq(itemRequests.clerkUserId, clerkUserId),
-          inArray(itemRequests.id, ids)
-        )
-      );
-    return rows.map((r) => ({ ...r, batchQuoteSessionId: null }));
+    try {
+      const rows = await db
+        .select(itemRequestsRowLegacySelect)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.id, ids)
+          )
+        );
+      return rows.map(withLegacyItemRequestDefaults);
+    } catch (legacyErr) {
+      if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(legacyErr)) {
+        throw legacyErr;
+      }
+      const rows = await db
+        .select(itemRequestsRowLegacySelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.id, ids)
+          )
+        );
+      return rows.map(withLegacyItemRequestDefaults);
+    }
   }
 }
 
@@ -103,11 +124,22 @@ async function selectItemRequestsByIds(ids: string[]): Promise<ItemRequest[]> {
       .where(inArray(itemRequests.id, ids));
   } catch (e) {
     if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
-    const rows = await db
-      .select(itemRequestsRowLegacySelect)
-      .from(itemRequests)
-      .where(inArray(itemRequests.id, ids));
-    return rows.map((r) => ({ ...r, batchQuoteSessionId: null }));
+    try {
+      const rows = await db
+        .select(itemRequestsRowLegacySelect)
+        .from(itemRequests)
+        .where(inArray(itemRequests.id, ids));
+      return rows.map(withLegacyItemRequestDefaults);
+    } catch (legacyErr) {
+      if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(legacyErr)) {
+        throw legacyErr;
+      }
+      const rows = await db
+        .select(itemRequestsRowLegacySelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(inArray(itemRequests.id, ids));
+      return rows.map(withLegacyItemRequestDefaults);
+    }
   }
 }
 
@@ -134,17 +166,34 @@ export async function listQuotedActiveItemRequestsForBatching(
       .orderBy(desc(itemRequests.createdAt));
   } catch (e) {
     if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
-    const rows = await db
-      .select(itemRequestsRowLegacySelect)
-      .from(itemRequests)
-      .where(
-        and(
-          eq(itemRequests.clerkUserId, clerkUserId),
-          eq(itemRequests.status, "quoted")
+    try {
+      const rows = await db
+        .select(itemRequestsRowLegacySelect)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            eq(itemRequests.status, "quoted")
+          )
         )
-      )
-      .orderBy(desc(itemRequests.createdAt));
-    return rows.map((r) => ({ ...r, batchQuoteSessionId: null }));
+        .orderBy(desc(itemRequests.createdAt));
+      return rows.map(withLegacyItemRequestDefaults);
+    } catch (legacyErr) {
+      if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(legacyErr)) {
+        throw legacyErr;
+      }
+      const rows = await db
+        .select(itemRequestsRowLegacySelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            eq(itemRequests.status, "quoted")
+          )
+        )
+        .orderBy(desc(itemRequests.createdAt));
+      return rows.map(withLegacyItemRequestDefaults);
+    }
   }
 }
 
@@ -562,6 +611,89 @@ export async function collectLatestQuotesForRequests(
     if (quote) map.set(id, quote);
   }
   return map;
+}
+
+/**
+ * Accepted checkout batch estimate per session (cart acceptance id, else latest non-voided).
+ * Used on admin paid-order views where the batch was already checked out.
+ */
+export async function mapCheckoutBatchEstimatesBySessionIds(
+  sessionIds: string[],
+): Promise<Map<string, BatchQuoteEstimate>> {
+  const unique = [...new Set(sessionIds.map((id) => id.trim()).filter(Boolean))];
+  const out = new Map<string, BatchQuoteEstimate>();
+  if (unique.length === 0) return out;
+
+  const db = getDb();
+  const sessions = await db
+    .select({
+      id: batchQuoteSessions.id,
+      cartAcceptanceAcceptedEstimateId:
+        batchQuoteSessions.cartAcceptanceAcceptedEstimateId,
+    })
+    .from(batchQuoteSessions)
+    .where(inArray(batchQuoteSessions.id, unique));
+
+  const preferredIds = [
+    ...new Set(
+      sessions
+        .map((s) => s.cartAcceptanceAcceptedEstimateId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const estimateById = new Map<string, BatchQuoteEstimate>();
+  if (preferredIds.length > 0) {
+    const preferredRows = await db
+      .select()
+      .from(batchQuoteEstimates)
+      .where(
+        and(
+          inArray(batchQuoteEstimates.id, preferredIds),
+          isNull(batchQuoteEstimates.voidedAt),
+        ),
+      );
+    for (const row of preferredRows) {
+      estimateById.set(row.id, row);
+    }
+  }
+
+  const sessionIdsNeedingFallback: string[] = [];
+  for (const session of sessions) {
+    const preferredId = session.cartAcceptanceAcceptedEstimateId;
+    if (!preferredId) {
+      sessionIdsNeedingFallback.push(session.id);
+      continue;
+    }
+    const row = estimateById.get(preferredId);
+    if (
+      !row ||
+      row.batchQuoteSessionId !== session.id
+    ) {
+      sessionIdsNeedingFallback.push(session.id);
+    } else {
+      out.set(session.id, row);
+    }
+  }
+
+  await Promise.all(
+    sessionIdsNeedingFallback.map(async (sessionId) => {
+      const [latest] = await db
+        .select()
+        .from(batchQuoteEstimates)
+        .where(
+          and(
+            eq(batchQuoteEstimates.batchQuoteSessionId, sessionId),
+            isNull(batchQuoteEstimates.voidedAt),
+          ),
+        )
+        .orderBy(desc(batchQuoteEstimates.createdAt))
+        .limit(1);
+      if (latest) out.set(sessionId, latest);
+    }),
+  );
+
+  return out;
 }
 
 export type BatchTotalsFromQuotes = {

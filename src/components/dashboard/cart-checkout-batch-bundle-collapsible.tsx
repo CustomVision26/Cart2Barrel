@@ -3,7 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useId, useState } from "react";
 
-import { CartCheckoutProductUrlReveal } from "@/components/dashboard/cart-checkout-product-url-reveal";
+import { CartLineUrlOrReceipt } from "@/components/dashboard/cart-line-url-or-receipt";
 import { Button } from "@/components/ui/button";
 import type { CartCheckoutBatchBundleSummary } from "@/data/cart";
 import { formatUsd } from "@/lib/admin-markup";
@@ -100,9 +100,12 @@ export function CartCheckoutBatchBundleCollapsible({
                       : null}
                     </p>
                     {line.productUrl ?
-                      <CartCheckoutProductUrlReveal
+                      <CartLineUrlOrReceipt
                         lineId={line.itemRequestId}
                         productUrl={line.productUrl}
+                        outsidePurchaseReceiptImageUrl={
+                          line.outsidePurchaseReceiptImageUrl
+                        }
                       />
                     : null}
                   </div>

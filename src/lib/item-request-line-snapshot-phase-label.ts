@@ -30,6 +30,24 @@ export function itemRequestLineSnapshotPhaseLabel(
       return "Product return tracking saved";
     case "customer_refund_request_submitted":
       return "Customer refund request submitted";
+    case "outside_purchase_intake":
+      return "Outside purchase intake (staff)";
+    case "outside_purchase_payment_prompted":
+      return "Customer prompted to pay";
+    case "outside_purchase_added_to_cart":
+      return "Added to cart";
+    case "outside_purchase_removed_from_cart":
+      return "Removed from cart";
+    case "outside_purchase_withdrawn_from_active":
+      return "Removed from Active";
+    case "outside_purchase_reinstated_to_active":
+      return "Reinstated to Active";
+    case "outside_purchase_return_requested":
+      return "Return to retailer requested";
+    case "outside_purchase_return_estimate_ready":
+      return "Return estimate ready";
+    case "outside_purchase_checkout_paid":
+      return "Checkout paid · service fee";
     default: {
       const _exhaustive: never = phase;
       return _exhaustive;

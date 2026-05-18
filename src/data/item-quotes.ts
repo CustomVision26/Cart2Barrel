@@ -11,9 +11,16 @@ import {
 import { isMissingMerchandiseSavingsColumnError, isUndefinedColumnError } from "@/lib/db-column-missing";
 import { getNeonSql } from "@/lib/neon-sql";
 import {
+  ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION,
+  ITEM_QUOTE_VOID_REASON_STAFF_OUT_OF_STOCK,
   ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT,
   type ItemQuoteVoidReason,
 } from "@/lib/item-quote-void-reason";
+
+const VOID_REASON_RESTORE_PRIORITY: ItemQuoteVoidReason[] = [
+  ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION,
+  ITEM_QUOTE_VOID_REASON_STAFF_OUT_OF_STOCK,
+];
 
 /** All `item_quotes` columns except `checkout_snapshot_kind` (migration 0009). */
 export const itemQuoteCoreSelect = {
@@ -32,6 +39,7 @@ export const itemQuoteCoreSelect = {
   requestProductColor: itemQuotes.requestProductColor,
   requestProductName: itemQuotes.requestProductName,
   merchandiseIncludesSiteShippingTax: itemQuotes.merchandiseIncludesSiteShippingTax,
+  staffNote: itemQuotes.staffNote,
   createdAt: itemQuotes.createdAt,
 } as const;
 
@@ -87,6 +95,7 @@ export type ItemQuoteInsertRow = {
   requestProductName: string | null;
   /** Retailer-listed shipping/tax bundled into merchandise; line splits stay $0. */
   merchandiseIncludesSiteShippingTax?: boolean;
+  staffNote?: string | null;
 };
 
 export function itemRequestSnapshotForQuote(req: {
@@ -142,6 +151,10 @@ function rowRecordToItemQuote(
     merchandiseIncludesSiteShippingTax: Boolean(
       r.merchandise_includes_site_shipping_tax,
     ),
+    staffNote:
+      r.staff_note != null && String(r.staff_note).trim() !== ""
+        ? String(r.staff_note)
+        : null,
     checkoutSnapshotKind,
     createdAt: String(r.created_at),
   };
@@ -161,6 +174,7 @@ async function insertItemQuoteNarrowSql(values: {
   requestProductSize: string | null;
   requestProductColor: string | null;
   requestProductName: string | null;
+  staffNote: string | null;
 }): Promise<ItemQuote> {
   const sql = getNeonSql();
   const rows = await sql`
@@ -176,7 +190,8 @@ async function insertItemQuoteNarrowSql(values: {
       request_quantity,
       request_product_size,
       request_product_color,
-      request_product_name
+      request_product_name,
+      staff_note
     ) VALUES (
       ${values.itemRequestId}::uuid,
       ${values.itemCost},
@@ -189,7 +204,8 @@ async function insertItemQuoteNarrowSql(values: {
       ${values.requestQuantity},
       ${values.requestProductSize},
       ${values.requestProductColor},
-      ${values.requestProductName}
+      ${values.requestProductName},
+      ${values.staffNote}
     )
     RETURNING
       id,
@@ -207,6 +223,7 @@ async function insertItemQuoteNarrowSql(values: {
       request_product_size,
       request_product_color,
       request_product_name,
+      staff_note,
       created_at
   `;
   const rowList = rows as unknown as Record<string, unknown>[];
@@ -240,6 +257,7 @@ export async function insertCheckoutTimelineQuote(params: {
         requestProductSize: src.requestProductSize,
         requestProductColor: src.requestProductColor,
         requestProductName: src.requestProductName,
+        staffNote: src.staffNote?.trim() || null,
         checkoutSnapshotKind: params.checkoutSnapshotKind,
       })
       .returning();
@@ -264,6 +282,7 @@ export async function insertCheckoutTimelineQuote(params: {
       requestProductSize: src.requestProductSize,
       requestProductColor: src.requestProductColor,
       requestProductName: src.requestProductName,
+      staffNote: src.staffNote?.trim() || null,
     });
     return {
       ...inserted,
@@ -293,6 +312,7 @@ export async function insertItemQuoteForRequest(
         requestProductSize: row.requestProductSize,
         requestProductColor: row.requestProductColor,
         requestProductName: row.requestProductName,
+        staffNote: row.staffNote?.trim() || null,
       })
       .returning();
     if (!created) {
@@ -316,6 +336,7 @@ export async function insertItemQuoteForRequest(
       requestProductSize: row.requestProductSize,
       requestProductColor: row.requestProductColor,
       requestProductName: row.requestProductName,
+      staffNote: row.staffNote?.trim() || null,
     });
   }
 }
@@ -373,6 +394,96 @@ export async function voidActiveQuotesForItemRequest(
           isNull(itemQuotes.voidedAt)
         )
       );
+  }
+}
+
+/**
+ * Un-voids the newest operational quote for this request whose `voidReason` is in
+ * `reasonsInPriorityOrder` (defaults to customer revision, then staff out-of-stock).
+ */
+export async function restoreLatestVoidedOperationalQuoteForItemRequest(
+  itemRequestId: string,
+  reasonsInPriorityOrder: readonly ItemQuoteVoidReason[] = VOID_REASON_RESTORE_PRIORITY,
+): Promise<ItemQuote | undefined> {
+  const db = getDb();
+  const reasons = [...reasonsInPriorityOrder];
+  if (reasons.length === 0) return undefined;
+
+  try {
+    const voided = await db
+      .select()
+      .from(itemQuotes)
+      .where(
+        and(
+          eq(itemQuotes.itemRequestId, itemRequestId),
+          isNotNull(itemQuotes.voidedAt),
+        ),
+      )
+      .orderBy(desc(itemQuotes.createdAt))
+      .limit(50);
+
+    let pick: ItemQuote | undefined;
+    for (const reason of reasons) {
+      pick = voided.find(
+        (q) => q.voidReason === reason && isOperationalQuoteRow(q),
+      );
+      if (pick) break;
+    }
+    if (!pick) return undefined;
+
+    await db
+      .update(itemQuotes)
+      .set({ voidedAt: null, voidReason: null })
+      .where(eq(itemQuotes.id, pick.id));
+
+    return { ...pick, voidedAt: null, voidReason: null };
+  } catch (e) {
+    if (!isMissingMerchandiseSavingsColumnError(e)) {
+      throw e;
+    }
+    const voidedRows = await db
+      .select(itemQuoteCoreSelectPreMerchandiseSavings)
+      .from(itemQuotes)
+      .where(
+        and(
+          eq(itemQuotes.itemRequestId, itemRequestId),
+          isNotNull(itemQuotes.voidedAt),
+        ),
+      )
+      .orderBy(desc(itemQuotes.createdAt))
+      .limit(50);
+
+    let pickRow: (typeof voidedRows)[number] | undefined;
+    for (const reason of reasons) {
+      pickRow = voidedRows.find(
+        (q) =>
+          q.voidReason === reason &&
+          isOperationalQuoteRow({
+            ...q,
+            checkoutSnapshotKind: null,
+            merchandiseSavingsCents: null,
+            merchandiseIncludesSiteShippingTax: false,
+            staffNote: null,
+          } as ItemQuote),
+      );
+      if (pickRow) break;
+    }
+    if (!pickRow) return undefined;
+
+    await db
+      .update(itemQuotes)
+      .set({ voidedAt: null, voidReason: null })
+      .where(eq(itemQuotes.id, pickRow.id));
+
+    return {
+      ...pickRow,
+      merchandiseSavingsCents: null,
+      merchandiseIncludesSiteShippingTax: false,
+      staffNote: null,
+      checkoutSnapshotKind: null,
+      voidedAt: null,
+      voidReason: null,
+    };
   }
 }
 
@@ -454,6 +565,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
             checkoutSnapshotKind: null,
             merchandiseSavingsCents: null,
             merchandiseIncludesSiteShippingTax: false,
+            staffNote: null,
           } as ItemQuote)
         )
       ) {
@@ -490,6 +602,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
         voidReason: null,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       };
     }
@@ -575,6 +688,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
             checkoutSnapshotKind: null,
             merchandiseSavingsCents: null,
             merchandiseIncludesSiteShippingTax: false,
+            staffNote: null,
           } as ItemQuote)
         )
       ) {
@@ -611,6 +725,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
         voidReason: null,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       };
     }
@@ -675,6 +790,7 @@ export async function getLatestQuoteForItemRequest(
         ...row,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       };
     }
@@ -717,6 +833,7 @@ export async function getLatestQuoteForItemRequest(
         ...row,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       };
     }
@@ -747,6 +864,7 @@ export async function getItemQuoteById(
         ...row,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       };
     }
@@ -777,6 +895,7 @@ export async function getItemQuoteById(
         ...row,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       };
     }
@@ -837,6 +956,7 @@ export async function listItemQuotesForOwnerByRequestIds(
         ...row,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       }));
     }
@@ -875,6 +995,7 @@ export async function listItemQuotesForOwnerByRequestIds(
         ...row,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       }));
     }

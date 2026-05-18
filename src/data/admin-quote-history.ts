@@ -11,8 +11,20 @@ import {
   type ItemRequest,
   type Order,
 } from "@/db/schema";
+import {
+  itemRequestsRowLegacySelect,
+  itemRequestsRowLegacySelectWithoutReceiptImage,
+  itemRequestsRowSelectWithoutReceiptImage,
+  mapItemRequestRowWithoutReceiptImage,
+  mapLegacyItemRequestRow,
+  runItemRequestSelectWithFallback,
+} from "@/data/item-request-select-fallback";
 import { itemQuoteCoreSelect, itemQuoteCoreSelectPreMerchandiseSavings } from "@/data/item-quotes";
-import { isMissingMerchandiseSavingsColumnError, isUndefinedColumnError } from "@/lib/db-column-missing";
+import {
+  isMissingMerchandiseSavingsColumnError,
+  isMissingOutsidePurchaseReceiptImageUrlColumnError,
+  isUndefinedColumnError,
+} from "@/lib/db-column-missing";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION } from "@/lib/item-quote-void-reason";
 
@@ -56,122 +68,156 @@ type QuoteHistoryRow = {
   userEmail: string | null;
 };
 
+const quoteHistoryVisibilityWhere = or(
+  isNull(itemQuotes.voidedAt),
+  isNull(itemQuotes.voidReason),
+  ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION),
+);
+
+function mapPreMerchandiseSavingsQuote(
+  quote: Record<string, unknown>,
+  extras?: { checkoutSnapshotKind?: null },
+): ItemQuote {
+  return {
+    ...quote,
+    merchandiseSavingsCents: null,
+    merchandiseIncludesSiteShippingTax: false,
+    staffNote: null,
+    checkoutSnapshotKind: extras?.checkoutSnapshotKind ?? null,
+  } as ItemQuote;
+}
+
+async function queryQuoteHistoryJoin(
+  db: ReturnType<typeof getDb>,
+  quoteSelect: typeof itemQuotes | typeof itemQuoteCoreSelect | typeof itemQuoteCoreSelectPreMerchandiseSavings,
+  mapQuote: (quote: Record<string, unknown>) => ItemQuote,
+  requestSelect:
+    | typeof itemRequests
+    | typeof itemRequestsRowSelectWithoutReceiptImage
+    | typeof itemRequestsRowLegacySelect
+    | typeof itemRequestsRowLegacySelectWithoutReceiptImage,
+  mapRequest: (request: Record<string, unknown>) => ItemRequest,
+): Promise<QuoteHistoryRow[]> {
+  const rows = await db
+    .select({
+      quote: quoteSelect,
+      request: requestSelect,
+      userFullName: profiles.fullName,
+      userEmail: profiles.email,
+    })
+    .from(itemQuotes)
+    .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
+    .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
+    .where(quoteHistoryVisibilityWhere)
+    .orderBy(desc(itemQuotes.createdAt));
+
+  return rows.map((row) => ({
+    quote: mapQuote(row.quote as Record<string, unknown>),
+    request: mapRequest(row.request as Record<string, unknown>),
+    userFullName: row.userFullName,
+    userEmail: row.userEmail,
+  }));
+}
+
+async function fetchQuoteHistoryWithQuoteSelect(
+  db: ReturnType<typeof getDb>,
+  quoteSelect: typeof itemQuotes | typeof itemQuoteCoreSelect | typeof itemQuoteCoreSelectPreMerchandiseSavings,
+  mapQuote: (quote: Record<string, unknown>) => ItemQuote,
+): Promise<QuoteHistoryRow[]> {
+  return runItemRequestSelectWithFallback({
+    full: () =>
+      queryQuoteHistoryJoin(
+        db,
+        quoteSelect,
+        mapQuote,
+        itemRequests,
+        (request) => request as ItemRequest,
+      ),
+    withoutReceiptImage: () =>
+      queryQuoteHistoryJoin(
+        db,
+        quoteSelect,
+        mapQuote,
+        itemRequestsRowSelectWithoutReceiptImage,
+        (request) =>
+          mapItemRequestRowWithoutReceiptImage(
+            request as Parameters<typeof mapItemRequestRowWithoutReceiptImage>[0],
+          ),
+      ),
+    legacy: () =>
+      queryQuoteHistoryJoin(
+        db,
+        quoteSelect,
+        mapQuote,
+        itemRequestsRowLegacySelect,
+        (request) =>
+          mapLegacyItemRequestRow(
+            request as Parameters<typeof mapLegacyItemRequestRow>[0],
+          ),
+      ),
+    legacyWithoutReceiptImage: () =>
+      queryQuoteHistoryJoin(
+        db,
+        quoteSelect,
+        mapQuote,
+        itemRequestsRowLegacySelectWithoutReceiptImage,
+        (request) =>
+          mapLegacyItemRequestRow(
+            request as Parameters<typeof mapLegacyItemRequestRow>[0],
+          ),
+      ),
+  });
+}
+
 async function fetchQuoteHistoryRows(db: ReturnType<typeof getDb>): Promise<QuoteHistoryRow[]> {
   try {
-    return await db
-      .select({
-        quote: itemQuotes,
-        request: itemRequests,
-        userFullName: profiles.fullName,
-        userEmail: profiles.email,
-      })
-      .from(itemQuotes)
-      .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
-      .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
-      .where(
-        or(
-          isNull(itemQuotes.voidedAt),
-          isNull(itemQuotes.voidReason),
-          ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION)
-        )
-      )
-      .orderBy(desc(itemQuotes.createdAt));
+    return await fetchQuoteHistoryWithQuoteSelect(
+      db,
+      itemQuotes,
+      (quote) => quote as ItemQuote,
+    );
   } catch (e) {
     if (isMissingMerchandiseSavingsColumnError(e)) {
-      const narrow = await db
-        .select({
-          quote: itemQuoteCoreSelectPreMerchandiseSavings,
-          request: itemRequests,
-          userFullName: profiles.fullName,
-          userEmail: profiles.email,
-        })
-        .from(itemQuotes)
-        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
-        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
-        .where(
-          or(
-            isNull(itemQuotes.voidedAt),
-            isNull(itemQuotes.voidReason),
-            ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION)
-          )
-        )
-        .orderBy(desc(itemQuotes.createdAt));
-      return narrow.map((r) => ({
-        quote: { ...r.quote, merchandiseSavingsCents: null, merchandiseIncludesSiteShippingTax: false } as ItemQuote,
-        request: r.request,
-        userFullName: r.userFullName,
-        userEmail: r.userEmail,
-      }));
+      return fetchQuoteHistoryWithQuoteSelect(
+        db,
+        itemQuoteCoreSelectPreMerchandiseSavings,
+        mapPreMerchandiseSavingsQuote,
+      );
+    }
+    if (isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) {
+      return fetchQuoteHistoryWithQuoteSelect(
+        db,
+        itemQuotes,
+        (quote) => quote as ItemQuote,
+      );
     }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
       throw e;
     }
     try {
-      const narrow = await db
-        .select({
-          quote: itemQuoteCoreSelect,
-          request: itemRequests,
-          userFullName: profiles.fullName,
-          userEmail: profiles.email,
-        })
-        .from(itemQuotes)
-        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
-        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
-        .where(
-          or(
-            isNull(itemQuotes.voidedAt),
-            isNull(itemQuotes.voidReason),
-            ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION)
-          )
-        )
-        .orderBy(desc(itemQuotes.createdAt));
-      return narrow.map((r) => ({
-        quote: { ...r.quote, checkoutSnapshotKind: null } as ItemQuote,
-        request: r.request,
-        userFullName: r.userFullName,
-        userEmail: r.userEmail,
-      }));
+      return await fetchQuoteHistoryWithQuoteSelect(db, itemQuoteCoreSelect, (quote) => ({
+        ...quote,
+        checkoutSnapshotKind: null,
+      }) as ItemQuote);
     } catch (e2) {
       if (!isMissingMerchandiseSavingsColumnError(e2)) {
         throw e2;
       }
-      const narrow = await db
-        .select({
-          quote: itemQuoteCoreSelectPreMerchandiseSavings,
-          request: itemRequests,
-          userFullName: profiles.fullName,
-          userEmail: profiles.email,
-        })
-        .from(itemQuotes)
-        .innerJoin(itemRequests, eq(itemQuotes.itemRequestId, itemRequests.id))
-        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
-        .where(
-          or(
-            isNull(itemQuotes.voidedAt),
-            isNull(itemQuotes.voidReason),
-            ne(itemQuotes.voidReason, ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION)
-          )
-        )
-        .orderBy(desc(itemQuotes.createdAt));
-      return narrow.map((r) => ({
-        quote: {
-          ...r.quote,
-          merchandiseSavingsCents: null,
-          merchandiseIncludesSiteShippingTax: false,
-          checkoutSnapshotKind: null,
-        } as ItemQuote,
-        request: r.request,
-        userFullName: r.userFullName,
-        userEmail: r.userEmail,
-      }));
+      return fetchQuoteHistoryWithQuoteSelect(
+        db,
+        itemQuoteCoreSelectPreMerchandiseSavings,
+        (quote) => mapPreMerchandiseSavingsQuote(quote, { checkoutSnapshotKind: null }),
+      );
     }
   }
 }
 
 export async function listQuoteHistoryGroupedForAdmin(
-  clerkUser: User | null
+  clerkUser: User | null,
+  isAdmin?: boolean,
 ): Promise<AdminQuoteHistoryGroup[]> {
-  if (!isClerkAdmin(clerkUser)) {
+  const admin = isAdmin ?? isClerkAdmin(clerkUser);
+  if (!admin) {
     return [];
   }
 

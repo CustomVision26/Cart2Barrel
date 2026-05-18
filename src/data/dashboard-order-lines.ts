@@ -32,14 +32,20 @@ export type DashboardPaidOrderLinesPageResult = Omit<
   rows: DashboardPaidOrderLineRow[];
 };
 
-const DASHBOARD_PURCHASE_APPROVED_LINE_FULFILLMENTS: OrderItem["fulfillmentStatus"][] = [
+/** Paid cart lines visible on `/dashboard/orders` (checkout through post-purchase fulfillment). */
+const DASHBOARD_ORDERS_LINE_FULFILLMENTS: OrderItem["fulfillmentStatus"][] = [
+  "paid_pending_company_purchase",
+  /** Paid checkout before fulfillment column is backfilled (displayed as awaiting purchase). */
+  "pending_payment",
   "company_purchase_pending_delivery",
   "delivery_requested_pending_fulfillment",
   "delivery_received_good_awaiting_barrel",
+  "in_barrel_awaiting_shipping",
   "delivery_received_item_missing",
   "delivery_received_item_damaged",
   "delivery_received_wrong_item",
   "product_return_awaiting_delivery",
+  "paid_outside_purchase_service_fee",
   "refunded",
 ];
 
@@ -79,7 +85,7 @@ export async function listDashboardPaidOrderLinesPage(
   const pack = await listPaidOrderLinesPage({
     scope: { ownerClerkUserId: clerkUserId },
     query,
-    lineFulfillmentIn: DASHBOARD_PURCHASE_APPROVED_LINE_FULFILLMENTS,
+    lineFulfillmentIn: DASHBOARD_ORDERS_LINE_FULFILLMENTS,
   });
   return withDashboardRefundDetails(pack);
 }

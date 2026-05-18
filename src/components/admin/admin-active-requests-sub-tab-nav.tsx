@@ -3,19 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
 import { cn } from "@/lib/utils";
 
 type AdminActiveRequestsSubTabNavProps = {
   quoteHistoryCount: number;
+  outsidePurchaseCount?: number;
 };
 
 export function AdminActiveRequestsSubTabNav({
   quoteHistoryCount,
+  outsidePurchaseCount = 0,
 }: AdminActiveRequestsSubTabNavProps) {
+  const { hrefWithFilter } = useAdminCustomerFilter();
   const pathname = usePathname();
   const queueHref = ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue;
   const quoteHistoryHref = ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQuoteHistory;
+  const outsideHref = ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsOutsidePurchase;
 
   const linkClass = (href: string) =>
     cn(
@@ -32,7 +37,7 @@ export function AdminActiveRequestsSubTabNav({
       className="flex flex-wrap gap-1 border-b border-border pb-px"
     >
       <Link
-        href={queueHref}
+        href={hrefWithFilter(queueHref)}
         role="tab"
         aria-selected={pathname === queueHref}
         className={linkClass(queueHref)}
@@ -40,7 +45,20 @@ export function AdminActiveRequestsSubTabNav({
         Queue
       </Link>
       <Link
-        href={quoteHistoryHref}
+        href={hrefWithFilter(outsideHref)}
+        role="tab"
+        aria-selected={pathname === outsideHref}
+        className={linkClass(outsideHref)}
+      >
+        Outside purchase
+        {outsidePurchaseCount > 0 ? (
+          <span className="ml-2 inline-flex rounded bg-muted px-1.5 py-0.5 align-middle font-mono text-[10px] text-muted-foreground">
+            {outsidePurchaseCount}
+          </span>
+        ) : null}
+      </Link>
+      <Link
+        href={hrefWithFilter(quoteHistoryHref)}
         role="tab"
         aria-selected={pathname === quoteHistoryHref}
         className={linkClass(quoteHistoryHref)}

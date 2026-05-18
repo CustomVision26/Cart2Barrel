@@ -7,7 +7,12 @@ import {
 } from "react";
 
 import type { OwnerBatchQuoteSessionBundle } from "@/data/batch-quote-sessions";
-import type { ItemQuote, ItemRequest, ItemRequestLineSnapshot } from "@/db/schema";
+import type {
+  ItemQuote,
+  ItemRequest,
+  ItemRequestLineSnapshot,
+  OutsidePurchaseReturnRequest,
+} from "@/db/schema";
 
 export type AddItemPagePayload = {
   customer: {
@@ -20,6 +25,7 @@ export type AddItemPagePayload = {
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   quotesByRequestId: Record<string, ItemQuote[]>;
   fulfillmentLabelByRequestId: Record<string, string>;
+  returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>;
 };
 
 const AddItemPayloadContext = createContext<AddItemPagePayload | null>(null);

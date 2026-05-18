@@ -10,7 +10,9 @@ import {
   getLatestQuoteForItemRequest,
   restoreOrphanQuotedItemRequestQuote,
 } from "@/data/item-quotes";
+import { insertOutsidePurchaseLifecycleSnapshot } from "@/data/outside-purchase-lifecycle-snapshot";
 import { getItemRequestById } from "@/data/item-requests";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { approveItemQuoteSchema } from "@/lib/validations/approve-item-quote";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
@@ -64,6 +66,16 @@ export async function approveItemQuoteAction(
     .update(itemRequests)
     .set({ status: "approved" })
     .where(eq(itemRequests.id, request.id));
+
+  if (isOutsidePurchaseRequest(request)) {
+    await insertOutsidePurchaseLifecycleSnapshot({
+      request: { ...request, status: "approved" },
+      phase: "outside_purchase_added_to_cart",
+      itemQuoteId: quote.id,
+      auditMemo:
+        "Customer accepted estimate and added this outside purchase to cart (service & handling).",
+    });
+  }
 
   revalidatePath("/dashboard/items");
   revalidateDashboardAddItem();

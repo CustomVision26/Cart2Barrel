@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 
 const POST_CHECKOUT_PHASES = new Set<ItemRequestLineSnapshot["phase"]>([
   "checkout_paid_pending_delivery",
+  "outside_purchase_checkout_paid",
   "company_purchase_pending_delivery",
   "warehouse_delivery_received",
   "product_return_tracking_saved",
@@ -66,7 +67,12 @@ function orderLineTimelineEvents(
     kind: "snapshot" as const,
   }));
 
-  if (!filtered.some((snap) => snap.phase === "checkout_paid_pending_delivery")) {
+  const hasCheckoutSnapshot = filtered.some(
+    (snap) =>
+      snap.phase === "checkout_paid_pending_delivery" ||
+      snap.phase === "outside_purchase_checkout_paid",
+  );
+  if (!hasCheckoutSnapshot) {
     events.unshift({
       id: `checkout:${row.orderItem.id}`,
       label: "Checkout paid",

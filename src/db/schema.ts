@@ -44,6 +44,13 @@ export const itemRequestStatusEnum = pgEnum("item_request_status", [
   "approved",
   "rejected",
   "withdrawn",
+  "out_of_stock",
+]);
+
+/** How the product line entered the system. */
+export const itemRequestSourceEnum = pgEnum("item_request_source", [
+  "customer_url",
+  "outside_purchase",
 ]);
 
 /** Frozen copies of request line fields for auditing (customer submit + staff estimate saves). */
@@ -71,6 +78,35 @@ export const itemRequestLineSnapshotPhaseEnum = pgEnum(
     "product_return_tracking_saved",
     /** Customer submitted a refund request; pending staff approval. */
     "customer_refund_request_submitted",
+    /** Staff recorded a product the customer bought outside the app and shipped inbound. */
+    "outside_purchase_intake",
+    /** Staff recorded that the customer was prompted to pay (add to cart). */
+    "outside_purchase_payment_prompted",
+    /** Customer accepted estimate (service & handling) into cart. */
+    "outside_purchase_added_to_cart",
+    /** Customer removed outside-purchase line from cart. */
+    "outside_purchase_removed_from_cart",
+    /** Customer removed line from Active products (withdrawn). */
+    "outside_purchase_withdrawn_from_active",
+    /** Customer moved withdrawn outside-purchase line back to Active. */
+    "outside_purchase_reinstated_to_active",
+    /** Customer requested return to retailer for a problem outside-purchase receipt. */
+    "outside_purchase_return_requested",
+    /** Staff published return service & handling estimate for customer acceptance. */
+    "outside_purchase_return_estimate_ready",
+    /** Customer paid service & handling at checkout (merchandise bought elsewhere). */
+    "outside_purchase_checkout_paid",
+  ],
+);
+
+export const outsidePurchaseReturnRequestStatusEnum = pgEnum(
+  "outside_purchase_return_request_status",
+  [
+    "submitted",
+    "estimate_ready",
+    "estimate_accepted",
+    "paid",
+    "cancelled",
   ],
 );
 
@@ -107,6 +143,8 @@ export const orderItemFulfillmentEnum = pgEnum("order_item_fulfillment_status", 
   "refunded",
   /** Customer or staff confirmed inbound receipt — condition captured on order line. */
   "delivery_received_good_awaiting_barrel",
+  /** Staff assigned inbound package to a customer container; awaiting shipment. */
+  "in_barrel_awaiting_shipping",
   "delivery_received_item_missing",
   "delivery_received_item_damaged",
   "delivery_received_wrong_item",
@@ -117,6 +155,8 @@ export const orderItemFulfillmentEnum = pgEnum("order_item_fulfillment_status", 
   "delivery_requested_pending_fulfillment",
   /** Return shipment to retailer logged; line awaiting return delivery updates. */
   "product_return_awaiting_delivery",
+  /** Outside purchase: customer paid service & handling only at checkout. */
+  "paid_outside_purchase_service_fee",
 ]);
 
 export const orderStatusEnum = pgEnum("order_status", [
@@ -271,6 +311,23 @@ export const itemRequests = pgTable(
     /** Retailer / site label (AI or hostname from product URL). */
     siteName: text("site_name"),
     status: itemRequestStatusEnum("status").notNull().default("pending"),
+    source: itemRequestSourceEnum("source").notNull().default("customer_url"),
+    /**
+     * Unique staff-facing id for outside-purchase intake (e.g. OP-20260517-A1B2).
+     * Set when {@link source} is `outside_purchase`.
+     */
+    outsidePurchaseReference: text("outside_purchase_reference"),
+    /** When staff recorded prompting the customer to pay (outside-purchase lines). */
+    outsidePurchasePaymentPromptedAt: timestamp(
+      "outside_purchase_payment_prompted_at",
+      { withTimezone: true, mode: "string" },
+    ),
+    /** Proof-of-purchase receipt photo from outside-purchase intake. */
+    outsidePurchaseReceiptImageUrl: text("outside_purchase_receipt_image_url"),
+    /** Physical condition when staff received the outside-purchase product at the warehouse. */
+    outsidePurchaseReceivedCondition: text("outside_purchase_received_condition"),
+    /** Warehouse shelf / bin assigned at outside-purchase intake. */
+    outsidePurchaseShelfLocation: text("outside_purchase_shelf_location"),
     /** Present while the line sits in Batch Quotes draft/submitted queues. Cleared once staff saves a batch estimate. */
     batchQuoteSessionId: uuid("batch_quote_session_id").references(
       () => batchQuoteSessions.id,
@@ -286,6 +343,60 @@ export const itemRequests = pgTable(
       t.createdAt,
     ),
     index("item_requests_batch_quote_session_id_idx").on(t.batchQuoteSessionId),
+    uniqueIndex("item_requests_outside_purchase_reference_unique")
+      .on(t.outsidePurchaseReference)
+      .where(sql`${t.outsidePurchaseReference} is not null`),
+  ],
+);
+
+/** Customer return-to-retailer workflow for problem outside-purchase intakes. */
+export const outsidePurchaseReturnRequests = pgTable(
+  "outside_purchase_return_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    itemRequestId: uuid("item_request_id")
+      .notNull()
+      .references(() => itemRequests.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id").notNull(),
+    status: outsidePurchaseReturnRequestStatusEnum("status")
+      .notNull()
+      .default("submitted"),
+    /** Retailer return label / receipt image for carrier scan-to-print. */
+    returnLabelImageUrl: text("return_label_image_url"),
+    returnWindowStart: timestamp("return_window_start", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    returnWindowEnd: timestamp("return_window_end", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    customerNotes: text("customer_notes"),
+    /** Return service & handling fee (USD cents) set by staff before customer accepts. */
+    returnServiceFeeCents: integer("return_service_fee_cents"),
+    returnStaffNote: text("return_staff_note"),
+    estimateReadyAt: timestamp("estimate_ready_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    estimateAcceptedAt: timestamp("estimate_accepted_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("outside_purchase_return_requests_item_request_id_unique").on(
+      t.itemRequestId,
+    ),
+    index("outside_purchase_return_requests_clerk_user_id_idx").on(t.clerkUserId),
+    index("outside_purchase_return_requests_status_idx").on(t.status),
   ],
 );
 
@@ -382,6 +493,10 @@ export const itemQuotes = pgTable(
     )
       .notNull()
       .default(false),
+    /**
+     * Admin note on this estimate (charge explanation, product conditions). Shown on quote history.
+     */
+    staffNote: text("staff_note"),
     /**
      * System timeline copies (not staff estimates). Excluded from cart / latest-quote logic.
      * Values: `paid` (customer paid), `company_purchase` (admin confirmed purchase).
@@ -628,10 +743,18 @@ export const deliveryRequests = pgTable(
 export const merchantPackingFeeSettings = pgTable("merchant_packing_fee_settings", {
   singletonKey: text("singleton_key").primaryKey().default("default"),
   packingFeePerLineCents: integer("packing_fee_per_line_cents").notNull().default(0),
-  /** Base shipping fee when customer selects a barrel-type container (cents). */
-  barrelShippingFeeCents: integer("barrel_shipping_fee_cents").notNull().default(0),
-  /** Base shipping fee when customer selects a bin-type container (cents). */
-  binShippingFeeCents: integer("bin_shipping_fee_cents").notNull().default(0),
+  /** Exactly one barrel in cart (cents). */
+  barrelShippingFeeCents: integer("barrel_shipping_fee_cents").notNull().default(10_000),
+  /** Exactly one bin in cart (cents). */
+  binShippingFeeCents: integer("bin_shipping_fee_cents").notNull().default(5_500),
+  /** Per barrel when cart has 2+ barrels (cents). */
+  multiBarrelPackingPerUnitCents: integer("multi_barrel_packing_per_unit_cents")
+    .notNull()
+    .default(8_000),
+  /** Per bin when cart has 2+ bins (cents). */
+  multiBinPackingPerUnitCents: integer("multi_bin_packing_per_unit_cents")
+    .notNull()
+    .default(4_500),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .defaultNow()
     .notNull(),
@@ -657,6 +780,61 @@ export const merchantPackingComboFees = pgTable(
     ),
     uniqueIndex("merchant_packing_combo_fees_sort_uidx").on(t.sortIndex),
   ],
+);
+
+/** Per-customer fee package (overrides global merchant pricing when present). */
+export const customerPricingPackages = pgTable("customer_pricing_packages", {
+  clerkUserId: text("clerk_user_id")
+    .primaryKey()
+    .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+  /** Optional staff label, e.g. "VIP account". */
+  label: text("label"),
+  packingFeePerLineCents: integer("packing_fee_per_line_cents").notNull().default(0),
+  singleBarrelPackingFeeCents: integer("single_barrel_packing_fee_cents")
+    .notNull()
+    .default(10_000),
+  multiBarrelPackingPerUnitCents: integer("multi_barrel_packing_per_unit_cents")
+    .notNull()
+    .default(8_000),
+  singleBinPackingFeeCents: integer("single_bin_packing_fee_cents")
+    .notNull()
+    .default(5_500),
+  multiBinPackingPerUnitCents: integer("multi_bin_packing_per_unit_cents")
+    .notNull()
+    .default(4_500),
+  /**
+   * When set, replaces global service & handling tiers for this customer.
+   * Sorted ascending by `maxUnitPriceInclusiveCents`.
+   */
+  serviceTiersJson: jsonb("service_tiers_json").$type<
+    { maxUnitPriceInclusiveCents: number; feePerUnitCents: number }[] | null
+  >(),
+  updatedByClerkUserId: text("updated_by_clerk_user_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+});
+
+/**
+ * Staff-applied container packing fee snapshot for a shopper cart (barrel/bin qty + cents).
+ * Cart checkout uses this when counts still match; otherwise recomputes from package rates.
+ */
+export const userCartContainerPackingFees = pgTable(
+  "user_cart_container_packing_fees",
+  {
+    clerkUserId: text("clerk_user_id")
+      .primaryKey()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    barrelCount: integer("barrel_count").notNull().default(0),
+    binCount: integer("bin_count").notNull().default(0),
+    barrelPackingFeeCents: integer("barrel_packing_fee_cents").notNull().default(0),
+    binPackingFeeCents: integer("bin_packing_fee_cents").notNull().default(0),
+    totalPackingFeeCents: integer("total_packing_fee_cents").notNull().default(0),
+    appliedByClerkUserId: text("applied_by_clerk_user_id"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
 );
 
 /**
@@ -920,7 +1098,7 @@ export const orderContainerItems = pgTable(
 
 /* --- Relations (db.query graph) --- */
 
-export const profilesRelations = relations(profiles, ({ many }) => ({
+export const profilesRelations = relations(profiles, ({ one, many }) => ({
   addresses: many(addresses),
   batchQuoteSessions: many(batchQuoteSessions),
   itemRequests: many(itemRequests),
@@ -928,7 +1106,35 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
   barrels: many(barrels),
   payments: many(payments),
   containerCartLines: many(userContainerCartLines),
+  pricingPackage: one(customerPricingPackages, {
+    fields: [profiles.clerkUserId],
+    references: [customerPricingPackages.clerkUserId],
+  }),
+  cartContainerPackingFees: one(userCartContainerPackingFees, {
+    fields: [profiles.clerkUserId],
+    references: [userCartContainerPackingFees.clerkUserId],
+  }),
 }));
+
+export const customerPricingPackagesRelations = relations(
+  customerPricingPackages,
+  ({ one }) => ({
+    profile: one(profiles, {
+      fields: [customerPricingPackages.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+  }),
+);
+
+export const userCartContainerPackingFeesRelations = relations(
+  userCartContainerPackingFees,
+  ({ one }) => ({
+    profile: one(profiles, {
+      fields: [userCartContainerPackingFees.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+  }),
+);
 
 export const addressesRelations = relations(addresses, ({ one }) => ({
   profile: one(profiles, {
@@ -1000,7 +1206,18 @@ export const itemRequestsRelations = relations(itemRequests, ({ one, many }) => 
   quotes: many(itemQuotes),
   lineSnapshots: many(itemRequestLineSnapshots),
   orderItems: many(orderItems),
+  outsidePurchaseReturnRequest: one(outsidePurchaseReturnRequests),
 }));
+
+export const outsidePurchaseReturnRequestsRelations = relations(
+  outsidePurchaseReturnRequests,
+  ({ one }) => ({
+    itemRequest: one(itemRequests, {
+      fields: [outsidePurchaseReturnRequests.itemRequestId],
+      references: [itemRequests.id],
+    }),
+  }),
+);
 
 export const itemQuotesRelations = relations(itemQuotes, ({ one, many }) => ({
   itemRequest: one(itemRequests, {
@@ -1198,12 +1415,22 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
 
 export type Profile = typeof profiles.$inferSelect;
 export type NewProfile = typeof profiles.$inferInsert;
+export type CustomerPricingPackage = typeof customerPricingPackages.$inferSelect;
+export type NewCustomerPricingPackage =
+  typeof customerPricingPackages.$inferInsert;
+export type UserCartContainerPackingFees =
+  typeof userCartContainerPackingFees.$inferSelect;
 
 export type Address = typeof addresses.$inferSelect;
 export type NewAddress = typeof addresses.$inferInsert;
 
 export type ItemRequest = typeof itemRequests.$inferSelect;
 export type NewItemRequest = typeof itemRequests.$inferInsert;
+
+export type OutsidePurchaseReturnRequest =
+  typeof outsidePurchaseReturnRequests.$inferSelect;
+export type NewOutsidePurchaseReturnRequest =
+  typeof outsidePurchaseReturnRequests.$inferInsert;
 
 export type ItemQuote = typeof itemQuotes.$inferSelect;
 export type NewItemQuote = typeof itemQuotes.$inferInsert;

@@ -29,12 +29,14 @@ const viewCopy = {
     basePath: "/dashboard/orders",
     description: (
       <>
-        Each line shows here after staff approves the company purchase. Tracking links or numbers
-        supplied at approval appear under <span className="font-medium text-foreground">Tracking</span>.
+        Paid cart checkouts appear here right after payment, starting at{" "}
+        <span className="font-medium text-foreground">Awaiting purchase</span>. When staff
+        confirms the company purchase, tracking and later fulfillment stages update on the same
+        lines under <span className="font-medium text-foreground">Tracking</span>.
       </>
     ),
     empty:
-      "No purchase-approved lines yet. After checkout, orders stay with staff until approval runs; then lines appear here.",
+      "No paid orders yet. Complete checkout from your cart to see lines here while staff prepares your purchase.",
   },
   history: {
     title: "Order History",

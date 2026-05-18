@@ -3,6 +3,8 @@
 import { ChevronDown, InfoIcon, SearchIcon } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
+import { AdminStaffNotesBlock } from "@/components/admin-staff-notes-block";
+import { ReinstateProductButton } from "@/components/dashboard/reinstate-product-button";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -29,13 +31,22 @@ import {
   auditSnapshotStatusHeadline,
 } from "@/lib/item-request-line-audit-status";
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
-import { itemRequestStatusLabel } from "@/lib/item-request-status-label";
+import {
+  itemRequestStatusLabel,
+  itemRequestStatusLabelForDisplay,
+} from "@/lib/item-request-status-label";
 import { fulfillmentProductHistoryBadgeKindFromSnapshots } from "@/lib/product-history-fulfillment";
 import {
   batchQuoteSessionEventKindLabel,
   ownerBatchQuoteSessionStatusBadge,
 } from "@/lib/batch-quote-session-status-labels";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import {
+  buildOutsidePurchaseLifecycleEvents,
+  outsidePurchaseCurrentStatusLabel,
+  outsidePurchaseReferenceLabel,
+} from "@/lib/outside-purchase-lifecycle";
 import { displaySiteName } from "@/lib/site-name";
 import {
   batchQuoteSessionBadgeKind,
@@ -294,6 +305,7 @@ function SingleEstimateRecord({ quote }: { quote: ItemQuote }) {
           { label: "Color at estimate", value: quote.requestProductColor?.trim() || "-" },
         ]}
       />
+      <AdminStaffNotesBlock staffNote={quote.staffNote} title="Estimate notes" />
       <p className="text-xs text-muted-foreground">
         {operational ?
           "Operational estimate row."
@@ -344,26 +356,87 @@ function BatchEstimateRecord({
   );
 }
 
+function OutsidePurchaseTimelineHeader({
+  reference,
+  currentStatus,
+}: {
+  reference: string | null;
+  currentStatus: string;
+}) {
+  return (
+    <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-primary">
+            Outside purchase
+          </p>
+          {reference ? (
+            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{reference}</p>
+          ) : null}
+        </div>
+        <p className="text-xs font-medium text-foreground">Current: {currentStatus}</p>
+      </div>
+    </div>
+  );
+}
+
 function ProductTimeline({
   snapshots,
   quotesById,
+  request,
 }: {
   snapshots: ItemRequestLineSnapshot[];
   quotesById: Map<string, ItemQuote>;
+  request?: ItemRequest;
 }) {
+  const outsidePurchase = request ? isOutsidePurchaseRequest(request) : false;
+  const lifecycleBySnapshotId = new Map(
+    (outsidePurchase && request ?
+      buildOutsidePurchaseLifecycleEvents(request, snapshots)
+    : []
+    ).map((event) => [event.id, event]),
+  );
+  const opRef = outsidePurchase && request ? outsidePurchaseReferenceLabel(request) : null;
+
   if (snapshots.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-        No timeline snapshots were recorded for this product yet.
-      </p>
+      <div className="space-y-3">
+        {outsidePurchase && request ? (
+          <OutsidePurchaseTimelineHeader
+            reference={opRef}
+            currentStatus={outsidePurchaseCurrentStatusLabel(request)}
+          />
+        ) : null}
+        <p className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+          {outsidePurchase ?
+            "No outside purchase status records were saved for this product yet."
+          : "No timeline snapshots were recorded for this product yet."}
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      {outsidePurchase && request ? (
+        <OutsidePurchaseTimelineHeader
+          reference={opRef}
+          currentStatus={outsidePurchaseCurrentStatusLabel(request)}
+        />
+      ) : null}
       {snapshots.map((snap, index) => {
         const quote = snap.itemQuoteId ? quotesById.get(snap.itemQuoteId) : null;
         const previous = index > 0 ? snapshots[index - 1]! : null;
+        const lifecycle = lifecycleBySnapshotId.get(snap.id);
+        const phaseLabel =
+          lifecycle ?
+            "Outside purchase status"
+          : itemRequestLineSnapshotPhaseLabel(snap.phase);
+        const headline = lifecycle?.title ?? auditSnapshotStatusHeadline(snap);
+        const changeSummary =
+          lifecycle?.detail && lifecycle.detail !== lifecycle.title ?
+            lifecycle.detail
+          : auditSnapshotChangeSummary(snap, previous);
 
         return (
           <div key={snap.id} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
@@ -376,15 +449,20 @@ function ProductTimeline({
                 />
               ) : null}
             </div>
-            <div className="rounded-lg border border-border bg-muted/10 p-3">
+            <div
+              className={cn(
+                "rounded-lg border p-3",
+                lifecycle ?
+                  "border-primary/25 bg-primary/5"
+                : "border-border bg-muted/10",
+              )}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {itemRequestLineSnapshotPhaseLabel(snap.phase)}
+                    {phaseLabel}
                   </p>
-                  <p className="mt-1 font-medium text-foreground">
-                    {auditSnapshotStatusHeadline(snap)}
-                  </p>
+                  <p className="mt-1 font-medium text-foreground">{headline}</p>
                 </div>
                 <time
                   dateTime={snap.createdAt}
@@ -393,9 +471,7 @@ function ProductTimeline({
                   {new Date(snap.createdAt).toLocaleString()}
                 </time>
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {auditSnapshotChangeSummary(snap, previous)}
-              </p>
+              <p className="mt-2 text-sm text-muted-foreground">{changeSummary}</p>
               <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
                 <p>
                   <span className="text-muted-foreground">Product id:</span>{" "}
@@ -496,6 +572,10 @@ function ProductHistoryCard({
 }) {
   const quotesById = new Map(quotes.map((quote) => [quote.id, quote]));
   const latestEstimate = bundle?.latestEstimate ?? null;
+  const outsidePurchase = isOutsidePurchaseRequest(request);
+  const displayStatusLabel = outsidePurchase
+    ? itemRequestStatusLabelForDisplay(request)
+    : statusLabel;
   const badgeKind =
     fulfillmentProductHistoryBadgeKindFromSnapshots(snapshots) ??
     itemRequestWorkflowBadgeKind(request.status);
@@ -536,20 +616,22 @@ function ProductHistoryCard({
                 </span>
               ) : null}
             </div>
-            <span className="inline-flex items-center gap-1.5">
-              <a
-                href={request.productUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Open product page
-              </a>
-              <HelpBalloon label="About product page link">
-                Opens the original shopper product URL in a new tab so staff can
-                verify product details, availability, and retailer information.
-              </HelpBalloon>
-            </span>
+            {!outsidePurchase ? (
+              <span className="inline-flex items-center gap-1.5">
+                <a
+                  href={request.productUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Open product page
+                </a>
+                <HelpBalloon label="About product page link">
+                  Opens the original shopper product URL in a new tab so staff can
+                  verify product details, availability, and retailer information.
+                </HelpBalloon>
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="space-y-3 rounded-lg border border-border bg-background p-3">
@@ -562,7 +644,7 @@ function ProductHistoryCard({
               </HelpBalloon>
             </p>
             <StatusBadge kind={badgeKind} className="mt-1" title={request.status}>
-              {statusLabel}
+              {displayStatusLabel}
             </StatusBadge>
           </div>
           <dl className="grid gap-2 text-sm">
@@ -595,14 +677,38 @@ function ProductHistoryCard({
       </div>
 
       <div className="flex flex-wrap gap-2 p-4">
+        {request.status === "withdrawn" ? (
+          <ReinstateProductButton
+            itemRequestId={request.id}
+            productLabel={request.productName}
+            isOutsidePurchase={outsidePurchase}
+            paymentPrompted={Boolean(request.outsidePurchasePaymentPromptedAt)}
+          />
+        ) : null}
         <ProductDetailDialog
           triggerLabel="Open status timeline"
-          triggerSummary={`${snapshots.length} saved product record${snapshots.length === 1 ? "" : "s"}`}
+          triggerSummary={
+            outsidePurchase ?
+              `${snapshots.length} outside purchase status record${snapshots.length === 1 ? "" : "s"}`
+            : `${snapshots.length} saved product record${snapshots.length === 1 ? "" : "s"}`
+          }
           title="Recorded Status Timeline"
-          description="Every saved status and fulfillment snapshot for this product."
-          help="Shows each saved product status change in order, including fulfillment snapshots, quote links, batch session IDs, and the timestamp for each record."
+          description={
+            outsidePurchase ?
+              "Outside purchase status history from staff send through payment, cart, Active, and reinstate."
+            : "Every saved status and fulfillment snapshot for this product."
+          }
+          help={
+            outsidePurchase ?
+              "Opens the recorded status timeline for this outside purchase: staff intake, payment prompt, cart moves, removal from Active, and reinstate — with timestamps and estimate details when saved."
+            : "Shows each saved product status change in order, including fulfillment snapshots, quote links, batch session IDs, and the timestamp for each record."
+          }
         >
-          <ProductTimeline snapshots={snapshots} quotesById={quotesById} />
+          <ProductTimeline
+            snapshots={snapshots}
+            quotesById={quotesById}
+            request={outsidePurchase ? request : undefined}
+          />
         </ProductDetailDialog>
 
         <ProductDetailDialog

@@ -3,17 +3,15 @@ import Link from "next/link";
 import { ClerkUserButton } from "@/components/clerk-user-button";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { DashboardNav } from "@/components/dashboard-nav";
-import { isClerkAdmin } from "@/lib/is-clerk-admin";
-import { safeCurrentUser } from "@/lib/safe-current-user";
+import { getClerkSessionGate } from "@/lib/clerk-session";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cu = await safeCurrentUser();
-  const showAdminEntry =
-    cu.ok && cu.user != null && isClerkAdmin(cu.user);
+  const gate = await getClerkSessionGate();
+  const showAdminEntry = gate.ok && gate.isAdmin;
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background">

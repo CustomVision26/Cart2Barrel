@@ -14,12 +14,17 @@ import type { OrderItemReadCore } from "@/lib/order-item-read-compat";
 export function orderItemFulfillmentBadgeKind(
   orderItem: OrderItemReadCore,
   order: Pick<Order, "status">,
-  extras?: { pendingRefundRequest?: boolean },
+  extras?: {
+    pendingRefundRequest?: boolean;
+    fulfillmentOverride?: OrderItem["fulfillmentStatus"];
+  },
 ): StatusBadgeKind {
   if (extras?.pendingRefundRequest) {
     return "refundPendingApproval";
   }
-  const f = effectiveOrderItemFulfillmentStatus(orderItem, order);
+  const f =
+    extras?.fulfillmentOverride ??
+    effectiveOrderItemFulfillmentStatus(orderItem, order);
   switch (f) {
     case "paid_pending_company_purchase":
       return "awaitingPurchase";
@@ -28,6 +33,8 @@ export function orderItemFulfillmentBadgeKind(
     case "delivery_requested_pending_fulfillment":
       return "companyPurchasePendingDelivery";
     case "delivery_received_good_awaiting_barrel":
+      return "fullyReceived";
+    case "in_barrel_awaiting_shipping":
       return "fullyReceived";
     case "delivery_received_item_missing":
       return "missingItem";
@@ -41,6 +48,8 @@ export function orderItemFulfillmentBadgeKind(
       return "refunded";
     case "pending_payment":
       return "awaitingPurchase";
+    case "paid_outside_purchase_service_fee":
+      return "fullyReceived";
     default: {
       const _exhaustive: never = f;
       return _exhaustive;
@@ -63,6 +72,8 @@ export function itemRequestWorkflowBadgeKind(
       return "missingItem";
     case "withdrawn":
       return "deletedFromCart";
+    case "out_of_stock":
+      return "outOfStock";
     default: {
       const _exhaustive: never = status;
       return _exhaustive;

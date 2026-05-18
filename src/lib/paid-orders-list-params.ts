@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { appendAdminListQueryToParams } from "@/lib/admin-customer-filter";
+import type { AdminListQuery } from "@/lib/admin-customer-filter";
+
 export const paidOrderLineSortValues = [
   "order_date_desc",
   "order_date_asc",
@@ -86,56 +89,28 @@ type PaidOrdersListBasePath =
 
 function buildHref(
   basePath: PaidOrdersListBasePath,
-  opts: {
-    q?: string;
-    page?: number;
-    ps?: number;
-    sort?: PaidOrderLineSort;
-  },
+  opts: Partial<AdminListQuery>,
 ): string {
-  const p = new URLSearchParams();
-  const qTrim = opts.q?.trim();
-  if (qTrim) {
-    p.set("q", qTrim);
-  }
-  if (opts.page != null && opts.page > 1) {
-    p.set("page", String(opts.page));
-  }
-  if (opts.ps != null && opts.ps !== 25) {
-    p.set("ps", String(opts.ps));
-  }
-  if (opts.sort != null && opts.sort !== "order_date_desc") {
-    p.set("sort", opts.sort);
-  }
+  const p = appendAdminListQueryToParams(new URLSearchParams(), opts);
   const qs = p.toString();
   return qs ? `${basePath}?${qs}` : basePath;
 }
 
-export function buildAdminOrdersListHref(opts: {
-  q?: string;
-  page?: number;
-  ps?: number;
-  sort?: PaidOrderLineSort;
-  basePath?: "/admin/orders" | "/admin/orders-history";
-}): string {
+export function buildAdminOrdersListHref(
+  opts: Partial<AdminListQuery> & {
+    basePath?: "/admin/orders" | "/admin/orders-history";
+  },
+): string {
   return buildHref(opts.basePath ?? "/admin/orders", opts);
 }
 
-export function buildAdminPurchaseOrdersListHref(opts: {
-  q?: string;
-  page?: number;
-  ps?: number;
-  sort?: PaidOrderLineSort;
-}): string {
+export function buildAdminPurchaseOrdersListHref(
+  opts: Partial<AdminListQuery>,
+): string {
   return buildHref("/admin/purchase-orders", opts);
 }
 
-export function buildAdminPackagesListHref(opts: {
-  q?: string;
-  page?: number;
-  ps?: number;
-  sort?: PaidOrderLineSort;
-}): string {
+export function buildAdminPackagesListHref(opts: Partial<AdminListQuery>): string {
   return buildHref("/admin/packages", opts);
 }
 

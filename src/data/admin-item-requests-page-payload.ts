@@ -19,10 +19,13 @@ import {
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
 import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
+import { countOutsidePurchaseIntakesAwaitingPayment } from "@/data/outside-purchase-intake";
 import { buildAdminItemRequestGroups } from "@/lib/admin-item-requests-group";
 import type { AdminItemRequestGroup } from "@/lib/admin-item-requests-group";
-import { isClerkAdmin } from "@/lib/is-clerk-admin";
-import { safeCurrentUser } from "@/lib/safe-current-user";
+import {
+  getClerkSessionGate,
+  getClerkUserForAdminData,
+} from "@/lib/clerk-session";
 
 export type AdminItemRequestsPagePayload = {
   user: User | null;
@@ -42,59 +45,77 @@ export type AdminItemRequestsPagePayload = {
   emptyAsNonAdmin: boolean;
 };
 
-async function computePayload(user: User | null): Promise<AdminItemRequestsPagePayload> {
-  const admin = isClerkAdmin(user);
-  const rows = await listItemRequestsWithProfileForAdmin(user);
-  const groups = buildAdminItemRequestGroups(rows);
-  const quoteHistoryGroups = await listQuoteHistoryGroupedForAdmin(user);
-  const submittedBatchBundles = await listSubmittedBatchSessionsForAdmin();
-  const batchQuoteHistoryBundles =
-    await listEstimatedBatchBundlesForQuoteHistoryAdmin();
-  const batchHistoryBundles = await listBatchHistoryForAdmin();
+export type AdminItemRequestsNavState = {
+  admin: boolean;
+  noData: boolean;
+  emptyAsNonAdmin: boolean;
+  pendingBatchCount: number;
+  quoteHistoryCount: number;
+  /** Quoted outside-purchase lines awaiting customer payment. */
+  outsidePurchaseCount: number;
+  batchQuoteHistoryCount: number;
+  batchHistoryCount: number;
+};
+
+type AdminItemRequestsBase = {
+  user: User | null;
+  admin: boolean;
+  groups: AdminItemRequestGroup[];
+  quoteHistoryGroups: AdminQuoteHistoryGroup[];
+  submittedBatchBundles: AdminSubmittedBatchBundle[];
+  batchQuoteHistoryBundles: AdminSubmittedBatchBundle[];
+  batchHistoryBundles: AdminBatchHistoryBundle[];
+  rows: Awaited<ReturnType<typeof listItemRequestsWithProfileForAdmin>>;
+  hasActiveQueue: boolean;
+  noData: boolean;
+  emptyAsNonAdmin: boolean;
+};
+
+function collectRequestIds(base: AdminItemRequestsBase): string[] {
   const requestIds = new Set<string>();
-  for (const row of rows) requestIds.add(row.request.id);
-  for (const g of quoteHistoryGroups) {
+  for (const row of base.rows) requestIds.add(row.request.id);
+  for (const g of base.quoteHistoryGroups) {
     for (const line of g.lines) {
       requestIds.add(line.request.id);
     }
   }
-  for (const bundle of submittedBatchBundles) {
+  for (const bundle of base.submittedBatchBundles) {
     for (const r of bundle.requests) requestIds.add(r.id);
   }
-  for (const bundle of batchQuoteHistoryBundles) {
+  for (const bundle of base.batchQuoteHistoryBundles) {
     for (const r of bundle.requests) requestIds.add(r.id);
   }
-  const batchHistoryQuoteReqIds = new Set<string>();
-  for (const bundle of batchQuoteHistoryBundles) {
-    for (const r of bundle.requests) batchHistoryQuoteReqIds.add(r.id);
+  return [...requestIds];
+}
+
+const loadAdminItemRequestsBase = cache(async (): Promise<
+  | { ok: false; message: string }
+  | { ok: true; base: AdminItemRequestsBase }
+> => {
+  const gate = await getClerkSessionGate();
+  if (!gate.ok) {
+    return { ok: false, message: gate.message };
   }
-  const batchQuoteHistoryLatestQuotes =
-    batchHistoryQuoteReqIds.size === 0
-      ? new Map<string, ItemQuote>()
-      : await collectLatestQuotesForRequests([...batchHistoryQuoteReqIds]);
-  const batchQuoteHistoryLatestQuotesByRequestId = Object.fromEntries(
-    batchQuoteHistoryLatestQuotes,
-  );
 
-  const quotedActiveRequestIds = rows
-    .filter((row) => row.request.status === "quoted")
-    .map((row) => row.request.id);
-  const activeQueueLatestQuotes =
-    quotedActiveRequestIds.length === 0
-      ? new Map<string, ItemQuote>()
-      : await collectLatestQuotesForRequests(quotedActiveRequestIds);
-  const activeQueueLatestQuotesByRequestId = Object.fromEntries(
-    activeQueueLatestQuotes,
-  );
+  const user = await getClerkUserForAdminData(gate);
+  const admin = gate.isAdmin;
 
-  const snapshotRows = await listItemRequestLineSnapshotsByRequestIds(user, [
-    ...requestIds,
+  const [
+    rows,
+    quoteHistoryGroups,
+    submittedBatchBundles,
+    batchQuoteHistoryBundles,
+    batchHistoryBundles,
+  ] = await Promise.all([
+    listItemRequestsWithProfileForAdmin(user, admin),
+    listQuoteHistoryGroupedForAdmin(user, admin),
+    listSubmittedBatchSessionsForAdmin(),
+    listEstimatedBatchBundlesForQuoteHistoryAdmin(),
+    listBatchHistoryForAdmin(),
   ]);
-  const snapshotsByRequestId = Object.fromEntries(
-    groupItemRequestLineSnapshotsByRequestId(snapshotRows)
-  );
-  const hasActiveQueue = groups.some((g) => g.activeQueueCount > 0);
 
+  const groups = buildAdminItemRequestGroups(rows);
+  const hasActiveQueue = groups.some((g) => g.activeQueueCount > 0);
   const emptyAsNonAdmin = !admin;
   const noData =
     emptyAsNonAdmin ||
@@ -105,31 +126,120 @@ async function computePayload(user: User | null): Promise<AdminItemRequestsPageP
       batchHistoryBundles.length === 0);
 
   return {
-    user,
-    admin,
-    groups,
-    quoteHistoryGroups,
-    submittedBatchBundles,
-    batchQuoteHistoryBundles,
-    batchHistoryBundles,
-    snapshotsByRequestId,
-    activeQueueLatestQuotesByRequestId,
-    batchQuoteHistoryLatestQuotesByRequestId,
-    hasActiveQueue,
-    noData,
-    emptyAsNonAdmin,
+    ok: true,
+    base: {
+      user,
+      admin,
+      groups,
+      quoteHistoryGroups,
+      submittedBatchBundles,
+      batchQuoteHistoryBundles,
+      batchHistoryBundles,
+      rows,
+      hasActiveQueue,
+      noData,
+      emptyAsNonAdmin,
+    },
+  };
+});
+
+/** Tab counts and empty states — no snapshots or quote maps (fast layout renders). */
+export const loadAdminItemRequestsNavState = cache(async (): Promise<
+  | { ok: false; message: string }
+  | { ok: true; nav: AdminItemRequestsNavState }
+> => {
+  const result = await loadAdminItemRequestsBase();
+  if (!result.ok) {
+    return result;
+  }
+
+  const { base } = result;
+  const outsidePurchaseCount =
+    base.admin ? await countOutsidePurchaseIntakesAwaitingPayment() : 0;
+  return {
+    ok: true,
+    nav: {
+      admin: base.admin,
+      noData: base.noData,
+      emptyAsNonAdmin: base.emptyAsNonAdmin,
+      pendingBatchCount: base.submittedBatchBundles.length,
+      quoteHistoryCount: base.quoteHistoryGroups.length,
+      outsidePurchaseCount,
+      batchQuoteHistoryCount: base.batchQuoteHistoryBundles.length,
+      batchHistoryCount: base.batchHistoryBundles.length,
+    },
+  };
+});
+
+async function enrichWithSnapshotsAndQuotes(
+  base: AdminItemRequestsBase,
+): Promise<
+  Pick<
+    AdminItemRequestsPagePayload,
+    | "snapshotsByRequestId"
+    | "activeQueueLatestQuotesByRequestId"
+    | "batchQuoteHistoryLatestQuotesByRequestId"
+  >
+> {
+  const requestIds = collectRequestIds(base);
+  const batchHistoryQuoteReqIds = new Set<string>();
+  for (const bundle of base.batchQuoteHistoryBundles) {
+    for (const r of bundle.requests) batchHistoryQuoteReqIds.add(r.id);
+  }
+
+  const quotedActiveRequestIds = base.rows
+    .filter((row) => row.request.status === "quoted")
+    .map((row) => row.request.id);
+
+  const [snapshotRows, batchQuoteHistoryLatestQuotes, activeQueueLatestQuotes] =
+    await Promise.all([
+      listItemRequestLineSnapshotsByRequestIds(base.user, requestIds, base.admin),
+      batchHistoryQuoteReqIds.size === 0
+        ? Promise.resolve(new Map<string, ItemQuote>())
+        : collectLatestQuotesForRequests([...batchHistoryQuoteReqIds]),
+      quotedActiveRequestIds.length === 0
+        ? Promise.resolve(new Map<string, ItemQuote>())
+        : collectLatestQuotesForRequests(quotedActiveRequestIds),
+    ]);
+
+  return {
+    snapshotsByRequestId: Object.fromEntries(
+      groupItemRequestLineSnapshotsByRequestId(snapshotRows),
+    ),
+    batchQuoteHistoryLatestQuotesByRequestId: Object.fromEntries(
+      batchQuoteHistoryLatestQuotes,
+    ),
+    activeQueueLatestQuotesByRequestId: Object.fromEntries(activeQueueLatestQuotes),
   };
 }
 
-/** One payload per incoming request — safe to call from layout and nested routes. */
+/** Full payload for item-request pages (snapshots + latest quotes). */
 export const loadAdminItemRequestsPagePayload = cache(async (): Promise<
   | { ok: false; message: string }
   | { ok: true; payload: AdminItemRequestsPagePayload }
 > => {
-  const cu = await safeCurrentUser();
-  if (!cu.ok) {
-    return { ok: false, message: cu.message };
+  const result = await loadAdminItemRequestsBase();
+  if (!result.ok) {
+    return result;
   }
-  const payload = await computePayload(cu.user);
-  return { ok: true, payload };
+
+  const { base } = result;
+  const enriched = await enrichWithSnapshotsAndQuotes(base);
+
+  return {
+    ok: true,
+    payload: {
+      user: base.user,
+      admin: base.admin,
+      groups: base.groups,
+      quoteHistoryGroups: base.quoteHistoryGroups,
+      submittedBatchBundles: base.submittedBatchBundles,
+      batchQuoteHistoryBundles: base.batchQuoteHistoryBundles,
+      batchHistoryBundles: base.batchHistoryBundles,
+      hasActiveQueue: base.hasActiveQueue,
+      noData: base.noData,
+      emptyAsNonAdmin: base.emptyAsNonAdmin,
+      ...enriched,
+    },
+  };
 });

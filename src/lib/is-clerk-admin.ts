@@ -11,9 +11,18 @@ const STAFF_ROLES = new Set<string>([
   CLERK_PLATFORM_ADMIN_ROLE,
 ]);
 
+export function clerkPublicMetadataRole(
+  publicMetadata: User["publicMetadata"] | Record<string, unknown> | null | undefined,
+): string | undefined {
+  const role = publicMetadata?.role;
+  return typeof role === "string" ? role : undefined;
+}
+
+export function isClerkStaffRole(role: string | undefined): boolean {
+  return role != null && STAFF_ROLES.has(role);
+}
+
 export function isClerkAdmin(user: User | null): boolean {
   if (!user) return false;
-  const role = user.publicMetadata?.role;
-  if (typeof role !== "string") return false;
-  return STAFF_ROLES.has(role);
+  return isClerkStaffRole(clerkPublicMetadataRole(user.publicMetadata));
 }

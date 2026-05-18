@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
 
 const links = [
@@ -18,9 +19,11 @@ const links = [
 
 export function AdminNav() {
   const currentPath = usePathname() ?? "/admin";
+  const { hrefWithFilter } = useAdminCustomerFilter();
   return (
     <nav className="flex flex-col gap-1">
       {links.map(({ href, label }) => {
+        const navHref = hrefWithFilter(href);
         const active =
           href === "/admin/overview"
             ? currentPath === "/admin/overview" || currentPath === "/admin"
@@ -35,7 +38,7 @@ export function AdminNav() {
         return (
           <Link
             key={href}
-            href={href}
+            href={navHref}
             className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               active
                 ? "bg-muted text-foreground"

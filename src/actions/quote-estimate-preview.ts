@@ -9,6 +9,7 @@ import {
   restoreOrphanQuotedItemRequestQuote,
 } from "@/data/item-quotes";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import type { ItemRequest } from "@/db/schema";
 
 const previewSchema = z.object({
@@ -34,6 +35,7 @@ export type QuoteEstimatePreviewRow = {
     productColor: string | null;
     productName: string | null;
   } | null;
+  staffNote: string | null;
 };
 
 /** Subset of item request fields for the estimate dialog. */
@@ -54,6 +56,10 @@ export type GetQuoteEstimatePreviewResult =
       status: ItemRequest["status"];
       allowCustomerLineEdit: boolean;
       allowRequestNewEstimate: boolean;
+      /** Service & handling only — no merchandise/shipping/tax. */
+      outsidePurchaseServiceOnly: boolean;
+      /** Proof-of-purchase image when staff recorded an outside purchase. */
+      outsidePurchaseReceiptImageUrl: string | null;
     }
   | { ok: false; message: string };
 
@@ -94,6 +100,10 @@ export async function getQuoteEstimatePreviewAction(
     !admin &&
     (request.status === "pending" || request.status === "quoted");
   const allowRequestNewEstimate = !admin && request.status === "quoted";
+  const outsidePurchaseServiceOnly = isOutsidePurchaseRequest(request);
+  const outsidePurchaseReceiptImageUrl = outsidePurchaseServiceOnly
+    ? request.outsidePurchaseReceiptImageUrl?.trim() || null
+    : null;
 
   let quote = await getLatestQuoteForItemRequest(itemRequestId);
   if (!quote) {
@@ -107,16 +117,20 @@ export async function getQuoteEstimatePreviewAction(
       status: request.status,
       allowCustomerLineEdit,
       allowRequestNewEstimate,
+      outsidePurchaseServiceOnly,
+      outsidePurchaseReceiptImageUrl,
     };
   }
 
-  const taxCents = Math.max(
-    0,
-    quote.totalPrice -
-      quote.itemCost -
-      quote.serviceFee -
-      quote.estimatedShipping
-  );
+  const taxCents = outsidePurchaseServiceOnly
+    ? 0
+    : Math.max(
+        0,
+        quote.totalPrice -
+          quote.itemCost -
+          quote.serviceFee -
+          quote.estimatedShipping,
+      );
 
   const quotedRequestLine =
     quote.requestQuantity != null
@@ -139,10 +153,13 @@ export async function getQuoteEstimatePreviewAction(
       taxCents,
       quotedAt: quote.createdAt,
       quotedRequestLine,
+      staffNote: quote.staffNote ?? null,
     },
     product,
     status: request.status,
     allowCustomerLineEdit,
     allowRequestNewEstimate,
+    outsidePurchaseServiceOnly,
+    outsidePurchaseReceiptImageUrl,
   };
 }

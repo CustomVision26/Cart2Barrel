@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
+    "dev:webpack": "next dev -p 3001 --webpack",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
+    "db:ensure-out-of-stock-enum": "node scripts/ensure-out-of-stock-enum.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
@@ -29,6 +31,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.12.3",
+    "server-only": "^0.0.1",
     "shadcn": "^4.6.0",
     "sonner": "^2.0.7",
     "stripe": "^22.1.1",

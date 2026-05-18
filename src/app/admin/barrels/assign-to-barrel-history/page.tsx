@@ -1,8 +1,13 @@
 import { listBarrelAssignmentHistoryAdmin } from "@/data/barrel-package-assignment";
+import { parseAdminCustomerFilter } from "@/lib/admin-customer-filter";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 export const dynamic = "force-dynamic";
+
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
 function formatWhen(iso: string): string {
   try {
@@ -32,7 +37,9 @@ function actionLabel(
   }
 }
 
-export default async function AdminAssignToBarrelHistoryPage() {
+export default async function AdminAssignToBarrelHistoryPage({
+  searchParams,
+}: PageProps) {
   const cu = await safeCurrentUser();
   if (!cu.ok || !cu.user || !isClerkAdmin(cu.user)) {
     return (
@@ -47,7 +54,14 @@ export default async function AdminAssignToBarrelHistoryPage() {
     );
   }
 
-  const rows = await listBarrelAssignmentHistoryAdmin(600);
+  const { clerkUserId: filterClerkUserId } = parseAdminCustomerFilter(
+    (await searchParams) ?? {},
+  );
+  const allRows = await listBarrelAssignmentHistoryAdmin(600);
+  const rows =
+    filterClerkUserId ?
+      allRows.filter((r) => r.ownerClerkUserId === filterClerkUserId)
+    : allRows;
 
   return (
     <div className="space-y-6">

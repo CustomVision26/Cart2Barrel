@@ -1,26 +1,25 @@
 import { AdminBatchItemsSubTabNav } from "@/components/admin/admin-batch-items-sub-tab-nav";
-import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import { loadAdminItemRequestsNavState } from "@/data/admin-item-requests-page-payload";
 
 export default async function AdminBatchItemsSegmentLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const result = await loadAdminItemRequestsPagePayload();
+  const result = await loadAdminItemRequestsNavState();
 
-  if (!result.ok || result.payload.noData) {
+  if (!result.ok || result.nav.noData) {
     return <>{children}</>;
   }
 
-  const { submittedBatchBundles, batchQuoteHistoryBundles, batchHistoryBundles } =
-    result.payload;
+  const { nav } = result;
 
   return (
     <div className="space-y-4">
       <AdminBatchItemsSubTabNav
-        pendingSubmissionCount={submittedBatchBundles.length}
-        estimateHistoryCount={batchQuoteHistoryBundles.length}
-        batchHistoryCount={batchHistoryBundles.length}
+        pendingSubmissionCount={nav.pendingBatchCount}
+        estimateHistoryCount={nav.batchQuoteHistoryCount}
+        batchHistoryCount={nav.batchHistoryCount}
       />
       {children}
     </div>

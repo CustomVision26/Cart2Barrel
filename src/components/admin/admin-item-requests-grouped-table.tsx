@@ -10,6 +10,9 @@ import {
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import { AdminAiEstimateDialog } from "@/components/admin/admin-ai-estimate-dialog";
+import { AdminMarkOutOfStockButton } from "@/components/admin/admin-mark-out-of-stock-button";
+import { AdminOutsidePurchaseReturnEstimateDialog } from "@/components/admin/admin-outside-purchase-return-estimate-dialog";
+import { AdminItemRequestUrlOrReceipt } from "@/components/admin/admin-item-request-url-or-receipt";
 import { AdminProductUrlDialog } from "@/components/admin/admin-product-url-dialog";
 import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-history-edit-dialog";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
@@ -34,7 +37,16 @@ import {
   compareNum,
   nextSortState,
 } from "@/lib/table-sort";
-import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
+import type {
+  ItemQuote,
+  ItemRequestLineSnapshot,
+  OutsidePurchaseReturnRequest,
+} from "@/db/schema";
+import {
+  outsidePurchaseWorkflowBadgeKind,
+} from "@/lib/outside-purchase-display";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import { itemRequestStatusLabelForDisplay } from "@/lib/item-request-status-label";
 import type { AdminQuoteHistoryLine } from "@/data/admin-quote-history";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
@@ -78,7 +90,7 @@ const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
 const ACTIVE_QUEUE_GROUP_COL_SPAN = 7;
 
 /** Flat queue-line table columns (account + email + line cells). */
-const ACTIVE_QUEUE_FLAT_COL_SPAN = 11;
+const ACTIVE_QUEUE_FLAT_COL_SPAN = 12;
 
 const SELECT_CLASS =
   "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
@@ -231,6 +243,7 @@ function ActiveQueueLineTableRow({
   row,
   snapshotsByRequestId,
   latestQuotesByRequestId,
+  returnRequestsByItemRequestId = {},
   onEditQuote,
   showAccountColumns = false,
   merchantEstimateFees,
@@ -239,18 +252,27 @@ function ActiveQueueLineTableRow({
   row: AdminItemRequestWithUserRow;
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   latestQuotesByRequestId: Record<string, ItemQuote>;
+  returnRequestsByItemRequestId?: Record<string, OutsidePurchaseReturnRequest>;
   onEditQuote: (line: AdminQuoteHistoryLine) => void;
   /** When true, prepend Account and Email cells (flat paginated-by-line table). */
   showAccountColumns?: boolean;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 }) {
   const { request: r, queueKind } = row;
-  const allowAiEstimate = queueKind === "new" || queueKind === "resend";
+  const isOutside = isOutsidePurchaseRequest(r);
+  const returnReq = returnRequestsByItemRequestId[r.id] ?? null;
+  const allowAiEstimate =
+    !isOutside && (queueKind === "new" || queueKind === "resend");
   const latestQuote = latestQuotesByRequestId[r.id];
   const canEditQuote =
+    !isOutside &&
     queueKind === "quoted" &&
     latestQuote != null &&
     isOperationalQuoteRow(latestQuote);
+  const showGenerateReturnEstimate =
+    isOutside &&
+    returnReq?.status === "submitted" &&
+    latestQuote != null;
   const accountName = submitterDisplayName(group.userFullName, group.userEmail);
 
   return (
@@ -268,13 +290,21 @@ function ActiveQueueLineTableRow({
         </>
       ) : null}
       <td className="whitespace-nowrap px-2 py-2 align-top">
-        <StatusBadge kind={adminRequestQueueKindBadgeKind(queueKind)}>
-          {queueKind === "new" ?
-            "New request"
-          : queueKind === "resend" ?
-            "Customer resend"
-          : "Quoted"}
-        </StatusBadge>
+        {isOutside ?
+          <StatusBadge
+            kind={outsidePurchaseWorkflowBadgeKind(r, returnReq)}
+            title={r.status}
+          >
+            {itemRequestStatusLabelForDisplay(r, returnReq)}
+          </StatusBadge>
+        : <StatusBadge kind={adminRequestQueueKindBadgeKind(queueKind)}>
+            {queueKind === "new" ?
+              "New request"
+            : queueKind === "resend" ?
+              "Customer resend"
+            : "Quoted"}
+          </StatusBadge>
+        }
       </td>
       <td className="px-2 py-2 align-top">
         <ProductRequestThumbnail
@@ -292,7 +322,10 @@ function ActiveQueueLineTableRow({
         </span>
       </td>
       <td className="px-2 py-2 align-top">
-        <AdminProductUrlDialog productUrl={r.productUrl} />
+        <AdminItemRequestUrlOrReceipt
+          productUrl={r.productUrl}
+          outsidePurchaseReceiptImageUrl={r.outsidePurchaseReceiptImageUrl}
+        />
       </td>
       <td className="px-2 py-2 align-top">
         {allowAiEstimate ? (
@@ -322,11 +355,25 @@ function ActiveQueueLineTableRow({
           >
             Edit quote
           </Button>
-        ) : queueKind === "quoted" ? (
+        ) : showGenerateReturnEstimate && returnReq ?
+          <AdminOutsidePurchaseReturnEstimateDialog
+            request={r}
+            quote={latestQuote}
+            returnRequest={returnReq}
+            serviceTiers={merchantEstimateFees?.serviceTiers ?? []}
+          />
+        : queueKind === "quoted" ?
           <span className="text-xs text-muted-foreground">No quote</span>
-        ) : (
+        : <span className="text-muted-foreground">—</span>}
+      </td>
+      <td className="px-2 py-2 align-top">
+        {isOutside ?
           <span className="text-muted-foreground">—</span>
-        )}
+        : <AdminMarkOutOfStockButton
+            itemRequestId={r.id}
+            productLabel={r.productName?.trim() || undefined}
+          />
+        }
       </td>
       <td className="px-2 py-2 align-top">
         <QuoteEstimatePreviewDialog itemRequestId={r.id} />
@@ -350,6 +397,7 @@ type AdminItemRequestsGroupedTableProps = {
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   /** Latest operational quote per request (for Edit quote on quoted queue rows). */
   latestQuotesByRequestId?: Record<string, ItemQuote>;
+  returnRequestsByItemRequestId?: Record<string, OutsidePurchaseReturnRequest>;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
@@ -357,6 +405,7 @@ export function AdminItemRequestsGroupedTable({
   groups,
   snapshotsByRequestId,
   latestQuotesByRequestId = {},
+  returnRequestsByItemRequestId = {},
   merchantEstimateFees,
 }: AdminItemRequestsGroupedTableProps) {
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
@@ -852,6 +901,9 @@ export function AdminItemRequestsGroupedTable({
                                   Quote actions
                                 </th>
                                 <th className="px-2 py-2 font-medium text-foreground">
+                                  Out of stock
+                                </th>
+                                <th className="px-2 py-2 font-medium text-foreground">
                                   Quote preview
                                 </th>
                                 <th className="px-2 py-2 font-medium text-foreground">
@@ -878,6 +930,9 @@ export function AdminItemRequestsGroupedTable({
                                   row={row}
                                   snapshotsByRequestId={snapshotsByRequestId}
                                   latestQuotesByRequestId={latestQuotesByRequestId}
+                                  returnRequestsByItemRequestId={
+                                    returnRequestsByItemRequestId
+                                  }
                                   onEditQuote={openEditQuote}
                                   merchantEstimateFees={merchantEstimateFees}
                                 />
@@ -941,6 +996,9 @@ export function AdminItemRequestsGroupedTable({
                     Quote actions
                   </th>
                   <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
+                    Out of stock
+                  </th>
+                  <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
                     Quote preview
                   </th>
                   <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
@@ -987,6 +1045,7 @@ export function AdminItemRequestsGroupedTable({
                       showAccountColumns
                       snapshotsByRequestId={snapshotsByRequestId}
                       latestQuotesByRequestId={latestQuotesByRequestId}
+                      returnRequestsByItemRequestId={returnRequestsByItemRequestId}
                       onEditQuote={openEditQuote}
                       merchantEstimateFees={merchantEstimateFees}
                     />

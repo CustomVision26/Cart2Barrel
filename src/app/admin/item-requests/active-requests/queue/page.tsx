@@ -1,8 +1,21 @@
 import { AdminItemRequestsGroupedTable } from "@/components/admin/admin-item-requests-grouped-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import {
+  groupReturnRequestsByItemRequestId,
+  listOutsidePurchaseReturnRequestsByItemRequestIds,
+} from "@/data/outside-purchase-return-requests";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
+import {
+  filterAdminItemRequestGroups,
+  parseAdminCustomerFilter,
+} from "@/lib/admin-customer-filter";
 
-export default async function AdminItemRequestsQueuePage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminItemRequestsQueuePage({ searchParams }: PageProps) {
+  const { clerkUserId } = parseAdminCustomerFilter((await searchParams) ?? {});
   const result = await loadAdminItemRequestsPagePayload();
   const merchantEstimateFees = await getMerchantPricingForEstimates();
 
@@ -19,14 +32,27 @@ export default async function AdminItemRequestsQueuePage() {
     },
   } = result;
 
-  const queueGroups = groups.filter((g) => g.activeQueueCount > 0);
+  const queueGroups = filterAdminItemRequestGroups(
+    groups.filter((g) => g.activeQueueCount > 0),
+    clerkUserId,
+  );
 
-  if (hasActiveQueue) {
+  if (queueGroups.length > 0) {
+    const queueRequestIds = queueGroups.flatMap((g) =>
+      g.activeQueueRequests.map((row) => row.request.id),
+    );
+    const returnRows = await listOutsidePurchaseReturnRequestsByItemRequestIds(
+      queueRequestIds,
+    );
+    const returnRequestsByItemRequestId =
+      groupReturnRequestsByItemRequestId(returnRows);
+
     return (
       <AdminItemRequestsGroupedTable
         groups={queueGroups}
         snapshotsByRequestId={snapshotsByRequestId}
         latestQuotesByRequestId={activeQueueLatestQuotesByRequestId}
+        returnRequestsByItemRequestId={returnRequestsByItemRequestId}
         merchantEstimateFees={merchantEstimateFees}
       />
     );

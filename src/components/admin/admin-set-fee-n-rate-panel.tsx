@@ -3,11 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
-import {
-  updateMerchantPackingBarrelFeesAction,
-  updateMerchantPricingSettingsAction,
-} from "@/actions/update-merchant-pricing-settings";
-import type { MerchantPackingComboAdminRow } from "@/data/merchant-pricing-settings";
+import { updateMerchantPricingSettingsAction } from "@/actions/update-merchant-pricing-settings";
+import type { ContainerPackingRates } from "@/lib/container-packing-fee";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,34 +30,9 @@ export type FeeTierFormRow = {
   feePerUnitCents: number;
 };
 
-/** One manual (barrel count, bin count) → total fee row in the editor. */
-type ComboFormRow = {
-  clientKey: string;
-  barrelCount: number;
-  binCount: number;
-  feeCents: number;
-};
-
-function combosFromServer(rows: MerchantPackingComboAdminRow[]): ComboFormRow[] {
-  return rows.map((r) => ({
-    clientKey: `c-${r.id}-${r.sortIndex}`,
-    barrelCount: r.barrelCount,
-    binCount: r.binCount,
-    feeCents: r.feeCents,
-  }));
-}
-
-function parseCountInput(raw: string): number {
-  const t = raw.trim();
-  if (t === "") return 0;
-  const n = Number.parseInt(t, 10);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(99_999, n);
-}
-
 type AdminSetFeeNRatePanelProps = {
   initialPackingFeePerLineCents: number;
-  initialCombos: MerchantPackingComboAdminRow[];
+  initialContainerPackingRates: ContainerPackingRates;
   initialTiers: FeeTierServerPayload[];
 };
 
@@ -182,25 +154,16 @@ const fieldSelectClassName = cn(
 
 export function AdminSetFeeNRatePanel({
   initialPackingFeePerLineCents,
-  initialCombos,
+  initialContainerPackingRates,
   initialTiers,
 }: AdminSetFeeNRatePanelProps) {
   const router = useRouter();
-  const [packingDollars, setPackingDollars] = useState(
-    centsToUsdInput(initialPackingFeePerLineCents),
-  );
-  const [comboRows, setComboRows] = useState<ComboFormRow[]>(() =>
-    combosFromServer(initialCombos),
-  );
   const [tierRows, setTierRows] = useState<FeeTierFormRow[]>(() =>
     sortTierRows(serverTiersToFormRows(initialTiers)),
   );
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [packMsg, setPackMsg] = useState<string | null>(null);
-  const [packErr, setPackErr] = useState<string | null>(null);
-  const [packPending, startPackTransition] = useTransition();
 
   const sortedPreview = useMemo(() => sortTierRows(tierRows), [tierRows]);
 
@@ -219,175 +182,12 @@ export function AdminSetFeeNRatePanel({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Packing &amp; container combinations</CardTitle>
-          <CardDescription>
-            <span className="font-medium text-foreground">Per quoted line:</span> flat packing fee
-            (below). <span className="font-medium text-foreground">Container mix:</span> add one row
-            per total you charge for—e.g. 1 barrel + 0 bins = $100, 0 + 1 bin = $70, 1 barrel + 1
-            bin = $150, 2 barrels + 0 bins = $185. Totals are{" "}
-            <span className="font-medium text-foreground">exact barrel and bin quantities</span>{" "}
-            in the cart (sum quantities by kind). Checkout should look up the matching row; add
-            every mix you sell.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="max-w-4xl space-y-4">
-          {packMsg ?
-            <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
-              {packMsg}
-            </p>
-          : null}
-          {packErr ?
-            <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {packErr}
-            </p>
-          : null}
-          <div className="space-y-2">
-            <Label htmlFor="packing-usd">Packing fee per quoted line (USD)</Label>
-            <Input
-              id="packing-usd"
-              inputMode="decimal"
-              value={packingDollars}
-              onChange={(e) => setPackingDollars(e.target.value)}
-              className={cn(fieldSelectClassName, "max-w-xs")}
-            />
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[520px] border-collapse text-left text-sm">
-              <thead className="border-b border-border bg-muted/40">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Barrels (total qty)</th>
-                  <th className="px-3 py-2 font-medium">Bins (total qty)</th>
-                  <th className="px-3 py-2 font-medium">Total fee for this mix (USD)</th>
-                  <th className="w-24 px-3 py-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {comboRows.map((row) => (
-                  <tr key={row.clientKey} className="border-b border-border/80 last:border-0">
-                    <td className="px-3 py-2 align-top">
-                      <Input
-                        inputMode="numeric"
-                        value={String(row.barrelCount)}
-                        onChange={(e) => {
-                          const n = parseCountInput(e.target.value);
-                          setComboRows((rows) =>
-                            rows.map((r) =>
-                              r.clientKey === row.clientKey ? { ...r, barrelCount: n } : r,
-                            ),
-                          );
-                        }}
-                        className={fieldSelectClassName}
-                      />
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <Input
-                        inputMode="numeric"
-                        value={String(row.binCount)}
-                        onChange={(e) => {
-                          const n = parseCountInput(e.target.value);
-                          setComboRows((rows) =>
-                            rows.map((r) =>
-                              r.clientKey === row.clientKey ? { ...r, binCount: n } : r,
-                            ),
-                          );
-                        }}
-                        className={fieldSelectClassName}
-                      />
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <Input
-                        inputMode="decimal"
-                        value={centsToUsdInput(row.feeCents)}
-                        onChange={(e) => {
-                          const c = parseUsdToCents(e.target.value);
-                          setComboRows((rows) =>
-                            rows.map((r) =>
-                              r.clientKey === row.clientKey ? { ...r, feeCents: c } : r,
-                            ),
-                          );
-                        }}
-                        className={fieldSelectClassName}
-                      />
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setComboRows((rows) =>
-                            rows.filter((r) => r.clientKey !== row.clientKey),
-                          )
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() =>
-                setComboRows((rows) => [
-                  ...rows,
-                  {
-                    clientKey: crypto.randomUUID(),
-                    barrelCount: 1,
-                    binCount: 0,
-                    feeCents: 0,
-                  },
-                ])
-              }
-            >
-              Add combination
-            </Button>
-            <Button
-              type="button"
-              disabled={packPending}
-              onClick={() => {
-                setPackMsg(null);
-                setPackErr(null);
-                startPackTransition(async () => {
-                  const res = await updateMerchantPackingBarrelFeesAction({
-                    packingFeePerLineCents: parseUsdToCents(packingDollars),
-                    combos: comboRows.map((r) => ({
-                      barrelCount: r.barrelCount,
-                      binCount: r.binCount,
-                      feeCents: r.feeCents,
-                    })),
-                  });
-                  if (!res.ok) {
-                    setPackErr(res.message);
-                    return;
-                  }
-                  setPackMsg(res.message);
-                  router.refresh();
-                });
-              }}
-            >
-              Save packing &amp; combination fees
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle className="text-lg">Service &amp; handling tiers</CardTitle>
           <CardDescription>
-            Each row is one <span className="font-medium text-foreground">price band</span> per
-            consumer unit. Enter <span className="font-medium text-foreground">from</span> and{" "}
-            <span className="font-medium text-foreground">through</span> (both inclusive). The
-            next row’s “from” should match one cent above the previous “through” (it updates
-            automatically when you change a “through”). The{" "}
-            <span className="font-medium text-foreground">last row</span> uses an open-ended top so
-            every price is covered; only its “from” is editable there.
+            Global service &amp; handling bands for all customers unless a shopper has a custom
+            package. Each row is one <span className="font-medium text-foreground">price band</span>{" "}
+            per consumer unit. Packing and container fees are under{" "}
+            <span className="font-medium text-foreground">Customer packages → General package fee</span>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -565,12 +365,8 @@ export function AdminSetFeeNRatePanel({
                 }
                 startTransition(async () => {
                   const res = await updateMerchantPricingSettingsAction({
-                    packingFeePerLineCents: parseUsdToCents(packingDollars),
-                    combos: comboRows.map((r) => ({
-                      barrelCount: r.barrelCount,
-                      binCount: r.binCount,
-                      feeCents: r.feeCents,
-                    })),
+                    packingFeePerLineCents: initialPackingFeePerLineCents,
+                    containerPackingRates: initialContainerPackingRates,
                     tiers: sortedPreview.map((t) => ({
                       maxUnitPriceInclusiveCents: t.maxUnitPriceInclusiveCents,
                       feePerUnitCents: t.feePerUnitCents,

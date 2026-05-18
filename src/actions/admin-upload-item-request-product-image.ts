@@ -51,6 +51,8 @@ export async function adminUploadItemRequestProductImageAction(
     return { ok: false, message: "Missing item request." };
   }
   const itemRequestId = itemRequestIdRaw.trim();
+  const persistRaw = formData.get("persistToRequest");
+  const persistToRequest = persistRaw !== "false" && persistRaw !== "0";
 
   const files = collectFilesFromFormData(formData);
   if (files.length !== 1) {
@@ -91,27 +93,29 @@ export async function adminUploadItemRequestProductImageAction(
     return { ok: false, message: msg };
   }
 
-  const db = getDb();
-  await db
-    .update(itemRequests)
-    .set({ productImageUrl: imageUrl })
-    .where(eq(itemRequests.id, itemRequestId));
+  if (persistToRequest) {
+    const db = getDb();
+    await db
+      .update(itemRequests)
+      .set({ productImageUrl: imageUrl })
+      .where(eq(itemRequests.id, itemRequestId));
 
-  await insertItemRequestLineSnapshot({
-    itemRequestId,
-    phase: "post_admin_estimate_edit",
-    line: lineSnapshotPayloadFromItemRequest({
-      ...req,
-      productImageUrl: imageUrl,
-    }),
-    auditMemo: "Admin uploaded a product photo (stored on Vercel Blob).",
-  });
+    await insertItemRequestLineSnapshot({
+      itemRequestId,
+      phase: "post_admin_estimate_edit",
+      line: lineSnapshotPayloadFromItemRequest({
+        ...req,
+        productImageUrl: imageUrl,
+      }),
+      auditMemo: "Admin uploaded a product photo (stored on Vercel Blob).",
+    });
 
-  revalidatePath("/admin/item-requests", "layout");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/items");
-  revalidateDashboardAddItem();
-  revalidatePath("/dashboard/cart");
+    revalidatePath("/admin/item-requests", "layout");
+    revalidatePath("/admin/overview");
+    revalidatePath("/dashboard/items");
+    revalidateDashboardAddItem();
+    revalidatePath("/dashboard/cart");
+  }
 
   return { ok: true, imageUrl };
 }

@@ -7,6 +7,7 @@ import {
   ChevronRightIcon,
   Loader2Icon,
   SearchIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -15,12 +16,26 @@ import { createCustomerBatchQuoteAction } from "@/actions/customer-batch-quote";
 import { withdrawCustomerProductRequestsAction } from "@/actions/withdraw-customer-product-requests";
 import { AcceptQuoteButton } from "@/components/dashboard/accept-quote-button";
 import { useAddItemPayload } from "@/components/dashboard/add-item-payload-context";
+import { CartLineUrlOrReceipt } from "@/components/dashboard/cart-line-url-or-receipt";
+import { OutsidePurchaseReturnPreviewDialog } from "@/components/dashboard/outside-purchase-return-preview-dialog";
+import { OutsidePurchaseCancelReturnButton } from "@/components/dashboard/outside-purchase-cancel-return-button";
+import { OutsidePurchaseReturnRequestDialog } from "@/components/dashboard/outside-purchase-return-request-dialog";
+import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
 import { ItemsNewProductHistoryPanel } from "@/components/dashboard/items-new-product-history-panel";
 import { useBatchQuoteSelection } from "@/components/dashboard/batch-quote-selection-context";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
+import { OutOfStockProductPreviewDialog } from "@/components/dashboard/out-of-stock-product-preview-dialog";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { SortableThCompact } from "@/components/sortable-th";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,8 +44,22 @@ import { validateQuotedFullSiteSelection } from "@/lib/batch-quote-validation";
 import { canonicalBatchSiteKey } from "@/lib/batch-site-key";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
-import { itemRequestStatusLabel } from "@/lib/item-request-status-label";
-import { displaySiteName } from "@/lib/site-name";
+import {
+  itemRequestStatusLabel,
+  itemRequestStatusLabelForDisplay,
+} from "@/lib/item-request-status-label";
+import {
+  isOutsidePurchaseProblemReceiptCondition,
+  outsidePurchaseAllowsAcceptQuote,
+  outsidePurchaseShowsCancelReturnAction,
+  outsidePurchaseShowsPreviewEstimateInReturnWorkflow,
+  outsidePurchaseShowsPreviewEstimateInTable,
+  outsidePurchaseShowsReturnPreviewAction,
+  outsidePurchaseShowsReturnToRetailerAction,
+  outsidePurchaseWorkflowBadgeKind,
+} from "@/lib/outside-purchase-display";
+import { isOutsidePurchaseRequest, outsidePurchaseReferenceDisplay } from "@/lib/outside-purchase";
+import { displayProductSiteName, displaySiteName } from "@/lib/site-name";
 import { itemRequestWorkflowBadgeKind } from "@/lib/status-badge-map";
 import type { SortDir } from "@/lib/table-sort";
 import {
@@ -52,13 +81,15 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
 function rowMatchesProductsSearch(r: ItemRequest, query: string): boolean {
   if (!query) return true;
-  const statusLabel = itemRequestStatusLabel(r.status);
-  const site = displaySiteName(r.siteName, r.productUrl);
+  const statusLabel = itemRequestStatusLabelForDisplay(r);
+  const site = displayProductSiteName(r);
+  const outsideRef = outsidePurchaseReferenceDisplay(r);
   const haystack = [
     r.id,
     r.productName,
     r.siteName,
     site,
+    outsideRef,
     r.productUrl,
     r.status,
     statusLabel,
@@ -78,9 +109,10 @@ function requestStatusOrder(s: string): number {
   const o: Record<string, number> = {
     pending: 0,
     quoted: 1,
-    approved: 2,
-    rejected: 3,
-    withdrawn: 4,
+    out_of_stock: 2,
+    approved: 3,
+    rejected: 4,
+    withdrawn: 5,
   };
   return o[s] ?? 99;
 }
@@ -101,8 +133,8 @@ function sortItemRequests(
         );
       case "site":
         return compareLocale(
-          displaySiteName(a.siteName, a.productUrl),
-          displaySiteName(b.siteName, b.productUrl),
+          displayProductSiteName(a),
+          displayProductSiteName(b),
           dir
         );
       case "status":
@@ -133,7 +165,8 @@ type ItemsNewProductsPanelProps = {
 export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelProps) {
   const router = useRouter();
 
-  const { activeRequests, batchBundles } = useAddItemPayload();
+  const { activeRequests, batchBundles, returnRequestsByItemRequestId } =
+    useAddItemPayload();
   const { batchSelectedIds, setBatchSelectedIds } = useBatchQuoteSelection();
 
   const requestIdsInBatchQuotes = useMemo(() => {
@@ -172,6 +205,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
   const [productsPage, setProductsPage] = useState(1);
   const [productsPageSize, setProductsPageSize] =
     useState<(typeof PAGE_SIZE_OPTIONS)[number]>(25);
+  const [removeCheckedDialogOpen, setRemoveCheckedDialogOpen] = useState(false);
 
   const normalizedProductsQuery = productsSearch.trim().toLowerCase();
 
@@ -380,42 +414,39 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
   const siteAllCheckedFor = (rows: ItemRequest[]): boolean =>
     rows.length > 0 && rows.every((r) => batchSelectedIds.has(r.id));
 
-  const onRemoveCheckedProducts = () => {
-    const ids = [...batchSelectedIds].filter((id) => {
+  const removableCheckedIds = useMemo(() => {
+    return [...batchSelectedIds].filter((id) => {
       const row = activeRequests.find((r) => r.id === id);
       return row ? !isInBatchQuote(row) : false;
     });
-    if (ids.length === 0) return;
-    const label =
-      ids.length === 1
-        ? "Remove this checked product request? Staff will see it under Product history."
-        : `Remove ${ids.length} checked product requests? Staff will see them under Product history.`;
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(label)
-    ) {
-      return;
-    }
+  }, [batchSelectedIds, activeRequests, isInBatchQuote]);
+
+  const removableCheckedCount = removableCheckedIds.length;
+
+  const confirmRemoveCheckedProducts = () => {
+    if (removableCheckedIds.length === 0) return;
 
     startRemoveRequests(async () => {
-      const res = await withdrawCustomerProductRequestsAction({ itemRequestIds: ids });
+      const res = await withdrawCustomerProductRequestsAction({
+        itemRequestIds: removableCheckedIds,
+      });
       if (!res.ok) {
         toast.error(res.message ?? "Could not remove.");
         return;
       }
       toast.success(res.message ?? "Removed.");
       setBatchSelectedIds(new Set());
+      setRemoveCheckedDialogOpen(false);
       router.refresh();
     });
   };
 
-  const onRemovePendingRequest = (id: string) => {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Remove this pending request? You will not receive a quote for it."
-      )
-    ) {
+  const onRemovePendingRequest = (id: string, options?: { outOfStock?: boolean }) => {
+    const message =
+      options?.outOfStock
+        ? "Remove this out-of-stock product from your active list? It will move to Product history."
+        : "Remove this pending request? You will not receive a quote for it.";
+    if (typeof window !== "undefined" && !window.confirm(message)) {
       return;
     }
 
@@ -504,7 +535,29 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
         </div>
       ) : null}
       {quotedRows.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+        <div className="space-y-2">
+          {batchSelectedIds.size > 0 ? (
+            <div
+              role="alert"
+              className="flex gap-2.5 rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2.5 text-xs leading-relaxed text-foreground dark:border-destructive/30 dark:bg-destructive/10"
+            >
+              <TriangleAlertIcon
+                className="mt-0.5 size-4 shrink-0 text-destructive"
+                aria-hidden
+              />
+              <div className="min-w-0 space-y-1">
+                <p className="font-medium text-foreground">Remove checked</p>
+                <p className="text-muted-foreground">
+                  {removableCheckedCount === 0 ?
+                    "Checked rows that are in a batch quote cannot be removed here — use Batch Quotes or uncheck them first."
+                  : removableCheckedCount === 1 ?
+                    "Remove checked moves this product to Product history. You can reinstate it from the History tab later."
+                  : `Remove checked moves ${removableCheckedCount} products to Product history. You can reinstate them from the History tab later.`}
+                </p>
+              </div>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Batch selection
@@ -538,22 +591,18 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
               size="sm"
               variant="outline"
               disabled={
-                batchSelectedIds.size === 0 || removingRequests || addingBatch
+                batchSelectedIds.size === 0 ||
+                removableCheckedCount === 0 ||
+                removingRequests ||
+                addingBatch
               }
               className={cn(
                 batchSelectedIds.size > 0 &&
                   "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
               )}
-              onClick={onRemoveCheckedProducts}
+              onClick={() => setRemoveCheckedDialogOpen(true)}
             >
-              {removingRequests ? (
-                <>
-                  <Loader2Icon className="mr-2 size-3.5 animate-spin" aria-hidden />
-                  Removing…
-                </>
-              ) : (
-                "Remove checked"
-              )}
+              Remove checked
             </Button>
             <div className="flex flex-col items-end gap-2">
             {batchSelectedIds.size > 0 ? (
@@ -580,6 +629,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
               )}
             </Button>
             </div>
+          </div>
           </div>
         </div>
       ) : null}
@@ -745,6 +795,23 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                     {pagedActive.map((r) => {
                       const inBatchSelection = batchSelectedIds.has(r.id);
                       const inBundledBatch = isInBatchQuote(r);
+                      const isProblemOp =
+                        isOutsidePurchaseRequest(r) &&
+                        isOutsidePurchaseProblemReceiptCondition(r);
+                      const isOpQuoted =
+                        isOutsidePurchaseRequest(r) && r.status === "quoted";
+                      const returnReqForRow =
+                        returnRequestsByItemRequestId[r.id] ?? null;
+                      const showTablePreviewEstimate =
+                        (r.status === "quoted" &&
+                          (outsidePurchaseShowsPreviewEstimateInTable(r) ||
+                            outsidePurchaseShowsPreviewEstimateInReturnWorkflow(
+                              r,
+                              returnReqForRow,
+                            ))) ||
+                        (r.status !== "quoted" &&
+                          r.status !== "pending" &&
+                          r.status !== "out_of_stock");
                       return (
                         <tr
                           key={r.id}
@@ -805,6 +872,11 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                             <span className="line-clamp-2">
                               {r.productName?.trim() || "Unnamed product"}
                             </span>
+                            {outsidePurchaseReferenceDisplay(r) ? (
+                              <span className="mt-1 block font-mono text-[10px] text-primary">
+                                {outsidePurchaseReferenceDisplay(r)}
+                              </span>
+                            ) : null}
                             {inBundledBatch ? (
                               <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                                 In batch quote — use Batch Quotes tab
@@ -823,7 +895,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                             )}
                           >
                             <span className="line-clamp-2 text-xs sm:text-sm">
-                              {displaySiteName(r.siteName, r.productUrl)}
+                              {displayProductSiteName(r)}
                             </span>
                           </td>
                           <td
@@ -832,16 +904,25 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               inBatchSelection && "opacity-60"
                             )}
                           >
-                            <a
-                              href={r.productUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={r.productUrl}
-                              aria-label={`Open product url: ${r.productUrl}`}
-                              className="text-sm font-medium text-primary underline-offset-2 hover:underline"
-                            >
-                              Product url
-                            </a>
+                            {isOutsidePurchaseRequest(r) ?
+                              <CartLineUrlOrReceipt
+                                lineId={r.id}
+                                productUrl={r.productUrl}
+                                outsidePurchaseReceiptImageUrl={
+                                  r.outsidePurchaseReceiptImageUrl
+                                }
+                              />
+                            : <a
+                                href={r.productUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={r.productUrl}
+                                aria-label={`Open product url: ${r.productUrl}`}
+                                className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+                              >
+                                Product url
+                              </a>
+                            }
                           </td>
                           <td
                             className={cn(
@@ -856,12 +937,21 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                             {r.productColor?.trim()
                               ? ` · Color ${r.productColor.trim()}`
                               : ""}
-                            {r.note?.trim() ? ` · ${r.note.trim()}` : ""}
                           </td>
                           <td className="whitespace-nowrap px-3 py-3 align-top">
-                            <StatusBadge kind={itemRequestWorkflowBadgeKind(r.status)} title={r.status}>
-                              {itemRequestStatusLabel(r.status)}
-                            </StatusBadge>
+                            {(() => {
+                              const returnReq =
+                                returnRequestsByItemRequestId[r.id] ?? null;
+                              const badgeKind =
+                                isOutsidePurchaseRequest(r) ?
+                                  outsidePurchaseWorkflowBadgeKind(r, returnReq)
+                                : itemRequestWorkflowBadgeKind(r.status);
+                              return (
+                                <StatusBadge kind={badgeKind} title={r.status}>
+                                  {itemRequestStatusLabelForDisplay(r, returnReq)}
+                                </StatusBadge>
+                              );
+                            })()}
                           </td>
                           <td
                             className={cn(
@@ -869,29 +959,126 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               inBatchSelection && "opacity-90"
                             )}
                           >
-                            {r.status === "quoted" ? (
-                              inBundledBatch ? (
-                                <p
-                                  className="rounded-md border border-border bg-muted/25 px-2 py-1.5 text-center text-[11px] leading-snug text-muted-foreground"
-                                  title="Open Batch Quotes to accept or preview this bundle."
-                                >
-                                  Manage in{" "}
-                                  <span className="font-medium text-foreground">
-                                    Batch Quotes
-                                  </span>
-                                </p>
-                              ) : inBatchSelection ? (
-                                <p
-                                  className="rounded-md border border-dashed border-border bg-muted/20 px-2 py-1.5 text-center text-[11px] leading-snug text-muted-foreground"
-                                  title="Uncheck Batch to accept this estimate on its own."
-                                >
-                                  Accept estimate disabled while selected for a
-                                  batch.
-                                </p>
-                              ) : (
-                                <AcceptQuoteButton itemRequestId={r.id} />
-                              )
-                            ) : null}
+                            {r.status === "quoted" ?
+                              (() => {
+                                const returnReq =
+                                  returnRequestsByItemRequestId[r.id] ?? null;
+                                const showReturnRequest =
+                                  outsidePurchaseShowsReturnToRetailerAction(
+                                    r,
+                                    returnReq,
+                                  );
+                                const showReturnPreview =
+                                  outsidePurchaseShowsReturnPreviewAction(
+                                    r,
+                                    returnReq,
+                                  );
+                                const showCancelReturn =
+                                  outsidePurchaseShowsCancelReturnAction(r, returnReq);
+                                const showReturnActions =
+                                  showReturnRequest ||
+                                  showReturnPreview ||
+                                  showCancelReturn;
+                                const showAccept =
+                                  !inBundledBatch &&
+                                  !inBatchSelection &&
+                                  (outsidePurchaseAllowsAcceptQuote(r, returnReq) ||
+                                    !isOutsidePurchaseRequest(r));
+                                const returnEstimateAccepted =
+                                  returnReq?.status === "estimate_accepted";
+
+                                if (inBundledBatch) {
+                                  return (
+                                    <p
+                                      className="rounded-md border border-border bg-muted/25 px-2 py-1.5 text-center text-[11px] leading-snug text-muted-foreground"
+                                      title="Open Batch Quotes to accept or preview this bundle."
+                                    >
+                                      Manage in{" "}
+                                      <span className="font-medium text-foreground">
+                                        Batch Quotes
+                                      </span>
+                                    </p>
+                                  );
+                                }
+                                if (inBatchSelection) {
+                                  return (
+                                    <p
+                                      className="rounded-md border border-dashed border-border bg-muted/20 px-2 py-1.5 text-center text-[11px] leading-snug text-muted-foreground"
+                                      title="Uncheck Batch to accept this estimate on its own."
+                                    >
+                                      Accept estimate disabled while selected for a
+                                      batch.
+                                    </p>
+                                  );
+                                }
+                                if (isOpQuoted) {
+                                  return (
+                                    <CollapsibleFieldSection
+                                      compact
+                                      title="Actions"
+                                      description={
+                                        returnEstimateAccepted ?
+                                          "Accept estimate, preview, or cancel return"
+                                        : showReturnRequest ?
+                                          "Return, preview, and accept"
+                                        : showReturnPreview ?
+                                          "Preview return while estimate is prepared"
+                                        : "Preview and accept service estimate"
+                                      }
+                                      defaultOpen={
+                                        showReturnActions || returnEstimateAccepted
+                                      }
+                                      className="min-w-[11.5rem] bg-background/60"
+                                    >
+                                      <div className="flex flex-col gap-2">
+                                        {showReturnRequest ?
+                                          <OutsidePurchaseReturnRequestDialog
+                                            itemRequestId={r.id}
+                                            productLabel={
+                                              r.productName?.trim() || undefined
+                                            }
+                                            warning={isOutsidePurchaseProblemReceiptCondition(
+                                              r,
+                                            )}
+                                          />
+                                        : null}
+                                        {showReturnPreview ?
+                                          <OutsidePurchaseReturnPreviewDialog
+                                            request={r}
+                                            returnRequest={returnReq}
+                                          />
+                                        : null}
+                                        {showAccept ?
+                                          <AcceptQuoteButton itemRequestId={r.id} />
+                                        : null}
+                                        {showTablePreviewEstimate ?
+                                          inBundledBatch ?
+                                            <p className="text-center text-[11px] text-muted-foreground">
+                                              Preview via Batch Quotes
+                                            </p>
+                                          : <QuoteEstimatePreviewDialog
+                                              itemRequestId={r.id}
+                                              label="Preview estimate"
+                                            />
+                                        : null}
+                                        {showCancelReturn ?
+                                          <OutsidePurchaseCancelReturnButton
+                                            itemRequestId={r.id}
+                                            productLabel={
+                                              r.productName?.trim() || undefined
+                                            }
+                                          />
+                                        : null}
+                                      </div>
+                                    </CollapsibleFieldSection>
+                                  );
+                                }
+
+                                return showAccept ?
+                                    <AcceptQuoteButton itemRequestId={r.id} />
+                                  : null;
+                              })()
+                            : null}
                             {r.status === "pending" ? (
                               <Button
                                 type="button"
@@ -909,6 +1096,23 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                 Remove request
                               </Button>
                             ) : null}
+                            {r.status === "out_of_stock" ? (
+                              <>
+                                <OutOfStockProductPreviewDialog request={r} />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={removingRequests}
+                                  className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={() =>
+                                    onRemovePendingRequest(r.id, { outOfStock: true })
+                                  }
+                                >
+                                  Remove from product record
+                                </Button>
+                              </>
+                            ) : showTablePreviewEstimate && !isOpQuoted ? (
                             <div
                               className={cn(inBatchSelection && "opacity-80")}
                               title={
@@ -930,6 +1134,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                 />
                               )}
                             </div>
+                            ) : null}
                           </td>
                           <td className="whitespace-nowrap px-3 py-3 align-top text-xs text-muted-foreground">
                             <time dateTime={r.createdAt}>
@@ -992,6 +1197,53 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
       )}
         </>
       ) : null}
+
+      <Dialog
+        open={removeCheckedDialogOpen}
+        onOpenChange={(open) => {
+          if (!removingRequests) setRemoveCheckedDialogOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton={!removingRequests}>
+          <DialogHeader>
+            <DialogTitle>
+              {removableCheckedCount === 1 ?
+                "Remove this product from Active?"
+              : `Remove ${removableCheckedCount} products from Active?`}
+            </DialogTitle>
+            <DialogDescription>
+              {removableCheckedCount === 1 ?
+                "This moves the checked product to Product history. Staff can still see the record. You can reinstate it from the History tab later."
+              : `This moves ${removableCheckedCount} checked products to Product history. Staff can still see the records. You can reinstate them from the History tab later.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={removingRequests}
+              onClick={() => setRemoveCheckedDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={removingRequests}
+              onClick={confirmRemoveCheckedProducts}
+            >
+              {removingRequests ? (
+                <>
+                  <Loader2Icon className="mr-2 size-3.5 animate-spin" aria-hidden />
+                  Removing…
+                </>
+              ) : removableCheckedCount === 1 ?
+                "Remove product"
+              : "Remove products"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

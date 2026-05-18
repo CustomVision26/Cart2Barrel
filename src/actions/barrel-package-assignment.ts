@@ -14,21 +14,44 @@ import {
   orders,
   packages,
 } from "@/db/schema";
+import { getBarrelLabelById } from "@/data/barrel-package-assignment";
+import { ensureInBarrelAwaitingShippingEnumValue } from "@/data/ensure-in-barrel-fulfillment-enum";
 import {
-  ensurePackagesForAwaitingBarrelOwner,
-  getBarrelLabelById,
-} from "@/data/barrel-package-assignment";
+  BARREL_PIPELINE_AWAITING_ASSIGNMENT,
+  BARREL_PIPELINE_IN_CONTAINER,
+  BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID,
+  isProductToBarrelFulfillmentStatus,
+} from "@/lib/barrel-pipeline-fulfillment";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import type { BarrelAssignmentActionState } from "@/lib/barrel-assignment-action-state";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 import {
   adminReassignPackageBarrelSchema,
   adminRemovePackageFromBarrelSchema,
-  userAssignPackageToBarrelSchema,
 } from "@/lib/validations/barrel-package-assignment";
 
-export type BarrelAssignmentActionState =
-  | { ok: true; message: string }
-  | { ok: false; message: string };
+async function setOrderItemBarrelPipelineFulfillment(
+  orderItemId: string,
+  status:
+    | typeof BARREL_PIPELINE_AWAITING_ASSIGNMENT
+    | typeof BARREL_PIPELINE_IN_CONTAINER
+    | typeof BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID,
+): Promise<void> {
+  if (status === BARREL_PIPELINE_IN_CONTAINER) {
+    const ready = await ensureInBarrelAwaitingShippingEnumValue();
+    if (!ready) {
+      throw new Error(
+        "Database is missing fulfillment status in_barrel_awaiting_shipping. Run npm run db:push.",
+      );
+    }
+  }
+  const db = getDb();
+  await db
+    .update(orderItems)
+    .set({ fulfillmentStatus: status })
+    .where(eq(orderItems.id, orderItemId));
+}
 
 function revalidateBarrelAssignmentPaths(): void {
   revalidatePath("/dashboard/barrels");
@@ -40,103 +63,32 @@ function revalidateBarrelAssignmentPaths(): void {
 }
 
 export async function userAssignPackageToBarrelAction(
-  raw: unknown,
+  _raw: unknown,
 ): Promise<BarrelAssignmentActionState> {
   const { userId } = await auth();
   if (!userId) {
     return { ok: false, message: "You must be signed in." };
   }
 
-  const parsed = userAssignPackageToBarrelSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { ok: false, message: "Invalid assignment request." };
-  }
-  const { packageId, barrelId } = parsed.data;
+  return {
+    ok: false,
+    message:
+      "Container assignment is handled by staff. View your assignment status on this page.",
+  };
+}
 
-  await ensurePackagesForAwaitingBarrelOwner(userId);
-
-  const db = getDb();
-
-  const [ctx] = await db
-    .select({
-      pkg: packages,
-      oi: orderItems,
-      ord: orders,
-      req: itemRequests,
-    })
-    .from(packages)
-    .innerJoin(orderItems, eq(packages.orderItemId, orderItems.id))
-    .innerJoin(orders, eq(orderItems.orderId, orders.id))
-    .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
-    .where(eq(packages.id, packageId))
-    .limit(1);
-
-  if (!ctx || ctx.ord.clerkUserId !== userId) {
-    return { ok: false, message: "Package not found." };
+export async function userUnassignPackageFromBarrelAction(
+  _raw: unknown,
+): Promise<BarrelAssignmentActionState> {
+  const { userId } = await auth();
+  if (!userId) {
+    return { ok: false, message: "You must be signed in." };
   }
 
-  if (ctx.ord.status !== "paid") {
-    return { ok: false, message: "Order must be paid before barrel assignment." };
-  }
-
-  if (ctx.oi.fulfillmentStatus !== "delivery_received_good_awaiting_barrel") {
-    return {
-      ok: false,
-      message:
-        "This product is not in “delivery received: good — awaiting barrel” status.",
-    };
-  }
-
-  const [barrelRow] = await db
-    .select()
-    .from(barrels)
-    .where(and(eq(barrels.id, barrelId), eq(barrels.clerkUserId, userId))!)
-    .limit(1);
-
-  if (!barrelRow) {
-    return {
-      ok: false,
-      message: "Pick one of your paid containers (barrel slots) from the list.",
-    };
-  }
-
-  if (barrelRow.status !== "filling") {
-    return {
-      ok: false,
-      message: "That container is no longer open for packing. Choose another slot.",
-    };
-  }
-
-  const existing = await db
-    .select({ id: barrelItems.id })
-    .from(barrelItems)
-    .where(eq(barrelItems.packageId, packageId))
-    .limit(1);
-  if (existing[0]) {
-    return { ok: false, message: "This product is already assigned to a barrel." };
-  }
-
-  const toLabel = (await getBarrelLabelById(barrelId)) ?? barrelId;
-
-  const productLabel =
-    ctx.req.productName?.trim() || "Unnamed product";
-
-  await db.insert(barrelItems).values({ barrelId, packageId });
-  await db.insert(barrelPackageAssignmentEvents).values({
-    ownerClerkUserId: userId,
-    packageId,
-    orderItemId: ctx.oi.id,
-    fromBarrelId: null,
-    toBarrelId: barrelId,
-    action: "assigned",
-    actorClerkUserId: userId,
-    productNameSnapshot: productLabel,
-    barrelLabelSnapshot: toLabel,
-    adminNote: null,
-  });
-
-  revalidateBarrelAssignmentPaths();
-  return { ok: true, message: `Assigned to ${toLabel}.` };
+  return {
+    ok: false,
+    message: "Container changes are handled by staff. Contact support if you need a move.",
+  };
 }
 
 export async function adminReassignPackageBarrelAction(
@@ -173,10 +125,10 @@ export async function adminReassignPackageBarrelAction(
     return { ok: false, message: "Package not found." };
   }
 
-  if (ctx.oi.fulfillmentStatus !== "delivery_received_good_awaiting_barrel") {
+  if (!isProductToBarrelFulfillmentStatus(ctx.oi.fulfillmentStatus)) {
     return {
       ok: false,
-      message: "Only lines awaiting barrel can be reassigned here.",
+      message: "This product is not in the barrel packing pipeline.",
     };
   }
 
@@ -198,6 +150,20 @@ export async function adminReassignPackageBarrelAction(
     };
   }
 
+  if (toBarrel.status !== "filling") {
+    return {
+      ok: false,
+      message: "That container is not open for packing (already marked full or shipped).",
+    };
+  }
+
+  if (toBarrel.capacityPercentage >= 100) {
+    return {
+      ok: false,
+      message: "That container is at 100% load. Mark it full or lower progress before assigning more items.",
+    };
+  }
+
   const [existingBi] = await db
     .select()
     .from(barrelItems)
@@ -216,6 +182,11 @@ export async function adminReassignPackageBarrelAction(
   }
 
   await db.insert(barrelItems).values({ barrelId: toBarrelId, packageId });
+
+  await setOrderItemBarrelPipelineFulfillment(
+    ctx.oi.id,
+    BARREL_PIPELINE_IN_CONTAINER,
+  );
 
   const toLabel = (await getBarrelLabelById(toBarrelId)) ?? toBarrelId;
   const fromLabel = fromBarrelId ?
@@ -240,7 +211,10 @@ export async function adminReassignPackageBarrelAction(
   });
 
   revalidateBarrelAssignmentPaths();
-  return { ok: true, message: "Assignment updated." };
+  return {
+    ok: true,
+    message: fromBarrelId ? "Assignment updated." : `Assigned to ${toLabel}.`,
+  };
 }
 
 export async function adminRemovePackageFromBarrelAction(
@@ -295,6 +269,12 @@ export async function adminRemovePackageFromBarrelAction(
 
   await db.delete(barrelItems).where(eq(barrelItems.packageId, packageId));
 
+  const revertStatus = isOutsidePurchaseRequest(ctx.req) ?
+    BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID
+  : BARREL_PIPELINE_AWAITING_ASSIGNMENT;
+
+  await setOrderItemBarrelPipelineFulfillment(ctx.oi.id, revertStatus);
+
   await db.insert(barrelPackageAssignmentEvents).values({
     ownerClerkUserId: ctx.ord.clerkUserId,
     packageId,
@@ -309,5 +289,8 @@ export async function adminRemovePackageFromBarrelAction(
   });
 
   revalidateBarrelAssignmentPaths();
-  return { ok: true, message: "Removed from barrel." };
+  return {
+    ok: true,
+    message: "Removed from container. Status reverted to awaiting barrel assignment.",
+  };
 }

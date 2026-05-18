@@ -6,10 +6,10 @@ import { currentUser } from "@clerk/nextjs/server";
 
 import { getDb } from "@/db";
 import {
-  merchantPackingComboFees,
   merchantPackingFeeSettings,
   serviceHandlingFeeTiers,
 } from "@/db/schema";
+import type { ContainerPackingRates } from "@/lib/container-packing-fee";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import {
   merchantPackingCardSaveSchema,
@@ -20,54 +20,41 @@ export type UpdateMerchantPricingSettingsState =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
-async function replaceMerchantPackingComboRows(
-  combos: { barrelCount: number; binCount: number; feeCents: number }[],
-): Promise<void> {
-  const db = getDb();
-  await db.delete(merchantPackingComboFees);
-  if (combos.length === 0) return;
-  await db.insert(merchantPackingComboFees).values(
-    combos.map((c, i) => ({
-      barrelCount: c.barrelCount,
-      binCount: c.binCount,
-      feeCents: c.feeCents,
-      sortIndex: i + 1,
-    })),
-  );
-}
-
-/** Clears legacy per-kind columns; combo table is the source of truth for container mixes. */
 async function upsertMerchantPackingRow(params: {
   packingFeePerLineCents: number;
+  containerPackingRates: ContainerPackingRates;
 }): Promise<void> {
   const db = getDb();
+  const { containerPackingRates: r } = params;
   const [existing] = await db
     .select({ k: merchantPackingFeeSettings.singletonKey })
     .from(merchantPackingFeeSettings)
     .where(eq(merchantPackingFeeSettings.singletonKey, "default"))
     .limit(1);
 
+  const values = {
+    packingFeePerLineCents: params.packingFeePerLineCents,
+    barrelShippingFeeCents: r.singleBarrelPackingFeeCents,
+    binShippingFeeCents: r.singleBinPackingFeeCents,
+    multiBarrelPackingPerUnitCents: r.multiBarrelPackingPerUnitCents,
+    multiBinPackingPerUnitCents: r.multiBinPackingPerUnitCents,
+    updatedAt: sql`now()`,
+  };
+
   if (existing) {
     await db
       .update(merchantPackingFeeSettings)
-      .set({
-        packingFeePerLineCents: params.packingFeePerLineCents,
-        barrelShippingFeeCents: 0,
-        binShippingFeeCents: 0,
-        updatedAt: sql`now()`,
-      })
+      .set(values)
       .where(eq(merchantPackingFeeSettings.singletonKey, "default"));
   } else {
     await db.insert(merchantPackingFeeSettings).values({
       singletonKey: "default",
-      packingFeePerLineCents: params.packingFeePerLineCents,
-      barrelShippingFeeCents: 0,
-      binShippingFeeCents: 0,
+      ...values,
     });
   }
 }
 
-/** Saves flat packing per line + manual (barrel × bin) combination fees. Service tiers unchanged. */
+/** Saves flat packing per line + per-kind container packing rates. Service tiers unchanged. */
 export async function updateMerchantPackingBarrelFeesAction(
   raw: unknown,
 ): Promise<UpdateMerchantPricingSettingsState> {
@@ -84,9 +71,9 @@ export async function updateMerchantPackingBarrelFeesAction(
 
   const d = parsed.data;
   try {
-    await replaceMerchantPackingComboRows(d.combos);
     await upsertMerchantPackingRow({
       packingFeePerLineCents: d.packingFeePerLineCents,
+      containerPackingRates: d.containerPackingRates,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not save settings.";
@@ -94,8 +81,9 @@ export async function updateMerchantPackingBarrelFeesAction(
       ok: false,
       message:
         msg.includes("merchant_packing_fee_settings") ||
-        msg.includes("merchant_packing_combo_fees")
-          ? "Database is missing packing tables or columns. Run migrations (0034–0035) or npm run db:push, then try again."
+        msg.includes("multi_barrel_packing") ||
+        msg.includes("multi_bin_packing")
+          ? "Database is missing packing columns. Run migration 0036 or npm run db:push, then try again."
           : msg,
     };
   }
@@ -104,7 +92,7 @@ export async function updateMerchantPackingBarrelFeesAction(
   revalidatePath("/admin/item-requests", "layout");
   revalidatePath("/dashboard/cart");
   revalidatePath("/dashboard/barrels");
-  return { ok: true, message: "Packing and combination fees saved." };
+  return { ok: true, message: "Packing and container fees saved." };
 }
 
 export async function updateMerchantPricingSettingsAction(
@@ -121,7 +109,7 @@ export async function updateMerchantPricingSettingsAction(
     return { ok: false, message: first };
   }
 
-  const { packingFeePerLineCents, combos, tiers } = parsed.data;
+  const { packingFeePerLineCents, containerPackingRates, tiers } = parsed.data;
   const sorted = [...tiers].sort(
     (a, b) => a.maxUnitPriceInclusiveCents - b.maxUnitPriceInclusiveCents,
   );
@@ -137,8 +125,10 @@ export async function updateMerchantPricingSettingsAction(
       })),
     );
 
-    await replaceMerchantPackingComboRows(combos);
-    await upsertMerchantPackingRow({ packingFeePerLineCents });
+    await upsertMerchantPackingRow({
+      packingFeePerLineCents,
+      containerPackingRates,
+    });
 
     revalidatePath("/admin/overview");
     revalidatePath("/admin/item-requests", "layout");
@@ -151,9 +141,8 @@ export async function updateMerchantPricingSettingsAction(
       ok: false,
       message:
         msg.includes("service_handling_fee_tiers") ||
-        msg.includes("merchant_packing_fee_settings") ||
-        msg.includes("merchant_packing_combo_fees")
-          ? "Database is missing pricing tables or columns. Run migrations (0032–0035) or npm run db:push, then try again."
+        msg.includes("merchant_packing_fee_settings")
+          ? "Database is missing pricing tables or columns. Run migrations (0032–0036) or npm run db:push, then try again."
           : msg,
     };
   }

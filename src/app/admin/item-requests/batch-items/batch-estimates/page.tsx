@@ -1,15 +1,29 @@
 import { AdminBatchQuoteHistoryPanel } from "@/components/admin/admin-batch-quote-history-panel";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import {
+  filterAdminSubmittedBatchBundles,
+  parseAdminCustomerFilter,
+} from "@/lib/admin-customer-filter";
 
-export default async function AdminBatchItemsBatchEstimatesPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminBatchItemsBatchEstimatesPage({
+  searchParams,
+}: PageProps) {
+  const { clerkUserId } = parseAdminCustomerFilter((await searchParams) ?? {});
   const result = await loadAdminItemRequestsPagePayload();
 
   if (!result.ok || result.payload.noData) {
     return null;
   }
 
-  const { batchQuoteHistoryBundles, batchQuoteHistoryLatestQuotesByRequestId } =
-    result.payload;
+  const { batchQuoteHistoryLatestQuotesByRequestId } = result.payload;
+  const batchQuoteHistoryBundles = filterAdminSubmittedBatchBundles(
+    result.payload.batchQuoteHistoryBundles,
+    clerkUserId,
+  );
 
   if (batchQuoteHistoryBundles.length === 0) {
     return (

@@ -4,6 +4,11 @@ import { AdminBatchItemsTable } from "@/components/admin/admin-batch-items-table
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
 import { listSubmittedBatchSessionsForAdminPage } from "@/data/batch-quote-sessions";
 import {
+  filterAdminSubmittedBatchBundles,
+  parseAdminCustomerFilter,
+  withAdminCustomerFilter,
+} from "@/lib/admin-customer-filter";
+import {
   adminSubmittedBatchListHrefMerge,
   parseAdminSubmittedBatchListQuery,
 } from "@/lib/admin-submitted-batch-list-params";
@@ -22,19 +27,30 @@ export default async function AdminBatchItemsSubmittedPage({
   }
 
   const sp = (await searchParams) ?? {};
+  const { clerkUserId } = parseAdminCustomerFilter(sp);
   const query = parseAdminSubmittedBatchListQuery(sp);
-  const { bundles, totalCount } =
-    await listSubmittedBatchSessionsForAdminPage(query);
-  const queueTotalCount = result.payload.submittedBatchBundles.length;
+  const pageResult = await listSubmittedBatchSessionsForAdminPage(query);
+  const bundles = filterAdminSubmittedBatchBundles(pageResult.bundles, clerkUserId);
+  const totalCount = clerkUserId ? bundles.length : pageResult.totalCount;
+  const queueTotalCount = filterAdminSubmittedBatchBundles(
+    result.payload.submittedBatchBundles,
+    clerkUserId,
+  ).length;
 
   const maxPage = Math.max(1, Math.ceil(totalCount / query.pageSize));
 
+  const hrefFor = (patch: Partial<typeof query>) =>
+    withAdminCustomerFilter(
+      adminSubmittedBatchListHrefMerge(query, patch),
+      clerkUserId,
+    );
+
   if (totalCount === 0 && query.page > 1) {
-    redirect(adminSubmittedBatchListHrefMerge(query, { page: 1 }));
+    redirect(hrefFor({ page: 1 }));
   }
 
   if (totalCount > 0 && query.page > maxPage) {
-    redirect(adminSubmittedBatchListHrefMerge(query, { page: maxPage }));
+    redirect(hrefFor({ page: maxPage }));
   }
 
   return (

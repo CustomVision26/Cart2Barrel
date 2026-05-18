@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
+import type { AdminListQuery } from "@/lib/admin-customer-filter";
 import type {
   PaidOrderLineSort,
   PaidOrdersQueryInput,
@@ -43,8 +44,8 @@ import {
 } from "@/lib/db-column-missing";
 import { ADMIN_PURCHASE_ORDERS_QUEUE_FULFILLMENT_STATUSES } from "@/lib/warehouse-receipt-queue";
 
-const batchDirect = alias(batchQuoteSessions, "purchase_q_batch_direct");
-const batchViaLine = alias(batchQuoteSessions, "purchase_q_batch_via_line");
+const batchDirect = alias(batchQuoteSessions, "paid_ord_batch_direct");
+const batchViaLine = alias(batchQuoteSessions, "paid_ord_batch_via_line");
 
 const resolvedBatchSessionIdSel = sql<string | null>`
   CAST(
@@ -264,15 +265,19 @@ async function fetchLineRowsForIds(
 }
 
 async function listPurchaseQueueInner(
-  queryInput: PaidOrdersQueryInput,
+  queryInput: AdminListQuery,
   mode: AdminPurchaseQueueMode,
   purchasePendingFulfillmentIn?: OrderItem["fulfillmentStatus"][],
 ): Promise<PurchaseQueuePageResult> {
   const db = getDb();
   const searchCond = buildPaidOrdersSearchPredicate(queryInput.q);
   const baseWhere = queueBaseWhere(mode, purchasePendingFulfillmentIn);
+  const ownerWhere =
+    queryInput.userId ?
+      and(baseWhere, eq(orders.clerkUserId, queryInput.userId))!
+    : baseWhere;
   const whereCombined =
-    searchCond ? and(baseWhere, searchCond)! : baseWhere;
+    searchCond ? and(ownerWhere, searchCond)! : ownerWhere;
 
   const [{ cnt }] = await db
     .select({
@@ -364,7 +369,7 @@ async function listPurchaseQueueInner(
 }
 
 export async function listAdminPurchaseQueuePage(
-  queryInput: PaidOrdersQueryInput,
+  queryInput: AdminListQuery,
 ): Promise<PurchaseQueuePageResult> {
   try {
     return await listPurchaseQueueInner(queryInput, "purchase_pending");
@@ -384,7 +389,7 @@ export async function listAdminPurchaseQueuePage(
 }
 
 export async function listAdminPackagesQueuePage(
-  queryInput: PaidOrdersQueryInput,
+  queryInput: AdminListQuery,
 ): Promise<PurchaseQueuePageResult> {
   try {
     return await listPurchaseQueueInner(queryInput, "packages_awaiting_barrel");

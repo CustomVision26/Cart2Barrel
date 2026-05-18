@@ -1,10 +1,11 @@
 import Link from "next/link";
 
+import type { AdminListQuery } from "@/lib/admin-customer-filter";
+import { ADMIN_CUSTOMER_FILTER_PARAM } from "@/lib/admin-customer-filter";
 import {
   buildAdminOrdersListHref,
   paidOrderLineSortValues,
   type PaidOrderLineSort,
-  type PaidOrdersQueryInput,
 } from "@/lib/paid-orders-list-params";
 
 function sortOptionLabel(sort: PaidOrderLineSort): string {
@@ -39,7 +40,7 @@ function sortOptionLabel(sort: PaidOrderLineSort): string {
 }
 
 export function AdminOrdersListControls(props: {
-  query: PaidOrdersQueryInput;
+  query: AdminListQuery;
   totalOrders: number;
   page: number;
   totalPages: number;
@@ -121,6 +122,13 @@ export function AdminOrdersListControls(props: {
           </select>
         </div>
         <input type="hidden" name="page" value="1" />
+        {query.userId ?
+          <input
+            type="hidden"
+            name={ADMIN_CUSTOMER_FILTER_PARAM}
+            value={query.userId}
+          />
+        : null}
         <button
           type="submit"
           className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"

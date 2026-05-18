@@ -3,16 +3,24 @@
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@clerk/nextjs/server";
 
-import { fetchPageHtmlForAi } from "@/lib/ai/fetch-page-for-ai";
+import {
+  fetchPageHtmlForAi,
+  RetailerPageBlockedError,
+  retailerPageFetchBlockedUserMessage,
+} from "@/lib/ai/fetch-page-for-ai";
 import { extractProductWithOpenAI } from "@/lib/ai/extract-product-openai";
 import type { AiProductExtraction } from "@/lib/ai/extract-product-openai";
+import { hostnameFromProductUrl } from "@/lib/site-name";
 import {
   computeLineEstimateCents,
   getAdminMarkupSettings,
   type AdminMarkupSettings,
   type LineEstimateCents,
 } from "@/lib/admin-markup";
-import { applyAiExtractionPatchToItemRequest } from "@/data/item-requests";
+import {
+  applyAiExtractionPatchToItemRequest,
+  getItemRequestById,
+} from "@/data/item-requests";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminAiEstimateRequest } from "@/lib/validations/admin-ai-estimate";
@@ -55,30 +63,55 @@ export async function adminAiEstimateFromUrlAction(
     return { ok: false, fieldErrors, message: "Invalid input." };
   }
 
-  const { productUrl, quantity, productSize, productColor, itemRequestId } =
-    parsed.data;
+  const {
+    productUrl,
+    quantity,
+    productSize,
+    productColor,
+    itemRequestId,
+    skipPageFetch,
+  } = parsed.data;
   const settings = getAdminMarkupSettings();
-  const feeSnap = await getMerchantPricingForEstimates();
 
   try {
-    const html = await fetchPageHtmlForAi(productUrl);
+    let feeOwnerId: string | undefined;
+    if (itemRequestId) {
+      const req = await getItemRequestById(itemRequestId);
+      feeOwnerId = req?.clerkUserId;
+    }
+    const feeSnap = await getMerchantPricingForEstimates(feeOwnerId);
     const variantContext = {
       quantity,
       productSize: productSize ?? null,
       productColor: productColor ?? null,
     };
-    const extraction = await extractProductWithOpenAI(
-      html,
-      productUrl,
-      variantContext
-    );
+
+    let extraction: AiProductExtraction;
+    if (skipPageFetch) {
+      extraction = {
+        productName: null,
+        siteName: hostnameFromProductUrl(productUrl),
+        unitPriceUsd: null,
+        productImageUrl: null,
+        color: productColor ?? null,
+        size: productSize ?? null,
+        notes:
+          "Manual quote — product page was not fetched (retailer blocked automated access or staff chose manual entry).",
+      };
+    } else {
+      const html = await fetchPageHtmlForAi(productUrl);
+      extraction = await extractProductWithOpenAI(
+        html,
+        productUrl,
+        variantContext
+      );
+    }
     const unitPriceCents =
       extraction.unitPriceUsd != null
         ? Math.round(extraction.unitPriceUsd * 100)
         : null;
     const estimate = computeLineEstimateCents(unitPriceCents, quantity, settings, {
       serviceTiers: feeSnap.serviceTiers,
-      packingFeePerLineCents: feeSnap.packingFeePerLineCents,
     });
 
     if (itemRequestId) {
@@ -102,7 +135,13 @@ export async function adminAiEstimateFromUrlAction(
       settings,
     };
   } catch (e) {
+    if (e instanceof RetailerPageBlockedError) {
+      return { ok: false, message: e.message };
+    }
     const msg = e instanceof Error ? e.message : "Something went wrong.";
+    if (/http 40[13]|http 429/i.test(msg)) {
+      return { ok: false, message: retailerPageFetchBlockedUserMessage() };
+    }
     return { ok: false, message: msg };
   }
 }

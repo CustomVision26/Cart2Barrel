@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Loader2Icon, SparklesIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   adminAiEstimateFromUrlAction,
@@ -25,6 +26,9 @@ import {
   computePackLineMerchandiseAndServiceCents,
 } from "@/lib/admin-markup";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
+import { isRetailerPageFetchBlockedMessage } from "@/lib/ai/fetch-page-for-ai";
+import { persistStagedProductImage } from "@/lib/persist-staged-product-image";
+import { revokeBlobPreviewUrl } from "@/lib/staged-product-image";
 
 function parseDollarsToCents(raw: string): number {
   const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");
@@ -83,13 +87,16 @@ export function AdminAiEstimateDialog({
   const [editSavingsDollars, setEditSavingsDollars] = useState("0.00");
   const [merchandiseIncludesSiteShippingTax, setMerchandiseIncludesSiteShippingTax] =
     useState(false);
+  const [editStaffNote, setEditStaffNote] = useState("");
 
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  /** Blob URL after admin manual upload when AI found no listing image. */
+  /** Preview URL (HTTPS or local blob) for display. */
   const [uploadedProductImageUrl, setUploadedProductImageUrl] = useState<
     string | null
   >(null);
+  /** Manual upload held until Save quote. */
+  const [stagedProductImageFile, setStagedProductImageFile] = useState<File | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -101,8 +108,13 @@ export function AdminAiEstimateDialog({
     setIncludePackPriceInEstimate(true);
     setEditConsumerUnitOverrideDollars("");
     setEditSavingsDollars("0.00");
+    setEditStaffNote("");
     setMerchandiseIncludesSiteShippingTax(false);
-    setUploadedProductImageUrl(null);
+    setStagedProductImageFile(null);
+    setUploadedProductImageUrl((prev) => {
+      revokeBlobPreviewUrl(prev);
+      return null;
+    });
   }, [open, initialQuantity, initialProductSize, initialProductColor]);
 
   useEffect(() => {
@@ -129,26 +141,49 @@ export function AdminAiEstimateDialog({
     if (result.extraction.productImageUrl?.trim()) {
       setUploadedProductImageUrl(result.extraction.productImageUrl.trim());
     }
-    setSaveMessage(null);
-    setSaveError(null);
   }, [result]);
 
-  const runAi = useCallback(() => {
-    setResult(null);
-    setUploadedProductImageUrl(null);
-    setSaveMessage(null);
-    setSaveError(null);
-    startAiTransition(async () => {
-      const res = await adminAiEstimateFromUrlAction({
-        productUrl,
-        quantity,
-        productSize: variantSize.trim() || undefined,
-        productColor: variantColor.trim() || undefined,
-        itemRequestId,
+  const handleProductImageStaged = useCallback(
+    (file: File, previewUrl: string) => {
+      revokeBlobPreviewUrl(uploadedProductImageUrl);
+      setStagedProductImageFile(file);
+      setUploadedProductImageUrl(previewUrl);
+    },
+    [uploadedProductImageUrl],
+  );
+
+  const runEstimate = useCallback(
+    (skipPageFetch: boolean) => {
+      setResult(null);
+      if (!skipPageFetch) {
+        revokeBlobPreviewUrl(uploadedProductImageUrl);
+        setUploadedProductImageUrl(null);
+        setStagedProductImageFile(null);
+      }
+      startAiTransition(async () => {
+        const res = await adminAiEstimateFromUrlAction({
+          productUrl,
+          quantity,
+          productSize: variantSize.trim() || undefined,
+          productColor: variantColor.trim() || undefined,
+          itemRequestId,
+          skipPageFetch,
+        });
+        setResult(res);
       });
-      setResult(res);
-    });
-  }, [productUrl, quantity, variantSize, variantColor, itemRequestId]);
+    },
+    [
+      productUrl,
+      quantity,
+      variantSize,
+      variantColor,
+      itemRequestId,
+      uploadedProductImageUrl,
+    ]
+  );
+
+  const runAi = useCallback(() => runEstimate(false), [runEstimate]);
+  const runManualQuote = useCallback(() => runEstimate(true), [runEstimate]);
 
   const derived = useMemo(() => {
     if (!result?.ok) return null;
@@ -170,8 +205,6 @@ export function AdminAiEstimateDialog({
         ? null
         : overrideCentsRaw;
 
-    const packingCents = merchantEstimateFees?.packingFeePerLineCents ?? 0;
-
     const packLine = computePackLineMerchandiseAndServiceCents({
       packPriceCents: packCents,
       packCount,
@@ -192,8 +225,7 @@ export function AdminAiEstimateDialog({
 
     const ship = parseDollarsToCents(editShippingDollars);
     const tax = parseDollarsToCents(editTaxDollars);
-    const total =
-      merchNet + packLine.serviceFeeCents + ship + tax + packingCents;
+    const total = merchNet + packLine.serviceFeeCents + ship + tax;
 
     const impliedConsumerUnitCents =
       packLine.impliedConsumerUnitCents > 0
@@ -212,7 +244,6 @@ export function AdminAiEstimateDialog({
       serv: packLine.serviceFeeCents,
       ship,
       tax,
-      pack: packingCents,
       total,
       packCount,
       upp,
@@ -238,9 +269,24 @@ export function AdminAiEstimateDialog({
 
   const save = useCallback(() => {
     if (!result?.ok || !derived || derived.packCount < 1) return;
-    setSaveMessage(null);
-    setSaveError(null);
     startSaveTransition(async () => {
+      const fallbackUrl =
+        stagedProductImageFile ?
+          null
+        : uploadedProductImageUrl?.trim() ||
+          result.extraction.productImageUrl?.trim() ||
+          null;
+
+      const imageRes = await persistStagedProductImage(
+        itemRequestId,
+        stagedProductImageFile,
+        fallbackUrl,
+      );
+      if (!imageRes.ok) {
+        toast.error(imageRes.message);
+        return;
+      }
+
       const res = await saveAdminItemQuoteAction({
         itemRequestId,
         itemCost: derived.merch,
@@ -252,23 +298,17 @@ export function AdminAiEstimateDialog({
         merchandiseIncludesSiteShippingTax,
         productColor: variantColor.trim() || undefined,
         productSize: variantSize.trim() || undefined,
-        ...(uploadedProductImageUrl?.trim() ||
-        result.extraction.productImageUrl?.trim()
-          ? {
-              productImageUrl: (
-                uploadedProductImageUrl?.trim() ||
-                result.extraction.productImageUrl?.trim() ||
-                ""
-              ).trim(),
-            }
-          : {}),
+        staffNote: editStaffNote.trim() || undefined,
+        ...(imageRes.imageUrl ? { productImageUrl: imageRes.imageUrl } : {}),
       });
       if (res.ok) {
-        setSaveMessage(res.message ?? "Saved.");
+        revokeBlobPreviewUrl(uploadedProductImageUrl);
+        setStagedProductImageFile(null);
+        toast.success(res.message ?? "Quote saved.");
         router.refresh();
         return;
       }
-      setSaveError(res.message ?? "Could not save.");
+      toast.error(res.message ?? "Could not save quote.");
     });
   }, [
     result,
@@ -279,6 +319,8 @@ export function AdminAiEstimateDialog({
     router,
     merchandiseIncludesSiteShippingTax,
     uploadedProductImageUrl,
+    stagedProductImageFile,
+    editStaffNote,
   ]);
 
   return (
@@ -294,10 +336,11 @@ export function AdminAiEstimateDialog({
           setIncludePackPriceInEstimate(true);
           setEditConsumerUnitOverrideDollars("");
           setEditSavingsDollars("0.00");
-          setSaveMessage(null);
-          setSaveError(null);
+          setEditStaffNote("");
           setMerchandiseIncludesSiteShippingTax(false);
+          revokeBlobPreviewUrl(uploadedProductImageUrl);
           setUploadedProductImageUrl(null);
+          setStagedProductImageFile(null);
         }
       }}
     >
@@ -318,9 +361,9 @@ export function AdminAiEstimateDialog({
             When extraction succeeds, the HTTPS image URL is saved on the request right
             away for cart and shopper-facing lists. If AI finds no image, use{" "}
             <span className="font-medium text-foreground">Upload product image</span> to
-            store a file on Vercel Blob.{" "}
-            <span className="font-medium text-foreground">Save quote</span> keeps the image
-            on the request when one is set.
+            pick a file (preview only).{" "}
+            <span className="font-medium text-foreground">Save quote</span> uploads the
+            image and saves it on the request.
           </DialogDescription>
         </DialogHeader>
 
@@ -391,9 +434,20 @@ export function AdminAiEstimateDialog({
           </div>
 
           {result && !result.ok ? (
-            <p className="text-sm text-destructive" role="alert">
-              {result.message}
-            </p>
+            <div className="space-y-2" role="alert">
+              <p className="text-sm text-destructive">{result.message}</p>
+              {isRetailerPageFetchBlockedMessage(result.message) ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={isAiPending}
+                  onClick={runManualQuote}
+                >
+                  Enter quote manually
+                </Button>
+              ) : null}
+            </div>
           ) : null}
 
           {result?.ok && derived ? (
@@ -426,19 +480,11 @@ export function AdminAiEstimateDialog({
                 idPrefix="ai-est"
                 itemRequestId={itemRequestId}
                 productImageUrl={uploadedProductImageUrl}
-                onProductImageUploaded={setUploadedProductImageUrl}
+                deferProductImagePersist
+                onProductImageStaged={handleProductImageStaged}
+                editStaffNote={editStaffNote}
+                setEditStaffNote={setEditStaffNote}
               />
-              {saveError ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {saveError}
-                </p>
-              ) : null}
-              {saveMessage ? (
-                <p className="text-sm text-muted-foreground" role="status">
-                  {saveMessage}
-                </p>
-              ) : null}
-
               <Button
                 type="button"
                 className="w-full gap-1.5"

@@ -133,9 +133,27 @@ export function isMissingBatchQuoteSessionIdColumnError(e: unknown): boolean {
   return isUndefinedColumnError(e, "batch_quote_session_id");
 }
 
+/** `item_requests.outside_purchase_receipt_image_url` — migration `0044_outside_purchase_receipt_image` or `npm run db:push`. */
+export function isMissingOutsidePurchaseReceiptImageUrlColumnError(
+  e: unknown,
+): boolean {
+  return isUndefinedColumnError(e, "outside_purchase_receipt_image_url");
+}
+
 /** `item_quotes.merchandise_savings_cents` is missing until that migration applies. */
 export function isMissingMerchandiseSavingsColumnError(e: unknown): boolean {
   return isUndefinedColumnError(e, "merchandise_savings_cents");
+}
+
+/** `outside_purchase_return_requests` — migration `0047_outside_purchase_return_requests` or `npm run db:push`. */
+export function isMissingOutsidePurchaseReturnRequestsTableError(
+  e: unknown,
+): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("outside_purchase_return_requests")) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
 }
 
 /** Batch quote tables absent until migration applies. */
@@ -256,5 +274,17 @@ export function isMissingContainerCatalogSchemaError(e: unknown): boolean {
   if (code === "42P01") return true;
   if (/does not exist/.test(low) && /relation/.test(low)) return true;
   if (/failed query/i.test(low)) return true;
+  return false;
+}
+
+/** DB enum missing `out_of_stock` until migration `0041_item_request_out_of_stock` or `npm run db:push`. */
+export function isMissingItemRequestOutOfStockStatusError(e: unknown): boolean {
+  const low = `${combinedErrorText(e)}\n${String(e)}`.toLowerCase();
+  if (!low.includes("out_of_stock") && !low.includes("item_request_status")) {
+    return false;
+  }
+  if (/invalid input value for enum/i.test(low)) return true;
+  if (getPgErrorCode(e) === "22P02") return true;
+  if (/failed query/i.test(low) && low.includes("item_requests")) return true;
   return false;
 }

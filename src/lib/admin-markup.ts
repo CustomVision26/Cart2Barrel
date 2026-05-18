@@ -181,8 +181,8 @@ export type LineEstimateCents = {
 };
 
 /**
- * Merchandise = unit × qty. Service = per-unit tier fee × qty. Shipping flat. Packing flat per line.
- * Tax = bps × (merchandise + service + shipping + packing).
+ * Merchandise = unit × qty. Service = per-unit tier fee × qty. Shipping flat.
+ * Tax = bps × (merchandise + service + shipping). Per-line packing is not in estimates.
  */
 export function computeLineEstimateCents(
   unitPriceCents: number | null,
@@ -191,10 +191,7 @@ export function computeLineEstimateCents(
   feeOptions?: LineEstimateFeeOptions | null,
 ): LineEstimateCents {
   const estimatedShippingCents = settings.defaultShippingCents;
-  const packingFeeCents = Math.max(
-    0,
-    Math.round(Number(feeOptions?.packingFeePerLineCents) || 0),
-  );
+  const packingFeeCents = 0;
 
   if (unitPriceCents == null || unitPriceCents < 0) {
     return {
@@ -216,10 +213,7 @@ export function computeLineEstimateCents(
   );
   const serviceFeeCents = Math.round(perUnit * quantity);
   const preTax =
-    merchandiseSubtotalCents +
-    serviceFeeCents +
-    estimatedShippingCents +
-    packingFeeCents;
+    merchandiseSubtotalCents + serviceFeeCents + estimatedShippingCents;
   const taxCents =
     settings.taxBps > 0 ? Math.round((preTax * settings.taxBps) / 10_000) : 0;
   const totalCents = preTax + taxCents;

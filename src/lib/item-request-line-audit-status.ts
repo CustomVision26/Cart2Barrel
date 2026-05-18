@@ -9,6 +9,7 @@ import {
   refundRequestReasonKindLabel,
 } from "@/lib/refund-request-audit-memo";
 import { parseWarehouseReceiptMemo } from "@/lib/warehouse-receipt-snapshot-memo";
+import { PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL } from "@/lib/outside-purchase-paid-status";
 import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
 
 function trimEq(
@@ -63,6 +64,20 @@ export function auditSnapshotStatusHeadline(
       return "Batch estimate · admin copy";
     case "batch_request_submitted_to_staff":
       return "Batch sent to staff for pricing";
+    case "outside_purchase_intake":
+      return row.auditMemo?.trim() || "Outside purchase recorded by staff";
+    case "outside_purchase_payment_prompted":
+      return "Staff recorded payment prompt · add to cart";
+    case "outside_purchase_added_to_cart":
+      return "Customer added to cart · service & handling due at checkout";
+    case "outside_purchase_removed_from_cart":
+      return row.auditMemo?.trim() || "Customer updated cart membership";
+    case "outside_purchase_withdrawn_from_active":
+      return "Removed from Active · moved to Product history";
+    case "outside_purchase_reinstated_to_active":
+      return row.auditMemo?.trim() || "Back on Active · payment still due if unpaid";
+    case "outside_purchase_checkout_paid":
+      return row.auditMemo?.trim() || PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL;
     default:
       return itemRequestLineSnapshotPhaseLabel(row.phase);
   }

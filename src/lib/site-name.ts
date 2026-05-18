@@ -1,3 +1,9 @@
+import type { ItemRequest } from "@/db/schema";
+import {
+  isOutsidePurchaseRequest,
+  outsidePurchaseReferenceDisplay,
+} from "@/lib/outside-purchase";
+
 /** Hostname from a product page URL (lowercase, no leading www.). */
 export function hostnameFromProductUrl(productUrl: string): string | null {
   try {
@@ -18,4 +24,18 @@ export function displaySiteName(
   const s = siteName?.trim();
   if (s) return s;
   return hostnameFromProductUrl(productUrl) ?? "—";
+}
+
+/** Site column for item requests, including outside-purchase reference lines. */
+export function displayProductSiteName(
+  request: Pick<
+    ItemRequest,
+    "siteName" | "productUrl" | "source" | "outsidePurchaseReference"
+  >,
+): string {
+  if (isOutsidePurchaseRequest(request)) {
+    const ref = outsidePurchaseReferenceDisplay(request);
+    return ref ? `Outside purchase · ${ref}` : "Outside purchase";
+  }
+  return displaySiteName(request.siteName, request.productUrl);
 }

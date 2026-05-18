@@ -12,7 +12,7 @@ import {
   adminCustomerDisplayLabel,
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
-import { parsePaidOrdersQuery } from "@/lib/paid-orders-list-params";
+import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 type PageProps = {
@@ -68,7 +68,7 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
 
   const admin = isClerkAdmin(cu.user);
   const rawSp = (await searchParams) ?? {};
-  const query = parsePaidOrdersQuery(rawSp);
+  const query = parseAdminListQuery(rawSp);
 
   const pagePack =
     !admin ?

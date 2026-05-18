@@ -5,12 +5,19 @@ import { Loader2 } from "lucide-react";
 
 import { createCartCheckoutAction } from "@/actions/create-cart-checkout";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type CartCheckoutButtonProps = {
   checkoutEnabled: boolean;
+  className?: string;
+  size?: "default" | "sm" | "lg";
 };
 
-export function CartCheckoutButton({ checkoutEnabled }: CartCheckoutButtonProps) {
+export function CartCheckoutButton({
+  checkoutEnabled,
+  className,
+  size = "default",
+}: CartCheckoutButtonProps) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
@@ -30,7 +37,8 @@ export function CartCheckoutButton({ checkoutEnabled }: CartCheckoutButtonProps)
       <Button
         type="button"
         disabled={isPending}
-        className="w-full sm:w-auto"
+        size={size}
+        className={cn("font-semibold", className)}
         onClick={() => {
           setMessage(null);
           startTransition(async () => {

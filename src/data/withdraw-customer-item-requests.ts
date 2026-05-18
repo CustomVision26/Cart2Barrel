@@ -6,7 +6,9 @@ import {
   lineSnapshotPayloadFromItemRequest,
 } from "@/data/item-request-line-snapshots";
 import { voidActiveQuotesForItemRequest } from "@/data/item-quotes";
+import { insertOutsidePurchaseLifecycleSnapshot } from "@/data/outside-purchase-lifecycle-snapshot";
 import { getItemRequestById } from "@/data/item-requests";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { getDb } from "@/db";
 import { batchQuoteSessions, itemRequests } from "@/db/schema";
 import { ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION } from "@/lib/item-quote-void-reason";
@@ -34,7 +36,11 @@ export async function withdrawCustomerActiveItemRequestsForOwner(params: {
       throw new Error("One or more products could not be found.");
     }
 
-    if (row.status !== "pending" && row.status !== "quoted") {
+    if (
+      row.status !== "pending" &&
+      row.status !== "quoted" &&
+      row.status !== "out_of_stock"
+    ) {
       throw new Error("Some selected lines can no longer be removed. Refresh and try again.");
     }
 
@@ -76,6 +82,9 @@ export async function withdrawCustomerActiveItemRequestsForOwner(params: {
       );
     }
 
+    const statusBeforeWithdraw =
+      ready.status === "out_of_stock" ? "out_of_stock" : ready.status;
+
     const updated = await db
       .update(itemRequests)
       .set({ status: "withdrawn" })
@@ -83,7 +92,7 @@ export async function withdrawCustomerActiveItemRequestsForOwner(params: {
         and(
           eq(itemRequests.id, id),
           eq(itemRequests.clerkUserId, clerkUserId),
-          eq(itemRequests.status, ready.status)
+          eq(itemRequests.status, statusBeforeWithdraw)
         )
       )
       .returning({ id: itemRequests.id });
@@ -94,13 +103,22 @@ export async function withdrawCustomerActiveItemRequestsForOwner(params: {
 
     const afterWithdrawn = await getItemRequestById(id);
     if (afterWithdrawn && afterWithdrawn.status === "withdrawn") {
-      await insertItemRequestLineSnapshot({
-        itemRequestId: id,
-        phase: "customer_line_edit",
-        auditMemo:
-          "Customer removed this request from the Products tab (withdrawn).",
-        line: lineSnapshotPayloadFromItemRequest(afterWithdrawn),
-      });
+      if (isOutsidePurchaseRequest(afterWithdrawn)) {
+        await insertOutsidePurchaseLifecycleSnapshot({
+          request: afterWithdrawn,
+          phase: "outside_purchase_withdrawn_from_active",
+          auditMemo:
+            "Customer removed this outside purchase from Active (withdrawn to Product history).",
+        });
+      } else {
+        await insertItemRequestLineSnapshot({
+          itemRequestId: id,
+          phase: "customer_line_edit",
+          auditMemo:
+            "Customer removed this request from the Products tab (withdrawn).",
+          line: lineSnapshotPayloadFromItemRequest(afterWithdrawn),
+        });
+      }
     }
 
     withdrawnIds.push(id);

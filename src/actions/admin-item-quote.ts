@@ -17,7 +17,6 @@ import {
   patchItemRequestDisplayFieldsOnly,
   voidActiveQuotesForItemRequest,
 } from "@/data/item-quotes";
-import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT } from "@/lib/item-quote-void-reason";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
@@ -51,20 +50,17 @@ export async function saveAdminItemQuoteAction(
   }
 
   const d = parsed.data;
-  const { packingFeePerLineCents } = await getMerchantPricingForEstimates();
-  const packingFeeCents = Math.max(0, Math.round(Number(packingFeePerLineCents) || 0));
-  const totalPrice =
-    d.itemCost + d.serviceFee + d.estimatedShipping + d.tax + packingFeeCents;
-  const merchandiseSavingsCents =
-    d.merchandiseSavingsCents != null && d.merchandiseSavingsCents > 0
-      ? d.merchandiseSavingsCents
-      : null;
 
   try {
     const reqBefore = await getItemRequestById(d.itemRequestId);
     if (!reqBefore) {
       return { ok: false, message: "Item request not found." };
     }
+    const totalPrice = d.itemCost + d.serviceFee + d.estimatedShipping + d.tax;
+    const merchandiseSavingsCents =
+      d.merchandiseSavingsCents != null && d.merchandiseSavingsCents > 0
+        ? d.merchandiseSavingsCents
+        : null;
     await insertItemRequestLineSnapshot({
       itemRequestId: d.itemRequestId,
       phase: "pre_admin_estimate_edit",
@@ -96,10 +92,11 @@ export async function saveAdminItemQuoteAction(
       itemCost: d.itemCost,
       merchandiseSavingsCents,
       serviceFee: d.serviceFee,
-      packingFeeCents,
+      packingFeeCents: 0,
       estimatedShipping: d.estimatedShipping,
       totalPrice,
       merchandiseIncludesSiteShippingTax: d.merchandiseIncludesSiteShippingTax,
+      staffNote: d.staffNote ?? null,
       ...snap,
     });
     await getDb()

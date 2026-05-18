@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 
+import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { cn } from "@/lib/utils";
 
 type AdminOrdersTab = "orders" | "history";
@@ -17,6 +20,7 @@ export function AdminOrdersTabNav({
 }: {
   activeTab: AdminOrdersTab;
 }) {
+  const { hrefWithFilter } = useAdminCustomerFilter();
   return (
     <div
       role="tablist"
@@ -24,7 +28,7 @@ export function AdminOrdersTabNav({
       className="flex flex-wrap gap-1 border-b border-border"
     >
       <Link
-        href="/admin/orders"
+        href={hrefWithFilter("/admin/orders")}
         role="tab"
         aria-selected={activeTab === "orders"}
         className={tabClass(activeTab === "orders")}
@@ -32,7 +36,7 @@ export function AdminOrdersTabNav({
         Orders
       </Link>
       <Link
-        href="/admin/orders-history"
+        href={hrefWithFilter("/admin/orders-history")}
         role="tab"
         aria-selected={activeTab === "history"}
         className={tabClass(activeTab === "history")}

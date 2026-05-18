@@ -27,10 +27,9 @@ export default async function DashboardProductToBarrelPage() {
           Product to barrel
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Products that arrived in good condition and are waiting to be packed appear here. After
-          you pay for shipping containers at checkout, choose which open barrel slot each product
-          should go into. Staff can move items later if something does not fit or a barrel is
-          full.
+          Track products that arrived in good condition and staff container assignments. Assignment
+          and moves are handled by Cart2Barrel staff — this page shows fulfillment status, container
+          alias, and when each product was assigned.
         </p>
       </div>
       <DashboardProductToBarrelClient lines={lines} barrels={barrels} />

@@ -37,6 +37,14 @@ export const adminUpdateHistoricalQuoteSchema = z.object({
         return null;
       }
     }),
+  staffNote: z
+    .string()
+    .max(4000)
+    .optional()
+    .transform((s) => {
+      const t = s?.trim();
+      return t ? t : undefined;
+    }),
 });
 
 export type AdminUpdateHistoricalQuoteInput = z.infer<

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { cn } from "@/lib/utils";
 
 export type AdminBarrelsTab = "assign" | "history";
@@ -16,6 +17,7 @@ const tabLinkClass = (selected: boolean) =>
   );
 
 export function AdminBarrelsTabNav() {
+  const { hrefWithFilter } = useAdminCustomerFilter();
   const path = usePathname() ?? "";
   const activeTab: AdminBarrelsTab = path.endsWith("/assign-to-barrel-history")
     ? "history"
@@ -28,7 +30,7 @@ export function AdminBarrelsTabNav() {
       className="flex flex-wrap gap-1 border-b border-border"
     >
       <Link
-        href="/admin/barrels/assign-to-barrel"
+        href={hrefWithFilter("/admin/barrels/assign-to-barrel")}
         role="tab"
         aria-selected={activeTab === "assign"}
         className={tabLinkClass(activeTab === "assign")}
@@ -36,7 +38,7 @@ export function AdminBarrelsTabNav() {
         Assign to barrel
       </Link>
       <Link
-        href="/admin/barrels/assign-to-barrel-history"
+        href={hrefWithFilter("/admin/barrels/assign-to-barrel-history")}
         role="tab"
         aria-selected={activeTab === "history"}
         className={tabLinkClass(activeTab === "history")}

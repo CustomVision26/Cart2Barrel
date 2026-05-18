@@ -1,49 +1,16 @@
 import { z } from "zod";
 
-const packingComboRowSchema = z.object({
-  barrelCount: z.number().int().min(0).max(99_999),
-  binCount: z.number().int().min(0).max(99_999),
-  feeCents: z.number().int().min(0).max(50_000_000),
+export const containerPackingRatesSchema = z.object({
+  singleBarrelPackingFeeCents: z.number().int().min(0).max(50_000_000),
+  multiBarrelPackingPerUnitCents: z.number().int().min(0).max(50_000_000),
+  singleBinPackingFeeCents: z.number().int().min(0).max(50_000_000),
+  multiBinPackingPerUnitCents: z.number().int().min(0).max(50_000_000),
 });
 
-function refinePackingCombos(
-  combos: z.infer<typeof packingComboRowSchema>[],
-  ctx: z.RefinementCtx,
-  pathPrefix: (string | number)[],
-) {
-  const seen = new Set<string>();
-  for (let i = 0; i < combos.length; i++) {
-    const c = combos[i]!;
-    if (c.barrelCount + c.binCount < 1) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "Each combination must include at least one container (barrels or bins > 0).",
-        path: [...pathPrefix, i, "barrelCount"],
-      });
-      return;
-    }
-    const key = `${c.barrelCount},${c.binCount}`;
-    if (seen.has(key)) {
-      ctx.addIssue({
-        code: "custom",
-        message: `Duplicate combination (${c.barrelCount} barrel(s), ${c.binCount} bin(s)). Each mix may appear only once.`,
-        path: [...pathPrefix],
-      });
-      return;
-    }
-    seen.add(key);
-  }
-}
-
-export const merchantPackingCardSaveSchema = z
-  .object({
-    packingFeePerLineCents: z.number().int().min(0).max(5_000_000),
-    combos: z.array(packingComboRowSchema).max(128),
-  })
-  .superRefine((val, ctx) => {
-    refinePackingCombos(val.combos, ctx, ["combos"]);
-  });
+export const merchantPackingCardSaveSchema = z.object({
+  packingFeePerLineCents: z.number().int().min(0).max(5_000_000),
+  containerPackingRates: containerPackingRatesSchema,
+});
 
 const tierRowSchema = z.object({
   maxUnitPriceInclusiveCents: z
@@ -57,11 +24,10 @@ const tierRowSchema = z.object({
 export const updateMerchantPricingSettingsSchema = z
   .object({
     packingFeePerLineCents: z.number().int().min(0).max(5_000_000),
-    combos: z.array(packingComboRowSchema).max(128),
+    containerPackingRates: containerPackingRatesSchema,
     tiers: z.array(tierRowSchema).min(1).max(32),
   })
   .superRefine((val, ctx) => {
-    refinePackingCombos(val.combos, ctx, ["combos"]);
     const sorted = [...val.tiers].sort(
       (a, b) => a.maxUnitPriceInclusiveCents - b.maxUnitPriceInclusiveCents,
     );

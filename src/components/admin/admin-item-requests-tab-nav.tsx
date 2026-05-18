@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,7 @@ type AdminItemRequestsTabNavProps = {
 export function AdminItemRequestsTabNav({
   pendingBatchCount,
 }: AdminItemRequestsTabNavProps) {
+  const { hrefWithFilter } = useAdminCustomerFilter();
   const pathname = usePathname();
 
   const tabLinkClass = (selected: boolean) =>
@@ -38,7 +40,7 @@ export function AdminItemRequestsTabNav({
       className="flex flex-wrap gap-1 border-b border-border"
     >
       <Link
-        href={ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue}
+        href={hrefWithFilter(ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue)}
         role="tab"
         aria-selected={activeRequestsBranchActive}
         className={tabLinkClass(activeRequestsBranchActive)}
@@ -46,7 +48,7 @@ export function AdminItemRequestsTabNav({
         Active requests
       </Link>
       <Link
-        href={ADMIN_ITEM_REQUESTS_ROUTES.batchItemsSubmitted}
+        href={hrefWithFilter(ADMIN_ITEM_REQUESTS_ROUTES.batchItemsSubmitted)}
         role="tab"
         aria-selected={batchBranchActive}
         className={tabLinkClass(batchBranchActive)}

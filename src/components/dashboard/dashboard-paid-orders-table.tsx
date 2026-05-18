@@ -5,9 +5,11 @@ import Link from "next/link";
 
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
+import { CollapsibleOrderBatchBucket } from "@/components/orders/collapsible-order-batch-bucket";
 import { CollapsibleOrderTableSection } from "@/components/orders/collapsible-order-table-section";
 import { PaidOrderAccordionRoot } from "@/components/orders/paid-order-accordion";
 import { DashboardOrderLineTracking } from "@/components/dashboard/dashboard-order-line-tracking";
+import { DashboardCheckoutChargesPreviewDialog } from "@/components/dashboard/dashboard-checkout-charges-preview-dialog";
 import { DashboardRequestRefundDialog } from "@/components/dashboard/dashboard-request-refund-dialog";
 import {
   Dialog,
@@ -163,6 +165,11 @@ function OrderBlock({
           <span className="hidden text-muted-foreground sm:inline">
             · {lineCount === 1 ? "1 line" : `${lineCount} lines`}
           </span>
+          <DashboardCheckoutChargesPreviewDialog
+            scope="order"
+            orderId={order.id}
+            triggerLabel="Preview checkout charges"
+          />
         </>
       }
     >
@@ -177,8 +184,9 @@ function OrderBlock({
       : buckets.map((bucket, bi) => {
           if (bucket.kind === "batch") {
             return (
-              <FragmentBucket
+              <CollapsibleOrderBatchBucket
                 key={bucket.batchSessionId}
+                colSpan={subgroupColSpan()}
                 title={
                   <>
                     Batch{" "}
@@ -190,6 +198,14 @@ function OrderBlock({
                     {bucket.lines.length === 1 ? "product" : "products"}
                   </>
                 }
+                trailing={
+                  <DashboardCheckoutChargesPreviewDialog
+                    scope="batch"
+                    orderId={order.id}
+                    batchSessionId={bucket.batchSessionId}
+                    triggerLabel="Preview batch charges"
+                  />
+                }
               >
                 {bucket.lines.map((row) => (
                   <DashboardOrderDataRow
@@ -198,12 +214,13 @@ function OrderBlock({
                     snapshotsByRequestId={snapshotsByRequestId}
                   />
                 ))}
-              </FragmentBucket>
+              </CollapsibleOrderBatchBucket>
             );
           }
           return (
-            <FragmentBucket
+            <CollapsibleOrderBatchBucket
               key={`single:${order.id}:${bi}`}
+              colSpan={subgroupColSpan()}
               title={hasBatchMix && hasSinglesMix ? "Single items" : "Single"}
               muted={!(hasBatchMix && hasSinglesMix)}
             >
@@ -214,36 +231,11 @@ function OrderBlock({
                   snapshotsByRequestId={snapshotsByRequestId}
                 />
               ))}
-            </FragmentBucket>
+            </CollapsibleOrderBatchBucket>
           );
         })
       }
     </CollapsibleOrderTableSection>
-  );
-}
-
-function FragmentBucket({
-  title,
-  muted,
-  children,
-}: {
-  title: ReactNode;
-  muted?: boolean;
-  children: ReactNode;
-}) {
-  const colSpan = subgroupColSpan();
-  return (
-    <>
-      <tr className={`${muted ? "bg-background/60" : "bg-primary/[0.06]"}`}>
-        <td
-          className={`px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide ${muted ? "text-muted-foreground" : "text-foreground/90"}`}
-          colSpan={colSpan}
-        >
-          {title}
-        </td>
-      </tr>
-      {children}
-    </>
   );
 }
 

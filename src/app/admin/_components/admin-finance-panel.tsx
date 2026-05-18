@@ -7,10 +7,17 @@ import {
 } from "@/components/ui/card";
 import type { FinanceDateRange } from "@/data/admin-finance-summary";
 import { getAdminFinanceSummary } from "@/data/admin-finance-summary";
+import { ADMIN_CUSTOMER_FILTER_PARAM } from "@/lib/admin-customer-filter";
 import { formatUsd } from "@/lib/admin-markup";
 
-export async function AdminFinancePanel({ range }: { range: FinanceDateRange }) {
-  const s = await getAdminFinanceSummary(range);
+export async function AdminFinancePanel({
+  range,
+  clerkUserId,
+}: {
+  range: FinanceDateRange;
+  clerkUserId?: string;
+}) {
+  const s = await getAdminFinanceSummary(range, clerkUserId);
   const approxNetCents = s.saleRevenueCents - s.refundsCents - s.stripeFeeCents;
 
   return (
@@ -31,6 +38,9 @@ export async function AdminFinancePanel({ range }: { range: FinanceDateRange }) 
         className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <input type="hidden" name="tab" value="finance" />
+        {clerkUserId ?
+          <input type="hidden" name={ADMIN_CUSTOMER_FILTER_PARAM} value={clerkUserId} />
+        : null}
         <div className="space-y-1.5">
           <label htmlFor="finance-from" className="text-xs font-medium text-muted-foreground">
             From (UTC date)

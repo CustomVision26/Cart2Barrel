@@ -14,9 +14,13 @@ import {
   listProductHistoryForUser,
 } from "@/data/item-requests";
 import { listItemQuotesForOwnerByRequestIds } from "@/data/item-quotes";
+import { getProfileByClerkId } from "@/data/profiles";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
+import {
+  groupReturnRequestsByItemRequestId,
+  listOutsidePurchaseReturnRequestsByItemRequestIds,
+} from "@/data/outside-purchase-return-requests";
 import { fulfillmentProductHistoryLabelFromSnapshots } from "@/lib/product-history-fulfillment";
-import { safeCurrentUser } from "@/lib/safe-current-user";
 
 export default async function DashboardAddItemLayout({
   children,
@@ -28,21 +32,18 @@ export default async function DashboardAddItemLayout({
     return null;
   }
 
-  const cu = await safeCurrentUser();
-  const customerName =
-    cu.ok && cu.user?.fullName?.trim()
-      ? cu.user.fullName.trim()
-      : cu.ok && cu.user?.primaryEmailAddress?.emailAddress?.trim()
-        ? cu.user.primaryEmailAddress.emailAddress.trim()
-        : "Customer";
-  const customerEmail =
-    cu.ok && cu.user?.primaryEmailAddress?.emailAddress?.trim()
-      ? cu.user.primaryEmailAddress.emailAddress.trim()
-      : null;
+  const [profile, activeRequests, historyRequests, batchBundles] = await Promise.all([
+    getProfileByClerkId(userId),
+    listActiveItemRequestsForUser(userId),
+    listProductHistoryForUser(userId),
+    listBatchSessionsWithDetailsForOwner(userId),
+  ]);
 
-  const activeRequests = await listActiveItemRequestsForUser(userId);
-  const historyRequests = await listProductHistoryForUser(userId);
-  const batchBundles = await listBatchSessionsWithDetailsForOwner(userId);
+  const customerName =
+    profile?.fullName?.trim() ||
+    profile?.email?.trim() ||
+    "Customer";
+  const customerEmail = profile?.email?.trim() || null;
 
   const batchRequestIds = batchBundles.flatMap((b) => b.requests.map((r) => r.id));
   const snapshotRequestIds = [
@@ -52,21 +53,24 @@ export default async function DashboardAddItemLayout({
       ...batchRequestIds,
     ]),
   ];
-  const snapshotRows = await listItemRequestLineSnapshotsForOwnerByRequestIds(
-    userId,
-    snapshotRequestIds
-  );
+
+  const [snapshotRows, quoteRows, returnRequestRows] = await Promise.all([
+    listItemRequestLineSnapshotsForOwnerByRequestIds(userId, snapshotRequestIds),
+    listItemQuotesForOwnerByRequestIds(userId, snapshotRequestIds),
+    listOutsidePurchaseReturnRequestsByItemRequestIds(snapshotRequestIds),
+  ]);
+
   const snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]> =
     Object.fromEntries(groupItemRequestLineSnapshotsByRequestId(snapshotRows));
-  const quoteRows = await listItemQuotesForOwnerByRequestIds(
-    userId,
-    snapshotRequestIds
-  );
   const quotesByRequestId = Object.fromEntries(
     snapshotRequestIds.map((id) => [
       id,
       quoteRows.filter((quote) => quote.itemRequestId === id),
     ])
+  );
+
+  const returnRequestsByItemRequestId = groupReturnRequestsByItemRequestId(
+    returnRequestRows,
   );
 
   const fulfillmentLabelByRequestId: Record<string, string> = {};
@@ -106,6 +110,7 @@ export default async function DashboardAddItemLayout({
           snapshotsByRequestId,
           quotesByRequestId,
           fulfillmentLabelByRequestId,
+          returnRequestsByItemRequestId,
         }}
       >
         {children}

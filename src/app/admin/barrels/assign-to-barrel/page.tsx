@@ -1,14 +1,19 @@
 import { AdminBarrelAssignmentsClient } from "@/components/admin/admin-barrel-assignments-client";
 import {
-  listAdminBarrelAssignments,
+  listAdminBarrelPipelineLines,
   listBarrelOptionsForOwner,
 } from "@/data/barrel-package-assignment";
+import { parseAdminCustomerFilter } from "@/lib/admin-customer-filter";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminAssignToBarrelPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminAssignToBarrelPage({ searchParams }: PageProps) {
   const cu = await safeCurrentUser();
   if (!cu.ok || !cu.user || !isClerkAdmin(cu.user)) {
     return (
@@ -23,12 +28,22 @@ export default async function AdminAssignToBarrelPage() {
     );
   }
 
-  const rows = await listAdminBarrelAssignments();
+  const { clerkUserId: filterClerkUserId } = parseAdminCustomerFilter(
+    (await searchParams) ?? {},
+  );
+  const allRows = await listAdminBarrelPipelineLines();
+  const rows =
+    filterClerkUserId ?
+      allRows.filter((r) => r.ownerClerkUserId === filterClerkUserId)
+    : allRows;
   const ownerIds = [...new Set(rows.map((r) => r.ownerClerkUserId))];
   const entries = await Promise.all(
     ownerIds.map(async (id) => {
       const opts = await listBarrelOptionsForOwner(id);
-      return [id, opts] as const;
+      return [
+        id,
+        opts.map((o) => ({ ...o, ownerClerkUserId: id })),
+      ] as const;
     }),
   );
   const barrelsByOwner = Object.fromEntries(entries);
@@ -40,8 +55,9 @@ export default async function AdminAssignToBarrelPage() {
           Assign to barrel
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          View inbound packages currently linked to a customer barrel. Reassign when an item does
-          not fit or a barrel is full, or remove the link so the shopper can pick another slot.
+          Assign inbound products to customer containers, reassign when an item does not fit, mark
+          containers full, or remove assignments. Shoppers see read-only status on their Product
+          to barrel page; every change is recorded in history.
         </p>
       </div>
       <AdminBarrelAssignmentsClient rows={rows} barrelsByOwner={barrelsByOwner} />

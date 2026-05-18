@@ -1,12 +1,12 @@
 import { AdminItemRequestsTabNav } from "@/components/admin/admin-item-requests-tab-nav";
-import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import { loadAdminItemRequestsNavState } from "@/data/admin-item-requests-page-payload";
 
 export default async function AdminItemRequestsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const result = await loadAdminItemRequestsPagePayload();
+  const result = await loadAdminItemRequestsNavState();
 
   if (!result.ok) {
     return (
@@ -21,8 +21,8 @@ export default async function AdminItemRequestsLayout({
     );
   }
 
-  const { payload } = result;
-  const { emptyAsNonAdmin, noData } = payload;
+  const { nav } = result;
+  const { emptyAsNonAdmin, noData } = nav;
 
   return (
     <div className="space-y-4">
@@ -51,9 +51,7 @@ export default async function AdminItemRequestsLayout({
         </p>
       ) : (
         <>
-          <AdminItemRequestsTabNav
-            pendingBatchCount={payload.submittedBatchBundles.length}
-          />
+          <AdminItemRequestsTabNav pendingBatchCount={nav.pendingBatchCount} />
           <div role="tabpanel" aria-live="polite">
             {children}
           </div>

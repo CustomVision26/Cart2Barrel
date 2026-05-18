@@ -36,6 +36,7 @@ import {
   isOperationalQuoteRow,
 } from "@/lib/checkout-snapshot-kind";
 import { adminItemRequestStatusDisplay } from "@/lib/item-request-status-label";
+import { ITEM_QUOTE_VOID_REASON_STAFF_OUT_OF_STOCK } from "@/lib/item-quote-void-reason";
 import { adminItemRequestOrderBadgeKind } from "@/lib/status-badge-map";
 import { displaySiteName } from "@/lib/site-name";
 import type { SortDir } from "@/lib/table-sort";
@@ -59,6 +60,9 @@ function quoteRevisionLabel(q: ItemQuote): string {
     return "Company Purchase";
   }
   if (q.voidedAt) {
+    if (q.voidReason === ITEM_QUOTE_VOID_REASON_STAFF_OUT_OF_STOCK) {
+      return "Out of stock";
+    }
     return "Superseded";
   }
   return "Current";

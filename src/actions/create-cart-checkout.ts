@@ -17,11 +17,14 @@ import { getPrimaryShippingAddress } from "@/data/addresses";
 import { insertCheckoutOrderItems } from "@/data/insert-checkout-order-items";
 import { insertOrderContainerItems } from "@/data/insert-order-container-items";
 import { getOrCreateProfile } from "@/data/profiles";
+import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import {
   clearUserContainerCartLinesForOfferings,
   listContainerCheckoutLinesForUser,
+  sumContainerQuantitiesByKind,
   sumContainerCheckoutLinesCents,
 } from "@/data/user-container-cart";
+import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
 import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
@@ -74,6 +77,16 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const assembled = await assembleApprovedCartForUser(userId);
   const containerCheckoutLines = await listContainerCheckoutLinesForUser(userId);
   const containerSubtotalCents = sumContainerCheckoutLinesCents(containerCheckoutLines);
+  const { containerPackingRates } = await getMerchantPricingForEstimates(userId);
+  const { barrelCount, binCount } = sumContainerQuantitiesByKind(
+    containerCheckoutLines.map((l) => ({ quantity: l.quantity, kind: l.kind })),
+  );
+  const containerPacking = await resolveContainerPackingForUserCart(
+    userId,
+    barrelCount,
+    binCount,
+    containerPackingRates,
+  );
 
   if (
     assembled.batchGroups.length === 0 &&
@@ -87,7 +100,11 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const builtLines = buildStripeLineItemsFromAssembledCart(assembled);
   const stripeLineItems = [
     ...builtLines.lineItems,
-    ...buildStripeLineItemsFromContainerCheckoutLines(containerCheckoutLines),
+    ...buildStripeLineItemsFromContainerCheckoutLines(containerCheckoutLines, {
+      barrelCount: containerPacking.barrelCount,
+      binCount: containerPacking.binCount,
+      rates: containerPackingRates,
+    }),
   ];
 
   const cu = await currentUser();
@@ -103,7 +120,9 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   }
 
   const merchandiseSubtotalCents =
-    assembled.estimatedTotalCents + containerSubtotalCents;
+    assembled.estimatedTotalCents +
+    containerSubtotalCents +
+    containerPacking.totalPackingFeeCents;
   const shipAddr = await getPrimaryShippingAddress(userId);
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,

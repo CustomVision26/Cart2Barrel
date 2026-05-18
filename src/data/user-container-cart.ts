@@ -120,6 +120,29 @@ export function sumContainerCheckoutLinesCents(
   return lines.reduce((s, l) => s + l.lineTotalCents, 0);
 }
 
+/** Total barrel / bin quantities in the shopper container cart (by offering kind). */
+export function sumContainerCartQuantitiesByKind(
+  rows: Pick<UserContainerCartRow, "quantity" | "offering">[],
+): { barrelCount: number; binCount: number } {
+  return sumContainerQuantitiesByKind(
+    rows.map((r) => ({ quantity: r.quantity, kind: r.offering.kind })),
+  );
+}
+
+/** Sum quantities by container kind (cart rows or checkout lines). */
+export function sumContainerQuantitiesByKind(
+  rows: { quantity: number; kind: ContainerOfferingKind }[],
+): { barrelCount: number; binCount: number } {
+  let barrelCount = 0;
+  let binCount = 0;
+  for (const r of rows) {
+    if (r.quantity <= 0) continue;
+    if (r.kind === "barrel") barrelCount += r.quantity;
+    else if (r.kind === "bin") binCount += r.quantity;
+  }
+  return { barrelCount, binCount };
+}
+
 /**
  * After a pending order is removed, put reserved container rows back on the shopper cart.
  */

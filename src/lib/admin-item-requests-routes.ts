@@ -6,6 +6,8 @@ export const ADMIN_ITEM_REQUESTS_ROUTES = {
   /** Single-line quote revisions (sub-tab under Active requests). */
   activeRequestsQuoteHistory:
     "/admin/item-requests/active-requests/quote-history",
+  activeRequestsOutsidePurchase:
+    "/admin/item-requests/active-requests/outside-purchase",
   /** Canonical Batch Items landing (sub-tabs live under `/batch-items/...`). */
   batchItems: "/admin/item-requests/batch-items",
   batchItemsSubmitted:

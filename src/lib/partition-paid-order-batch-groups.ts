@@ -48,6 +48,71 @@ export function partitionPaidLinesIntoBatchBuckets<
   return out;
 }
 
+type BatchContextLine = {
+  order: { id: string };
+  request: { batchQuoteSessionId: string | null };
+  resolvedBatchSessionId: string | null;
+  resolvedBatchNumber: string | null;
+};
+
+/**
+ * Fills batch session/number on lines in the same paid order when a batch peer already resolved it
+ * (e.g. sibling lines that only link via `batch_quote_session_lines`).
+ */
+export function propagateBatchContextWithinOrders<T extends BatchContextLine>(
+  lines: T[],
+): T[] {
+  if (lines.length === 0) return lines;
+
+  const byOrder = new Map<string, T[]>();
+  for (const row of lines) {
+    const list = byOrder.get(row.order.id) ?? [];
+    list.push(row);
+    byOrder.set(row.order.id, list);
+  }
+
+  return lines.map((row) => {
+    const orderLines = byOrder.get(row.order.id) ?? [];
+    const sessionMeta = new Map<string, string | null>();
+
+    for (const peer of orderLines) {
+      const sid =
+        peer.resolvedBatchSessionId?.trim() ||
+        peer.request.batchQuoteSessionId?.trim();
+      if (!sid) continue;
+      const bn = peer.resolvedBatchNumber?.trim() || null;
+      if (!sessionMeta.has(sid) || (!sessionMeta.get(sid) && bn)) {
+        sessionMeta.set(sid, bn);
+      }
+    }
+
+    const requestSessionId = row.request.batchQuoteSessionId?.trim();
+    const resolvedSessionId = row.resolvedBatchSessionId?.trim();
+
+    if (resolvedSessionId) {
+      return {
+        ...row,
+        resolvedBatchSessionId: resolvedSessionId,
+        resolvedBatchNumber:
+          row.resolvedBatchNumber?.trim() ||
+          sessionMeta.get(resolvedSessionId) ||
+          row.resolvedBatchNumber,
+      };
+    }
+
+    if (requestSessionId && sessionMeta.has(requestSessionId)) {
+      return {
+        ...row,
+        resolvedBatchSessionId: requestSessionId,
+        resolvedBatchNumber:
+          sessionMeta.get(requestSessionId) ?? row.resolvedBatchNumber,
+      };
+    }
+
+    return row;
+  });
+}
+
 /** Groups flat line rows under their order (`rows` server order yields stable order grouping). */
 export function groupPaidRowsStableByOrder<
   T extends { order: { id: string } },

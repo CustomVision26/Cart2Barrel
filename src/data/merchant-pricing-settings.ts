@@ -2,58 +2,75 @@ import { asc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
-  merchantPackingComboFees,
   merchantPackingFeeSettings,
   serviceHandlingFeeTiers,
 } from "@/db/schema";
+import { getCustomerPricingPackage } from "@/data/customer-pricing-packages";
 import {
   DEFAULT_MERCHANT_SERVICE_TIERS,
   type MerchantServiceTierRow,
 } from "@/lib/admin-markup";
-import type { PackingComboFeeRow } from "@/lib/merchant-packing-combo-fee";
-
-export type MerchantPackingComboAdminRow = {
-  id: number;
-  barrelCount: number;
-  binCount: number;
-  feeCents: number;
-  sortIndex: number;
-};
+import {
+  DEFAULT_CONTAINER_PACKING_RATES,
+  mergeContainerPackingRates,
+  withDefaultContainerPackingRates,
+  type ContainerPackingRates,
+} from "@/lib/container-packing-fee";
 
 export type MerchantPricingEstimateSnapshot = {
   packingFeePerLineCents: number;
-  packingComboFees: PackingComboFeeRow[];
+  containerPackingRates: ContainerPackingRates;
   serviceTiers: MerchantServiceTierRow[];
 };
 
 const PACK_KEY = "default" as const;
 
-async function loadPackingComboFeesForEstimates(): Promise<PackingComboFeeRow[]> {
-  const db = getDb();
-  try {
-    const rows = await db
-      .select({
-        barrelCount: merchantPackingComboFees.barrelCount,
-        binCount: merchantPackingComboFees.binCount,
-        feeCents: merchantPackingComboFees.feeCents,
-      })
-      .from(merchantPackingComboFees)
-      .orderBy(asc(merchantPackingComboFees.sortIndex));
-    return rows.map((r) => ({
-      barrelCount: r.barrelCount,
-      binCount: r.binCount,
-      feeCents: r.feeCents,
-    }));
-  } catch {
-    return [];
-  }
+function packRowToContainerRates(
+  packRow: typeof merchantPackingFeeSettings.$inferSelect | undefined,
+): ContainerPackingRates {
+  if (!packRow) return { ...DEFAULT_CONTAINER_PACKING_RATES };
+  return withDefaultContainerPackingRates({
+    singleBarrelPackingFeeCents: Math.max(0, packRow.barrelShippingFeeCents),
+    multiBarrelPackingPerUnitCents: Math.max(
+      0,
+      packRow.multiBarrelPackingPerUnitCents ??
+        DEFAULT_CONTAINER_PACKING_RATES.multiBarrelPackingPerUnitCents,
+    ),
+    singleBinPackingFeeCents: Math.max(0, packRow.binShippingFeeCents),
+    multiBinPackingPerUnitCents: Math.max(
+      0,
+      packRow.multiBinPackingPerUnitCents ??
+        DEFAULT_CONTAINER_PACKING_RATES.multiBinPackingPerUnitCents,
+    ),
+  });
 }
 
 /**
- * Tiers + packing used for staff quotes and AI estimate previews. Falls back to code
- * defaults if tables are empty (e.g. before migration).
+ * Tiers + packing used for staff quotes and cart. Falls back to code defaults if tables
+ * are empty (e.g. before migration).
  */
-export async function getMerchantPricingForEstimates(): Promise<MerchantPricingEstimateSnapshot> {
+export async function getMerchantPricingForEstimates(
+  clerkUserId?: string | null,
+): Promise<MerchantPricingEstimateSnapshot> {
+  const global = await loadGlobalMerchantPricing();
+  if (!clerkUserId?.trim()) return global;
+
+  const custom = await getCustomerPricingPackage(clerkUserId.trim());
+  if (!custom) return global;
+
+  return {
+    packingFeePerLineCents:
+      custom.packingFeePerLineCents > 0 ?
+        custom.packingFeePerLineCents
+      : global.packingFeePerLineCents,
+    containerPackingRates: withDefaultContainerPackingRates(
+      mergeContainerPackingRates(custom.containerPackingRates, global.containerPackingRates),
+    ),
+    serviceTiers: custom.serviceTiers ?? global.serviceTiers,
+  };
+}
+
+async function loadGlobalMerchantPricing(): Promise<MerchantPricingEstimateSnapshot> {
   const db = getDb();
   try {
     const [packRow] = await db
@@ -75,19 +92,19 @@ export async function getMerchantPricingForEstimates(): Promise<MerchantPricingE
       0,
       packRow?.packingFeePerLineCents ?? 0,
     );
-    const packingComboFees = await loadPackingComboFeesForEstimates();
+    const containerPackingRates = packRowToContainerRates(packRow);
 
     if (tierRows.length === 0) {
       return {
         packingFeePerLineCents,
-        packingComboFees,
+        containerPackingRates,
         serviceTiers: [...DEFAULT_MERCHANT_SERVICE_TIERS],
       };
     }
 
     return {
       packingFeePerLineCents,
-      packingComboFees,
+      containerPackingRates,
       serviceTiers: tierRows.map((r) => ({
         maxUnitPriceInclusiveCents: r.maxUnitPriceInclusiveCents,
         feePerUnitCents: r.feePerUnitCents,
@@ -96,7 +113,7 @@ export async function getMerchantPricingForEstimates(): Promise<MerchantPricingE
   } catch {
     return {
       packingFeePerLineCents: 0,
-      packingComboFees: [],
+      containerPackingRates: { ...DEFAULT_CONTAINER_PACKING_RATES },
       serviceTiers: [...DEFAULT_MERCHANT_SERVICE_TIERS],
     };
   }
@@ -104,22 +121,13 @@ export async function getMerchantPricingForEstimates(): Promise<MerchantPricingE
 
 export type MerchantPricingAdminRow = {
   packingFeePerLineCents: number;
-  combos: MerchantPackingComboAdminRow[];
+  containerPackingRates: ContainerPackingRates;
   tiers: { id: number; maxUnitPriceInclusiveCents: number; feePerUnitCents: number; sortIndex: number }[];
 };
 
 export async function getMerchantPricingForAdminEditor(): Promise<MerchantPricingAdminRow> {
   const snap = await getMerchantPricingForEstimates();
   const db = getDb();
-  let combos: MerchantPackingComboAdminRow[] = [];
-  try {
-    combos = await db
-      .select()
-      .from(merchantPackingComboFees)
-      .orderBy(asc(merchantPackingComboFees.sortIndex));
-  } catch {
-    combos = [];
-  }
 
   try {
     const fullTiers = await db
@@ -129,7 +137,7 @@ export async function getMerchantPricingForAdminEditor(): Promise<MerchantPricin
     if (fullTiers.length === 0) {
       return {
         packingFeePerLineCents: snap.packingFeePerLineCents,
-        combos,
+        containerPackingRates: snap.containerPackingRates,
         tiers: DEFAULT_MERCHANT_SERVICE_TIERS.map((t, i) => ({
           id: -(i + 1),
           maxUnitPriceInclusiveCents: t.maxUnitPriceInclusiveCents,
@@ -140,7 +148,7 @@ export async function getMerchantPricingForAdminEditor(): Promise<MerchantPricin
     }
     return {
       packingFeePerLineCents: snap.packingFeePerLineCents,
-      combos,
+      containerPackingRates: snap.containerPackingRates,
       tiers: fullTiers.map((r) => ({
         id: r.id,
         maxUnitPriceInclusiveCents: r.maxUnitPriceInclusiveCents,
@@ -151,7 +159,7 @@ export async function getMerchantPricingForAdminEditor(): Promise<MerchantPricin
   } catch {
     return {
       packingFeePerLineCents: snap.packingFeePerLineCents,
-      combos,
+      containerPackingRates: snap.containerPackingRates,
       tiers: DEFAULT_MERCHANT_SERVICE_TIERS.map((t, i) => ({
         id: -(i + 1),
         maxUnitPriceInclusiveCents: t.maxUnitPriceInclusiveCents,

@@ -10,7 +10,9 @@ import {
   batchQuoteSessionLines,
   itemRequests,
 } from "@/db/schema";
+import { insertOutsidePurchaseLifecycleSnapshot } from "@/data/outside-purchase-lifecycle-snapshot";
 import { getItemRequestById } from "@/data/item-requests";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import {
   insertItemRequestLineSnapshot,
   lineSnapshotPayloadFromItemRequest,
@@ -95,11 +97,23 @@ export async function removeFromCartAction(
     .set({ status: nextStatus })
     .where(eq(itemRequests.id, request.id));
 
-  if (disposition === "permanent_remove") {
+  const after = await getItemRequestById(request.id);
+  const lineRequest = after ?? { ...request, status: nextStatus };
+
+  if (isOutsidePurchaseRequest(lineRequest)) {
+    await insertOutsidePurchaseLifecycleSnapshot({
+      request: lineRequest,
+      phase: "outside_purchase_removed_from_cart",
+      auditMemo:
+        disposition === "permanent_remove"
+          ? "Customer permanently removed this outside purchase from cart (moved to Product history)."
+          : "Customer moved this outside purchase back to Active as quoted (removed from cart).",
+    });
+  } else if (disposition === "permanent_remove") {
     await insertItemRequestLineSnapshot({
       itemRequestId: request.id,
       phase: "removed_from_cart",
-      line: lineSnapshotPayloadFromItemRequest(request),
+      line: lineSnapshotPayloadFromItemRequest(lineRequest),
     });
   }
 

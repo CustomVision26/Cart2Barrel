@@ -1,8 +1,11 @@
 import type { User } from "@clerk/nextjs/server";
 
+import type { AdminListQuery } from "@/lib/admin-customer-filter";
+import { resolveAdminPaidOrdersScope } from "@/lib/admin-customer-filter";
 import type { PaidOrdersQueryInput } from "@/lib/paid-orders-list-params";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 
+import { backfillOutsidePurchasePaidServiceFeeFulfillment } from "@/data/backfill-outside-purchase-paid-fulfillment";
 import type { PaidOrderLineListRow, PaidOrderLinesPageResult } from "@/data/paid-orders-queries";
 import { listPaidOrderLinesPage } from "@/data/paid-orders-queries";
 import { DELIVERY_RECEIVED_FULFILLMENT_STATUSES } from "@/lib/warehouse-receipt-queue";
@@ -16,7 +19,7 @@ export type AdminOrdersQueryPack = PaidOrdersQueryInput;
 
 export async function listAdminPaidOrderLinesPage(
   clerkUser: User | null,
-  queryInput: PaidOrdersQueryInput,
+  queryInput: AdminListQuery,
 ): Promise<PaidOrderLinesPageResult> {
   if (!isClerkAdmin(clerkUser)) {
     return {
@@ -28,19 +31,21 @@ export async function listAdminPaidOrderLinesPage(
       query: queryInput,
     };
   }
+  await backfillOutsidePurchasePaidServiceFeeFulfillment();
   return listPaidOrderLinesPage({
-    scope: "allPaidOrders",
+    scope: resolveAdminPaidOrdersScope(queryInput.userId),
     query: queryInput,
     lineFulfillmentExclude: [
       "company_purchase_pending_delivery",
       ...DELIVERY_RECEIVED_FULFILLMENT_STATUSES,
     ],
+    expandFullOrderLines: true,
   });
 }
 
 export async function listAdminPaidOrderHistoryLinesPage(
   clerkUser: User | null,
-  queryInput: PaidOrdersQueryInput,
+  queryInput: AdminListQuery,
 ): Promise<PaidOrderLinesPageResult> {
   if (!isClerkAdmin(clerkUser)) {
     return {
@@ -53,7 +58,7 @@ export async function listAdminPaidOrderHistoryLinesPage(
     };
   }
   return listPaidOrderLinesPage({
-    scope: "allPaidOrders",
+    scope: resolveAdminPaidOrdersScope(queryInput.userId),
     query: queryInput,
   });
 }

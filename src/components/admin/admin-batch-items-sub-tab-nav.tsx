@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ export function AdminBatchItemsSubTabNav({
   estimateHistoryCount,
   batchHistoryCount,
 }: AdminBatchItemsSubTabNavProps) {
+  const { hrefWithFilter } = useAdminCustomerFilter();
   const pathname = usePathname();
 
   const linkClass = (href: string) =>
@@ -36,7 +38,7 @@ export function AdminBatchItemsSubTabNav({
       className="flex flex-wrap gap-1 border-b border-border pb-px"
     >
       <Link
-        href={ADMIN_ITEM_REQUESTS_ROUTES.batchItemsSubmitted}
+        href={hrefWithFilter(ADMIN_ITEM_REQUESTS_ROUTES.batchItemsSubmitted)}
         role="tab"
         aria-selected={
           pathname === ADMIN_ITEM_REQUESTS_ROUTES.batchItemsSubmitted ||
@@ -52,7 +54,7 @@ export function AdminBatchItemsSubTabNav({
         ) : null}
       </Link>
       <Link
-        href={ADMIN_ITEM_REQUESTS_ROUTES.batchItemsBatchEstimates}
+        href={hrefWithFilter(ADMIN_ITEM_REQUESTS_ROUTES.batchItemsBatchEstimates)}
         role="tab"
         aria-selected={
           pathname === ADMIN_ITEM_REQUESTS_ROUTES.batchItemsBatchEstimates
@@ -67,7 +69,7 @@ export function AdminBatchItemsSubTabNav({
         ) : null}
       </Link>
       <Link
-        href={ADMIN_ITEM_REQUESTS_ROUTES.batchItemsBatchHistory}
+        href={hrefWithFilter(ADMIN_ITEM_REQUESTS_ROUTES.batchItemsBatchHistory)}
         role="tab"
         aria-selected={pathname === ADMIN_ITEM_REQUESTS_ROUTES.batchItemsBatchHistory}
         className={linkClass(ADMIN_ITEM_REQUESTS_ROUTES.batchItemsBatchHistory)}

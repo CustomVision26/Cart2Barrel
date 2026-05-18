@@ -1,11 +1,18 @@
 "use client";
 
+import { ExternalLinkIcon } from "lucide-react";
+
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import type { AdminAiEstimateSuccess } from "@/actions/admin-ai-estimate";
 import { AdminItemRequestProductImageUpload } from "@/components/admin/admin-item-request-product-image-upload";
 import { formatUsd } from "@/lib/admin-markup";
+import { cn } from "@/lib/utils";
+
+const estimateNoteTextareaClassName = cn(
+  "border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50",
+);
 
 /** Merchandise/service cents from pack line model (see computePackLineMerchandiseAndServiceCents). */
 export type AiPackDerivedTotals = {
@@ -18,8 +25,6 @@ export type AiPackDerivedTotals = {
   packListedSubtotalCents: number;
   serv: number;
   ship: number;
-  /** Flat packing once per line (cents). */
-  pack: number;
   tax: number;
   total: number;
   packCount: number;
@@ -58,6 +63,25 @@ type AdminAiEstimateResultFieldsProps = {
   /** Manual or persisted image URL (wins over AI extraction URL for display). */
   productImageUrl?: string | null;
   onProductImageUploaded?: (imageUrl: string) => void;
+  /** Stage upload locally; parent persists on save quote. */
+  deferProductImagePersist?: boolean;
+  onProductImageStaged?: (file: File, previewUrl: string) => void;
+  editStaffNote: string;
+  setEditStaffNote: (v: string) => void;
+  /** Edit-quote: editable product title (replaces read-only extracted name). */
+  editProductName?: string;
+  setEditProductName?: (v: string) => void;
+  /** Edit-quote: customer line quantity saved on the request (distinct from pack count in parent). */
+  editCustomerQuantity?: string;
+  setEditCustomerQuantity?: (v: string) => void;
+  /** Show upload control even when an image is already displayed. */
+  alwaysShowImageUpload?: boolean;
+  /** Optional product URL shown under editable title. */
+  productUrl?: string;
+  /** Omit top separator (edit dialog provides section chrome). */
+  hideLeadingSeparator?: boolean;
+  /** Tighter cards and layout tuned for Edit quote. */
+  polishedEditLayout?: boolean;
 };
 
 /**
@@ -88,43 +112,177 @@ export function AdminAiEstimateResultFields({
   itemRequestId,
   productImageUrl,
   onProductImageUploaded,
+  deferProductImagePersist = false,
+  onProductImageStaged,
+  editStaffNote,
+  setEditStaffNote,
+  editProductName,
+  setEditProductName,
+  editCustomerQuantity,
+  setEditCustomerQuantity,
+  alwaysShowImageUpload = false,
+  productUrl,
+  hideLeadingSeparator = false,
+  polishedEditLayout = false,
 }: AdminAiEstimateResultFieldsProps) {
   const displayImageUrl =
     productImageUrl?.trim() || result.extraction.productImageUrl?.trim() || null;
+  const showEditableProduct = setEditProductName != null && editProductName != null;
+  const sectionCard = polishedEditLayout
+    ? "rounded-xl border border-border bg-card/40 p-4 shadow-sm"
+    : "space-y-3 rounded-lg border border-border bg-muted/15 p-3";
 
   return (
-    <div className="space-y-4 text-sm">
-      <Separator />
+    <div
+      className={cn("space-y-4 text-sm", polishedEditLayout && "space-y-5")}
+    >
+      {!hideLeadingSeparator ? <Separator /> : null}
       {displayImageUrl ? (
-        <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
+        <div
+          className={cn(
+            polishedEditLayout && alwaysShowImageUpload && itemRequestId
+              ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]"
+              : "space-y-2",
+          )}
+        >
+        <div
+          className={cn(
+            "overflow-hidden border border-border bg-muted/30",
+            polishedEditLayout ? "rounded-xl" : "rounded-lg",
+          )}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element -- retailer or Blob URLs */}
           <img
             src={displayImageUrl}
             alt={
-              result.extraction.productName?.trim()
-                ? `Product: ${result.extraction.productName.trim()}`
+              (showEditableProduct ? editProductName : result.extraction.productName)?.trim()
+                ? `Product: ${(showEditableProduct ? editProductName : result.extraction.productName)!.trim()}`
                 : "Product image"
             }
-            className="mx-auto max-h-52 w-full object-contain"
+            className={cn(
+              "mx-auto w-full object-contain",
+              polishedEditLayout ? "max-h-44" : "max-h-52",
+            )}
             loading="lazy"
             referrerPolicy="no-referrer"
           />
         </div>
+        {alwaysShowImageUpload && itemRequestId ? (
+          <div
+            className={cn(
+              "flex flex-col justify-center gap-2",
+              polishedEditLayout && "sm:min-w-[9.5rem]",
+            )}
+          >
+            <p className="text-xs font-medium text-foreground">Replace photo</p>
+            <AdminItemRequestProductImageUpload
+              itemRequestId={itemRequestId}
+              deferPersist={deferProductImagePersist}
+              onStaged={onProductImageStaged}
+              onUploaded={onProductImageUploaded}
+            />
+          </div>
+        ) : null}
+        </div>
       ) : (
-        <div className="space-y-3 rounded-lg border border-dashed border-border px-3 py-5">
+        <div
+          className={cn(
+            "space-y-3 border border-dashed border-border px-3 py-5",
+            polishedEditLayout ? "rounded-xl bg-card/30" : "rounded-lg",
+          )}
+        >
           <p className="text-center text-xs text-muted-foreground">
-            No product image found on this page (try another listing or check OG tags).
+            No product image on file. Upload one below or run AI extraction.
           </p>
           {itemRequestId ? (
             <AdminItemRequestProductImageUpload
               itemRequestId={itemRequestId}
+              deferPersist={deferProductImagePersist}
+              onStaged={onProductImageStaged}
               onUploaded={onProductImageUploaded}
             />
           ) : null}
         </div>
       )}
-      <div className="space-y-3">
-        <p className="font-medium text-foreground">Extracted</p>
+      <div
+        className={cn(
+          showEditableProduct && polishedEditLayout ? sectionCard : "space-y-3",
+        )}
+      >
+        <p
+          className={cn(
+            "font-medium text-foreground",
+            polishedEditLayout && showEditableProduct && "mb-3 text-sm",
+          )}
+        >
+          {showEditableProduct ? "Product details" : "Extracted"}
+        </p>
+        {showEditableProduct ? (
+          <div className="space-y-3">
+            <Field className="gap-1.5">
+              <FieldLabel htmlFor={`${idPrefix}-product-name`} className="text-xs">
+                Product name
+              </FieldLabel>
+              <FieldContent>
+                <Input
+                  id={`${idPrefix}-product-name`}
+                  value={editProductName}
+                  onChange={(e) => setEditProductName(e.target.value)}
+                  placeholder="e.g. Crewneck sweatshirt"
+                  autoComplete="off"
+                />
+              </FieldContent>
+            </Field>
+            {productUrl ? (
+              polishedEditLayout ? (
+                <a
+                  href={productUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-full items-center gap-1 truncate text-xs font-medium text-primary underline-offset-2 hover:underline"
+                  title={productUrl}
+                >
+                  <span className="truncate">Open product listing</span>
+                  <ExternalLinkIcon className="size-3.5 shrink-0" aria-hidden />
+                </a>
+              ) : (
+                <p
+                  className="truncate text-xs text-muted-foreground"
+                  title={productUrl}
+                >
+                  {productUrl}
+                </p>
+              )
+            ) : null}
+            {setEditCustomerQuantity != null && editCustomerQuantity != null ? (
+              <Field className="gap-1.5">
+                <FieldLabel htmlFor={`${idPrefix}-customer-qty`} className="text-xs">
+                  Quantity
+                </FieldLabel>
+                <FieldContent>
+                  <Input
+                    id={`${idPrefix}-customer-qty`}
+                    type="number"
+                    min={1}
+                    max={999}
+                    className="max-w-28"
+                    value={editCustomerQuantity}
+                    onChange={(e) => setEditCustomerQuantity(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    How many the customer wants. Updates pack subtotal, service
+                    tiers, and the qty shown on their request.
+                  </p>
+                </FieldContent>
+              </Field>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              <span className="text-foreground">Site:</span>{" "}
+              {result.extraction.siteName?.trim() || "—"}
+            </p>
+          </div>
+        ) : (
         <ul className="space-y-0.5 text-muted-foreground">
           <li>
             <span className="text-foreground">Name:</span>{" "}
@@ -142,6 +300,7 @@ export function AdminAiEstimateResultFields({
             </span>
           </li>
         </ul>
+        )}
         {result.extraction.notes ? (
           <p className="text-xs text-muted-foreground">
             <span className="font-medium text-foreground">AI notes:</span>{" "}
@@ -150,7 +309,7 @@ export function AdminAiEstimateResultFields({
         ) : null}
       </div>
 
-      <div className="space-y-3 rounded-lg border border-border bg-muted/15 p-3">
+      <div className={cn("space-y-3", sectionCard)}>
         <p className="text-sm font-medium text-foreground">Pack / bundle / case pricing</p>
         <Field className="gap-1.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -275,7 +434,7 @@ export function AdminAiEstimateResultFields({
         ) : null}
       </div>
 
-      <div>
+      <div className={cn(polishedEditLayout && sectionCard)}>
         <p className="font-medium text-foreground">Service &amp; handling</p>
         <p className="text-xs text-muted-foreground">
           {derived.effectiveConsumerUnitCents != null &&
@@ -299,9 +458,16 @@ export function AdminAiEstimateResultFields({
         </p>
       </div>
 
-      <div>
+      <div className={cn(polishedEditLayout && sectionCard)}>
         <p className="mb-2 font-medium text-foreground">Estimate (USD)</p>
-        <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+        <div
+          className={cn(
+            "space-y-2",
+            polishedEditLayout
+              ? "rounded-lg border border-border/80 bg-muted/25 p-3"
+              : "rounded-lg border border-border bg-muted/20 p-3",
+          )}
+        >
           <div className="flex justify-between gap-2 tabular-nums text-muted-foreground">
             <span>Pack / bundle subtotal (in estimate)</span>
             <span className="text-foreground">{formatUsd(derived.packBundle)}</span>
@@ -362,12 +528,6 @@ export function AdminAiEstimateResultFields({
             <span>Service &amp; handling</span>
             <span className="text-foreground">{formatUsd(derived.serv)}</span>
           </div>
-          {derived.pack > 0 ? (
-            <div className="flex justify-between gap-2 tabular-nums text-muted-foreground">
-              <span>Packing (per line)</span>
-              <span className="text-foreground">{formatUsd(derived.pack)}</span>
-            </div>
-          ) : null}
           <Field className="gap-1.5">
             <FieldLabel htmlFor={`${idPrefix}-shipping`} className="text-xs">
               Shipping (flat)
@@ -427,12 +587,40 @@ export function AdminAiEstimateResultFields({
               are bundled into merchandise above ($0 quoted on this line for those splits).
             </span>
           </label>
-          <div className="flex justify-between gap-2 border-t border-border pt-2 font-medium tabular-nums text-foreground">
-            <span>Total</span>
-            <span>{formatUsd(derived.total)}</span>
-          </div>
+          {!polishedEditLayout ? (
+            <div className="flex justify-between gap-2 border-t border-border pt-2 font-medium tabular-nums text-foreground">
+              <span>Total</span>
+              <span>{formatUsd(derived.total)}</span>
+            </div>
+          ) : (
+            <p className="border-t border-border pt-2 text-xs text-muted-foreground">
+              Line-item total is shown in the footer before you save.
+            </p>
+          )}
         </div>
       </div>
+
+      <Field className={cn("gap-1.5", polishedEditLayout && sectionCard)}>
+        <FieldLabel htmlFor={`${idPrefix}-staff-note`} className="text-xs">
+          Estimate note{" "}
+          <span className="font-normal text-muted-foreground">(optional)</span>
+        </FieldLabel>
+        <FieldContent>
+          <p className="mb-1 text-xs text-muted-foreground">
+            Explain charges, product condition, substitutions, or other details the
+            shopper should know. Saved with the quote.
+          </p>
+          <textarea
+            id={`${idPrefix}-staff-note`}
+            rows={3}
+            value={editStaffNote}
+            onChange={(e) => setEditStaffNote(e.target.value)}
+            placeholder="e.g. Case pack only; price includes retailer shipping; allow 2-week lead time…"
+            className={estimateNoteTextareaClassName}
+            autoComplete="off"
+          />
+        </FieldContent>
+      </Field>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { AdminSubmittedBatchBundle } from "@/data/batch-quote-sessions";
+import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { AdminBatchQuoteEstimateDialog } from "@/components/admin/admin-batch-quote-estimate-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -52,6 +53,9 @@ export function AdminBatchItemsTable({
   totalCount,
   queueTotalCount,
 }: AdminBatchItemsTableProps) {
+  const { hrefWithFilter } = useAdminCustomerFilter();
+  const listHref = (patch: Partial<AdminSubmittedBatchListQuery>) =>
+    hrefWithFilter(adminSubmittedBatchListHrefMerge(listQuery, patch));
   const router = useRouter();
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
 
@@ -135,10 +139,7 @@ export function AdminBatchItemsTable({
                           buttonVariants({ variant: "outline", size: "sm" }),
                           "h-8 px-3",
                         )}
-                        href={adminSubmittedBatchListHrefMerge(
-                          { ...listQuery, q: "" },
-                          { page: 1 },
-                        )}
+                        href={listHref({ ...listQuery, q: "", page: 1 })}
                       >
                         Clear
                       </Link>
@@ -162,7 +163,8 @@ export function AdminBatchItemsTable({
                   value={listQuery.sort}
                   onChange={(e) => {
                     router.push(
-                      adminSubmittedBatchListHrefMerge(listQuery, {
+                      listHref({
+                        ...listQuery,
                         sort: e.target.value as AdminSubmittedBatchListQuery["sort"],
                         page: 1,
                       }),
@@ -189,7 +191,8 @@ export function AdminBatchItemsTable({
                   value={listQuery.dir}
                   onChange={(e) => {
                     router.push(
-                      adminSubmittedBatchListHrefMerge(listQuery, {
+                      listHref({
+                        ...listQuery,
                         dir: e.target.value as AdminSubmittedBatchListQuery["dir"],
                         page: 1,
                       }),
@@ -221,7 +224,8 @@ export function AdminBatchItemsTable({
                       return;
                     }
                     router.push(
-                      adminSubmittedBatchListHrefMerge(listQuery, {
+                      listHref({
+                        ...listQuery,
                         pageSize: pageSize as AdminSubmittedBatchListQuery["pageSize"],
                         page: 1,
                       }),
@@ -271,9 +275,7 @@ export function AdminBatchItemsTable({
                     buttonVariants({ variant: "outline", size: "sm" }),
                     "h-8 px-3",
                   )}
-                  href={adminSubmittedBatchListHrefMerge(listQuery, {
-                    page: listQuery.page - 1,
-                  })}
+                  href={listHref({ ...listQuery, page: listQuery.page - 1 })}
                 >
                   Previous
                 </Link>
@@ -296,9 +298,7 @@ export function AdminBatchItemsTable({
                     buttonVariants({ variant: "outline", size: "sm" }),
                     "h-8 px-3",
                   )}
-                  href={adminSubmittedBatchListHrefMerge(listQuery, {
-                    page: listQuery.page + 1,
-                  })}
+                  href={listHref({ ...listQuery, page: listQuery.page + 1 })}
                 >
                   Next
                 </Link>

@@ -1,9 +1,12 @@
 import { AdminPaidOrdersTable } from "@/components/admin/admin-paid-orders-table";
 import { AdminOrdersListControls } from "@/components/admin/admin-orders-list-controls";
 import { AdminOrdersTabNav } from "@/components/admin/admin-orders-tab-nav";
-import { parsePaidOrdersQuery } from "@/lib/paid-orders-list-params";
+import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { listAdminPaidOrderLinesPage } from "@/data/admin-order-lines";
-import { mapLatestOperationalQuoteItemCostByRequestIds } from "@/data/item-quotes";
+import {
+  collectLatestQuotesForRequests,
+  mapCheckoutBatchEstimatesBySessionIds,
+} from "@/data/batch-quote-sessions";
 import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsByRequestIds,
@@ -33,7 +36,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
 
   const admin = isClerkAdmin(cu.user);
   const rawSp = (await searchParams) ?? {};
-  const query = parsePaidOrdersQuery(rawSp);
+  const query = parseAdminListQuery(rawSp);
 
   const pagePack = !admin ?
     {
@@ -57,12 +60,33 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     groupItemRequestLineSnapshotsByRequestId(snapshotRows),
   );
 
-  const quotedItemCostByRequestId =
+  const requestIdsOnPage =
     admin && pagePack.rows.length > 0 ?
-      await mapLatestOperationalQuoteItemCostByRequestIds(
-        [...new Set(pagePack.rows.map((row) => row.request.id))],
+      [...new Set(pagePack.rows.map((row) => row.request.id))]
+    : [];
+  const latestQuotesByRequestId =
+    admin && requestIdsOnPage.length > 0 ?
+      Object.fromEntries(
+        await collectLatestQuotesForRequests(requestIdsOnPage),
       )
-    : new Map<string, number | null>();
+    : {};
+
+  const batchSessionIdsOnPage =
+    admin && pagePack.rows.length > 0 ?
+      [
+        ...new Set(
+          pagePack.rows
+            .map((row) => row.resolvedBatchSessionId?.trim())
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ]
+    : [];
+  const batchEstimatesBySessionId =
+    admin && batchSessionIdsOnPage.length > 0 ?
+      Object.fromEntries(
+        await mapCheckoutBatchEstimatesBySessionIds(batchSessionIdsOnPage),
+      )
+    : {};
 
   const orderIdsOnPage =
     admin && pagePack.rows.length > 0 ?
@@ -123,7 +147,8 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             <AdminPaidOrdersTable
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
-              quotedItemCostByRequestId={quotedItemCostByRequestId}
+              latestQuotesByRequestId={latestQuotesByRequestId}
+              batchEstimatesBySessionId={batchEstimatesBySessionId}
               orderContainerLinesByOrderId={orderContainerLinesByOrderId}
               orderAccordionResetKey={`${query.page}:${query.ps}:${query.sort}:${query.q}`}
             />

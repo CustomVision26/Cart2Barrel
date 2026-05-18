@@ -21,6 +21,8 @@ export const adminAiEstimateRequestSchema = z.object({
     }),
   /** When set (admin queue / quote edit), extraction image + optional title are saved on the request row immediately. */
   itemRequestId: z.string().uuid().optional(),
+  /** Skip fetching product HTML (manual quote when retailer blocks bots). */
+  skipPageFetch: z.boolean().optional(),
 });
 
 export type AdminAiEstimateRequest = z.infer<typeof adminAiEstimateRequestSchema>;

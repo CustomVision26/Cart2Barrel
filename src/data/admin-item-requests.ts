@@ -4,8 +4,12 @@ import { getDb } from "@/db";
 import { itemQuotes, itemRequests, profiles } from "@/db/schema";
 import {
   itemRequestsRowLegacySelect,
-} from "@/data/item-requests";
-import { isMissingBatchQuoteSessionIdColumnError } from "@/lib/db-column-missing";
+  itemRequestsRowLegacySelectWithoutReceiptImage,
+  itemRequestsRowSelectWithoutReceiptImage,
+  mapItemRequestRowWithoutReceiptImage,
+  mapLegacyItemRequestRow,
+  runItemRequestSelectWithFallback,
+} from "@/data/item-request-select-fallback";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 
 import type { User } from "@clerk/nextjs/server";
@@ -25,9 +29,11 @@ export type AdminItemRequestWithUserRow = {
  * Returns [] if the session user is not a Clerk admin.
  */
 export async function listItemRequestsWithProfileForAdmin(
-  clerkUser: User | null
+  clerkUser: User | null,
+  isAdmin?: boolean,
 ): Promise<AdminItemRequestWithUserRow[]> {
-  if (!isClerkAdmin(clerkUser)) {
+  const admin = isAdmin ?? isClerkAdmin(clerkUser);
+  if (!admin) {
     return [];
   }
 
@@ -73,50 +79,66 @@ export async function listItemRequestsWithProfileForAdmin(
     });
   }
 
-  try {
-    const rows = await db
-      .select({
-        request: itemRequests,
-        userFullName: profiles.fullName,
-        userEmail: profiles.email,
-      })
-      .from(itemRequests)
-      .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
-      .orderBy(desc(itemRequests.createdAt));
-
-    return hydrateQueueKinds(rows);
-  } catch (e) {
-    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
-    const rows = await db
-      .select({
-        ...itemRequestsRowLegacySelect,
-        userFullName: profiles.fullName,
-        userEmail: profiles.email,
-      })
-      .from(itemRequests)
-      .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
-      .orderBy(desc(itemRequests.createdAt));
-
-    return hydrateQueueKinds(
-      rows.map((row) => ({
-        request: {
-          id: row.id,
-          clerkUserId: row.clerkUserId,
-          productUrl: row.productUrl,
-          productName: row.productName,
-          productSize: row.productSize,
-          productColor: row.productColor,
-          quantity: row.quantity,
-          note: row.note,
-          productImageUrl: row.productImageUrl,
-          siteName: row.siteName,
-          status: row.status,
-          createdAt: row.createdAt,
-          batchQuoteSessionId: null,
-        },
+  const rows = await runItemRequestSelectWithFallback({
+    full: () =>
+      db
+        .select({
+          request: itemRequests,
+          userFullName: profiles.fullName,
+          userEmail: profiles.email,
+        })
+        .from(itemRequests)
+        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
+        .orderBy(desc(itemRequests.createdAt)),
+    withoutReceiptImage: async () => {
+      const legacyRows = await db
+        .select({
+          request: itemRequestsRowSelectWithoutReceiptImage,
+          userFullName: profiles.fullName,
+          userEmail: profiles.email,
+        })
+        .from(itemRequests)
+        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
+        .orderBy(desc(itemRequests.createdAt));
+      return legacyRows.map((row) => ({
+        request: mapItemRequestRowWithoutReceiptImage(row.request),
         userFullName: row.userFullName,
         userEmail: row.userEmail,
-      }))
-    );
-  }
+      }));
+    },
+    legacy: async () => {
+      const legacyRows = await db
+        .select({
+          ...itemRequestsRowLegacySelect,
+          userFullName: profiles.fullName,
+          userEmail: profiles.email,
+        })
+        .from(itemRequests)
+        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
+        .orderBy(desc(itemRequests.createdAt));
+      return legacyRows.map((row) => ({
+        request: mapLegacyItemRequestRow(row),
+        userFullName: row.userFullName,
+        userEmail: row.userEmail,
+      }));
+    },
+    legacyWithoutReceiptImage: async () => {
+      const legacyRows = await db
+        .select({
+          ...itemRequestsRowLegacySelectWithoutReceiptImage,
+          userFullName: profiles.fullName,
+          userEmail: profiles.email,
+        })
+        .from(itemRequests)
+        .innerJoin(profiles, eq(itemRequests.clerkUserId, profiles.clerkUserId))
+        .orderBy(desc(itemRequests.createdAt));
+      return legacyRows.map((row) => ({
+        request: mapLegacyItemRequestRow(row),
+        userFullName: row.userFullName,
+        userEmail: row.userEmail,
+      }));
+    },
+  });
+
+  return hydrateQueueKinds(rows);
 }

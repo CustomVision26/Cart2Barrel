@@ -14,6 +14,7 @@ import {
 import { alias } from "drizzle-orm/pg-core";
 
 import type { PaidOrdersQueryInput } from "@/lib/paid-orders-list-params";
+import { propagateBatchContextWithinOrders } from "@/lib/partition-paid-order-batch-groups";
 import { sortPaidOrderLinesWithinPage } from "@/lib/sort-paid-order-lines-for-display";
 import { getDb } from "@/db";
 import {
@@ -416,15 +417,29 @@ async function paginatePaidOrderLinesInner(opts: {
   hasFulfillmentColumn: boolean;
   lineFulfillmentIn?: OrderItem["fulfillmentStatus"][];
   lineFulfillmentExclude?: OrderItem["fulfillmentStatus"][];
+  /** Paginate by filtered lines, but return every product line on each paged order. */
+  expandFullOrderLines?: boolean;
 }): Promise<Omit<PaidOrderLinesPageResult, "rows"> & { rows: PaidOrderLineListRow[] }> {
-  const { scope, query, orderItemProj, hasFulfillmentColumn, lineFulfillmentIn, lineFulfillmentExclude } =
-    opts;
+  const {
+    scope,
+    query,
+    orderItemProj,
+    hasFulfillmentColumn,
+    lineFulfillmentIn,
+    lineFulfillmentExclude,
+    expandFullOrderLines,
+  } = opts;
   const db = getDb();
   const searchCond = buildPaidOrdersSearchPredicate(query.q);
-  const whereRoot = applyLineFulfillmentConstraints(buildWhereRoot(scope, searchCond), {
+  const paidWhere = buildWhereRoot(scope, searchCond);
+  const whereRoot = applyLineFulfillmentConstraints(paidWhere, {
     lineFulfillmentIn,
     lineFulfillmentExclude,
   });
+  const whereAllLinesInPagedOrders =
+    expandFullOrderLines ?
+      applyLineFulfillmentConstraints(paidWhere, { lineFulfillmentIn })
+    : whereRoot;
 
   const [{ cnt }] = await db
     .select({ cnt: countDistinct(orders.id) })
@@ -467,11 +482,14 @@ async function paginatePaidOrderLinesInner(opts: {
   });
 
   const fetchedLines = await selectLinesForOrderIds({
-    whereRoot,
+    whereRoot: whereAllLinesInPagedOrders,
     orderIds,
     orderItemProj,
   });
-  const bareLines = dedupePaidLineRows(fetchedLines);
+  let bareLines = dedupePaidLineRows(fetchedLines);
+  if (expandFullOrderLines) {
+    bareLines = propagateBatchContextWithinOrders(bareLines);
+  }
 
   const sorted = sortPaidOrderLinesWithinPage(bareLines, orderIds);
   const rows = await attachRefundedCents(sorted);
@@ -493,6 +511,11 @@ export async function listPaidOrderLinesPage(opts: {
   lineFulfillmentIn?: OrderItem["fulfillmentStatus"][];
   /** Excludes matching lines from results (pagination counts orders that still have ≥1 qualifying line). */
   lineFulfillmentExclude?: OrderItem["fulfillmentStatus"][];
+  /**
+   * When set with `lineFulfillmentExclude` / `lineFulfillmentIn`, paging still uses line filters,
+   * but each paged order includes all of its paid product lines (batch siblings stay visible).
+   */
+  expandFullOrderLines?: boolean;
 }): Promise<PaidOrderLinesPageResult> {
   try {
     return await paginatePaidOrderLinesInner({
@@ -502,6 +525,7 @@ export async function listPaidOrderLinesPage(opts: {
       hasFulfillmentColumn: true,
       lineFulfillmentIn: opts.lineFulfillmentIn,
       lineFulfillmentExclude: opts.lineFulfillmentExclude,
+      expandFullOrderLines: opts.expandFullOrderLines,
     });
   } catch (e) {
     if (
@@ -558,6 +582,7 @@ export async function listPaidOrderLinesPage(opts: {
         hasFulfillmentColumn: false,
         lineFulfillmentIn: opts.lineFulfillmentIn,
         lineFulfillmentExclude: opts.lineFulfillmentExclude,
+        expandFullOrderLines: opts.expandFullOrderLines,
       });
     }
     throw e;

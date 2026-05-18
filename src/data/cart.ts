@@ -17,18 +17,38 @@ import {
   type Order,
 } from "@/db/schema";
 import {
+  itemRequestFromRowWithoutReceiptImage,
   itemRequestsRowLegacySelect,
+  itemRequestsRowLegacySelectWithoutReceiptImage,
+  itemRequestsRowSelectWithoutReceiptImage,
+  withLegacyItemRequestDefaults,
 } from "@/data/item-requests";
 import { itemQuoteCoreSelect, itemQuoteCoreSelectPreMerchandiseSavings } from "@/data/item-quotes";
 import { orderListSelect } from "@/data/order-list-select";
 import type { ContainerCheckoutLine } from "@/data/user-container-cart";
 import { allocateBundleSubtotalAcrossLineTotalsCents } from "@/lib/batch-cart-allocation";
+import type {
+  ContainerPackingFeeBreakdown,
+  ContainerPackingRates,
+} from "@/lib/container-packing-fee";
+import {
+  allocateContainerPackingFeeToLineCents,
+  containerPackingPerUnitCentsForKind,
+  containerPackingPerUnitCentsFromBreakdown,
+} from "@/lib/container-packing-fee";
 import {
   containerOfferingKindLabel,
+  parseContainerOfferingKind,
+  type ContainerOfferingKind,
 } from "@/lib/validations/container-offering";
+import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
+import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
+import { formatUsd } from "@/lib/admin-markup";
+import { displaySiteName } from "@/lib/site-name";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
 import {
   isMissingBatchQuoteSessionIdColumnError,
+  isMissingOutsidePurchaseReceiptImageUrlColumnError,
   isMissingMerchandiseSavingsColumnError,
   isUndefinedColumnError,
 } from "@/lib/db-column-missing";
@@ -71,6 +91,7 @@ async function fetchQuotesForCartItemRequests(
         ...r,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       }));
     }
@@ -98,6 +119,7 @@ async function fetchQuotesForCartItemRequests(
         ...r,
         merchandiseSavingsCents: null,
         merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
         checkoutSnapshotKind: null,
       }));
     }
@@ -142,19 +164,53 @@ export async function listApprovedCartLinesForUser(
       )
       .orderBy(desc(itemRequests.createdAt));
   } catch (e) {
-    if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
-    const rows = await db
-      .select(itemRequestsRowLegacySelect)
-      .from(itemRequests)
-      .where(
-        and(
-          eq(itemRequests.clerkUserId, clerkUserId),
-          eq(itemRequests.status, "approved"),
-          notInAnyOrderClause()
+    if (isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) {
+      const rows = await db
+        .select(itemRequestsRowSelectWithoutReceiptImage)
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            eq(itemRequests.status, "approved"),
+            notInAnyOrderClause()
+          )
         )
-      )
-      .orderBy(desc(itemRequests.createdAt));
-    requests = rows.map((r) => ({ ...r, batchQuoteSessionId: null }));
+        .orderBy(desc(itemRequests.createdAt));
+      requests = rows.map(itemRequestFromRowWithoutReceiptImage);
+    } else if (isMissingBatchQuoteSessionIdColumnError(e)) {
+      try {
+        const rows = await db
+          .select(itemRequestsRowLegacySelect)
+          .from(itemRequests)
+          .where(
+            and(
+              eq(itemRequests.clerkUserId, clerkUserId),
+              eq(itemRequests.status, "approved"),
+              notInAnyOrderClause()
+            )
+          )
+          .orderBy(desc(itemRequests.createdAt));
+        requests = rows.map(withLegacyItemRequestDefaults);
+      } catch (legacyErr) {
+        if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(legacyErr)) {
+          throw legacyErr;
+        }
+        const rows = await db
+          .select(itemRequestsRowLegacySelectWithoutReceiptImage)
+          .from(itemRequests)
+          .where(
+            and(
+              eq(itemRequests.clerkUserId, clerkUserId),
+              eq(itemRequests.status, "approved"),
+              notInAnyOrderClause()
+            )
+          )
+          .orderBy(desc(itemRequests.createdAt));
+        requests = rows.map(withLegacyItemRequestDefaults);
+      }
+    } else {
+      throw e;
+    }
   }
 
   if (requests.length === 0) {
@@ -505,6 +561,119 @@ function bumpLargestCheckoutLine(items: StripeCheckoutPriceDataLine[], add: numb
   items[bestIdx].price_data.unit_amount += add;
 }
 
+/** Rolls sub-minimum Stripe allocations into the largest line (USD $0.50 floor). */
+function mergeSubMinimumStripeAllocations(amounts: number[]): number[] {
+  const min = STRIPE_CHECKOUT_LINE_MIN_US_CENTS;
+  const out = [...amounts];
+  let carry = 0;
+  let largestIdx = -1;
+  let largestAmt = 0;
+
+  for (let i = 0; i < out.length; i++) {
+    const amt = out[i];
+    if (amt <= 0) continue;
+    if (amt < min) {
+      carry += amt;
+      out[i] = 0;
+      continue;
+    }
+    if (amt > largestAmt) {
+      largestAmt = amt;
+      largestIdx = i;
+    }
+  }
+
+  if (carry > 0 && largestIdx >= 0) {
+    out[largestIdx] += carry;
+  }
+
+  return out;
+}
+
+function batchProductStripeDescription(
+  group: CartBatchGroup,
+  line: CartLine,
+  opts: { taxExcludedFromGoodsLine: boolean },
+): string {
+  const site = displaySiteName(line.request.siteName, line.request.productUrl);
+  const parts = [
+    `Batch ${group.batchNumber}`,
+    site || group.siteKey,
+    `Qty ${line.request.quantity}`,
+  ];
+  const size = line.request.productSize?.trim();
+  const color = line.request.productColor?.trim();
+  if (size) parts.push(`Size ${size}`);
+  if (color) parts.push(`Color ${color}`);
+  if (opts.taxExcludedFromGoodsLine) {
+    parts.push("merchandise & fees excluding estimated sale tax");
+  }
+  return parts.join(" · ");
+}
+
+function buildStripeLinesForBatchGroup(
+  group: CartBatchGroup,
+  goodsCentsForStripe: number,
+  quotedTaxCents: number,
+): StripeCheckoutPriceDataLine[] {
+  const weights = group.lines.map((l) => l.quote.totalPrice);
+  const allocated = mergeSubMinimumStripeAllocations(
+    allocateBundleSubtotalAcrossLineTotalsCents(weights, goodsCentsForStripe),
+  );
+
+  const nonZeroCount = allocated.filter((c) => c > 0).length;
+  const allMeetMinimum =
+    nonZeroCount === group.lines.length &&
+    allocated.every(
+      (c) => c === 0 || c >= STRIPE_CHECKOUT_LINE_MIN_US_CENTS,
+    );
+
+  if (!allMeetMinimum || nonZeroCount === 0) {
+    const n = group.lines.length;
+    return [
+      {
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          unit_amount: goodsCentsForStripe,
+          product_data: {
+            name: `Batch ${group.batchNumber}`,
+            description:
+              quotedTaxCents > 0 ?
+                `${n} item${n === 1 ? "" : "s"} · ${group.siteKey} · merchandise & fees excluding estimated sale tax`
+              : `${n} item${n === 1 ? "" : "s"} · ${group.siteKey}`,
+          },
+        },
+      },
+    ];
+  }
+
+  const taxExcluded = quotedTaxCents > 0;
+  const productLines: StripeCheckoutPriceDataLine[] = [];
+
+  group.lines.forEach((line, i) => {
+    const unitAmount = allocated[i] ?? 0;
+    if (unitAmount <= 0) return;
+
+    const name = line.request.productName?.trim() || "Requested item";
+    productLines.push({
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: unitAmount,
+        product_data: {
+          name,
+          description: batchProductStripeDescription(group, line, {
+            taxExcludedFromGoodsLine: taxExcluded,
+          }),
+        },
+      },
+    });
+  });
+
+  return productLines;
+}
+
 /**
  * Builds Stripe Checkout `line_items` from cart merchandise. Quoted retailer/site sale tax is
  * split into a dedicated line when Stripe’s USD minimum-per-line rules allow so it appears as
@@ -529,21 +698,9 @@ export function buildStripeLineItemsFromAssembledCart(assembled: AssembledCart):
     );
     quotedTaxStripePool += quotedTaxCents;
 
-    const n = group.lines.length;
-    items.push({
-      quantity: 1,
-      price_data: {
-        currency: "usd",
-        unit_amount: goodsCentsForStripe,
-        product_data: {
-          name: `Batch ${group.batchNumber}`,
-          description:
-            quotedTaxCents > 0 ?
-              `${n} item${n === 1 ? "" : "s"} · ${group.siteKey} · merchandise & fees excluding estimated sale tax`
-            : `${n} item${n === 1 ? "" : "s"} · ${group.siteKey}`,
-        },
-      },
-    });
+    items.push(
+      ...buildStripeLinesForBatchGroup(group, goodsCentsForStripe, quotedTaxCents),
+    );
   }
 
   for (const line of assembled.standaloneLines) {
@@ -592,20 +749,94 @@ export function buildStripeLineItemsFromAssembledCart(assembled: AssembledCart):
   return { lineItems: items, quotedSalesTaxIntentCents };
 }
 
+/** Stripe line items for barrel/bin packing fees (one line per kind when non-zero). */
+export function buildStripeLineItemsFromContainerPackingBreakdown(
+  breakdown: ContainerPackingFeeBreakdown,
+): StripeCheckoutPriceDataLine[] {
+  const items: StripeCheckoutPriceDataLine[] = [];
+  if (breakdown.barrelPackingFeeCents > 0) {
+    const n = breakdown.barrelCount;
+    items.push({
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: breakdown.barrelPackingFeeCents,
+        product_data: {
+          name: "Barrel packing fee",
+          description:
+            n === 1 ?
+              "Single-barrel packing rate"
+            : `${n} barrels at multi-barrel per-unit rate`,
+        },
+      },
+    });
+  }
+  if (breakdown.binPackingFeeCents > 0) {
+    const n = breakdown.binCount;
+    items.push({
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: breakdown.binPackingFeeCents,
+        product_data: {
+          name: "Bin packing fee",
+          description:
+            n === 1 ? "Single-bin packing rate" : `${n} bins at multi-bin per-unit rate`,
+        },
+      },
+    });
+  }
+  return items;
+}
+
 export function buildStripeLineItemsFromContainerCheckoutLines(
   lines: ContainerCheckoutLine[],
+  packing?: {
+    barrelCount: number;
+    binCount: number;
+    rates: ContainerPackingRates;
+  },
 ): StripeCheckoutPriceDataLine[] {
-  return lines.map((line) => ({
-    quantity: 1,
-    price_data: {
-      currency: "usd",
-      unit_amount: line.lineTotalCents,
-      product_data: {
-        name: `Container: ${line.name}`,
-        description: `${containerOfferingKindLabel(line.kind)} · ${line.sizeLabel} · Qty ${line.quantity}`,
+  return lines.map((line) => {
+    const containerSubtotalCents = line.lineTotalCents;
+    const packagingFeeCents =
+      packing ?
+        allocateContainerPackingFeeToLineCents({
+          kind: line.kind,
+          quantity: line.quantity,
+          barrelCount: packing.barrelCount,
+          binCount: packing.binCount,
+          rates: packing.rates,
+        })
+      : 0;
+    const packagingPerUnitCents =
+      packing ?
+        containerPackingPerUnitCentsForKind(
+          line.kind,
+          packing.barrelCount,
+          packing.binCount,
+          packing.rates,
+        )
+      : 0;
+    const chargeCents = containerSubtotalCents + packagingFeeCents;
+    const kindLabel = containerOfferingKindLabel(line.kind);
+    const packagingDetail =
+      packagingFeeCents > 0 ?
+        ` · Packaging ${line.quantity} × ${formatUsd(packagingPerUnitCents)}`
+      : "";
+
+    return {
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: chargeCents,
+        product_data: {
+          name: line.name,
+          description: `${kindLabel} · ${line.sizeLabel} · Container ${formatUsd(containerSubtotalCents)}${packagingDetail}`,
+        },
       },
-    },
-  }));
+    };
+  });
 }
 
 export type CartCheckoutSummaryLine = {
@@ -614,6 +845,7 @@ export type CartCheckoutSummaryLine = {
   productUrl: string;
   quantity: number;
   lineTotalCents: number;
+  outsidePurchaseReceiptImageUrl: string | null;
 };
 
 export type CartCheckoutBatchBundleSummary = {
@@ -629,8 +861,13 @@ export type CartCheckoutContainerSummaryLine = {
   id: string;
   nameSnapshot: string;
   sizeSnapshot: string;
-  kindSnapshot: string;
+  kind: ContainerOfferingKind;
   quantity: number;
+  unitPriceCents: number;
+  containerSubtotalCents: number;
+  packagingPerUnitCents: number;
+  packagingFeeCents: number;
+  /** Container + packaging (matches Stripe line when checkout used merged lines). */
   lineTotalCents: number;
 };
 
@@ -659,38 +896,86 @@ export async function getCartCheckoutOrderSummaryForUser(
 
   if (!order) return null;
 
-  const rows = await db
-    .select({
-      itemRequestId: orderItems.itemRequestId,
-      quantity: orderItems.quantity,
-      price: orderItems.price,
-      productName: itemRequests.productName,
-      productUrl: itemRequests.productUrl,
-      linkBatchSessionId: batchQuoteSessionLines.batchQuoteSessionId,
-      requestBatchSessionId: itemRequests.batchQuoteSessionId,
-    })
-    .from(orderItems)
-    .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
-    .leftJoin(
-      batchQuoteSessionLines,
-      eq(batchQuoteSessionLines.itemRequestId, itemRequests.id),
-    )
-    .where(
-      and(
-        eq(orderItems.orderId, orderId),
-        eq(itemRequests.clerkUserId, clerkUserId),
-      ),
-    );
+  const checkoutLineSelect = {
+    itemRequestId: orderItems.itemRequestId,
+    quantity: orderItems.quantity,
+    price: orderItems.price,
+    productName: itemRequests.productName,
+    productUrl: itemRequests.productUrl,
+    outsidePurchaseReceiptImageUrl: itemRequests.outsidePurchaseReceiptImageUrl,
+    linkBatchSessionId: batchQuoteSessionLines.batchQuoteSessionId,
+    requestBatchSessionId: itemRequests.batchQuoteSessionId,
+  } as const;
 
-  type Row = (typeof rows)[number];
+  const checkoutLineSelectWithoutReceipt = {
+    itemRequestId: orderItems.itemRequestId,
+    quantity: orderItems.quantity,
+    price: orderItems.price,
+    productName: itemRequests.productName,
+    productUrl: itemRequests.productUrl,
+    linkBatchSessionId: batchQuoteSessionLines.batchQuoteSessionId,
+    requestBatchSessionId: itemRequests.batchQuoteSessionId,
+  } as const;
 
-  function toLine(r: Pick<Row, "itemRequestId" | "quantity" | "price" | "productName" | "productUrl">): CartCheckoutSummaryLine {
+  type CheckoutLineRow = {
+    itemRequestId: string;
+    quantity: number;
+    price: number;
+    productName: string | null;
+    productUrl: string;
+    outsidePurchaseReceiptImageUrl?: string | null;
+    linkBatchSessionId: string | null;
+    requestBatchSessionId: string | null;
+  };
+
+  let rows: CheckoutLineRow[];
+  try {
+    rows = await db
+      .select(checkoutLineSelect)
+      .from(orderItems)
+      .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
+      .leftJoin(
+        batchQuoteSessionLines,
+        eq(batchQuoteSessionLines.itemRequestId, itemRequests.id),
+      )
+      .where(
+        and(
+          eq(orderItems.orderId, orderId),
+          eq(itemRequests.clerkUserId, clerkUserId),
+        ),
+      );
+  } catch (e) {
+    if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) {
+      throw e;
+    }
+    const legacyRows = await db
+      .select(checkoutLineSelectWithoutReceipt)
+      .from(orderItems)
+      .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
+      .leftJoin(
+        batchQuoteSessionLines,
+        eq(batchQuoteSessionLines.itemRequestId, itemRequests.id),
+      )
+      .where(
+        and(
+          eq(orderItems.orderId, orderId),
+          eq(itemRequests.clerkUserId, clerkUserId),
+        ),
+      );
+    rows = legacyRows.map((r) => ({
+      ...r,
+      outsidePurchaseReceiptImageUrl: null,
+    }));
+  }
+
+  function toLine(r: CheckoutLineRow): CartCheckoutSummaryLine {
     return {
       itemRequestId: r.itemRequestId,
       productName: r.productName,
       productUrl: r.productUrl,
       quantity: r.quantity,
       lineTotalCents: r.price,
+      outsidePurchaseReceiptImageUrl: r.outsidePurchaseReceiptImageUrl ?? null,
     };
   }
 
@@ -746,17 +1031,64 @@ export async function getCartCheckoutOrderSummaryForUser(
     },
   );
 
-  const containerRows = await db
+  const containerRowsRaw = await db
     .select({
       id: orderContainerItems.id,
       nameSnapshot: orderContainerItems.nameSnapshot,
       sizeSnapshot: orderContainerItems.sizeSnapshot,
       kindSnapshot: orderContainerItems.kindSnapshot,
       quantity: orderContainerItems.quantity,
+      unitPriceCents: orderContainerItems.unitPriceCents,
       lineTotalCents: orderContainerItems.lineTotalCents,
     })
     .from(orderContainerItems)
     .where(eq(orderContainerItems.orderId, orderId));
+
+  const { containerPackingRates } = await getMerchantPricingForEstimates(clerkUserId);
+  let barrelCount = 0;
+  let binCount = 0;
+  for (const row of containerRowsRaw) {
+    const kind = parseContainerOfferingKind(row.kindSnapshot);
+    if (row.quantity <= 0) continue;
+    if (kind === "barrel") barrelCount += row.quantity;
+    else if (kind === "bin") binCount += row.quantity;
+  }
+  const containerPacking = await resolveContainerPackingForUserCart(
+    clerkUserId,
+    barrelCount,
+    binCount,
+    containerPackingRates,
+  );
+
+  const containerLines: CartCheckoutContainerSummaryLine[] = containerRowsRaw.map(
+    (row) => {
+      const kind = parseContainerOfferingKind(row.kindSnapshot);
+      const containerSubtotalCents = row.lineTotalCents;
+      const packagingPerUnitCents = containerPackingPerUnitCentsFromBreakdown(
+        kind,
+        containerPacking,
+      );
+      const packagingFeeCents = allocateContainerPackingFeeToLineCents({
+        kind,
+        quantity: row.quantity,
+        barrelCount: containerPacking.barrelCount,
+        binCount: containerPacking.binCount,
+        rates: containerPackingRates,
+      });
+      return {
+        id: row.id,
+        nameSnapshot: row.nameSnapshot,
+        sizeSnapshot: row.sizeSnapshot,
+        kind,
+        quantity: row.quantity,
+        unitPriceCents: row.unitPriceCents,
+        containerSubtotalCents,
+        packagingPerUnitCents,
+        packagingFeeCents,
+        lineTotalCents: containerSubtotalCents + packagingFeeCents,
+      };
+    },
+  );
 
   return {
     orderId: order.id,
@@ -764,6 +1096,6 @@ export async function getCartCheckoutOrderSummaryForUser(
     totalAmount: order.totalAmount,
     batchBundles,
     standaloneLines,
-    containerLines: containerRows,
+    containerLines,
   };
 }

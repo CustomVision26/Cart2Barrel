@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Loader2Icon, SparklesIcon } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  Loader2Icon,
+  RotateCcwIcon,
+  SparklesIcon,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import {
   adminAiEstimateFromUrlAction,
@@ -10,6 +16,7 @@ import {
 } from "@/actions/admin-ai-estimate";
 import { adminUpdateHistoricalQuoteAction } from "@/actions/admin-update-historical-quote";
 import { AdminAiEstimateResultFields } from "@/components/admin/admin-ai-estimate-result-fields";
+import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,13 +27,20 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import type { AdminQuoteHistoryLine } from "@/data/admin-quote-history";
-import {
-  computePackLineMerchandiseAndServiceCents,
-  formatUsd,
-} from "@/lib/admin-markup";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
+import { isRetailerPageFetchBlockedMessage } from "@/lib/ai/fetch-page-for-ai";
+import { computePackLineMerchandiseAndServiceCents, formatUsd } from "@/lib/admin-markup";
+import {
+  adminQuoteLineToEstimateSeed,
+  lineTaxCentsFromQuote,
+  packPriceDollarsFromQuoteLine,
+  savingsDollarsFromQuoteLine,
+} from "@/lib/admin-quote-line-estimate-seed";
+import { persistStagedProductImage } from "@/lib/persist-staged-product-image";
+import { displaySiteName } from "@/lib/site-name";
+import { revokeBlobPreviewUrl } from "@/lib/staged-product-image";
+import { cn } from "@/lib/utils";
 
 function parseDollarsToCents(raw: string): number {
   const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");
@@ -48,12 +62,30 @@ function parseQuantityInput(raw: string, fallback: number): number {
   return Math.min(n, 99_999);
 }
 
-function lineTaxCents(line: AdminQuoteHistoryLine): number {
-  const q = line.quote;
-  const pack = q.packingFeeCents ?? 0;
-  return Math.max(
-    0,
-    q.totalPrice - q.itemCost - q.serviceFee - q.estimatedShipping - pack
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      {children}
+    </p>
+  );
+}
+
+function Panel({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-xl border border-border/80 bg-muted/20 p-4 shadow-sm",
+        className
+      )}
+    >
+      {children}
+    </section>
   );
 }
 
@@ -71,105 +103,111 @@ export function AdminQuoteHistoryEditDialog({
   merchantEstimateFees,
 }: AdminQuoteHistoryEditDialogProps) {
   const router = useRouter();
+  const [result, setResult] = useState<AdminAiEstimateResult | null>(null);
   const [isAiPending, startAiTransition] = useTransition();
   const [isSavePending, startSaveTransition] = useTransition();
-  const [aiResult, setAiResult] = useState<AdminAiEstimateResult | null>(null);
 
-  const [merchDollars, setMerchDollars] = useState("0.00");
-  const [serviceDollars, setServiceDollars] = useState("0.00");
-  const [shippingDollars, setShippingDollars] = useState("0.00");
-  const [taxDollars, setTaxDollars] = useState("0.00");
+  const [variantColor, setVariantColor] = useState("");
+  const [variantSize, setVariantSize] = useState("");
   const [editProductName, setEditProductName] = useState("");
-  const [editQuantity, setEditQuantity] = useState("1");
-  const [editColor, setEditColor] = useState("");
-  const [editSize, setEditSize] = useState("");
-  const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
+  /** Drives pack-line pricing, AI extraction, and saved request quantity. */
+  const [editCustomerQuantity, setEditCustomerQuantity] = useState("1");
 
-  /** Pack count for AI extraction + pack-line math (same semantics as AI estimate dialog). */
-  const [packQty, setPackQty] = useState("1");
   const [editPackPriceDollars, setEditPackPriceDollars] = useState("0.00");
   const [includePackPriceInEstimate, setIncludePackPriceInEstimate] =
     useState(true);
   const [unitsPerPack, setUnitsPerPack] = useState("1");
   const [editConsumerUnitOverrideDollars, setEditConsumerUnitOverrideDollars] =
     useState("");
+  const [editShippingDollars, setEditShippingDollars] = useState("0.00");
+  const [editTaxDollars, setEditTaxDollars] = useState("0.00");
   const [editSavingsDollars, setEditSavingsDollars] = useState("0.00");
-
   const [merchandiseIncludesSiteShippingTax, setMerchandiseIncludesSiteShippingTax] =
     useState(false);
+  const [editStaffNote, setEditStaffNote] = useState("");
 
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [uploadedProductImageUrl, setUploadedProductImageUrl] = useState<
+    string | null
+  >(null);
+  const [stagedProductImageFile, setStagedProductImageFile] = useState<File | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open || !line) return;
-    const tax = lineTaxCents(line);
-    setMerchDollars(centsToDollarInput(line.quote.itemCost));
-    setServiceDollars(centsToDollarInput(line.quote.serviceFee));
-    setShippingDollars(centsToDollarInput(line.quote.estimatedShipping));
-    setTaxDollars(centsToDollarInput(tax));
+
+    const tax = lineTaxCentsFromQuote(line);
+    const seed = adminQuoteLineToEstimateSeed(line);
+
+    setResult(seed);
+    setVariantSize(line.request.productSize?.trim() ?? "");
+    setVariantColor(line.request.productColor?.trim() ?? "");
     setEditProductName(line.request.productName?.trim() ?? "");
-    setEditQuantity(String(line.request.quantity));
-    setEditColor(line.request.productColor?.trim() ?? "");
-    setEditSize(line.request.productSize?.trim() ?? "");
-    setEditedImageUrl(line.request.productImageUrl ?? null);
-    setPackQty(String(line.request.quantity));
-    setEditPackPriceDollars("0.00");
-    setIncludePackPriceInEstimate(true);
+    setEditCustomerQuantity(String(line.request.quantity));
+    setEditPackPriceDollars(packPriceDollarsFromQuoteLine(line));
+    setIncludePackPriceInEstimate(
+      parseDollarsToCents(packPriceDollarsFromQuoteLine(line)) > 0
+    );
     setUnitsPerPack("1");
     setEditConsumerUnitOverrideDollars("");
-    setEditSavingsDollars("0.00");
+    setEditSavingsDollars(savingsDollarsFromQuoteLine(line));
+    setEditShippingDollars(centsToDollarInput(line.quote.estimatedShipping));
+    setEditTaxDollars(centsToDollarInput(tax));
+    setEditStaffNote(line.quote.staffNote?.trim() ?? "");
     setMerchandiseIncludesSiteShippingTax(
       Boolean(line.quote.merchandiseIncludesSiteShippingTax)
     );
-    setAiResult(null);
-    setSaveMessage(null);
-    setSaveError(null);
+    setStagedProductImageFile(null);
+    setUploadedProductImageUrl((prev) => {
+      revokeBlobPreviewUrl(prev);
+      return line.request.productImageUrl ?? null;
+    });
   }, [open, line]);
 
   useEffect(() => {
-    if (!aiResult?.ok) return;
-    setEditColor((c) => aiResult.extraction.color?.trim() || c);
-    setEditSize((s) => aiResult.extraction.size?.trim() || s);
-    setEditPackPriceDollars(
-      aiResult.unitPriceCents != null
-        ? centsToDollarInput(aiResult.unitPriceCents)
-        : "0.00"
-    );
+    if (!result?.ok) return;
+    setVariantColor((c) => result.extraction.color?.trim() || c);
+    setVariantSize((s) => result.extraction.size?.trim() || s);
+    if (result.extraction.productName?.trim()) {
+      setEditProductName(result.extraction.productName.trim());
+    }
+    if (result.unitPriceCents != null) {
+      setEditPackPriceDollars(centsToDollarInput(result.unitPriceCents));
+    }
     setUnitsPerPack("1");
     setEditConsumerUnitOverrideDollars("");
-    setEditSavingsDollars("0.00");
     setIncludePackPriceInEstimate(true);
-    setShippingDollars(
-      centsToDollarInput(aiResult.estimate.estimatedShippingCents)
+    setEditShippingDollars(
+      centsToDollarInput(result.estimate.estimatedShippingCents)
     );
-    setTaxDollars(centsToDollarInput(aiResult.estimate.taxCents));
-    if (aiResult.extraction.productName?.trim()) {
-      setEditProductName(aiResult.extraction.productName.trim());
+    setEditTaxDollars(centsToDollarInput(result.estimate.taxCents));
+    if (result.extraction.productImageUrl?.trim()) {
+      setUploadedProductImageUrl(result.extraction.productImageUrl.trim());
     }
-    if (aiResult.extraction.productImageUrl?.trim()) {
-      setEditedImageUrl(aiResult.extraction.productImageUrl.trim());
-    }
-    setSaveMessage(null);
-    setSaveError(null);
-  }, [aiResult]);
+  }, [result]);
 
-  const manualLineDerived = useMemo(() => {
-    const merch = parseDollarsToCents(merchDollars);
-    const serv = parseDollarsToCents(serviceDollars);
-    const ship = parseDollarsToCents(shippingDollars);
-    const tax = parseDollarsToCents(taxDollars);
-    const pack = merchantEstimateFees?.packingFeePerLineCents ?? 0;
-    return { merch, serv, ship, tax, pack, total: merch + serv + ship + tax + pack };
-  }, [merchDollars, serviceDollars, shippingDollars, taxDollars, merchantEstimateFees]);
+  const handleProductImageStaged = useCallback(
+    (file: File, previewUrl: string) => {
+      revokeBlobPreviewUrl(uploadedProductImageUrl);
+      setStagedProductImageFile(file);
+      setUploadedProductImageUrl(previewUrl);
+    },
+    [uploadedProductImageUrl],
+  );
 
-  const packDerived = useMemo(() => {
-    if (!aiResult?.ok) return null;
+  const derived = useMemo(() => {
+    if (!result?.ok) return null;
     const enteredPackCents = parseDollarsToCents(editPackPriceDollars);
     const packCents = includePackPriceInEstimate ? enteredPackCents : 0;
     const packCount = Math.min(
       999,
-      Math.max(0, Number.parseInt(String(packQty).trim(), 10) || 0)
+      Math.max(
+        0,
+        parseQuantityInput(
+          editCustomerQuantity,
+          line?.request.quantity ?? 1
+        )
+      )
     );
     const upp = Math.min(
       9999,
@@ -182,8 +220,6 @@ export function AdminQuoteHistoryEditDialog({
       editConsumerUnitOverrideDollars.trim() === "" || overrideCentsRaw <= 0
         ? null
         : overrideCentsRaw;
-
-    const packingCents = merchantEstimateFees?.packingFeePerLineCents ?? 0;
 
     const packLine = computePackLineMerchandiseAndServiceCents({
       packPriceCents: packCents,
@@ -203,19 +239,9 @@ export function AdminQuoteHistoryEditDialog({
       packLine.merchandiseSubtotalCents - savingsCents
     );
 
-    const ship = parseDollarsToCents(shippingDollars);
-    const tax = parseDollarsToCents(taxDollars);
-    const total =
-      merchNet + packLine.serviceFeeCents + ship + tax + packingCents;
-
-    const impliedConsumerUnitCents =
-      packLine.impliedConsumerUnitCents > 0
-        ? packLine.impliedConsumerUnitCents
-        : null;
-    const effectiveConsumerUnitCents =
-      packLine.effectiveConsumerUnitCents > 0
-        ? packLine.effectiveConsumerUnitCents
-        : null;
+    const ship = parseDollarsToCents(editShippingDollars);
+    const tax = parseDollarsToCents(editTaxDollars);
+    const total = merchNet + packLine.serviceFeeCents + ship + tax;
 
     return {
       merch: merchNet,
@@ -225,327 +251,326 @@ export function AdminQuoteHistoryEditDialog({
       serv: packLine.serviceFeeCents,
       ship,
       tax,
-      pack: packingCents,
       total,
       packCount,
       upp,
       packCents,
       enteredPackCents,
       includePackPriceInEstimate,
-      impliedConsumerUnitCents,
-      effectiveConsumerUnitCents,
+      impliedConsumerUnitCents:
+        packLine.impliedConsumerUnitCents > 0
+          ? packLine.impliedConsumerUnitCents
+          : null,
+      effectiveConsumerUnitCents:
+        packLine.effectiveConsumerUnitCents > 0
+          ? packLine.effectiveConsumerUnitCents
+          : null,
       usesUnitOverride: packLine.usesConsumerUnitOverride,
     };
   }, [
-    aiResult,
+    result,
     editPackPriceDollars,
     includePackPriceInEstimate,
     unitsPerPack,
     editConsumerUnitOverrideDollars,
-    packQty,
-    shippingDollars,
-    taxDollars,
+    editCustomerQuantity,
+    line?.request.quantity,
+    editShippingDollars,
+    editTaxDollars,
     editSavingsDollars,
     merchantEstimateFees,
   ]);
 
-  const totalPreviewCents =
-    aiResult?.ok && packDerived ? packDerived.total : manualLineDerived.total;
-
-  const runAi = useCallback(() => {
-    if (!line) return;
-    setAiResult(null);
-    setSaveMessage(null);
-    setSaveError(null);
-    startAiTransition(async () => {
-      const packN = Math.min(
-        999,
-        Math.max(1, Number.parseInt(packQty.trim(), 10) || line.request.quantity)
-      );
-      const res = await adminAiEstimateFromUrlAction({
-        productUrl: line.request.productUrl,
-        quantity: String(packN),
-        productSize: editSize.trim() || undefined,
-        productColor: editColor.trim() || undefined,
-        itemRequestId: line.request.id,
+  const runEstimate = useCallback(
+    (skipPageFetch: boolean) => {
+      if (!line) return;
+      if (!skipPageFetch) {
+        revokeBlobPreviewUrl(uploadedProductImageUrl);
+        setUploadedProductImageUrl(null);
+        setStagedProductImageFile(null);
+      }
+      startAiTransition(async () => {
+        const packN = Math.min(
+          999,
+          Math.max(
+            1,
+            parseQuantityInput(editCustomerQuantity, line.request.quantity)
+          )
+        );
+        const res = await adminAiEstimateFromUrlAction({
+          productUrl: line.request.productUrl,
+          quantity: String(packN),
+          productSize: variantSize.trim() || undefined,
+          productColor: variantColor.trim() || undefined,
+          itemRequestId: line.request.id,
+          skipPageFetch,
+        });
+        setResult(res);
       });
-      setAiResult(res);
-    });
-  }, [line, packQty, editSize, editColor]);
+    },
+    [line, editCustomerQuantity, variantSize, variantColor, uploadedProductImageUrl]
+  );
+
+  const runAi = useCallback(() => runEstimate(false), [runEstimate]);
+  const runManualQuote = useCallback(() => runEstimate(true), [runEstimate]);
+
+  const resetToSavedQuote = useCallback(() => {
+    if (!line) return;
+    const tax = lineTaxCentsFromQuote(line);
+    setResult(adminQuoteLineToEstimateSeed(line));
+    setVariantSize(line.request.productSize?.trim() ?? "");
+    setVariantColor(line.request.productColor?.trim() ?? "");
+    setEditProductName(line.request.productName?.trim() ?? "");
+    setEditCustomerQuantity(String(line.request.quantity));
+    setEditPackPriceDollars(packPriceDollarsFromQuoteLine(line));
+    setEditSavingsDollars(savingsDollarsFromQuoteLine(line));
+    setEditShippingDollars(centsToDollarInput(line.quote.estimatedShipping));
+    setEditTaxDollars(centsToDollarInput(tax));
+    setEditStaffNote(line.quote.staffNote?.trim() ?? "");
+    setMerchandiseIncludesSiteShippingTax(
+      Boolean(line.quote.merchandiseIncludesSiteShippingTax)
+    );
+    revokeBlobPreviewUrl(uploadedProductImageUrl);
+    setStagedProductImageFile(null);
+    setUploadedProductImageUrl(line.request.productImageUrl ?? null);
+    toast.message("Restored values from the saved quote.");
+  }, [line, uploadedProductImageUrl]);
 
   const save = useCallback(() => {
-    if (!line) return;
-    if (aiResult?.ok && packDerived && packDerived.packCount < 1) {
-      setSaveError("Set quantity (packs) to at least 1, or clear AI pricing.");
+    if (!line || !result?.ok || !derived) return;
+    if (derived.packCount < 1) {
+      toast.error("Set quantity to at least 1.");
       return;
     }
-    setSaveMessage(null);
-    setSaveError(null);
+
     startSaveTransition(async () => {
-      const quantity = parseQuantityInput(editQuantity, line.request.quantity);
-      const itemCost =
-        aiResult?.ok && packDerived ? packDerived.merch : manualLineDerived.merch;
-      const serviceFee =
-        aiResult?.ok && packDerived ? packDerived.serv : manualLineDerived.serv;
-      const estimatedShipping = parseDollarsToCents(shippingDollars);
-      const tax = parseDollarsToCents(taxDollars);
+      const customerQty = parseQuantityInput(
+        editCustomerQuantity,
+        line.request.quantity
+      );
+
+      const fallbackUrl =
+        stagedProductImageFile ? null : uploadedProductImageUrl;
+      const imageRes = await persistStagedProductImage(
+        line.request.id,
+        stagedProductImageFile,
+        fallbackUrl
+      );
+      if (!imageRes.ok) {
+        toast.error(imageRes.message);
+        return;
+      }
+
       const res = await adminUpdateHistoricalQuoteAction({
         quoteId: line.quote.id,
         itemRequestId: line.request.id,
-        itemCost,
+        itemCost: derived.merch,
         merchandiseSavingsCents:
-          aiResult?.ok && packDerived && packDerived.savingsCents > 0
-            ? packDerived.savingsCents
-            : undefined,
-        serviceFee,
-        estimatedShipping,
-        tax,
-        quantity,
+          derived.savingsCents > 0 ? derived.savingsCents : undefined,
+        serviceFee: derived.serv,
+        estimatedShipping: derived.ship,
+        tax: derived.tax,
+        quantity: customerQty,
         productName: editProductName.trim() || undefined,
-        productColor: editColor.trim() || undefined,
-        productSize: editSize.trim() || undefined,
-        productImageUrl: editedImageUrl ?? null,
+        productColor: variantColor.trim() || undefined,
+        productSize: variantSize.trim() || undefined,
+        productImageUrl: imageRes.imageUrl,
+        staffNote: editStaffNote.trim() || undefined,
         merchandiseIncludesSiteShippingTax,
       });
+
       if (res.ok) {
-        setSaveMessage(res.message ?? "Saved.");
+        revokeBlobPreviewUrl(uploadedProductImageUrl);
+        setStagedProductImageFile(null);
+        toast.success(res.message ?? "Quote saved.");
         router.refresh();
+        onOpenChange(false);
         return;
       }
-      setSaveError(res.message ?? "Could not save.");
+      toast.error(res.message ?? "Could not save quote.");
     });
   }, [
     line,
-    aiResult,
-    packDerived,
-    manualLineDerived,
-    shippingDollars,
-    taxDollars,
-    editQuantity,
+    result,
+    derived,
+    editCustomerQuantity,
     editProductName,
-    editColor,
-    editSize,
-    editedImageUrl,
-    router,
+    variantColor,
+    variantSize,
+    uploadedProductImageUrl,
+    stagedProductImageFile,
+    editStaffNote,
     merchandiseIncludesSiteShippingTax,
+    router,
+    onOpenChange,
   ]);
 
   if (!line) return null;
 
-  const savedTax = lineTaxCents(line);
-  const sizeSaved = line.request.productSize?.trim();
-  const colorSaved = line.request.productColor?.trim();
+  const siteLabel = displaySiteName(line.request.siteName, line.request.productUrl);
+  const savedTotal = line.quote.totalPrice;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(92vh,720px)] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Edit quote</DialogTitle>
-          <DialogDescription>
-            Same AI workflow as new quotes: run extraction, tune pack / bundle
-            pricing, shipping, and tax, then{" "}
-            <span className="font-medium text-foreground">Save changes</span>. Or clear
-            AI pricing and edit line amounts manually. Saving publishes a new current
-            estimate and supersedes the prior row; item display fields update.
+      <DialogContent className="flex max-h-[min(92vh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="space-y-1 border-b border-border/80 bg-muted/15 px-6 py-5">
+          <DialogTitle className="text-lg tracking-tight">Edit quote</DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed">
+            Update pricing and product details. Saving publishes a new current
+            estimate and replaces the previous row for this customer.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-w-0 space-y-3 text-sm">
-          <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Product &amp; saved quote
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="shrink-0 sm:w-36">
-                {line.request.productImageUrl ? (
-                  <div className="overflow-hidden rounded-md border border-border bg-background">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={line.request.productImageUrl}
-                      alt={
-                        line.request.productName?.trim()
-                          ? `Product: ${line.request.productName.trim()}`
-                          : "Product"
-                      }
-                      className="aspect-square w-full object-cover"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex aspect-square w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/30 px-2 text-center text-xs text-muted-foreground">
-                    No image on file
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1 space-y-3">
-                <div>
-                  <p className="font-medium text-foreground">
-                    {line.request.productName?.trim() || "Unnamed product"}
-                  </p>
-                  <p
-                    className="mt-0.5 truncate text-xs text-muted-foreground"
-                    title={line.request.productUrl}
-                  >
-                    {line.request.productUrl}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Quoted{" "}
-                    <time dateTime={line.quote.createdAt}>
-                      {new Date(line.quote.createdAt).toLocaleString()}
-                    </time>
-                  </p>
-                </div>
-                <dl className="grid max-w-md grid-cols-[6rem_1fr] gap-x-3 gap-y-1 text-xs sm:text-sm">
-                  <dt className="text-muted-foreground">Quantity</dt>
-                  <dd className="tabular-nums text-foreground">{line.request.quantity}</dd>
-                  {sizeSaved ? (
-                    <>
-                      <dt className="text-muted-foreground">Size</dt>
-                      <dd className="text-foreground">{sizeSaved}</dd>
-                    </>
-                  ) : null}
-                  {colorSaved ? (
-                    <>
-                      <dt className="text-muted-foreground">Color</dt>
-                      <dd className="text-foreground">{colorSaved}</dd>
-                    </>
-                  ) : null}
-                  {line.request.note?.trim() ? (
-                    <>
-                      <dt className="text-muted-foreground">Note</dt>
-                      <dd className="max-w-md whitespace-pre-wrap text-foreground">
-                        {line.request.note.trim()}
-                      </dd>
-                    </>
-                  ) : null}
-                </dl>
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-foreground">Saved amounts</p>
-                  <dl className="grid max-w-md grid-cols-[7.5rem_1fr] gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground sm:text-sm">
-                    {line.quote.merchandiseSavingsCents != null &&
-                    line.quote.merchandiseSavingsCents > 0 ? (
-                      <>
-                        <dt>Pack / bundle (listed)</dt>
-                        <dd className="text-foreground">
-                          {formatUsd(
-                            line.quote.itemCost + line.quote.merchandiseSavingsCents
-                          )}
-                        </dd>
-                        <dt>Savings</dt>
-                        <dd className="text-foreground">
-                          −{formatUsd(line.quote.merchandiseSavingsCents)}
-                        </dd>
-                      </>
-                    ) : null}
-                    <dt>Merchandise</dt>
-                    <dd className="text-foreground">{formatUsd(line.quote.itemCost)}</dd>
-                    <dt>Service &amp; handling</dt>
-                    <dd className="text-foreground">{formatUsd(line.quote.serviceFee)}</dd>
-                    <dt>Shipping</dt>
-                    <dd className="text-foreground">{formatUsd(line.quote.estimatedShipping)}</dd>
-                    <dt>Tax</dt>
-                    <dd className="text-foreground">{formatUsd(savedTax)}</dd>
-                    <dt className="font-medium text-foreground">Total</dt>
-                    <dd className="font-semibold text-foreground">
-                      {formatUsd(line.quote.totalPrice)}
-                    </dd>
-                  </dl>
-                </div>
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+          <Panel className="bg-gradient-to-br from-muted/30 to-muted/10">
+            <div className="flex gap-4">
+              <ProductRequestThumbnail
+                variant="admin"
+                imageUrl={uploadedProductImageUrl ?? line.request.productImageUrl}
+                productLabel={editProductName || line.request.productName}
+                className="size-20 shrink-0 rounded-lg"
+              />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+                  {editProductName.trim() ||
+                    line.request.productName?.trim() ||
+                    "Unnamed product"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {siteLabel}
+                  <span className="text-foreground">
+                    {" "}
+                    · Qty{" "}
+                    {parseQuantityInput(
+                      editCustomerQuantity,
+                      line.request.quantity
+                    )}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Originally quoted{" "}
+                  <time dateTime={line.quote.createdAt} className="text-foreground">
+                    {new Date(line.quote.createdAt).toLocaleString()}
+                  </time>
+                </p>
+                <a
+                  href={line.request.productUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  View product page
+                  <ExternalLinkIcon className="size-3.5" aria-hidden />
+                </a>
+                {stagedProductImageFile ? (
+                  <span className="inline-flex w-fit rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
+                    New photo pending save
+                  </span>
+                ) : null}
               </div>
             </div>
-          </div>
+          </Panel>
 
-          <div className="min-w-0 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              AI product estimate
-            </p>
-            <Field>
-              <FieldLabel htmlFor="qh-ai-pack-qty">Quantity (packs)</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="qh-ai-pack-qty"
-                  type="number"
-                  min={1}
-                  max={999}
-                  value={packQty}
-                  onChange={(e) => setPackQty(e.target.value)}
-                  className="max-w-28"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Used for AI extraction context and pack-line totals (same as the AI
-                  estimate dialog).
-                </p>
-              </FieldContent>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="qh-ai-size">Size (variant)</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="qh-ai-size"
-                  value={editSize}
-                  onChange={(e) => setEditSize(e.target.value)}
-                  placeholder="e.g. XL"
-                  autoComplete="off"
-                />
-              </FieldContent>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="qh-ai-color">Color (variant)</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="qh-ai-color"
-                  value={editColor}
-                  onChange={(e) => setEditColor(e.target.value)}
-                  placeholder="e.g. Blue"
-                  autoComplete="off"
-                />
-              </FieldContent>
-            </Field>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                className="gap-1.5"
-                disabled={isAiPending}
-                onClick={runAi}
-              >
-                {isAiPending ? (
-                  <>
-                    <Loader2Icon className="size-4 animate-spin" />
-                    Running…
-                  </>
-                ) : (
-                  <>
-                    <SparklesIcon className="size-4" />
-                    Run AI extraction
-                  </>
-                )}
-              </Button>
-              {aiResult?.ok ? (
+          <div className="space-y-3">
+            <SectionLabel>Refresh from retailer</SectionLabel>
+            <Panel>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field className="gap-1.5">
+                  <FieldLabel htmlFor="edit-quote-size" className="text-xs">
+                    Size
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="edit-quote-size"
+                      value={variantSize}
+                      onChange={(e) => setVariantSize(e.target.value)}
+                      placeholder="XL"
+                      autoComplete="off"
+                      className="h-9"
+                    />
+                  </FieldContent>
+                </Field>
+                <Field className="gap-1.5">
+                  <FieldLabel htmlFor="edit-quote-color" className="text-xs">
+                    Color
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="edit-quote-color"
+                      value={variantColor}
+                      onChange={(e) => setVariantColor(e.target.value)}
+                      placeholder="Blue"
+                      autoComplete="off"
+                      className="h-9"
+                    />
+                  </FieldContent>
+                </Field>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                Run AI to pull fresh title, image, and price hints from the product
+                URL. Variant fields help match the correct SKU on multi-option listings.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setAiResult(null);
-                    setEditSavingsDollars("0.00");
-                    setSaveError(null);
-                  }}
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={isAiPending}
+                  onClick={runAi}
                 >
-                  Clear AI pricing
+                  {isAiPending ? (
+                    <>
+                      <Loader2Icon className="size-4 animate-spin" />
+                      Running…
+                    </>
+                  ) : (
+                    <>
+                      <SparklesIcon className="size-4" />
+                      Run AI extraction
+                    </>
+                  )}
                 </Button>
-              ) : null}
-            </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={isAiPending}
+                  onClick={resetToSavedQuote}
+                >
+                  <RotateCcwIcon className="size-4" />
+                  Reset
+                </Button>
+              </div>
+            </Panel>
 
-            {aiResult && !aiResult.ok ? (
-              <p className="text-sm text-destructive" role="alert">
-                {aiResult.message}
-              </p>
+            {result && !result.ok ? (
+              <div
+                className="space-y-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3"
+                role="alert"
+              >
+                <p className="text-sm text-destructive">{result.message}</p>
+                {isRetailerPageFetchBlockedMessage(result.message) ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={isAiPending}
+                    onClick={runManualQuote}
+                  >
+                    Continue with manual entry
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
+          </div>
 
-            {aiResult?.ok && packDerived ? (
+          {result?.ok && derived ? (
+            <div className="space-y-3">
+              <SectionLabel>Quote breakdown</SectionLabel>
               <AdminAiEstimateResultFields
-                result={aiResult}
-                derived={packDerived}
+                result={result}
+                derived={derived}
                 editPackPriceDollars={editPackPriceDollars}
                 setEditPackPriceDollars={setEditPackPriceDollars}
                 includePackPriceInEstimate={includePackPriceInEstimate}
@@ -553,11 +578,13 @@ export function AdminQuoteHistoryEditDialog({
                 unitsPerPack={unitsPerPack}
                 setUnitsPerPack={setUnitsPerPack}
                 editConsumerUnitOverrideDollars={editConsumerUnitOverrideDollars}
-                setEditConsumerUnitOverrideDollars={setEditConsumerUnitOverrideDollars}
-                editShippingDollars={shippingDollars}
-                setEditShippingDollars={setShippingDollars}
-                editTaxDollars={taxDollars}
-                setEditTaxDollars={setTaxDollars}
+                setEditConsumerUnitOverrideDollars={
+                  setEditConsumerUnitOverrideDollars
+                }
+                editShippingDollars={editShippingDollars}
+                setEditShippingDollars={setEditShippingDollars}
+                editTaxDollars={editTaxDollars}
+                setEditTaxDollars={setEditTaxDollars}
                 editSavingsDollars={editSavingsDollars}
                 setEditSavingsDollars={setEditSavingsDollars}
                 merchandiseIncludesSiteShippingTax={
@@ -566,209 +593,97 @@ export function AdminQuoteHistoryEditDialog({
                 setMerchandiseIncludesSiteShippingTax={
                   setMerchandiseIncludesSiteShippingTax
                 }
-                idPrefix="qh-ai"
-                itemRequestId={line?.request.id}
-                productImageUrl={editedImageUrl}
-                onProductImageUploaded={setEditedImageUrl}
+                idPrefix="edit-quote"
+                itemRequestId={line.request.id}
+                productImageUrl={uploadedProductImageUrl}
+                deferProductImagePersist
+                onProductImageStaged={handleProductImageStaged}
+                editStaffNote={editStaffNote}
+                setEditStaffNote={setEditStaffNote}
+                editProductName={editProductName}
+                setEditProductName={setEditProductName}
+                editCustomerQuantity={editCustomerQuantity}
+                setEditCustomerQuantity={setEditCustomerQuantity}
+                alwaysShowImageUpload
+                productUrl={line.request.productUrl}
+                hideLeadingSeparator
+                polishedEditLayout
               />
-            ) : null}
-          </div>
+            </div>
+          ) : null}
+        </div>
 
-          <Separator />
-
-          <div className="min-w-0 space-y-3">
-            <p className="text-xs font-semibold text-foreground">
-              Line details (saved with quote)
-            </p>
-            <Field className="min-w-0 gap-1.5">
-              <FieldLabel htmlFor="qh-product-name" className="text-xs">
-                Product name
-              </FieldLabel>
-              <FieldContent>
-                <Input
-                  id="qh-product-name"
-                  className="w-full min-w-0"
-                  value={editProductName}
-                  onChange={(e) => setEditProductName(e.target.value)}
-                  placeholder="e.g. Crewneck sweatshirt"
-                  autoComplete="off"
-                />
-              </FieldContent>
-            </Field>
-            <Field className="min-w-0 gap-1.5">
-              <FieldLabel htmlFor="qh-qty" className="text-xs">
-                Quantity (customer line)
-              </FieldLabel>
-              <FieldContent>
-                <Input
-                  id="qh-qty"
-                  className="w-full min-w-0"
-                  inputMode="numeric"
-                  value={editQuantity}
-                  onChange={(e) => setEditQuantity(e.target.value)}
-                  autoComplete="off"
-                  min={1}
-                />
-              </FieldContent>
-            </Field>
-
-            {!aiResult?.ok ? (
-              <>
-                <p className="text-xs font-medium text-foreground">
-                  Manual line amounts
+        {result?.ok && derived ? (
+          <div className="shrink-0 border-t border-border/80 bg-muted/20 px-6 py-4">
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">New total</p>
+                <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+                  {formatUsd(derived.total)}
                 </p>
-                <Field className="min-w-0 gap-1.5">
-                  <FieldLabel htmlFor="qh-tax" className="text-xs">
-                    Tax ($)
-                  </FieldLabel>
-                  <FieldContent>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs text-muted-foreground">
-                        $
-                      </span>
-                      <Input
-                        id="qh-tax"
-                        className="w-full min-w-0 pl-6"
-                        inputMode="decimal"
-                        value={taxDollars}
-                        onChange={(e) => setTaxDollars(e.target.value)}
-                        autoComplete="off"
-                      />
-                    </div>
-                  </FieldContent>
-                </Field>
-                <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Field className="min-w-0 gap-1.5">
-                    <FieldLabel htmlFor="qh-merch" className="text-xs">
-                      Merchandise ($)
-                    </FieldLabel>
-                    <FieldContent>
-                      <div className="relative">
-                        <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs text-muted-foreground">
-                          $
-                        </span>
-                        <Input
-                          id="qh-merch"
-                          className="w-full min-w-0 pl-6"
-                          inputMode="decimal"
-                          value={merchDollars}
-                          onChange={(e) => setMerchDollars(e.target.value)}
-                          autoComplete="off"
-                        />
-                      </div>
-                    </FieldContent>
-                  </Field>
-                  <Field className="min-w-0 gap-1.5">
-                    <FieldLabel htmlFor="qh-svc" className="text-xs">
-                      Service &amp; handling ($)
-                    </FieldLabel>
-                    <FieldContent>
-                      <div className="relative">
-                        <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs text-muted-foreground">
-                          $
-                        </span>
-                        <Input
-                          id="qh-svc"
-                          className="w-full min-w-0 pl-6"
-                          inputMode="decimal"
-                          value={serviceDollars}
-                          onChange={(e) => setServiceDollars(e.target.value)}
-                          autoComplete="off"
-                        />
-                      </div>
-                    </FieldContent>
-                  </Field>
-                  <Field className="min-w-0 gap-1.5">
-                    <FieldLabel htmlFor="qh-ship" className="text-xs">
-                      Shipping ($)
-                    </FieldLabel>
-                    <FieldContent>
-                      <div className="relative">
-                        <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs text-muted-foreground">
-                          $
-                        </span>
-                        <Input
-                          id="qh-ship"
-                          className="w-full min-w-0 pl-6"
-                          inputMode="decimal"
-                          value={shippingDollars}
-                          onChange={(e) => setShippingDollars(e.target.value)}
-                          autoComplete="off"
-                        />
-                      </div>
-                    </FieldContent>
-                  </Field>
-                </div>
-                <label
-                  htmlFor="qh-merch-includes-site-fees"
-                  className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground"
-                >
-                  <input
-                    id="qh-merch-includes-site-fees"
-                    type="checkbox"
-                    checked={merchandiseIncludesSiteShippingTax}
-                    onChange={(e) =>
-                      setMerchandiseIncludesSiteShippingTax(e.target.checked)
-                    }
-                    className="border-input text-primary focus-visible:ring-ring mt-0.5 size-4 shrink-0 rounded"
-                  />
-                  <span>
-                    Retailer-listed{" "}
-                    <span className="font-medium text-foreground">
-                      shipping &amp; sale tax
-                    </span>{" "}
-                    are bundled into merchandise ($0 on this line for those splits).
-                  </span>
-                </label>
-              </>
-            ) : null}
+              </div>
+              <div className="text-right text-xs text-muted-foreground">
+                <p>Was {formatUsd(savedTotal)}</p>
+                {derived.total !== savedTotal ? (
+                  <p
+                    className={cn(
+                      "font-medium tabular-nums",
+                      derived.total > savedTotal
+                        ? "text-amber-400"
+                        : "text-emerald-400"
+                    )}
+                  >
+                    {derived.total > savedTotal ? "+" : "−"}
+                    {formatUsd(Math.abs(derived.total - savedTotal))}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">No change</p>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSavePending}
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="gap-1.5 sm:min-w-[10rem]"
+                disabled={isSavePending || derived.packCount < 1}
+                title={
+                  derived.packCount < 1
+                    ? "Set quantity to at least 1"
+                    : undefined
+                }
+                onClick={save}
+              >
+                {isSavePending ? (
+                  <>
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  "Save changes"
+                )}
+              </Button>
+            </div>
           </div>
-
-          <div className="flex justify-between gap-2 rounded-lg border border-border bg-muted/15 px-3 py-2 font-medium tabular-nums text-foreground">
-            <span>New total</span>
-            <span>{formatUsd(totalPreviewCents)}</span>
-          </div>
-
-          {saveError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {saveError}
-            </p>
-          ) : null}
-          {saveMessage ? (
-            <p className="text-sm text-muted-foreground" role="status">
-              {saveMessage}
-            </p>
-          ) : null}
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              type="button"
-              className="gap-1.5"
-              disabled={
-                isSavePending ||
-                (Boolean(aiResult?.ok) &&
-                  (packDerived?.packCount ?? 0) < 1)
-              }
-              onClick={save}
-            >
-              {isSavePending ? (
-                <>
-                  <Loader2Icon className="size-4 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                "Save changes"
-              )}
-            </Button>
+        ) : (
+          <div className="shrink-0 border-t border-border/80 px-6 py-4">
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              Close
             </Button>
           </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );

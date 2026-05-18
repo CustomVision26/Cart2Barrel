@@ -3,15 +3,25 @@ import Link from "next/link";
 import { FlagIcon, Package } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
+import { AdminOrderEstimateSummary } from "@/components/admin/admin-order-estimate-summary";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { CollapsibleOrderBatchBucket } from "@/components/orders/collapsible-order-batch-bucket";
 import { CollapsibleOrderTableSection } from "@/components/orders/collapsible-order-table-section";
 import { PaidOrderAccordionRoot } from "@/components/orders/paid-order-accordion";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
-import type { ItemRequestLineSnapshot } from "@/db/schema";
+import type {
+  BatchQuoteEstimate,
+  ItemQuote,
+  ItemRequestLineSnapshot,
+} from "@/db/schema";
+import {
+  batchEstimateSummaryRows,
+  singleQuoteSummaryRows,
+} from "@/lib/admin-order-estimate-summary-rows";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   containerOfferingKindLabel,
@@ -21,18 +31,18 @@ import {
   groupPaidRowsStableByOrder,
   partitionPaidLinesIntoBatchBuckets,
 } from "@/lib/partition-paid-order-batch-groups";
+import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
+import { effectiveOutsidePurchasePaidFulfillment } from "@/lib/outside-purchase-order-fulfillment";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { orderItemFulfillmentBadgeKind } from "@/lib/status-badge-map";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { displaySiteName } from "@/lib/site-name";
 import {
   adminCustomerDisplayLabel,
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
 import { cn } from "@/lib/utils";
-
-/** Stable default avoids allocating a new Map per render when the prop is omitted. */
-const EMPTY_QUOTE_MAP = new Map<string, number | null>();
 
 const EMPTY_ORDER_CONTAINERS: Record<string, OrderContainerLineAdmin[]> = {};
 
@@ -81,6 +91,9 @@ function groupPaidRowsByCustomer(rows: AdminPaidOrderLineRow[]) {
 
 /** Lines awaiting company purchase (highlight + batch banner; Ops → Review and approve). */
 function lineShowsPurchaseAction(row: AdminPaidOrderLineRow): boolean {
+  if (isOutsidePurchaseRequest(row.request)) {
+    return false;
+  }
   const fulfillment = effectiveOrderItemFulfillmentStatus(
     row.orderItem,
     row.order,
@@ -101,13 +114,16 @@ export function AdminPaidOrdersTable({
   rows,
   snapshotsByRequestId = {},
   orderAccordionResetKey,
-  quotedItemCostByRequestId = EMPTY_QUOTE_MAP,
+  latestQuotesByRequestId = {},
+  batchEstimatesBySessionId = {},
   orderContainerLinesByOrderId = EMPTY_ORDER_CONTAINERS,
 }: {
   rows: AdminPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
-  /** Per request id: latest operational `item_cost` for the purchase-review dialog. */
-  quotedItemCostByRequestId?: Map<string, number | null>;
+  /** Per request id: latest operational quote (purchase review + single-line estimate). */
+  latestQuotesByRequestId?: Record<string, ItemQuote>;
+  /** Per batch session id: checkout batch estimate roll-up. */
+  batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   /** Per order id: barrel/container checkout lines from the same paid order. */
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
   /** Paging/search/sort key so only one order stays expanded across result-set changes. */
@@ -170,7 +186,8 @@ export function AdminPaidOrdersTable({
                   order={order}
                   lines={lines}
                   snapshotsByRequestId={snapshotsByRequestId}
-                  quotedItemCostByRequestId={quotedItemCostByRequestId}
+                  latestQuotesByRequestId={latestQuotesByRequestId}
+                  batchEstimatesBySessionId={batchEstimatesBySessionId}
                   containerLines={orderContainerLinesByOrderId[order.id] ?? []}
                 />
               ))}
@@ -187,15 +204,19 @@ function OrderBlock({
   order,
   lines,
   snapshotsByRequestId,
-  quotedItemCostByRequestId,
+  latestQuotesByRequestId,
+  batchEstimatesBySessionId,
   containerLines,
 }: {
   order: AdminPaidOrderLineRow["order"];
   lines: AdminPaidOrderLineRow[];
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
-  quotedItemCostByRequestId: Map<string, number | null>;
+  latestQuotesByRequestId?: Record<string, ItemQuote>;
+  batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   containerLines: OrderContainerLineAdmin[];
 }) {
+  const quotesByRequestId = latestQuotesByRequestId ?? {};
+  const estimatesBySessionId = batchEstimatesBySessionId ?? {};
   const buckets = partitionPaidLinesIntoBatchBuckets(lines);
   const hasBatchMix = buckets.some((b) => b.kind === "batch");
   const hasSinglesMix = buckets.some((b) => b.kind === "single");
@@ -239,14 +260,18 @@ function OrderBlock({
             key={row.orderItem.id}
             row={row}
             snapshotsByRequestId={snapshotsByRequestId}
-            quotedItemCostByRequestId={quotedItemCostByRequestId}
+            latestQuotesByRequestId={quotesByRequestId}
+            showSingleEstimateSummary
           />
         ))
       : buckets.map((bucket, bi) => {
           if (bucket.kind === "batch") {
+            const batchEstimate =
+              estimatesBySessionId[bucket.batchSessionId] ?? null;
             return (
-              <FragmentBucket
+              <CollapsibleOrderBatchBucket
                 key={bucket.batchSessionId}
+                colSpan={subgroupColSpan()}
                 title={
                   <>
                     Batch{" "}
@@ -280,21 +305,34 @@ function OrderBlock({
                     </span>
                   );
                 })()}
+                estimateSummary={
+                  batchEstimate ?
+                    <AdminOrderEstimateSummary
+                      rows={batchEstimateSummaryRows(batchEstimate)}
+                    />
+                  : (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      No batch estimate on file.
+                    </p>
+                  )
+                }
               >
                 {bucket.lines.map((row) => (
                   <AdminOrderDataRow
                     key={row.orderItem.id}
                     row={row}
                     snapshotsByRequestId={snapshotsByRequestId}
-                    quotedItemCostByRequestId={quotedItemCostByRequestId}
+                    latestQuotesByRequestId={quotesByRequestId}
+                    inBatchGroup
                   />
                 ))}
-              </FragmentBucket>
+              </CollapsibleOrderBatchBucket>
             );
           }
           return (
-            <FragmentBucket
+            <CollapsibleOrderBatchBucket
               key={`single:${order.id}:${bi}`}
+              colSpan={subgroupColSpan()}
               title={hasBatchMix && hasSinglesMix ? "Single items" : "Single"}
               muted={!(hasBatchMix && hasSinglesMix)}
             >
@@ -303,15 +341,20 @@ function OrderBlock({
                   key={row.orderItem.id}
                   row={row}
                   snapshotsByRequestId={snapshotsByRequestId}
-                  quotedItemCostByRequestId={quotedItemCostByRequestId}
+                  latestQuotesByRequestId={quotesByRequestId}
+                  showSingleEstimateSummary
                 />
               ))}
-            </FragmentBucket>
+            </CollapsibleOrderBatchBucket>
           );
         })
       }
       {containerLines.length > 0 ?
-        <FragmentBucket title="Shipping containers" muted>
+        <CollapsibleOrderBatchBucket
+          colSpan={subgroupColSpan()}
+          title="Shipping containers"
+          muted
+        >
           {containerLines.map((c) => (
             <AdminOrderContainerLineRow
               key={c.id}
@@ -320,7 +363,7 @@ function OrderBlock({
               orderCreatedAt={order.createdAt}
             />
           ))}
-        </FragmentBucket>
+        </CollapsibleOrderBatchBucket>
       : null}
     </CollapsibleOrderTableSection>
   );
@@ -381,54 +424,43 @@ function AdminOrderContainerLineRow({
   );
 }
 
-function FragmentBucket({
-  title,
-  muted,
-  headerAside,
-  children,
-}: {
-  title: ReactNode;
-  muted?: boolean;
-  /** Batch header aside (e.g. purchase pending count). */
-  headerAside?: ReactNode;
-  children: ReactNode;
-}) {
-  const colSpan = subgroupColSpan();
-  return (
-    <>
-      <tr className={muted ? "bg-background/60" : "bg-primary/[0.06]"}>
-        <td className="px-3 py-1.5" colSpan={colSpan}>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <div
-              className={`min-w-0 flex-1 text-[11px] font-semibold uppercase tracking-wide ${
-                muted ? "text-muted-foreground" : "text-foreground/90"
-              }`}
-            >
-              {title}
-            </div>
-            {headerAside ? (
-              <div className="shrink-0 normal-case">{headerAside}</div>
-            ) : null}
-          </div>
-        </td>
-      </tr>
-      {children}
-    </>
-  );
+function quotedMerchandiseCostCents(
+  latestQuotesByRequestId: Record<string, ItemQuote> | undefined,
+  requestId: string,
+): number | null {
+  return latestQuotesByRequestId?.[requestId]?.itemCost ?? null;
 }
 
 function AdminOrderDataRow(props: {
   row: AdminPaidOrderLineRow;
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
-  quotedItemCostByRequestId: Map<string, number | null>;
+  latestQuotesByRequestId?: Record<string, ItemQuote>;
+  showSingleEstimateSummary?: boolean;
+  /** Renders each batch member as its own product row (batch roll-up stays in section header). */
+  inBatchGroup?: boolean;
 }) {
-  const { row, snapshotsByRequestId, quotedItemCostByRequestId } = props;
+  const {
+    row,
+    snapshotsByRequestId,
+    latestQuotesByRequestId = {},
+    showSingleEstimateSummary = false,
+    inBatchGroup = false,
+  } = props;
   const r = row.request;
-  const fulfillment = effectiveOrderItemFulfillmentStatus(row.orderItem, row.order);
+  const isOutside = isOutsidePurchaseRequest(r);
+  const latestQuote = latestQuotesByRequestId[r.id];
+  const fulfillment = effectiveOutsidePurchasePaidFulfillment(
+    r,
+    row.orderItem,
+    row.order,
+  );
+  const outsidePurchasePaidServiceFee =
+    fulfillment === BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID;
   const purchaseFlag = lineShowsPurchaseAction(row);
   const isBatch =
-    !!(row.resolvedBatchSessionId && row.resolvedBatchSessionId.trim()) ||
-    !!(row.resolvedBatchNumber && row.resolvedBatchNumber.trim());
+    !inBatchGroup &&
+    (!!(row.resolvedBatchSessionId && row.resolvedBatchSessionId.trim()) ||
+      !!(row.resolvedBatchNumber && row.resolvedBatchNumber.trim()));
 
   const batchDialogLabel =
     isBatch ?
@@ -442,7 +474,10 @@ function AdminOrderDataRow(props: {
     fulfillment === "paid_pending_company_purchase" ?
       {
         retailerLabel: displaySiteName(r.siteName, r.productUrl),
-        quotedMerchandiseCostCents: quotedItemCostByRequestId.get(r.id) ?? null,
+        quotedMerchandiseCostCents: quotedMerchandiseCostCents(
+          latestQuotesByRequestId,
+          r.id,
+        ),
         productLabel: r.productName?.trim() || "Item",
         quantity: row.orderItem.quantity,
         sizeLabel: r.productSize?.trim() ?? null,
@@ -470,7 +505,21 @@ function AdminOrderDataRow(props: {
         />
       </td>
       <td className="max-w-[11rem] px-3 py-3 align-top text-muted-foreground">
-        {isBatch ?
+        {inBatchGroup ?
+          <div className="space-y-1">
+            {purchaseFlag ?
+              <span
+                className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-100"
+                title="Confirm purchase via Ops · Review and approve after your team buys from the retailer."
+              >
+                <FlagIcon className="size-3 shrink-0 text-amber-400" aria-hidden />
+                Needs purchase
+              </span>
+            : (
+              <span className="text-sm italic text-muted-foreground">Batch item</span>
+            )}
+          </div>
+        : isBatch ?
           <div className="space-y-1">
             {purchaseFlag ?
               <span
@@ -492,7 +541,14 @@ function AdminOrderDataRow(props: {
             </p>
           </div>
         : (
-          <span className="text-sm italic text-muted-foreground">Single product</span>
+          <div className="space-y-2">
+            <span className="text-sm italic text-muted-foreground">Single product</span>
+            {showSingleEstimateSummary && !isOutside ?
+              latestQuote ?
+                <AdminOrderEstimateSummary rows={singleQuoteSummaryRows(latestQuote)} />
+              : <p className="text-xs text-muted-foreground">No estimate on file.</p>
+            : null}
+          </div>
         )}
       </td>
       <td className="max-w-[10rem] px-3 py-3 align-top font-medium text-foreground">
@@ -541,6 +597,7 @@ function AdminOrderDataRow(props: {
         <StatusBadge
           kind={orderItemFulfillmentBadgeKind(row.orderItem, row.order, {
             pendingRefundRequest: row.pendingRefundRequest != null,
+            fulfillmentOverride: fulfillment,
           })}
           title={fulfillment}
         >
@@ -550,26 +607,29 @@ function AdminOrderDataRow(props: {
         </StatusBadge>
       </td>
       <td className="px-3 py-3 align-top">
-        <AdminOrderLineActions
-          orderItemId={row.orderItem.id}
-          fulfillmentStatus={fulfillment}
-          linePriceCents={row.orderItem.price}
-          refundedCents={row.refundedCents}
-          productLabel={r.productName?.trim() || "Item"}
-          orderNumber={row.order.id}
-          batchNumber={row.resolvedBatchNumber}
-          batchSessionId={row.resolvedBatchSessionId}
-          purchaseReviewContext={purchaseReviewContext}
-          purchaseTracking={{
-            trackingUrl: row.orderItem.companyPurchaseTrackingUrl,
-            retailerTrackingCompany:
-              row.orderItem.companyPurchaseRetailerTrackingCompany,
-            retailerTrackingNumber:
-              row.orderItem.companyPurchaseRetailerTrackingNumber,
-          }}
-          retailerReceiptImageUrls={row.orderItem.companyPurchaseReceiptImageUrls}
-          pendingRefundRequest={row.pendingRefundRequest}
-        />
+        {outsidePurchasePaidServiceFee ?
+          <span className="text-xs text-muted-foreground">—</span>
+        : <AdminOrderLineActions
+            orderItemId={row.orderItem.id}
+            fulfillmentStatus={fulfillment}
+            linePriceCents={row.orderItem.price}
+            refundedCents={row.refundedCents}
+            productLabel={r.productName?.trim() || "Item"}
+            orderNumber={row.order.id}
+            batchNumber={row.resolvedBatchNumber}
+            batchSessionId={row.resolvedBatchSessionId}
+            purchaseReviewContext={purchaseReviewContext}
+            purchaseTracking={{
+              trackingUrl: row.orderItem.companyPurchaseTrackingUrl,
+              retailerTrackingCompany:
+                row.orderItem.companyPurchaseRetailerTrackingCompany,
+              retailerTrackingNumber:
+                row.orderItem.companyPurchaseRetailerTrackingNumber,
+            }}
+            retailerReceiptImageUrls={row.orderItem.companyPurchaseReceiptImageUrls}
+            pendingRefundRequest={row.pendingRefundRequest}
+          />
+        }
       </td>
       <td className="px-3 py-3 align-top">
         <ItemRequestLineAuditDialog

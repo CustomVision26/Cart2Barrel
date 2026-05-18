@@ -171,9 +171,11 @@ function isMissingLineSnapshotsRelationError(e: unknown): boolean {
  */
 export async function listItemRequestLineSnapshotsByRequestIds(
   clerkUser: User | null,
-  itemRequestIds: string[]
+  itemRequestIds: string[],
+  isAdmin?: boolean,
 ): Promise<ItemRequestLineSnapshot[]> {
-  if (!isClerkAdmin(clerkUser) || itemRequestIds.length === 0) {
+  const admin = isAdmin ?? isClerkAdmin(clerkUser);
+  if (!admin || itemRequestIds.length === 0) {
     return [];
   }
 

@@ -1,12 +1,11 @@
 import Link from "next/link";
 
-import {
-  buildAdminPurchaseOrdersListHref,
-  type PaidOrdersQueryInput,
-} from "@/lib/paid-orders-list-params";
+import type { AdminListQuery } from "@/lib/admin-customer-filter";
+import { ADMIN_CUSTOMER_FILTER_PARAM } from "@/lib/admin-customer-filter";
+import { buildAdminPurchaseOrdersListHref } from "@/lib/paid-orders-list-params";
 
 export function AdminPurchaseQueueListControls(props: {
-  query: PaidOrdersQueryInput;
+  query: AdminListQuery;
   totalLines: number;
   page: number;
   totalPages: number;
@@ -77,6 +76,13 @@ export function AdminPurchaseQueueListControls(props: {
           </select>
         </div>
         <input type="hidden" name="page" value="1" />
+        {query.userId ?
+          <input
+            type="hidden"
+            name={ADMIN_CUSTOMER_FILTER_PARAM}
+            value={query.userId}
+          />
+        : null}
         <button
           type="submit"
           className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"

@@ -15,8 +15,10 @@ export type StatusBadgeKind =
   | "deletedFromCart"
   | "quoted"
   | "customerResend"
+  | "outOfStock"
   | "draft"
-  | "neutral";
+  | "neutral"
+  | "outsidePurchaseProblemReceipt";
 
 const CLASSES: Record<StatusBadgeKind, string> = {
   refundPendingApproval:
@@ -43,9 +45,13 @@ const CLASSES: Record<StatusBadgeKind, string> = {
     "border-cyan-500/40 bg-cyan-500/[0.11] text-cyan-950 dark:border-cyan-500/45 dark:bg-cyan-500/12 dark:text-cyan-100",
   customerResend:
     "border-amber-500/45 bg-amber-500/[0.12] text-amber-950 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-100",
+  outOfStock:
+    "border-rose-500/45 bg-rose-500/[0.12] text-rose-950 dark:border-rose-500/50 dark:bg-rose-500/15 dark:text-rose-100",
   draft:
     "border-border bg-muted/50 text-muted-foreground",
   neutral: "border-border bg-muted/40 text-muted-foreground",
+  outsidePurchaseProblemReceipt:
+    "border-amber-600/55 bg-amber-500/20 text-amber-950 dark:border-amber-500/55 dark:bg-amber-500/20 dark:text-amber-50",
 };
 
 const BASE =

@@ -1,4 +1,6 @@
-import type { ItemRequest, Order } from "@/db/schema";
+import type { ItemRequest, Order, OutsidePurchaseReturnRequest } from "@/db/schema";
+import { itemRequestStatusLabelForDisplayWithReturn } from "@/lib/outside-purchase-display";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 
 const LABELS: Record<ItemRequest["status"], string> = {
   pending: "New request",
@@ -6,10 +8,30 @@ const LABELS: Record<ItemRequest["status"], string> = {
   approved: "In Cart",
   rejected: "Missing Item",
   withdrawn: "Deleted from cart",
+  out_of_stock: "Out of stock",
 };
 
 export function itemRequestStatusLabel(status: ItemRequest["status"]): string {
   return LABELS[status];
+}
+
+/** Customer/admin UI label; outside-purchase lines use condition-aware labels. */
+export function itemRequestStatusLabelForDisplay(
+  request: Pick<
+    ItemRequest,
+    | "status"
+    | "source"
+    | "outsidePurchaseReference"
+    | "productUrl"
+    | "outsidePurchasePaymentPromptedAt"
+    | "outsidePurchaseReceivedCondition"
+  >,
+  returnRequest?: Pick<OutsidePurchaseReturnRequest, "status"> | null,
+): string {
+  if (isOutsidePurchaseRequest(request)) {
+    return itemRequestStatusLabelForDisplayWithReturn(request, returnRequest);
+  }
+  return itemRequestStatusLabel(request.status);
 }
 
 /**

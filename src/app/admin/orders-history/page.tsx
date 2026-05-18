@@ -8,7 +8,7 @@ import {
 } from "@/data/item-request-line-snapshots";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
-import { parsePaidOrdersQuery } from "@/lib/paid-orders-list-params";
+import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 type PageProps = {
@@ -34,7 +34,7 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
 
   const admin = isClerkAdmin(cu.user);
   const rawSp = (await searchParams) ?? {};
-  const query = parsePaidOrdersQuery(rawSp);
+  const query = parseAdminListQuery(rawSp);
 
   const pagePack = !admin
     ? {

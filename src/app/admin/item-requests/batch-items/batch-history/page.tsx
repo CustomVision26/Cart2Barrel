@@ -1,7 +1,18 @@
 import { AdminBatchHistoryTable } from "@/components/admin/admin-batch-history-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import {
+  filterAdminBatchHistoryBundles,
+  parseAdminCustomerFilter,
+} from "@/lib/admin-customer-filter";
 
-export default async function AdminBatchItemsBatchHistoryPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminBatchItemsBatchHistoryPage({
+  searchParams,
+}: PageProps) {
+  const { clerkUserId } = parseAdminCustomerFilter((await searchParams) ?? {});
   const result = await loadAdminItemRequestsPagePayload();
 
   if (!result.ok || result.payload.noData) {
@@ -10,5 +21,9 @@ export default async function AdminBatchItemsBatchHistoryPage() {
 
   const { batchHistoryBundles } = result.payload;
 
-  return <AdminBatchHistoryTable bundles={batchHistoryBundles} />;
+  return (
+    <AdminBatchHistoryTable
+      bundles={filterAdminBatchHistoryBundles(batchHistoryBundles, clerkUserId)}
+    />
+  );
 }

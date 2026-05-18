@@ -34,6 +34,15 @@ export const saveAdminItemQuoteSchema = z.object({
         return null;
       }
     }),
+  /** Charge explanation, product conditions, and other staff comments for the shopper. */
+  staffNote: z
+    .string()
+    .max(4000)
+    .optional()
+    .transform((s) => {
+      const t = s?.trim();
+      return t ? t : undefined;
+    }),
 });
 
 export type SaveAdminItemQuoteInput = z.infer<typeof saveAdminItemQuoteSchema>;

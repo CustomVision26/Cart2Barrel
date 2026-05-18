@@ -1,7 +1,8 @@
 import { Package, Receipt } from "lucide-react";
 
 import { CartCheckoutBatchBundleCollapsible } from "@/components/dashboard/cart-checkout-batch-bundle-collapsible";
-import { CartCheckoutProductUrlReveal } from "@/components/dashboard/cart-checkout-product-url-reveal";
+import { CartCheckoutContainerLineCard } from "@/components/dashboard/cart-checkout-container-line-card";
+import { CartLineUrlOrReceipt } from "@/components/dashboard/cart-line-url-or-receipt";
 import {
   Card,
   CardContent,
@@ -12,10 +13,6 @@ import {
 import type { CartCheckoutOrderSummary } from "@/data/cart";
 import { formatUsd } from "@/lib/admin-markup";
 import { CART_CHECKOUT_USD_DISCLAIMER } from "@/lib/cart-checkout-disclaimer";
-import {
-  containerOfferingKindLabel,
-  parseContainerOfferingKind,
-} from "@/lib/validations/container-offering";
 import { statusBadgeClassName } from "@/lib/status-badge-kinds";
 import { cn } from "@/lib/utils";
 
@@ -72,7 +69,15 @@ export function CartCheckoutSummaryCard({
   const containerCount = dbSummary?.containerLines.length ?? 0;
   const dbLineTotal = bundleLineTotal + standaloneCount + containerCount;
 
-  const lineCount = dbLineTotal > 0 ? dbLineTotal : stripeLines.length;
+  const legacyAggregatePackingStripeLine = (description: string) => {
+    const d = description.trim().toLowerCase();
+    return d === "barrel packing fee" || d === "bin packing fee";
+  };
+  const stripeLinesForDisplay = stripeLines.filter(
+    (row) => !legacyAggregatePackingStripeLine(row.description),
+  );
+  const lineCount =
+    dbLineTotal > 0 ? dbLineTotal : stripeLinesForDisplay.length;
 
   return (
     <Card
@@ -152,9 +157,12 @@ export function CartCheckoutSummaryCard({
                           : null}
                         </p>
                         {line.productUrl ?
-                          <CartCheckoutProductUrlReveal
+                          <CartLineUrlOrReceipt
                             lineId={line.itemRequestId}
                             productUrl={line.productUrl}
+                            outsidePurchaseReceiptImageUrl={
+                              line.outsidePurchaseReceiptImageUrl
+                            }
                           />
                         : null}
                       </div>
@@ -172,43 +180,13 @@ export function CartCheckoutSummaryCard({
               ))}
               {dbSummary.containerLines.map((line) => (
                 <li key={line.id}>
-                  <div className="rounded-lg border border-border bg-background/80 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                          Container
-                        </p>
-                        <p className="break-words text-sm font-medium leading-snug text-foreground">
-                          {line.nameSnapshot}
-                          {line.quantity > 1 ?
-                            <span className="ml-1.5 font-normal text-muted-foreground">
-                              ×{line.quantity}
-                            </span>
-                          : null}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {containerOfferingKindLabel(
-                            parseContainerOfferingKind(line.kindSnapshot),
-                          )}{" "}
-                          · {line.sizeSnapshot}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-stretch justify-between border-t border-border/50 pt-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
-                        <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground sm:text-right">
-                          Amount
-                        </span>
-                        <span className="text-base font-semibold tabular-nums text-foreground sm:text-right">
-                          {formatUsd(line.lineTotalCents)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  <CartCheckoutContainerLineCard line={line} />
                 </li>
               ))}
             </ul>
-          : stripeLines.length > 0 ?
+          : stripeLinesForDisplay.length > 0 ?
             <ul className="space-y-3" role="list">
-              {stripeLines.map((row, idx) => (
+              {stripeLinesForDisplay.map((row, idx) => (
                 <li key={`${row.description}-${idx}`}>
                   <div className="rounded-lg border border-border bg-background/80 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
