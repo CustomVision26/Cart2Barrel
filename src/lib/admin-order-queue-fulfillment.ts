@@ -1,4 +1,4 @@
-import { and, eq, exists, ne, not, or, type SQL } from "drizzle-orm";
+import { and, eq, exists, ne, type SQL } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { orderItemProductReturnRequests, orderItems } from "@/db/schema";
@@ -22,8 +22,9 @@ export function fulfilledMoneyBackProductReturnExists(): SQL {
 }
 
 /**
- * `/admin/orders`: pre-purchase ops, pending return requests, and money-back returns awaiting refund.
- * Replacement returns in transit (`returned:awaiting delivery`) belong on purchase orders.
+ * `/admin/orders`: pre-purchase ops and pending return requests.
+ * All `product_return_awaiting_delivery` lines (replacement in transit and money-back awaiting refund)
+ * belong on `/admin/purchase-orders`.
  */
 export function applyAdminOrdersQueueFulfillmentWhere(paidWhere: SQL): SQL {
   let w = paidWhere;
@@ -35,20 +36,11 @@ export function applyAdminOrdersQueueFulfillmentWhere(paidWhere: SQL): SQL {
   for (const status of DELIVERY_RECEIVED_FULFILLMENT_STATUSES) {
     w = and(w, ne(orderItems.fulfillmentStatus, status))!;
   }
-  w = and(
-    w,
-    or(
-      ne(orderItems.fulfillmentStatus, "product_return_awaiting_delivery"),
-      fulfilledMoneyBackProductReturnExists(),
-    )!,
-  )!;
+  w = and(w, ne(orderItems.fulfillmentStatus, "product_return_awaiting_delivery"))!;
   return w;
 }
 
-/** Replacement (or staff) return in transit — not money-back return awaiting refund. */
+/** Replacement in transit or money-back return awaiting refund. */
 export function productReturnAwaitingDeliveryOnPurchaseOrders(): SQL {
-  return and(
-    eq(orderItems.fulfillmentStatus, "product_return_awaiting_delivery"),
-    not(fulfilledMoneyBackProductReturnExists()),
-  )!;
+  return eq(orderItems.fulfillmentStatus, "product_return_awaiting_delivery");
 }

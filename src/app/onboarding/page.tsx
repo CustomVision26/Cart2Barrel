@@ -46,11 +46,11 @@ export default async function OnboardingPage() {
             Step 1 of your account
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Contact &amp; shipping in Jamaica
+            Contact &amp; shipping address
           </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Add your account name and phone (billing and legal contact), then your
-            Jamaican street address as the shipping label we use for barrel delivery.
+            delivery address anywhere in the world for barrel shipping.
           </p>
         </div>
         <div className="flex w-full max-w-lg flex-col gap-8">

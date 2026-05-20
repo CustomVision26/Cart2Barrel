@@ -64,5 +64,7 @@ export async function saveContactProfileAction(
   revalidatePath("/onboarding");
   revalidatePath("/settings/delivery");
   revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/shipping");
+  revalidatePath("/dashboard/shipping/address");
   redirect(resolveAfterSaveRedirect(rawInput));
 }

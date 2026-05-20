@@ -1,14 +1,9 @@
-import { AdminBarrelsTabNav } from "@/components/admin/admin-barrels-tab-nav";
+import { AdminBarrelsLayoutShell } from "@/components/admin/admin-barrels-layout-shell";
 
 export default function AdminBarrelsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="space-y-6">
-      <AdminBarrelsTabNav />
-      {children}
-    </div>
-  );
+  return <AdminBarrelsLayoutShell>{children}</AdminBarrelsLayoutShell>;
 }

@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { orderItemRefunds, orderItems, orders } from "@/db/schema";
+import { isStripeRefundId } from "@/lib/stripe-refund-id";
 import { getStripeRefundReceiptUrl } from "@/lib/stripe-refund-receipt";
 
 export type StripeRefundReceiptForUserResult =
@@ -14,7 +15,7 @@ export async function getStripeRefundReceiptUrlForCustomer(opts: {
   stripeRefundId: string;
 }): Promise<StripeRefundReceiptForUserResult> {
   const refundId = opts.stripeRefundId.trim();
-  if (!refundId.startsWith("re_")) {
+  if (!isStripeRefundId(refundId)) {
     return { ok: false, message: "Invalid refund reference." };
   }
 

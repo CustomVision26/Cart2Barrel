@@ -172,7 +172,8 @@ export function ItemRequestLineSnapshotPreviewPanel({
           {auditSnapshotChangeSummary(row, prevRow)}
         </p>
       </div>
-      {row.phase === "warehouse_delivery_received" ?
+      {row.phase === "warehouse_delivery_received" ||
+      row.phase === "warehouse_delivery_received_prior" ?
         <WarehouseReceiptSnapshotPanel row={row} />
       : null}
       {row.phase === "product_return_tracking_saved" ?

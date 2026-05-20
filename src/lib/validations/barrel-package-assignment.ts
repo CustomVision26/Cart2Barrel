@@ -44,6 +44,14 @@ export type AdminMarkBarrelContainerFullInput = z.infer<
   typeof adminMarkBarrelContainerFullSchema
 >;
 
+export const adminUnmarkBarrelContainerFullSchema = z.object({
+  barrelId: z.string().uuid(),
+});
+
+export type AdminUnmarkBarrelContainerFullInput = z.infer<
+  typeof adminUnmarkBarrelContainerFullSchema
+>;
+
 export const adminUpdateBarrelCapacitySchema = z.object({
   barrelId: z.string().uuid(),
   capacityPercentage: z

@@ -71,16 +71,11 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
         </h1>
         <p className="text-sm text-muted-foreground">
           Inbound coordination and receipt logging for lines on this queue: pending delivery, non-good
-          receipts, problem receipts you are correcting, and replacement returns in transit (
-          <span className="font-medium text-foreground">returned:awaiting delivery</span>). Money-back
-          returns awaiting refund stay on{" "}
-          <Link
-            href="/admin/orders"
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Orders
-          </Link>
-          . When{" "}
+          receipts, problem receipts you are correcting, replacement returns in transit (
+          <span className="font-medium text-foreground">returned:awaiting delivery</span>), and
+          money-back returns (
+          <span className="font-medium text-foreground">Product Returned: awaiting refund</span>
+          ) after staff save return tracking. When{" "}
           <span className="font-medium text-foreground">Received delivery</span> records condition{" "}
           <span className="font-medium text-foreground">Good</span>, fulfillment becomes{" "}
           <span className="font-medium text-foreground">
@@ -108,14 +103,9 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
           carrier / number (or{" "}
           <span className="font-medium text-foreground">Return product</span> when a receipt needs
           correction and you are logging return shipment tracking. Replacement returns remain here until
-          receipt is logged; money-back returns move to{" "}
-          <Link
-            href="/admin/orders"
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Orders
-          </Link>{" "}
-          for refund. Purchase
+          receipt is logged; money-back lines stay here for{" "}
+          <span className="font-medium text-foreground">Refund line</span> once return tracking is saved.
+          Purchase
           approval still starts from <span className="font-medium text-foreground">Orders</span> →{" "}
           <span className="font-medium text-foreground">Review and approve</span>.
         </p>

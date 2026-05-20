@@ -65,8 +65,8 @@ export function resolveProductHistoryStatusDisplay(
   }
 
   const fulfillmentLabel =
-    options?.fulfillmentLabelOverride ??
-    fulfillmentProductHistoryLabelFromSnapshots(snapshots);
+    fulfillmentProductHistoryLabelFromSnapshots(snapshots) ??
+    options?.fulfillmentLabelOverride;
   if (fulfillmentLabel) {
     return {
       label: fulfillmentLabel,
@@ -83,7 +83,7 @@ export function resolveProductHistoryStatusDisplay(
     return {
       label: headline,
       badgeKind:
-        fulfillmentProductHistoryBadgeKindFromSnapshots([latest]) ??
+        fulfillmentProductHistoryBadgeKindFromSnapshots(snapshots) ??
         itemRequestWorkflowBadgeKind(request.status),
       title: headline,
     };

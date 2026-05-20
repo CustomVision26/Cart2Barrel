@@ -53,6 +53,22 @@ async function loadImagesForOfferingIds(
   return map;
 }
 
+/** First catalog image URL per offering (lowest sortIndex), for thumbnails in cart/shipping UI. */
+export async function getPrimaryImageUrlByOfferingIds(
+  offeringIds: string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(offeringIds.filter(Boolean))];
+  const imgMap = await loadImagesForOfferingIds(unique);
+  const out = new Map<string, string>();
+  for (const id of unique) {
+    const url = imgMap.get(id)?.[0]?.imageUrl?.trim();
+    if (url) {
+      out.set(id, url);
+    }
+  }
+  return out;
+}
+
 export async function listActiveContainerOfferingsWithImages(): Promise<
   ContainerOfferingWithImages[]
 > {

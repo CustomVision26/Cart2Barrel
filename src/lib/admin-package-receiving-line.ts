@@ -5,12 +5,25 @@ import {
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
 import type { WarehouseReceivingLine } from "@/lib/admin-warehouse-receiving-types";
+import { parseWarehouseReceiptMemo } from "@/lib/warehouse-receipt-snapshot-memo";
 
 export function latestWarehouseDeliverySnapshot(
   snapshots: ItemRequestLineSnapshot[] | undefined,
 ): ItemRequestLineSnapshot | null {
   if (!snapshots?.length) return null;
   let latest: ItemRequestLineSnapshot | null = null;
+  let latestSeq = -1;
+  for (const snap of snapshots) {
+    if (snap.phase !== "warehouse_delivery_received") continue;
+    const wr = parseWarehouseReceiptMemo(snap.auditMemo);
+    if (wr?.intakeRole === "prior") continue;
+    const seq = wr?.intakeSequence ?? 0;
+    if (!latest || seq >= latestSeq) {
+      latest = snap;
+      latestSeq = seq;
+    }
+  }
+  if (latest) return latest;
   for (const snap of snapshots) {
     if (snap.phase === "warehouse_delivery_received") {
       latest = snap;

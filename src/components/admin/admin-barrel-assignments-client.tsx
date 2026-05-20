@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { ProductToBarrelFiltersToolbar } from "@/components/barrels/product-to-barrel-filters-toolbar";
+
 import {
   adminReassignPackageBarrelAction,
   adminRemovePackageFromBarrelAction,
@@ -33,6 +35,14 @@ import {
   isBarrelOpenForAssignment,
 } from "@/lib/barrel-container-assignment";
 import { formatContainerAliasOptionLabel } from "@/lib/container-slot-alias";
+import {
+  containerFilterOptionsByBarrelId,
+  DEFAULT_PRODUCT_TO_BARREL_FILTERS,
+  filterAndSortPipelineLines,
+  isPipelineLineAssigned,
+  uniqueFulfillmentStatuses,
+  type ProductToBarrelFilterState,
+} from "@/lib/product-to-barrel-filters";
 import { cn } from "@/lib/utils";
 
 const selectClassName = cn(
@@ -62,16 +72,43 @@ export function AdminBarrelAssignmentsClient({
 }: AdminBarrelAssignmentsClientProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [filters, setFilters] = useState<ProductToBarrelFilterState>(
+    DEFAULT_PRODUCT_TO_BARREL_FILTERS,
+  );
+
+  const allBarrels = useMemo(
+    () => Object.values(barrelsByOwner).flat(),
+    [barrelsByOwner],
+  );
+
+  const fulfillmentOptions = useMemo(
+    () => uniqueFulfillmentStatuses(rows),
+    [rows],
+  );
+  const containerOptions = useMemo(
+    () => containerFilterOptionsByBarrelId(allBarrels),
+    [allBarrels],
+  );
+
+  const filteredRows = useMemo(
+    () => filterAndSortPipelineLines(rows, filters),
+    [rows, filters],
+  );
+
+  const filteredAwaitingCount = filteredRows.filter(
+    (row) => !isPipelineLineAssigned(row),
+  ).length;
+  const filteredAssignedCount = filteredRows.length - filteredAwaitingCount;
 
   const grouped = useMemo(() => {
     const map = new Map<string, AdminBarrelPipelineRow[]>();
-    for (const row of rows) {
+    for (const row of filteredRows) {
       const list = map.get(row.ownerClerkUserId) ?? [];
       list.push(row);
       map.set(row.ownerClerkUserId, list);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [rows]);
+  }, [filteredRows]);
 
   const ownersMissingBarrels = useMemo(() => {
     const missing: string[] = [];
@@ -113,10 +150,29 @@ export function AdminBarrelAssignmentsClient({
         </p>
       : null}
 
-      {grouped.length === 0 ?
+      <ProductToBarrelFiltersToolbar
+        idPrefix="admin-atb"
+        totalCount={rows.length}
+        filteredCount={filteredRows.length}
+        awaitingCount={filteredAwaitingCount}
+        assignedCount={filteredAssignedCount}
+        filters={filters}
+        onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
+        onClear={() => setFilters(DEFAULT_PRODUCT_TO_BARREL_FILTERS)}
+        fulfillmentOptions={fulfillmentOptions}
+        containerOptions={containerOptions}
+        searchLabel="Search products & customers"
+        searchPlaceholder="Product, container, customer id, order, status…"
+      />
+
+      {rows.length === 0 ?
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
           No products are in the barrel packing queue. Outside purchases with paid service fees
           and warehouse receipts in good condition appear here.
+        </p>
+      : grouped.length === 0 ?
+        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+          No products match your search or filters. Clear filters or try different keywords.
         </p>
       : (
         grouped.map(([ownerId, ownerLines]) => (
@@ -151,8 +207,8 @@ function OwnerAssignmentSection({
     onSuccess?: () => void,
   ) => void;
 }) {
-  const unassigned = ownerLines.filter((row) => !row.assignedBarrelId);
-  const assigned = ownerLines.filter((row) => Boolean(row.assignedBarrelId));
+  const unassigned = ownerLines.filter((row) => !isPipelineLineAssigned(row));
+  const assigned = ownerLines.filter((row) => isPipelineLineAssigned(row));
 
   return (
     <>
@@ -171,7 +227,13 @@ function OwnerAssignmentSection({
         </div>
       </div>
 
-      <ContainerSlotsInventorySection barrels={barrels} embedded showMarkFull />
+      <ContainerSlotsInventorySection
+        barrels={barrels}
+        embedded
+        showMarkFull
+        showLookupFilters
+        showCustomerColumn
+      />
 
       {unassigned.length > 0 ?
         <div className="space-y-2">

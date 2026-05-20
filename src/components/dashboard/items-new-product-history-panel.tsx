@@ -8,7 +8,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { StatusBadge } from "@/components/ui/status-badge";
 import type { OwnerBatchQuoteSessionBundle } from "@/data/batch-quote-sessions";
 import type {
   ItemQuote,
@@ -21,9 +20,7 @@ import { auditSnapshotStatusHeadline } from "@/lib/item-request-line-audit-statu
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
 import { itemRequestStatusLabel } from "@/lib/item-request-status-label";
 import { resolveProductHistoryStatusDisplay } from "@/lib/product-history-status";
-import { ownerBatchQuoteSessionStatusBadge } from "@/lib/batch-quote-session-status-labels";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
-import { batchQuoteSessionBadgeKind } from "@/lib/status-badge-map";
 import { cn } from "@/lib/utils";
 
 import { useAddItemPayload } from "./add-item-payload-context";
@@ -510,9 +507,6 @@ export function ItemsNewProductHistoryPanel() {
               <span className="font-mono text-primary">
                 {bundle.session.batchNumber}
               </span>
-              <StatusBadge kind={batchQuoteSessionBadgeKind(bundle.session.status)}>
-                {ownerBatchQuoteSessionStatusBadge(bundle.session.status)}
-              </StatusBadge>
             </span>
           ),
           summary: "0 products",

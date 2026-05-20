@@ -20,6 +20,7 @@ type CartOrderSummaryPanelProps = {
   estimatedTotalCents: number;
   quotedAndContainerSubtotalCents: number;
   containerPacking: ContainerPackingFeeBreakdown;
+  outboundShippingSubtotalCents?: number;
   processingPreviewCents: number;
   processingRegionLabel: string;
   shipCountry: string | null;
@@ -33,6 +34,7 @@ export function CartOrderSummaryPanel({
   estimatedTotalCents,
   quotedAndContainerSubtotalCents,
   containerPacking,
+  outboundShippingSubtotalCents = 0,
   processingPreviewCents,
   processingRegionLabel,
   shipCountry,
@@ -43,7 +45,8 @@ export function CartOrderSummaryPanel({
     processingPreviewCents > 0 ||
     containerPacking.totalPackingFeeCents > 0 ||
     containerPacking.barrelCount > 0 ||
-    containerPacking.binCount > 0;
+    containerPacking.binCount > 0 ||
+    outboundShippingSubtotalCents > 0;
 
   return (
     <Card className="overflow-hidden rounded-xl border-border/80 shadow-lg ring-1 ring-border/40 lg:sticky lg:top-6">
@@ -94,6 +97,13 @@ export function CartOrderSummaryPanel({
                 muted
               />
             : null}
+            {outboundShippingSubtotalCents > 0 ?
+              <SummaryRow
+                label="Outbound container shipping"
+                valueCents={outboundShippingSubtotalCents}
+                muted
+              />
+            : null}
             {processingPreviewCents > 0 ?
               <SummaryRow
                 label={`Card processing · ${processingRegionLabel}`}
@@ -127,7 +137,7 @@ export function CartOrderSummaryPanel({
               <>
                 Processing preview uses your{" "}
                 <Link
-                  href="/settings/delivery"
+                  href="/dashboard/shipping/address"
                   className="font-medium text-primary underline-offset-4 hover:underline"
                 >
                   shipping address

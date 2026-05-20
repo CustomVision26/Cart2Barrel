@@ -69,10 +69,33 @@ function WarehouseReceiptSnapshotPanel({
 }) {
   const wr = parseWarehouseReceiptMemo(row.auditMemo);
   if (!wr) return null;
+  const panelTitle =
+    wr.intakeRole === "prior" ?
+      "Prior warehouse intake (archived)"
+    : wr.intakeContext === "replacement_after_return" ?
+      "Replacement inbound receipt"
+    : "Warehouse receipt details";
   return (
-    <div className="rounded-lg border border-primary/25 bg-primary/5 p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-primary">
-        Warehouse receipt details
+    <div
+      className={
+        wr.intakeRole === "prior" ?
+          "rounded-lg border border-amber-500/30 bg-amber-500/5 p-4"
+        : "rounded-lg border border-primary/25 bg-primary/5 p-4"
+      }
+    >
+      <p
+        className={
+          wr.intakeRole === "prior" ?
+            "text-xs font-medium uppercase tracking-wide text-amber-800 dark:text-amber-200"
+          : "text-xs font-medium uppercase tracking-wide text-primary"
+        }
+      >
+        {panelTitle}
+        {wr.intakeSequence != null ?
+          <span className="ml-1 font-normal normal-case text-muted-foreground">
+            · intake #{wr.intakeSequence}
+          </span>
+        : null}
       </p>
       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
         <div>
@@ -101,9 +124,25 @@ function WarehouseReceiptSnapshotPanel({
         </div>
         <div>
           <dt className="text-xs font-medium text-muted-foreground">
-            Proof photos (session count)
+            Proof photos
           </dt>
           <dd className="tabular-nums">{wr.proofPhotoCount}</dd>
+          {wr.proofPhotoUrls && wr.proofPhotoUrls.length > 0 ?
+            <ul className="mt-1 list-inside list-disc text-xs text-primary">
+              {wr.proofPhotoUrls.map((url) => (
+                <li key={url}>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline-offset-2 hover:underline"
+                  >
+                    Open photo
+                  </a>
+                </li>
+              ))}
+            </ul>
+          : null}
         </div>
         {wr.barcodeValue?.trim() ?
           <div className="sm:col-span-2">
@@ -192,9 +231,10 @@ function AuditSnapshotPreviewPanel({
           {auditSnapshotChangeSummary(row, prevRow)}
         </p>
       </div>
-      {row.phase === "warehouse_delivery_received" ? (
+      {row.phase === "warehouse_delivery_received" ||
+      row.phase === "warehouse_delivery_received_prior" ?
         <WarehouseReceiptSnapshotPanel row={row} />
-      ) : null}
+      : null}
       {row.phase === "product_return_tracking_saved" ? (
         <ProductReturnTrackingSnapshotPanel row={row} />
       ) : null}
@@ -233,7 +273,8 @@ function AuditSnapshotPreviewPanel({
             Qty
           </p>
           <p className="tabular-nums">
-            {row.phase === "warehouse_delivery_received" ?
+            {row.phase === "warehouse_delivery_received" ||
+            row.phase === "warehouse_delivery_received_prior" ?
               (() => {
                 const wrMemo = parseWarehouseReceiptMemo(row.auditMemo);
                 return wrMemo ?

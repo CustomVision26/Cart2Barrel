@@ -91,7 +91,7 @@ export function AdminProductReturnRequestDialog({
         type="button"
         className={cn(buttonVariants({ variant: "default", size: "sm" }))}
       >
-        View return request
+        View return
       </DialogTrigger>
       <DialogContent className="max-h-[min(92vh,720px)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>

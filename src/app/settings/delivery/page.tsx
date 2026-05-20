@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function LegacyDeliverySettingsRedirect() {
-  redirect("/dashboard/settings");
+  redirect("/dashboard/shipping/address");
 }

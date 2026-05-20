@@ -74,6 +74,11 @@ export const itemRequestLineSnapshotPhaseEnum = pgEnum(
     "batch_request_submitted_to_staff",
     /** Staff recorded physical receipt at warehouse (qty, condition, shelf, proof metadata). */
     "warehouse_delivery_received",
+    /**
+     * Frozen copy of the prior warehouse intake before a replacement inbound receipt
+     * (`product_return_awaiting_delivery` → new received delivery).
+     */
+    "warehouse_delivery_received_prior",
     /** Customer requested a product return; pending staff return shipment setup. */
     "product_return_requested",
     /** Staff saved return-to-retailer shipment tracking after a problem receipt. */
@@ -209,6 +214,28 @@ export const shipmentStatusEnum = pgEnum("shipment_status", [
   "delivered",
 ]);
 
+/** How the customer wants their full container released from customs. */
+export const barrelShippingDeliveryMethodEnum = pgEnum(
+  "barrel_shipping_delivery_method",
+  ["customs_pickup", "broker_delivery"],
+);
+
+/** Post-payment outbound logistics timeline per container. */
+export const barrelOutboundShipmentStageEnum = pgEnum(
+  "barrel_outbound_shipment_stage",
+  [
+    "awaiting_customs_clearance",
+    "ready_for_shipment",
+    "picked_up",
+    "at_shipping_warehouse",
+    "on_vessel",
+    "arrived_destination",
+    "customs_processing",
+    "cleared_customs",
+    "delivered",
+  ],
+);
+
 /** Admin catalog: physical container style shown on `/dashboard/barrels`. */
 export const containerOfferingKindEnum = pgEnum("container_offering_kind", [
   "barrel",
@@ -227,7 +254,9 @@ export const addresses = pgTable(
     line1: text("line1").notNull(),
     line2: text("line2"),
     cityOrTown: text("city_or_town"),
+    /** State, province, parish, or region — label depends on country. */
     parish: text("parish"),
+    postalCode: text("postal_code"),
     country: text("country").notNull().default("Jamaica"),
     isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -1025,6 +1054,162 @@ export const barrelPackageAssignmentEvents = pgTable(
   ],
 );
 
+/**
+ * Customer shipping preference when a container is at 100% load or marked ready to ship.
+ * One intake per barrel; staff use this to arrange customs pickup vs broker delivery.
+ */
+export const barrelShippingIntakes = pgTable(
+  "barrel_shipping_intakes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    barrelId: uuid("barrel_id")
+      .notNull()
+      .references(() => barrels.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    deliveryMethod: barrelShippingDeliveryMethodEnum("delivery_method").notNull(),
+    /** Snapshot of destination when broker delivery is selected. */
+    deliveryAddressId: uuid("delivery_address_id").references(() => addresses.id, {
+      onDelete: "set null",
+    }),
+    contactPhone: text("contact_phone"),
+    specialInstructions: text("special_instructions"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("barrel_shipping_intakes_barrel_unique").on(t.barrelId),
+    index("barrel_shipping_intakes_clerk_user_id_idx").on(t.clerkUserId),
+  ],
+);
+
+/**
+ * Admin-published outbound shipping cost breakdown per container (after customer intake).
+ * Customer pays via cart before courier handoff.
+ */
+export const barrelOutboundShippingCharges = pgTable(
+  "barrel_outbound_shipping_charges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    barrelId: uuid("barrel_id")
+      .notNull()
+      .references(() => barrels.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    /** Optional note shown to the customer on the shipping charge card. */
+    adminNote: text("admin_note"),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }),
+    /** Unique freight payment reference assigned at Stripe checkout (e.g. C2B-SHP-20260520-A3K9P2). */
+    paymentReferenceNumber: text("payment_reference_number"),
+    paidOrderId: uuid("paid_order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("barrel_outbound_shipping_charges_barrel_unique").on(t.barrelId),
+    index("barrel_outbound_shipping_charges_clerk_user_id_idx").on(t.clerkUserId),
+    uniqueIndex("barrel_outbound_shipping_charges_payment_ref_unique").on(
+      t.paymentReferenceNumber,
+    ),
+  ],
+);
+
+/** Customs clearance + shipment stage tracking after outbound freight is paid. */
+export const barrelOutboundShipmentTracking = pgTable(
+  "barrel_outbound_shipment_tracking",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    barrelId: uuid("barrel_id")
+      .notNull()
+      .references(() => barrels.id, { onDelete: "cascade" }),
+    chargeId: uuid("charge_id").references(() => barrelOutboundShippingCharges.id, {
+      onDelete: "set null",
+    }),
+    trackingStage: barrelOutboundShipmentStageEnum("tracking_stage")
+      .notNull()
+      .default("awaiting_customs_clearance"),
+    stageUpdatedAt: timestamp("stage_updated_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .defaultNow()
+      .notNull(),
+    customsDeclarationFormUrl: text("customs_declaration_form_url"),
+    freightCompanyName: text("freight_company_name"),
+    freightDropOffAt: timestamp("freight_drop_off_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    estimatedArrivalAt: timestamp("estimated_arrival_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("barrel_outbound_shipment_tracking_barrel_unique").on(t.barrelId),
+    uniqueIndex("barrel_outbound_shipment_tracking_charge_unique").on(t.chargeId),
+  ],
+);
+
+export const barrelOutboundShippingChargeLines = pgTable(
+  "barrel_outbound_shipping_charge_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    chargeId: uuid("charge_id")
+      .notNull()
+      .references(() => barrelOutboundShippingCharges.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    sortIndex: integer("sort_index").notNull().default(0),
+  },
+  (t) => [
+    index("barrel_outbound_shipping_charge_lines_charge_id_idx").on(t.chargeId),
+  ],
+);
+
+/** Staging cart for outbound container shipping charges (separate from merchandise / container SKU cart). */
+export const userOutboundShippingCartLines = pgTable(
+  "user_outbound_shipping_cart_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    chargeId: uuid("charge_id")
+      .notNull()
+      .references(() => barrelOutboundShippingCharges.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("user_outbound_shipping_cart_lines_user_charge_unique").on(
+      t.clerkUserId,
+      t.chargeId,
+    ),
+    index("user_outbound_shipping_cart_lines_clerk_user_id_idx").on(t.clerkUserId),
+  ],
+);
+
 export const shipments = pgTable(
   "shipments",
   {
@@ -1173,6 +1358,7 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
   barrels: many(barrels),
   payments: many(payments),
   containerCartLines: many(userContainerCartLines),
+  outboundShippingCartLines: many(userOutboundShippingCartLines),
   pricingPackage: one(customerPricingPackages, {
     fields: [profiles.clerkUserId],
     references: [customerPricingPackages.clerkUserId],
@@ -1440,8 +1626,99 @@ export const barrelsRelations = relations(barrels, ({ one, many }) => ({
     references: [orderContainerItems.id],
   }),
   barrelItems: many(barrelItems),
+  shippingIntake: one(barrelShippingIntakes, {
+    fields: [barrels.id],
+    references: [barrelShippingIntakes.barrelId],
+  }),
+  outboundShippingCharge: one(barrelOutboundShippingCharges, {
+    fields: [barrels.id],
+    references: [barrelOutboundShippingCharges.barrelId],
+  }),
+  outboundShipmentTracking: one(barrelOutboundShipmentTracking, {
+    fields: [barrels.id],
+    references: [barrelOutboundShipmentTracking.barrelId],
+  }),
   shipments: many(shipments),
 }));
+
+export const barrelShippingIntakesRelations = relations(
+  barrelShippingIntakes,
+  ({ one }) => ({
+    barrel: one(barrels, {
+      fields: [barrelShippingIntakes.barrelId],
+      references: [barrels.id],
+    }),
+    profile: one(profiles, {
+      fields: [barrelShippingIntakes.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+    deliveryAddress: one(addresses, {
+      fields: [barrelShippingIntakes.deliveryAddressId],
+      references: [addresses.id],
+    }),
+  }),
+);
+
+export const barrelOutboundShippingChargesRelations = relations(
+  barrelOutboundShippingCharges,
+  ({ one, many }) => ({
+    barrel: one(barrels, {
+      fields: [barrelOutboundShippingCharges.barrelId],
+      references: [barrels.id],
+    }),
+    profile: one(profiles, {
+      fields: [barrelOutboundShippingCharges.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+    lines: many(barrelOutboundShippingChargeLines),
+    shipmentTracking: one(barrelOutboundShipmentTracking, {
+      fields: [barrelOutboundShippingCharges.id],
+      references: [barrelOutboundShipmentTracking.chargeId],
+    }),
+    paidOrder: one(orders, {
+      fields: [barrelOutboundShippingCharges.paidOrderId],
+      references: [orders.id],
+    }),
+  }),
+);
+
+export const barrelOutboundShipmentTrackingRelations = relations(
+  barrelOutboundShipmentTracking,
+  ({ one }) => ({
+    barrel: one(barrels, {
+      fields: [barrelOutboundShipmentTracking.barrelId],
+      references: [barrels.id],
+    }),
+    charge: one(barrelOutboundShippingCharges, {
+      fields: [barrelOutboundShipmentTracking.chargeId],
+      references: [barrelOutboundShippingCharges.id],
+    }),
+  }),
+);
+
+export const barrelOutboundShippingChargeLinesRelations = relations(
+  barrelOutboundShippingChargeLines,
+  ({ one }) => ({
+    charge: one(barrelOutboundShippingCharges, {
+      fields: [barrelOutboundShippingChargeLines.chargeId],
+      references: [barrelOutboundShippingCharges.id],
+    }),
+  }),
+);
+
+export const userOutboundShippingCartLinesRelations = relations(
+  userOutboundShippingCartLines,
+  ({ one }) => ({
+    profile: one(profiles, {
+      fields: [userOutboundShippingCartLines.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+    charge: one(barrelOutboundShippingCharges, {
+      fields: [userOutboundShippingCartLines.chargeId],
+      references: [barrelOutboundShippingCharges.id],
+    }),
+  }),
+);
 
 export const barrelItemsRelations = relations(barrelItems, ({ one }) => ({
   barrel: one(barrels, {
@@ -1568,6 +1845,29 @@ export type NewBarrel = typeof barrels.$inferInsert;
 
 export type BarrelItem = typeof barrelItems.$inferSelect;
 export type NewBarrelItem = typeof barrelItems.$inferInsert;
+
+export type BarrelShippingIntake = typeof barrelShippingIntakes.$inferSelect;
+export type NewBarrelShippingIntake = typeof barrelShippingIntakes.$inferInsert;
+
+export type BarrelOutboundShippingCharge =
+  typeof barrelOutboundShippingCharges.$inferSelect;
+export type NewBarrelOutboundShippingCharge =
+  typeof barrelOutboundShippingCharges.$inferInsert;
+
+export type BarrelOutboundShippingChargeLine =
+  typeof barrelOutboundShippingChargeLines.$inferSelect;
+export type NewBarrelOutboundShippingChargeLine =
+  typeof barrelOutboundShippingChargeLines.$inferInsert;
+
+export type UserOutboundShippingCartLine =
+  typeof userOutboundShippingCartLines.$inferSelect;
+export type NewUserOutboundShippingCartLine =
+  typeof userOutboundShippingCartLines.$inferInsert;
+
+export type BarrelOutboundShipmentTracking =
+  typeof barrelOutboundShipmentTracking.$inferSelect;
+export type NewBarrelOutboundShipmentTracking =
+  typeof barrelOutboundShipmentTracking.$inferInsert;
 
 export type Shipment = typeof shipments.$inferSelect;
 export type NewShipment = typeof shipments.$inferInsert;

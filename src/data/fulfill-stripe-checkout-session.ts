@@ -3,6 +3,10 @@ import { revalidatePath } from "next/cache";
 import type Stripe from "stripe";
 
 import { applyPaidCheckoutFulfillmentForOrder } from "@/data/apply-paid-checkout-fulfillment";
+import {
+  fulfillOutboundShippingChargesFromCheckout,
+  parseOutboundChargeIdsFromMetadata,
+} from "@/data/fulfill-outbound-shipping-checkout";
 import { markInCartBatchSessionsPaidForCheckoutOrder } from "@/data/mark-in-cart-batch-sessions-paid";
 import { orderListSelect } from "@/data/order-list-select";
 import { trySendOwnerPaidOrderReceiptEmail } from "@/data/owner-paid-order-receipt";
@@ -24,6 +28,8 @@ export function revalidateAfterPaidCheckoutFulfillment(): void {
   revalidatePath("/admin/orders");
   revalidatePath("/admin/overview");
   revalidatePath("/admin/item-requests", "layout");
+  revalidatePath("/dashboard/shipping");
+  revalidatePath("/admin/shipments");
 }
 
 /**
@@ -138,6 +144,14 @@ export async function fulfillPaidCheckoutFromStripeSession(
   });
 
   await applyPaidCheckoutFulfillmentForOrder(order.id);
+
+  const outboundChargeIds = parseOutboundChargeIdsFromMetadata(
+    session.metadata?.outboundChargeIds,
+  );
+  await fulfillOutboundShippingChargesFromCheckout(order.clerkUserId, outboundChargeIds, {
+    orderId: order.id,
+    stripePaymentIntentId: paymentIntentId,
+  });
 
   await markInCartBatchSessionsPaidForCheckoutOrder(order.id);
 

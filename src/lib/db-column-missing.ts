@@ -287,6 +287,28 @@ export function shouldBestEffortSkipBatchQuoteSessionStatusEventWrite(
   return false;
 }
 
+/** `barrel_shipping_intakes` — migration `0055_barrel_shipping_intakes` or `npm run db:push`. */
+export function isMissingBarrelShippingIntakesTableError(e: unknown): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("barrel_shipping_intakes")) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}
+
+/** Outbound shipping charge tables until `npm run db:push`. */
+export function isMissingBarrelOutboundShippingChargesTableError(e: unknown): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  const mentions =
+    msg.includes("barrel_outbound_shipping_charges") ||
+    msg.includes("barrel_outbound_shipping_charge_lines") ||
+    msg.includes("user_outbound_shipping_cart_lines");
+  if (!mentions) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}
+
 /** Missing container catalog tables until migration `0028_container_offerings_cart` or `npm run db:push`. */
 export function isMissingContainerCatalogSchemaError(e: unknown): boolean {
   const code = getPgErrorCode(e);

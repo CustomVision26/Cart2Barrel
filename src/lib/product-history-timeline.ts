@@ -13,6 +13,11 @@ import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import {
   buildOutsidePurchaseLifecycleEvents,
 } from "@/lib/outside-purchase-lifecycle";
+import {
+  latestTrackedFulfillmentSnapshot,
+  productHistoryLabelFromSnapshot,
+  TRACKED_FULFILLMENT_PHASES,
+} from "@/lib/product-history-fulfillment";
 import { resolveProductHistoryStatusDisplay } from "@/lib/product-history-status";
 
 export type ProductHistoryTimelineEvent = {
@@ -51,7 +56,11 @@ export function buildProductHistoryTimelineEvents(
 
     const label =
       lifecycle ? "Outside purchase status" : itemRequestLineSnapshotPhaseLabel(snap.phase);
-    const headline = lifecycle?.title ?? auditSnapshotStatusHeadline(snap);
+    const headline =
+      lifecycle?.title ??
+      (TRACKED_FULFILLMENT_PHASES.has(snap.phase) ?
+        productHistoryLabelFromSnapshot(snap)
+      : auditSnapshotStatusHeadline(snap));
     const detail =
       lifecycle?.detail && lifecycle.detail !== lifecycle.title ?
         lifecycle.detail
@@ -77,7 +86,10 @@ export function buildProductHistoryTimelineEvents(
     fulfillmentLabelOverride: options?.fulfillmentLabelOverride,
     returnRequest: options?.returnRequest,
   });
-  const latestAt = snapshots.at(-1)?.createdAt ?? request.createdAt;
+  const latestAt =
+    latestTrackedFulfillmentSnapshot(snapshots)?.createdAt ??
+    snapshots.at(-1)?.createdAt ??
+    request.createdAt;
 
   events.push({
     id: `current:${request.id}`,

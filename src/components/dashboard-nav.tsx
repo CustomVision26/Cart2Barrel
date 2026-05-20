@@ -14,7 +14,6 @@ const links = [
   { href: "/dashboard/orders", label: "Orders" },
   { href: "/dashboard/barrels", label: "Barrels" },
   { href: "/dashboard/shipping", label: "Shipping" },
-  { href: "/dashboard/settings", label: "Settings" },
 ] as const;
 
 export function DashboardNav() {

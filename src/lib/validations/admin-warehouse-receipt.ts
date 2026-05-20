@@ -52,3 +52,30 @@ export const warehouseReceiptMemoV1Schema = z.object({
 });
 
 export type WarehouseReceiptMemoV1 = z.infer<typeof warehouseReceiptMemoV1Schema>;
+
+/** Versioned intake record with sequence + role (active vs frozen prior intake). */
+export const warehouseReceiptMemoV2Schema = z.object({
+  kind: z.literal("warehouse_receipt_v2"),
+  orderItemId: z.string().uuid(),
+  intakeSequence: z.number().int().min(1).max(999),
+  intakeRole: z.enum(["active", "prior"]),
+  intakeContext: z.enum(["initial_inbound", "replacement_after_return"]).optional(),
+  recordedAt: z.string().min(1).max(64),
+  orderedQty: z.number().int().min(0),
+  receivedQty: z.number().int().min(0),
+  condition: warehouseReceiveConditionSchema,
+  shelfLocation: z.string(),
+  proofPhotoCount: z.number().int().min(0),
+  proofPhotoUrls: z.array(z.string().url()).max(RETAILER_RECEIPT_IMAGES_MAX).optional(),
+  barcodeValue: z.string().optional(),
+  barcodeImageUrl: z.string().url().optional(),
+});
+
+export type WarehouseReceiptMemoV2 = z.infer<typeof warehouseReceiptMemoV2Schema>;
+
+export const warehouseReceiptMemoSchema = z.discriminatedUnion("kind", [
+  warehouseReceiptMemoV1Schema,
+  warehouseReceiptMemoV2Schema,
+]);
+
+export type WarehouseReceiptMemo = z.infer<typeof warehouseReceiptMemoSchema>;

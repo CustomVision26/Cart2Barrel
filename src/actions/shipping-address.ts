@@ -61,8 +61,9 @@ export async function saveShippingAddressAction(
       line1: parsed.data.line1,
       line2: parsed.data.line2 ?? null,
       cityOrTown: parsed.data.cityOrTown,
-      parish: parsed.data.parish,
-      country: "Jamaica",
+      parish: parsed.data.stateOrRegion,
+      postalCode: parsed.data.postalCode ?? null,
+      country: parsed.data.country,
       isDefault: true,
       createdAt: now,
     });
@@ -80,8 +81,9 @@ export async function saveShippingAddressAction(
         line1: parsed.data.line1,
         line2: parsed.data.line2 ?? null,
         cityOrTown: parsed.data.cityOrTown,
-        parish: parsed.data.parish,
-        country: "Jamaica",
+        parish: parsed.data.stateOrRegion,
+        postalCode: parsed.data.postalCode ?? null,
+        country: parsed.data.country,
         isDefault: true,
       })
       .where(eq(addresses.id, primary.id));
@@ -91,5 +93,7 @@ export async function saveShippingAddressAction(
   revalidatePath("/onboarding");
   revalidatePath("/settings/delivery");
   revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/shipping");
+  revalidatePath("/dashboard/shipping/address");
   redirect(resolveShippingAfterSaveRedirect(rawInput));
 }

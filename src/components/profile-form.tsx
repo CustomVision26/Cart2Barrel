@@ -50,7 +50,7 @@ export function ProfileForm({
         <CardTitle>Account contact</CardTitle>
         <CardDescription>
           Legal name and phone for receipts, billing, and how we reach you. Your
-          Jamaican delivery street address is saved separately as a shipping label.
+          Delivery address worldwide is saved separately as a shipping label.
         </CardDescription>
       </CardHeader>
       <form action={formAction}>

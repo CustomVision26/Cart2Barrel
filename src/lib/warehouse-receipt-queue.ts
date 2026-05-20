@@ -20,10 +20,10 @@ export const DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES: OrderItem["fulfillm
 
 /**
  * `/admin/purchase-orders`: inbound coordination, pre-good receipt, problem receipts, and
- * replacement returns in transit (`returned:awaiting delivery`).
+ * replacement returns in transit (`returned:awaiting delivery`), and money-back returns awaiting refund
+ * (`Product Returned: awaiting refund`).
  * `delivery_received_good_awaiting_barrel` is excluded — good receipts appear on `/admin/packages`;
  * Customer-accepted damaged/wrong receipts also appear on `/admin/packages` and assign-to-barrel.
- * Money-back returns awaiting refund stay on `/admin/orders`.
  */
 
 /** `/admin/packages`: good receipt awaiting barrel (any warehouse condition) and packed in container. */

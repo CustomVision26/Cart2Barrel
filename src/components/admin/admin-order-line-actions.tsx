@@ -15,6 +15,7 @@ import type {
 } from "@/data/order-item-product-return-requests";
 import type { PendingRefundRequestBrief } from "@/data/order-item-refund-requests";
 import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
+import { isProblemDeliveryReceiptFulfillment } from "@/lib/delivery-condition-acceptance";
 import { adminMayRefundLineAfterProductReturn } from "@/lib/order-line-product-return-display";
 
 /** Staff quote row `item_cost` plus display fields — used only for pending company purchase UI. */
@@ -137,14 +138,6 @@ export function AdminOrderLineActions({
               initialReceiptImageUrls={retailerReceiptImageUrls}
             />
           : null}
-          {!pendingRefundRequest ?
-            <AdminRefundOrderLineButton
-              orderItemId={orderItemId}
-              linePriceCents={linePriceCents}
-              refundedCents={refundedCents}
-              productLabel={productLabel}
-            />
-          : null}
         </div>
       </div>
     );
@@ -160,12 +153,13 @@ export function AdminOrderLineActions({
     fulfillmentStatus === "delivery_received_wrong_item" ||
     fulfillmentStatus === "product_return_awaiting_delivery"
   ) {
-    const needsReceiptCorrection =
+    const problemReceipt = isProblemDeliveryReceiptFulfillment(fulfillmentStatus);
+    const showReturnProductTracking =
       fulfillmentStatus === "delivery_received_item_missing" ||
-      fulfillmentStatus === "delivery_received_item_damaged" ||
-      fulfillmentStatus === "delivery_received_wrong_item";
+      fulfillmentStatus === "product_return_awaiting_delivery";
     const showRefundLine =
       !pendingRefundRequest &&
+      !problemReceipt &&
       adminMayRefundLineAfterProductReturn(returnRefundContext);
 
     return (
@@ -195,12 +189,7 @@ export function AdminOrderLineActions({
               purchaseTracking?.retailerTrackingNumber ?? null
             }
             initialReceiptImageUrls={retailerReceiptImageUrls}
-            variant={
-              needsReceiptCorrection ||
-              fulfillmentStatus === "product_return_awaiting_delivery" ?
-                "return"
-              : "inbound"
-            }
+            variant={showReturnProductTracking ? "return" : "inbound"}
             triggerLabel={
               fulfillmentStatus === "product_return_awaiting_delivery" ?
                 "tracking"

@@ -70,8 +70,8 @@ const resolvedBatchNumberSel = sql<
 >`NULLIF(TRIM(COALESCE(${batchDirect.batchNumber}, ${batchViaLine.batchNumber}, '')), '')`;
 
 /**
- * Purchase orders: inbound coordination, problem receipts, and replacement returns in transit.
- * Money-back returns awaiting refund stay on `/admin/orders`.
+ * Purchase orders: inbound coordination, problem receipts, replacement returns in transit,
+ * and money-back returns awaiting refund (`Product Returned: awaiting refund`).
  */
 function postApprovedPurchaseWhere(
   fulfillmentStatuses: OrderItem["fulfillmentStatus"][] = ADMIN_PURCHASE_ORDERS_QUEUE_BASE_FULFILLMENT_STATUSES,

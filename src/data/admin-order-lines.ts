@@ -9,7 +9,6 @@ import { backfillOutsidePurchasePaidServiceFeeFulfillment } from "@/data/backfil
 import type { PaidOrderLineListRow, PaidOrderLinesPageResult } from "@/data/paid-orders-queries";
 import { listPaidOrderLinesPage } from "@/data/paid-orders-queries";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
-import { isMoneyBackProductReturn } from "@/lib/order-line-product-return-display";
 import { isAdminPurchaseOrdersQueueFulfillment } from "@/lib/warehouse-receipt-queue";
 
 export type AdminPaidOrderLineRow = PaidOrderLineListRow;
@@ -48,11 +47,6 @@ export async function listAdminPaidOrderLinesPage(
         row.order,
       );
       if (isAdminPurchaseOrdersQueueFulfillment(fulfillment)) {
-        if (fulfillment === "product_return_awaiting_delivery") {
-          return isMoneyBackProductReturn(
-            row.fulfilledProductReturnRequest?.desiredOutcome,
-          );
-        }
         return false;
       }
       return true;

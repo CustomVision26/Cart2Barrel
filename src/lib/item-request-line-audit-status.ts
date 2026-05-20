@@ -25,10 +25,17 @@ export function auditSnapshotStatusHeadline(
   row: ItemRequestLineSnapshot,
 ): string {
   switch (row.phase) {
-    case "warehouse_delivery_received": {
+    case "warehouse_delivery_received":
+    case "warehouse_delivery_received_prior": {
       const wr = parseWarehouseReceiptMemo(row.auditMemo);
       if (wr) {
-        return `Inbound receipt · ${warehouseReceiveConditionLabel(wr.condition)} · ${wr.receivedQty}/${wr.orderedQty} pcs`;
+        const prefix =
+          wr.intakeRole === "prior" ?
+            `Prior intake #${wr.intakeSequence ?? "?"}`
+          : wr.intakeContext === "replacement_after_return" ?
+            `Replacement receipt #${wr.intakeSequence ?? "?"}`
+          : "Inbound receipt";
+        return `${prefix} · ${warehouseReceiveConditionLabel(wr.condition)} · ${wr.receivedQty}/${wr.orderedQty} pcs`;
       }
       return itemRequestLineSnapshotPhaseLabel(row.phase);
     }

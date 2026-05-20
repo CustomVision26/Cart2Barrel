@@ -25,15 +25,11 @@ import type {
   OutsidePurchaseReturnRequest,
 } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
-import {
-  batchQuoteSessionEventKindLabel,
-  ownerBatchQuoteSessionStatusBadge,
-} from "@/lib/batch-quote-session-status-labels";
+import { batchQuoteSessionEventKindLabel } from "@/lib/batch-quote-session-status-labels";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { resolveProductHistoryStatusDisplay } from "@/lib/product-history-status";
 import { displaySiteName } from "@/lib/site-name";
-import { batchQuoteSessionBadgeKind } from "@/lib/status-badge-map";
 import { cn } from "@/lib/utils";
 
 function latestActivityMs(
@@ -271,10 +267,6 @@ export function ProductHistoryTableRow({
                   <div className="space-y-3">
                     <ChargesGrid
                       rows={[
-                        {
-                          label: "Batch status",
-                          value: ownerBatchQuoteSessionStatusBadge(bundle.session.status),
-                        },
                         {
                           label: "Created",
                           value: new Date(bundle.session.createdAt).toLocaleString(),

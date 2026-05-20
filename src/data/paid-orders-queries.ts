@@ -510,7 +510,7 @@ async function paginatePaidOrderLinesInner(opts: {
   lineFulfillmentExclude?: OrderItem["fulfillmentStatus"][];
   /** Paginate by filtered lines, but return every product line on each paged order. */
   expandFullOrderLines?: boolean;
-  /** `/admin/orders` queue: money-back returns only for `product_return_awaiting_delivery`. */
+  /** `/admin/orders` queue: excludes all `product_return_awaiting_delivery` lines. */
   adminOrdersQueue?: boolean;
 }): Promise<Omit<PaidOrderLinesPageResult, "rows"> & { rows: PaidOrderLineListRow[] }> {
   const {

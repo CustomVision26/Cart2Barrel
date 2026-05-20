@@ -40,6 +40,10 @@ import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { buildAdminOrdersListHref } from "@/lib/paid-orders-list-params";
 import { orderItemFulfillmentBadgeKind } from "@/lib/status-badge-map";
+import {
+  isMoneyBackProductReturn,
+  isMoneyBackReturnAwaitingRefund,
+} from "@/lib/order-line-product-return-display";
 import { canSubmitWarehouseReceiptForFulfillment } from "@/lib/warehouse-receipt-queue";
 import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
 import { displaySiteName } from "@/lib/site-name";
@@ -98,11 +102,28 @@ function receiptSelectableRow(row: PurchaseQueueLineRow): boolean {
     row.order,
   );
   const net = row.orderItem.price - row.refundedCents;
+  if (
+    fulfillment === "product_return_awaiting_delivery" &&
+    isMoneyBackProductReturn(row.fulfilledProductReturnRequest?.desiredOutcome)
+  ) {
+    return false;
+  }
   return canSubmitWarehouseReceiptForFulfillment(fulfillment) && net > 0;
 }
 
 function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
   const oi = row.orderItem;
+  const fulfillment = effectiveOrderItemFulfillmentStatus(oi, row.order);
+  if (fulfillment === "product_return_awaiting_delivery") {
+    return {
+      receivedQty: oi.quantity,
+      condition: "good",
+      shelfLocation: "",
+      proofPhotoUrls: [],
+      proofFileCount: 0,
+      barcodeValue: "",
+    };
+  }
   if (oi.warehouseReceivedAt) {
     const cond = isReceiveCondition(oi.warehouseReceivedCondition) ?
         oi.warehouseReceivedCondition
@@ -597,6 +618,10 @@ function PurchaseQueueRow(props: {
   const highlightCorrection = needsReceiptCorrection && refundable > 0;
   const highlightBarrelGood = awaitingBarrelGood && refundable > 0;
   const refundRequestHighlight = row.pendingRefundRequest != null;
+  const awaitingMoneyBackRefund = isMoneyBackReturnAwaitingRefund({
+    fulfillmentStatus: fulfillment,
+    fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+  });
 
   const isBatch =
     !!(row.resolvedBatchSessionId?.trim()) ||
@@ -623,6 +648,8 @@ function PurchaseQueueRow(props: {
           "bg-emerald-500/[0.05] shadow-[inset_3px_0_0_rgb(16_185_129_/_0.5)]",
         refundRequestHighlight &&
           "bg-violet-500/[0.05] shadow-[inset_3px_0_0_rgb(167_139_250_/_0.65)]",
+        awaitingMoneyBackRefund &&
+          "bg-rose-500/[0.05] shadow-[inset_3px_0_0_rgb(244_63_94_/_0.55)]",
       )}
     >
       <td className="px-2 py-3 align-top">
@@ -699,6 +726,13 @@ function PurchaseQueueRow(props: {
             >
               <TruckIcon className="size-3 shrink-0 text-sky-400" aria-hidden />
               Awaiting inbound
+            </span>
+          : awaitingMoneyBackRefund ?
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-rose-500/45 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-950 dark:text-rose-100"
+              title="Money-back return — use Refund line after return tracking is on file."
+            >
+              Awaiting refund
             </span>
           : null}
           {isBatch ?
@@ -786,6 +820,7 @@ function PurchaseQueueRow(props: {
           }}
           retailerReceiptImageUrls={row.orderItem.companyPurchaseReceiptImageUrls}
           pendingRefundRequest={row.pendingRefundRequest}
+          pendingProductReturnRequest={row.pendingProductReturnRequest}
           fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
         />
       </td>

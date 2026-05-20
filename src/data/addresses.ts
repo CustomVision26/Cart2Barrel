@@ -2,10 +2,11 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { addresses, type Address } from "@/db/schema";
+import { isJamaicaShippingCountry } from "@/lib/shipping-countries";
 
 /** Prefer default row, else most recently created. */
 export async function getPrimaryShippingAddress(
-  clerkUserId: string
+  clerkUserId: string,
 ): Promise<Address | undefined> {
   const db = getDb();
   const byDefault = await db
@@ -27,7 +28,13 @@ export async function getPrimaryShippingAddress(
 
 export function isShippingAddressComplete(addr: Address | undefined): boolean {
   if (!addr) return false;
-  return Boolean(
-    addr.line1?.trim() && addr.cityOrTown?.trim() && addr.parish?.trim()
+  const hasCore = Boolean(
+    addr.line1?.trim() &&
+      addr.cityOrTown?.trim() &&
+      addr.parish?.trim() &&
+      addr.country?.trim(),
   );
+  if (!hasCore) return false;
+  if (isJamaicaShippingCountry(addr.country)) return true;
+  return Boolean(addr.postalCode?.trim());
 }

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { CartBatchBundleCard } from "@/components/dashboard/cart-batch-bundle-card";
 import { CartContainerLineItem } from "@/components/dashboard/cart-container-line-item";
+import { CartOutboundShippingLineItem } from "@/components/dashboard/cart-outbound-shipping-line-item";
 import { CartOrderSummaryPanel } from "@/components/dashboard/cart-order-summary-panel";
 import { CartQuoteLineItem } from "@/components/dashboard/cart-quote-line-item";
 import { CartSection } from "@/components/dashboard/cart-section";
@@ -26,6 +27,10 @@ import {
   sumContainerCartQuantitiesByKind,
 } from "@/data/user-container-cart";
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
+import {
+  listUserOutboundShippingCartLines,
+  sumOutboundShippingCartLinesCents,
+} from "@/data/barrel-outbound-shipping-charges";
 import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
@@ -86,19 +91,30 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
     binCount,
     containerPackingRates,
   );
+  const outboundShippingCartLines = await listUserOutboundShippingCartLines(userId);
+  const outboundShippingSubtotalCents = sumOutboundShippingCartLinesCents(
+    outboundShippingCartLines,
+  );
 
   const hasQuotedLines =
     assembled.batchGroups.length > 0 || assembled.standaloneLines.length > 0;
-  const hasAny = hasQuotedLines || containerCartRows.length > 0;
+  const hasAny =
+    hasQuotedLines ||
+    containerCartRows.length > 0 ||
+    outboundShippingCartLines.length > 0;
   const quotedLineCount =
     assembled.batchGroups.reduce((n, g) => n + g.lines.length, 0) +
     assembled.standaloneLines.length;
-  const lineCount = quotedLineCount + containerCartRows.length;
+  const lineCount =
+    quotedLineCount +
+    containerCartRows.length +
+    outboundShippingCartLines.length;
 
   const merchandiseSubtotalCents =
     assembled.estimatedTotalCents +
     containerSubtotalCents +
-    containerPacking.totalPackingFeeCents;
+    containerPacking.totalPackingFeeCents +
+    outboundShippingSubtotalCents;
   const shipAddr = hasAny ? await getPrimaryShippingAddress(userId) : undefined;
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,
@@ -315,6 +331,20 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                 </ul>
               </CartSection>
             : null}
+
+            {outboundShippingCartLines.length > 0 ?
+              <CartSection
+                title="Outbound container shipping"
+                description="Courier and customs costs for containers ready to ship from Jamaica."
+                count={outboundShippingCartLines.length}
+              >
+                <ul className="divide-y divide-border" role="list">
+                  {outboundShippingCartLines.map((line) => (
+                    <CartOutboundShippingLineItem key={line.chargeId} line={line} />
+                  ))}
+                </ul>
+              </CartSection>
+            : null}
           </div>
 
           <aside className="min-w-0">
@@ -326,6 +356,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                 assembled.estimatedTotalCents + containerSubtotalCents
               }
               containerPacking={containerPacking}
+              outboundShippingSubtotalCents={outboundShippingSubtotalCents}
               processingPreviewCents={processingPreviewCents}
               processingRegionLabel={processingRegionLabel}
               shipCountry={shipAddr?.country?.trim() ?? null}

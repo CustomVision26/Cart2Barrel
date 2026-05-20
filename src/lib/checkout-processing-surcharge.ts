@@ -16,7 +16,7 @@ function parseEnvInt(key: string, fallback: number): number {
 
 /**
  * Primary shipping `country` from `addresses.country` (or null if none).
- * Anything outside normalized US is treated as international (incl. default Jamaica).
+ * Anything outside normalized US is treated as international.
  */
 export function processingFeeRegionFromShippingCountry(
   country: string | null | undefined,

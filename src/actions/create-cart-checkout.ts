@@ -26,6 +26,12 @@ import {
 } from "@/data/user-container-cart";
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
 import {
+  buildStripeLineItemsFromOutboundShippingCart,
+  clearOutboundShippingCartForCharges,
+  listUserOutboundShippingCartLines,
+  sumOutboundShippingCartLinesCents,
+} from "@/data/barrel-outbound-shipping-charges";
+import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
   processingFeeRegionFromShippingCountry,
@@ -87,11 +93,16 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     binCount,
     containerPackingRates,
   );
+  const outboundShippingCartLines = await listUserOutboundShippingCartLines(userId);
+  const outboundShippingSubtotalCents = sumOutboundShippingCartLinesCents(
+    outboundShippingCartLines,
+  );
 
   if (
     assembled.batchGroups.length === 0 &&
     assembled.standaloneLines.length === 0 &&
-    containerCheckoutLines.length === 0
+    containerCheckoutLines.length === 0 &&
+    outboundShippingCartLines.length === 0
   ) {
     return { ok: false, message: "Your cart is empty." };
   }
@@ -105,6 +116,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       binCount: containerPacking.binCount,
       rates: containerPackingRates,
     }),
+    ...buildStripeLineItemsFromOutboundShippingCart(outboundShippingCartLines),
   ];
 
   const cu = await currentUser();
@@ -122,7 +134,8 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const merchandiseSubtotalCents =
     assembled.estimatedTotalCents +
     containerSubtotalCents +
-    containerPacking.totalPackingFeeCents;
+    containerPacking.totalPackingFeeCents +
+    outboundShippingSubtotalCents;
   const shipAddr = await getPrimaryShippingAddress(userId);
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,
@@ -249,6 +262,11 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     );
   }
 
+  const outboundChargeIds = outboundShippingCartLines.map((l) => l.chargeId);
+  if (outboundChargeIds.length > 0) {
+    await clearOutboundShippingCartForCharges(userId, outboundChargeIds);
+  }
+
   const origin = getAppOrigin();
   const stripe = getStripeServer();
 
@@ -271,6 +289,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
         processingFeeCents: String(processingFeeCents),
         processingFeeRegion,
         quotedSalesTaxIntentCents: String(builtLines.quotedSalesTaxIntentCents),
+        outboundChargeIds: outboundChargeIds.join(","),
       },
     };
 
@@ -312,6 +331,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     }
 
     revalidatePath("/dashboard/cart");
+    revalidatePath("/dashboard/shipping");
     revalidatePath("/dashboard");
 
     return { ok: true, mode: "hosted", checkoutUrl: session.url };

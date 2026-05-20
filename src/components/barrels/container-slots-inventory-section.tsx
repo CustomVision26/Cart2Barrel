@@ -1,15 +1,13 @@
 "use client";
 
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
-import { ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ChevronDown, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import {
-  adminMarkBarrelContainerFullAction,
-  adminUpdateBarrelCapacityAction,
-} from "@/actions/admin-barrel-container-capacity";
 import { Button } from "@/components/ui/button";
 import {
   BARREL_CAPACITY_PERCENT_OPTIONS,
@@ -20,6 +18,10 @@ import {
   barrelStatusLabel,
   countContainersByKind,
 } from "@/lib/container-slot-alias";
+import {
+  filterContainerInventoryRows,
+  type ContainerKindFilter,
+} from "@/lib/product-to-barrel-filters";
 import type { UserBarrelOptionRow } from "@/lib/barrel-container-types";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
@@ -42,6 +44,8 @@ type ContainerSlotsInventorySectionProps = {
   embedded?: boolean;
   /** Admin: mark container full (ready to ship, 100% load). */
   showMarkFull?: boolean;
+  /** Search + type filter above the inventory table (dashboard product-to-barrel). */
+  showLookupFilters?: boolean;
 };
 
 function compareRows(
@@ -179,6 +183,9 @@ function LoadProgressCell({
           const next = Number.parseInt(e.target.value, 10);
           startTransition(async () => {
             try {
+              const { adminUpdateBarrelCapacityAction } = await import(
+                "@/actions/admin-barrel-container-capacity"
+              );
               const res = await adminUpdateBarrelCapacityAction({
                 barrelId,
                 capacityPercentage: next,
@@ -214,21 +221,32 @@ export function ContainerSlotsInventorySection({
   showCustomerColumn = false,
   embedded = false,
   showMarkFull = false,
+  showLookupFilters = false,
 }: ContainerSlotsInventorySectionProps) {
   const router = useRouter();
   const [tableOpen, setTableOpen] = useState(embedded);
   const [sortKey, setSortKey] = useState<SortKey>("alias");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [lookupSearch, setLookupSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState<ContainerKindFilter>("all");
   const [markingBarrelId, setMarkingBarrelId] = useState<string | null>(null);
   const [markPending, startMarkTransition] = useTransition();
 
-  const counts = useMemo(() => countContainersByKind(barrels), [barrels]);
+  const filteredBarrels = useMemo(
+    () =>
+      showLookupFilters ?
+        filterContainerInventoryRows(barrels, lookupSearch, kindFilter)
+      : barrels,
+    [barrels, lookupSearch, kindFilter, showLookupFilters],
+  );
+
+  const counts = useMemo(() => countContainersByKind(filteredBarrels), [filteredBarrels]);
 
   const sortedRows = useMemo(() => {
-    const copy = [...barrels];
+    const copy = [...filteredBarrels];
     copy.sort((a, b) => compareRows(a, b, sortKey, sortDir));
     return copy;
-  }, [barrels, sortKey, sortDir]);
+  }, [filteredBarrels, sortKey, sortDir]);
 
   const onSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -239,16 +257,21 @@ export function ContainerSlotsInventorySection({
     }
   };
 
-  const markFull = (barrelId: string, alias: string) => {
+  const runContainerAction = (
+    barrelId: string,
+    alias: string,
+    action: (input: { barrelId: string }) => Promise<{ ok: boolean; message?: string }>,
+    fallbackSuccess: string,
+  ) => {
     setMarkingBarrelId(barrelId);
     startMarkTransition(async () => {
       try {
-        const res = await adminMarkBarrelContainerFullAction({ barrelId });
+        const res = await action({ barrelId });
         if (!res.ok) {
           toast.error(res.message);
           return;
         }
-        toast.success(res.message ?? `${alias} marked full.`);
+        toast.success(res.message ?? fallbackSuccess.replace("{alias}", alias));
         router.refresh();
       } catch {
         toast.error(
@@ -258,6 +281,32 @@ export function ContainerSlotsInventorySection({
         setMarkingBarrelId(null);
       }
     });
+  };
+
+  const markFull = (barrelId: string, alias: string) => {
+    void import("@/actions/admin-barrel-container-capacity").then(
+      ({ adminMarkBarrelContainerFullAction }) => {
+        runContainerAction(
+          barrelId,
+          alias,
+          adminMarkBarrelContainerFullAction,
+          "{alias} marked full.",
+        );
+      },
+    );
+  };
+
+  const unmarkFull = (barrelId: string, alias: string) => {
+    void import("@/actions/admin-barrel-container-capacity").then(
+      ({ adminUnmarkBarrelContainerFullAction }) => {
+        runContainerAction(
+          barrelId,
+          alias,
+          adminUnmarkBarrelContainerFullAction,
+          "{alias} reopened for packing.",
+        );
+      },
+    );
   };
 
   if (barrels.length === 0) {
@@ -274,44 +323,109 @@ export function ContainerSlotsInventorySection({
     countParts.push(`${counts.binCount} bin${counts.binCount === 1 ? "" : "s"}`);
   }
 
-  const tableVisible = embedded || tableOpen;
+  const tableVisible = tableOpen;
+
+  const countNumber =
+    showLookupFilters &&
+    (lookupSearch.trim() || kindFilter !== "all") &&
+    counts.total !== barrels.length ?
+      `${counts.total} of ${barrels.length}`
+    : String(counts.total);
 
   return (
     <section
       className={cn(
-        "space-y-3 rounded-lg border border-border bg-muted/20 px-4 py-3",
+        "rounded-lg border border-border bg-muted/20",
         embedded && "bg-muted/10",
+        tableOpen ? "space-y-3 px-4 py-3" : "px-4 py-2.5",
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{counts.total}</span> paid container
-          {counts.total === 1 ? "" : "s"}
+      <button
+        type="button"
+        onClick={() => setTableOpen((o) => !o)}
+        aria-expanded={tableOpen}
+        aria-label={`${tableOpen ? "Hide" : "Show"} container inventory`}
+        className={cn(
+          "flex w-full items-center justify-between gap-3 text-left text-sm text-muted-foreground",
+          "rounded-md outline-none transition-colors hover:text-foreground",
+          "focus-visible:ring-2 focus-visible:ring-ring/50",
+        )}
+      >
+        <span>
+          <span className="font-medium text-foreground">{countNumber}</span> paid
+          container{counts.total === 1 ? "" : "s"}
           {countParts.length > 0 ?
             <span> ({countParts.join(", ")})</span>
           : null}
-        </p>
-        {!embedded ?
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setTableOpen((o) => !o)}
-            className="gap-1.5"
-            aria-expanded={tableOpen}
-          >
-            <ChevronDown
-              className={cn(
-                "size-4 transition-transform",
-                tableOpen ? "rotate-0" : "-rotate-90",
-              )}
-            />
-            {tableOpen ? "Hide" : "Show"} container inventory
-          </Button>
-        : null}
-      </div>
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 transition-transform",
+            tableOpen ? "rotate-0" : "-rotate-90",
+          )}
+          aria-hidden
+        />
+      </button>
 
-      {tableVisible ?
+      {showLookupFilters && tableVisible ?
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="min-w-[12rem] flex-1 space-y-1.5">
+            <Label htmlFor="container-inventory-search">Search containers</Label>
+            <div className="relative">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="container-inventory-search"
+                type="search"
+                placeholder="Alias, slot, type, status…"
+                value={lookupSearch}
+                onChange={(e) => setLookupSearch(e.target.value)}
+                className="pl-8"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="container-inventory-kind">Container type</Label>
+            <select
+              id="container-inventory-kind"
+              value={kindFilter}
+              onChange={(e) => setKindFilter(e.target.value as ContainerKindFilter)}
+              className={cn(
+                "h-8 min-w-[9rem] rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm",
+                "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+                "dark:bg-input/30",
+              )}
+            >
+              <option value="all">All types</option>
+              <option value="barrel">Barrels only</option>
+              <option value="bin">Bins only</option>
+            </select>
+          </div>
+          {(lookupSearch.trim() || kindFilter !== "all") ?
+            <button
+              type="button"
+              className="h-8 px-2 text-xs font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => {
+                setLookupSearch("");
+                setKindFilter("all");
+              }}
+            >
+              Clear
+            </button>
+          : null}
+        </div>
+      : null}
+
+      {tableVisible && sortedRows.length === 0 && filteredBarrels.length === 0 && barrels.length > 0 ?
+        <p className="text-sm text-muted-foreground">
+          No containers match your search. Clear filters to see all slots.
+        </p>
+      : null}
+
+      {tableVisible && sortedRows.length > 0 ?
         <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border bg-background">
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
@@ -417,7 +531,25 @@ export function ContainerSlotsInventorySection({
                             {isMarking ? "Saving…" : "Mark full"}
                           </Button>
                         : row.status === "filling" && row.capacityPercentage >= 100 ?
-                          <span className="text-xs text-muted-foreground">At 100% — use Mark full when ready</span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={markPending}
+                            onClick={() => markFull(row.barrelId, row.alias)}
+                          >
+                            {isMarking ? "Saving…" : "Mark full"}
+                          </Button>
+                        : row.status === "ready_to_ship" ?
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={markPending}
+                            onClick={() => unmarkFull(row.barrelId, row.alias)}
+                          >
+                            {isMarking ? "Saving…" : "Remove mark full"}
+                          </Button>
                         : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}

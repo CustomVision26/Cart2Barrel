@@ -26,6 +26,8 @@ export function itemRequestLineSnapshotPhaseLabel(
       return "Batch sent to staff";
     case "warehouse_delivery_received":
       return "Warehouse delivery received";
+    case "warehouse_delivery_received_prior":
+      return "Prior warehouse intake (archived)";
     case "product_return_requested":
       return "Product return requested";
     case "product_return_tracking_saved":
