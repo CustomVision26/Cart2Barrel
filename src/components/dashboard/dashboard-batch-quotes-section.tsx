@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, Loader2Icon } from "lucide-react";
@@ -667,7 +668,7 @@ export function DashboardBatchQuotesSection({
               </p>
             ) : null}
 
-            <div className="overflow-x-auto rounded-md border border-border">
+            <FloatingHorizontalScroll viewportClassName="rounded-md border border-border">
               <table className="w-full min-w-[36rem] text-left text-sm">
                 <thead className="border-b border-border bg-muted/40">
                   <tr>
@@ -733,7 +734,7 @@ export function DashboardBatchQuotesSection({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </FloatingHorizontalScroll>
 
             {statusEvents.length > 0 ? (
               <div className="rounded-md border border-border/60 bg-muted/20 p-3">

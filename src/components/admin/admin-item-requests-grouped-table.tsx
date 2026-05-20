@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import {
   useCallback,
   useEffect,
@@ -709,7 +710,7 @@ export function AdminItemRequestsGroupedTable({
       {groups.length > 0 ? (
         <>
         {paginationMode === "accounts" ? (
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[36rem] text-left text-sm">
         <thead className="border-b border-border bg-muted/40">
           <tr>
@@ -862,7 +863,7 @@ export function AdminItemRequestsGroupedTable({
                           customer for this account).
                         </p>
                       ) : (
-                        <div className="overflow-x-auto rounded-md border border-border bg-background">
+                        <FloatingHorizontalScroll viewportClassName="rounded-md border border-border bg-background">
                           <table className="w-full min-w-[52rem] text-left text-xs sm:text-sm">
                             <thead className="border-b border-border bg-muted/50">
                               <tr>
@@ -939,7 +940,7 @@ export function AdminItemRequestsGroupedTable({
                               ))}
                             </tbody>
                           </table>
-                        </div>
+                        </FloatingHorizontalScroll>
                       )}
                     </div>
                   </td>
@@ -949,9 +950,9 @@ export function AdminItemRequestsGroupedTable({
           );
         })}
             </table>
-          </div>
+          </FloatingHorizontalScroll>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[72rem] text-left text-xs sm:text-sm">
               <thead className="border-b border-border bg-muted/40">
                 <tr>
@@ -1053,7 +1054,7 @@ export function AdminItemRequestsGroupedTable({
                 </tbody>
               )}
             </table>
-          </div>
+          </FloatingHorizontalScroll>
         )}
 
           {itemCount > 0 ? (

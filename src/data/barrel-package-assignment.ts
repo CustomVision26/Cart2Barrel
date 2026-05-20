@@ -338,6 +338,8 @@ export async function listProductToBarrelLinesForUser(
       orderId: r.order.id,
       packageId: r.pkg.id,
       productName: r.request.productName?.trim() || "Unnamed product",
+      productImageUrl: r.request.productImageUrl ?? null,
+      quantity: r.orderItem.quantity,
       fulfillmentStatus,
       fulfillmentLabel: dashboardOrderLineStatusLabel(fulfillmentStatus, {
         warehouseReceivedCondition: r.orderItem.warehouseReceivedCondition,
@@ -473,6 +475,8 @@ export type AssignmentHistoryRow = {
   action: (typeof barrelPackageAssignmentEvents.$inferSelect)["action"];
   ownerClerkUserId: string;
   productNameSnapshot: string | null;
+  productImageUrl: string | null;
+  quantity: number;
   barrelLabelSnapshot: string | null;
   fromBarrelId: string | null;
   toBarrelId: string | null;
@@ -487,7 +491,7 @@ export async function listBarrelAssignmentHistoryForOwner(
   limit = 200,
 ): Promise<AssignmentHistoryRow[]> {
   const db = getDb();
-  return await db
+  const rows = await db
     .select({
       id: barrelPackageAssignmentEvents.id,
       createdAt: barrelPackageAssignmentEvents.createdAt,
@@ -501,18 +505,39 @@ export async function listBarrelAssignmentHistoryForOwner(
       actorClerkUserId: barrelPackageAssignmentEvents.actorClerkUserId,
       packageId: barrelPackageAssignmentEvents.packageId,
       orderItemId: barrelPackageAssignmentEvents.orderItemId,
+      productImageUrl: itemRequests.productImageUrl,
+      quantity: orderItems.quantity,
     })
     .from(barrelPackageAssignmentEvents)
+    .innerJoin(orderItems, eq(barrelPackageAssignmentEvents.orderItemId, orderItems.id))
+    .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
     .where(eq(barrelPackageAssignmentEvents.ownerClerkUserId, clerkUserId))
     .orderBy(desc(barrelPackageAssignmentEvents.createdAt))
     .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    createdAt: r.createdAt,
+    action: r.action,
+    ownerClerkUserId: r.ownerClerkUserId,
+    productNameSnapshot: r.productNameSnapshot,
+    productImageUrl: r.productImageUrl ?? null,
+    quantity: r.quantity,
+    barrelLabelSnapshot: r.barrelLabelSnapshot,
+    fromBarrelId: r.fromBarrelId,
+    toBarrelId: r.toBarrelId,
+    adminNote: r.adminNote,
+    actorClerkUserId: r.actorClerkUserId,
+    packageId: r.packageId,
+    orderItemId: r.orderItemId,
+  }));
 }
 
 export async function listBarrelAssignmentHistoryAdmin(
   limit = 500,
 ): Promise<AssignmentHistoryRow[]> {
   const db = getDb();
-  return await db
+  const rows = await db
     .select({
       id: barrelPackageAssignmentEvents.id,
       createdAt: barrelPackageAssignmentEvents.createdAt,
@@ -526,10 +551,31 @@ export async function listBarrelAssignmentHistoryAdmin(
       actorClerkUserId: barrelPackageAssignmentEvents.actorClerkUserId,
       packageId: barrelPackageAssignmentEvents.packageId,
       orderItemId: barrelPackageAssignmentEvents.orderItemId,
+      productImageUrl: itemRequests.productImageUrl,
+      quantity: orderItems.quantity,
     })
     .from(barrelPackageAssignmentEvents)
+    .innerJoin(orderItems, eq(barrelPackageAssignmentEvents.orderItemId, orderItems.id))
+    .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
     .orderBy(desc(barrelPackageAssignmentEvents.createdAt))
     .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    createdAt: r.createdAt,
+    action: r.action,
+    ownerClerkUserId: r.ownerClerkUserId,
+    productNameSnapshot: r.productNameSnapshot,
+    productImageUrl: r.productImageUrl ?? null,
+    quantity: r.quantity,
+    barrelLabelSnapshot: r.barrelLabelSnapshot,
+    fromBarrelId: r.fromBarrelId,
+    toBarrelId: r.toBarrelId,
+    adminNote: r.adminNote,
+    actorClerkUserId: r.actorClerkUserId,
+    packageId: r.packageId,
+    orderItemId: r.orderItemId,
+  }));
 }
 
 export async function listBarrelOptionsForOwner(

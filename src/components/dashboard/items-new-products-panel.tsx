@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -742,7 +743,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
           ) : null}
           {filteredActive.length > 0 ? (
             <>
-              <div className="overflow-x-auto rounded-lg border border-border">
+              <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
                 <table className="w-full min-w-[48rem] text-left text-sm">
                   <thead className="border-b border-border bg-muted/40">
                     <tr>
@@ -1146,7 +1147,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                     })}
                   </tbody>
                 </table>
-              </div>
+              </FloatingHorizontalScroll>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {`Showing ${productsSliceStart + 1}–${productsRangeEnd} of ${sortedActive.length}`}

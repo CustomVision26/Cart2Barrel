@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
@@ -351,7 +352,7 @@ export function AdminCustomerPricingPackagesPanel({
               </div>
 
               {overrideServiceTiers ?
-                <div className="overflow-x-auto rounded-lg border border-border">
+                <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
                   <table className="w-full min-w-[520px] border-collapse text-left text-sm">
                     <thead className="border-b border-border bg-muted/40">
                       <tr>
@@ -437,7 +438,7 @@ export function AdminCustomerPricingPackagesPanel({
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </FloatingHorizontalScroll>
               : null}
 
               <Button

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronDownIcon } from "lucide-react";
 
@@ -73,7 +74,7 @@ function PackageMeta({
 
 function AwaitingBarrelPackagesTable({ lines }: { lines: WarehouseReceivingLine[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
       <table className="w-full min-w-[56rem] text-left text-sm">
         <thead className="border-b border-border bg-muted/40">
           <tr>
@@ -142,7 +143,7 @@ function AwaitingBarrelPackagesTable({ lines }: { lines: WarehouseReceivingLine[
           })}
         </tbody>
       </table>
-    </div>
+    </FloatingHorizontalScroll>
   );
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
@@ -307,7 +308,7 @@ export function AdminPurchaseOrdersTable({
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
         <table className="w-full min-w-[76rem] text-left text-sm">
           <thead className="border-b border-border bg-muted/40">
             <tr>
@@ -361,7 +362,7 @@ export function AdminPurchaseOrdersTable({
             </tbody>
           ))}
         </table>
-      </div>
+      </FloatingHorizontalScroll>
 
       <Dialog
         open={receiveOpen}

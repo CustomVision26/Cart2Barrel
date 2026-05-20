@@ -6,7 +6,12 @@ import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { itemRequests, outsidePurchaseReturnRequests } from "@/db/schema";
+import {
+  insertItemRequestLineSnapshot,
+  lineSnapshotPayloadFromItemRequest,
+} from "@/data/item-request-line-snapshots";
 import { getItemRequestById } from "@/data/item-requests";
+import { getLatestQuoteForItemRequest } from "@/data/item-quotes";
 import { getOutsidePurchaseReturnRequestByItemRequestId } from "@/data/outside-purchase-return-requests";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { isMissingOutsidePurchaseReturnRequestsTableError } from "@/lib/db-column-missing";
@@ -59,6 +64,24 @@ export async function acceptOutsidePurchaseReturnEstimateAction(
       .update(itemRequests)
       .set({ outsidePurchasePaymentPromptedAt: now })
       .where(eq(itemRequests.id, req.id));
+
+    const quote = await getLatestQuoteForItemRequest(req.id);
+    await insertItemRequestLineSnapshot({
+      itemRequestId: req.id,
+      phase: "outside_purchase_return_estimate_accepted",
+      itemQuoteId: quote?.id ?? null,
+      line: lineSnapshotPayloadFromItemRequest(req),
+      auditMemo:
+        "Customer accepted return estimate · payment due before drop-off at the carrier.",
+    });
+    await insertItemRequestLineSnapshot({
+      itemRequestId: req.id,
+      phase: "outside_purchase_payment_prompted",
+      itemQuoteId: quote?.id ?? null,
+      line: lineSnapshotPayloadFromItemRequest(req),
+      auditMemo:
+        "Return estimate accepted · customer prompted to add to cart and pay service & handling.",
+    });
   } catch (e) {
     if (isMissingOutsidePurchaseReturnRequestsTableError(e)) {
       return {
@@ -71,6 +94,7 @@ export async function acceptOutsidePurchaseReturnEstimateAction(
   }
 
   revalidateDashboardAddItem();
+  revalidatePath("/admin/item-requests", "layout");
 
   return {
     ok: true,

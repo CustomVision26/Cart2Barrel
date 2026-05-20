@@ -2,6 +2,8 @@ import { listBarrelAssignmentHistoryAdmin } from "@/data/barrel-package-assignme
 import { parseAdminCustomerFilter } from "@/lib/admin-customer-filter";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
+import { BarrelAssignmentHistoryProduct } from "@/components/barrels/barrel-assignment-history-product";
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +82,7 @@ export default async function AdminAssignToBarrelHistoryPage({
           No assignment events recorded yet.
         </p>
       : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
           <table className="w-full min-w-[880px] border-collapse text-left text-sm">
             <thead className="border-b border-border bg-muted/40">
               <tr>
@@ -103,7 +105,11 @@ export default async function AdminAssignToBarrelHistoryPage({
                     {r.ownerClerkUserId.slice(0, 12)}…
                   </td>
                   <td className="px-3 py-2">
-                    {r.productNameSnapshot?.trim() || "—"}
+                    <BarrelAssignmentHistoryProduct
+                      productName={r.productNameSnapshot}
+                      productImageUrl={r.productImageUrl}
+                      quantity={r.quantity}
+                    />
                   </td>
                   <td className="max-w-xs px-3 py-2 text-muted-foreground">
                     {r.barrelLabelSnapshot?.trim() || "—"}
@@ -115,7 +121,7 @@ export default async function AdminAssignToBarrelHistoryPage({
               ))}
             </tbody>
           </table>
-        </div>
+        </FloatingHorizontalScroll>
       )}
     </div>
   );

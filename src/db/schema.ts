@@ -96,6 +96,10 @@ export const itemRequestLineSnapshotPhaseEnum = pgEnum(
     "outside_purchase_return_requested",
     /** Staff published return service & handling estimate for customer acceptance. */
     "outside_purchase_return_estimate_ready",
+    /** Customer accepted return estimate; service & handling due before drop-off. */
+    "outside_purchase_return_estimate_accepted",
+    /** Customer cancelled an in-progress return-to-retailer request. */
+    "outside_purchase_return_cancelled",
     /** Customer paid service & handling at checkout (merchandise bought elsewhere). */
     "outside_purchase_checkout_paid",
   ],

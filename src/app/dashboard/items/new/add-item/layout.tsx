@@ -74,7 +74,15 @@ export default async function DashboardAddItemLayout({
   );
 
   const fulfillmentLabelByRequestId: Record<string, string> = {};
-  for (const r of historyRequests) {
+  const allLabelRequests = [
+    ...activeRequests,
+    ...historyRequests,
+    ...batchBundles.flatMap((bundle) => bundle.requests),
+  ];
+  const seenLabelRequestIds = new Set<string>();
+  for (const r of allLabelRequests) {
+    if (seenLabelRequestIds.has(r.id)) continue;
+    seenLabelRequestIds.add(r.id);
     const snaps = snapshotsByRequestId[r.id] ?? [];
     const label = fulfillmentProductHistoryLabelFromSnapshots(snaps);
     if (label) fulfillmentLabelByRequestId[r.id] = label;

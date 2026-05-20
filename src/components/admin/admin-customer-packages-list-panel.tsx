@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminPushPackingToCartButton } from "@/components/admin/admin-push-packing-to-cart-button";
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import type { CustomerPricingPackageListRow } from "@/data/customer-pricing-packages";
 import { formatUsd } from "@/lib/admin-markup";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,7 @@ export function AdminCustomerPackagesListPanel({
             <span className="font-medium text-foreground">Select customer</span> to create
             one.
           </p>
-        : <div className="overflow-x-auto rounded-lg border border-border">
+        : <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[960px] border-collapse text-left text-sm">
               <thead className="border-b border-border bg-muted/40">
                 <tr>
@@ -135,7 +136,7 @@ export function AdminCustomerPackagesListPanel({
                 ))}
               </tbody>
             </table>
-          </div>
+          </FloatingHorizontalScroll>
         }
       </CardContent>
     </Card>

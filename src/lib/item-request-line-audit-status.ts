@@ -79,6 +79,17 @@ export function auditSnapshotStatusHeadline(
       return "Removed from Active · moved to Product history";
     case "outside_purchase_reinstated_to_active":
       return row.auditMemo?.trim() || "Back on Active · payment still due if unpaid";
+    case "outside_purchase_return_requested":
+      return row.auditMemo?.trim() || "Customer submitted return-to-retailer request";
+    case "outside_purchase_return_estimate_ready":
+      return row.auditMemo?.trim() || "Staff published return service & handling estimate";
+    case "outside_purchase_return_estimate_accepted":
+      return (
+        row.auditMemo?.trim() ||
+        "Customer accepted return estimate · payment due before drop-off"
+      );
+    case "outside_purchase_return_cancelled":
+      return row.auditMemo?.trim() || "Return request cancelled";
     case "outside_purchase_checkout_paid":
       return row.auditMemo?.trim() || PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL;
     default:

@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import {
   useCallback,
   useEffect,
@@ -256,7 +257,7 @@ function BatchHistoryArticle({ bundle }: { bundle: AdminBatchHistoryBundle }) {
           snapshot phase enum.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <FloatingHorizontalScroll>
           <table className="w-full min-w-[56rem] text-left text-sm">
             <thead className="border-b border-border bg-muted/20">
               <tr>
@@ -281,7 +282,7 @@ function BatchHistoryArticle({ bundle }: { bundle: AdminBatchHistoryBundle }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </FloatingHorizontalScroll>
       )}
     </article>
   );

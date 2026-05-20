@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -336,12 +337,14 @@ type ItemRequestLineAuditDialogProps = {
   itemRequestId: string;
   productLabel: string;
   snapshots: ItemRequestLineSnapshot[];
+  triggerLabel?: string;
 };
 
 export function ItemRequestLineAuditDialog({
   itemRequestId,
   productLabel,
   snapshots,
+  triggerLabel = "Audit trail",
 }: ItemRequestLineAuditDialogProps) {
   const [open, setOpen] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -371,7 +374,7 @@ export function ItemRequestLineAuditDialog({
         className="whitespace-nowrap"
         onClick={() => setOpen(true)}
       >
-        Audit trail
+        {triggerLabel}
       </Button>
       <Dialog
         open={open}
@@ -404,7 +407,7 @@ export function ItemRequestLineAuditDialog({
           </p>
         ) : (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_min(22rem,34%)] lg:items-start">
-            <div className="min-w-0 overflow-x-auto rounded-md border border-border">
+            <FloatingHorizontalScroll className="min-w-0" viewportClassName="rounded-md border border-border">
               <table className="w-full min-w-[72rem] text-left text-sm sm:text-[0.9375rem]">
                 <thead className="border-b border-border bg-muted/50">
                   <tr>
@@ -492,7 +495,7 @@ export function ItemRequestLineAuditDialog({
                   })}
                 </tbody>
               </table>
-            </div>
+            </FloatingHorizontalScroll>
             <aside className="rounded-xl border border-border bg-muted/15 p-4 lg:max-h-[min(52rem,72vh)] lg:overflow-y-auto">
               {previewRow ? (
                 <AuditSnapshotPreviewPanel row={previewRow} prevRow={previewPrev} />

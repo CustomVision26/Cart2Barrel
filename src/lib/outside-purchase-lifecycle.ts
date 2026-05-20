@@ -11,6 +11,10 @@ export const OUTSIDE_PURCHASE_LIFECYCLE_PHASES = [
   "outside_purchase_removed_from_cart",
   "outside_purchase_withdrawn_from_active",
   "outside_purchase_reinstated_to_active",
+  "outside_purchase_return_requested",
+  "outside_purchase_return_estimate_ready",
+  "outside_purchase_return_estimate_accepted",
+  "outside_purchase_return_cancelled",
   "outside_purchase_checkout_paid",
 ] as const satisfies readonly ItemRequestLineSnapshot["phase"][];
 
@@ -88,6 +92,14 @@ export function outsidePurchaseLifecycleEventTitle(
       return "Removed from Active";
     case "outside_purchase_reinstated_to_active":
       return "Reinstated to Active";
+    case "outside_purchase_return_requested":
+      return "Return to retailer requested";
+    case "outside_purchase_return_estimate_ready":
+      return "Return estimate ready";
+    case "outside_purchase_return_estimate_accepted":
+      return "Return estimate accepted · payment due";
+    case "outside_purchase_return_cancelled":
+      return "Return request cancelled";
     case "outside_purchase_checkout_paid":
       return PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL;
     default:

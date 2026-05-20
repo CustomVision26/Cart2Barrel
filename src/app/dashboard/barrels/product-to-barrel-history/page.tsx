@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
+import { BarrelAssignmentHistoryProduct } from "@/components/barrels/barrel-assignment-history-product";
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { listBarrelAssignmentHistoryForOwner } from "@/data/barrel-package-assignment";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +60,7 @@ export default async function DashboardProductToBarrelHistoryPage() {
           No assignment history yet.
         </p>
       : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
           <table className="w-full min-w-[720px] border-collapse text-left text-sm">
             <thead className="border-b border-border bg-muted/40">
               <tr>
@@ -77,7 +79,11 @@ export default async function DashboardProductToBarrelHistoryPage() {
                   </td>
                   <td className="px-3 py-2">{actionLabel(r.action)}</td>
                   <td className="px-3 py-2">
-                    {r.productNameSnapshot?.trim() || "—"}
+                    <BarrelAssignmentHistoryProduct
+                      productName={r.productNameSnapshot}
+                      productImageUrl={r.productImageUrl}
+                      quantity={r.quantity}
+                    />
                   </td>
                   <td className="max-w-xs px-3 py-2 text-muted-foreground">
                     {r.barrelLabelSnapshot?.trim() || "—"}
@@ -89,7 +95,7 @@ export default async function DashboardProductToBarrelHistoryPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </FloatingHorizontalScroll>
       )}
     </div>
   );

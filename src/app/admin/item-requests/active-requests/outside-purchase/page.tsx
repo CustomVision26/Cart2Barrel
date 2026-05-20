@@ -1,6 +1,10 @@
 import { AdminOutsidePurchaseIntakePanel } from "@/components/admin/admin-outside-purchase-intake-panel";
 import { collectLatestQuotesForRequests } from "@/data/batch-quote-sessions";
 import { listProfilesForAdminPicker } from "@/data/customer-pricing-packages";
+import {
+  groupItemRequestLineSnapshotsByRequestId,
+  listItemRequestLineSnapshotsByRequestIds,
+} from "@/data/item-request-line-snapshots";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { listOutsidePurchaseIntakesForAdmin } from "@/data/outside-purchase-intake";
 import {
@@ -45,12 +49,21 @@ export default async function AdminOutsidePurchaseIntakePage({
   const returnRequestsByItemRequestId =
     groupReturnRequestsByItemRequestId(returnRows);
 
+  const snapshotRows =
+    requestIds.length > 0 ?
+      await listItemRequestLineSnapshotsByRequestIds(null, requestIds, true)
+    : [];
+  const snapshotsByRequestId = Object.fromEntries(
+    groupItemRequestLineSnapshotsByRequestId(snapshotRows),
+  );
+
   return (
     <AdminOutsidePurchaseIntakePanel
       customers={customers}
       recentRows={recentRows}
       latestQuotesByRequestId={latestQuotesByRequestId}
       returnRequestsByItemRequestId={returnRequestsByItemRequestId}
+      snapshotsByRequestId={snapshotsByRequestId}
       serviceTiers={merchantEstimateFees.serviceTiers}
     />
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -311,7 +312,7 @@ export function ContainerSlotsInventorySection({
       </div>
 
       {tableVisible ?
-        <div className="overflow-x-auto rounded-lg border border-border bg-background">
+        <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border bg-background">
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
               <tr>
@@ -427,7 +428,7 @@ export function ContainerSlotsInventorySection({
               })}
             </tbody>
           </table>
-        </div>
+        </FloatingHorizontalScroll>
       : null}
     </section>
   );

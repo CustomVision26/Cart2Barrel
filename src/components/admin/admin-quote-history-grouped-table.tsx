@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import {
   useCallback,
   useEffect,
@@ -432,7 +433,7 @@ export function AdminQuoteHistoryGroupedTable({
 
       {sortedGroups.length === 0 ? null : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[56rem] text-left text-sm">
               <thead className="border-b border-border bg-muted/40">
                 <tr>
@@ -552,7 +553,7 @@ export function AdminQuoteHistoryGroupedTable({
                               means checkout created an order (cart hides it until the order is
                               removed).
                             </p>
-                            <div className="overflow-x-auto rounded-md border border-border bg-background">
+                            <FloatingHorizontalScroll viewportClassName="rounded-md border border-border bg-background">
                               <table className="w-full min-w-[50rem] text-left text-xs sm:text-sm">
                                 <thead className="border-b border-border bg-muted/50">
                                   <tr>
@@ -722,7 +723,7 @@ export function AdminQuoteHistoryGroupedTable({
                                   })}
                                 </tbody>
                               </table>
-                            </div>
+                            </FloatingHorizontalScroll>
                             {quoteLineCount > pageSize ? (
                               <div className="mt-3 flex flex-col items-stretch gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                                 <p className="text-xs text-muted-foreground">
@@ -789,7 +790,7 @@ export function AdminQuoteHistoryGroupedTable({
                 );
               })}
             </table>
-          </div>
+          </FloatingHorizontalScroll>
 
           <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">

@@ -1,3 +1,4 @@
+import type { BarrelPipelineProductDisplayRow } from "@/lib/barrel-pipeline-product-display";
 import type { ContainerOfferingKind } from "@/lib/validations/container-offering";
 
 /** Client-safe barrel status (matches `barrel_status` enum). */
@@ -16,30 +17,14 @@ export type UserBarrelOptionRow = {
   ownerClerkUserId?: string;
 };
 
-export type ProductToBarrelLineRow = {
-  orderItemId: string;
-  orderId: string;
-  packageId: string;
-  productName: string;
+export type ProductToBarrelLineRow = BarrelPipelineProductDisplayRow & {
   fulfillmentStatus: string;
-  fulfillmentLabel: string;
-  assignedContainerAlias: string | null;
-  assignedAt: string | null;
 };
 
-export type AdminBarrelPipelineRow = {
-  packageId: string;
-  orderItemId: string;
-  orderId: string;
+export type AdminBarrelPipelineRow = BarrelPipelineProductDisplayRow & {
   ownerClerkUserId: string;
-  productName: string;
-  productImageUrl: string | null;
-  quantity: number;
   fulfillmentStatus: string;
-  fulfillmentLabel: string;
   assignedBarrelId: string | null;
-  assignedContainerAlias: string | null;
-  assignedAt: string | null;
 };
 
 /** @deprecated Use AdminBarrelPipelineRow */

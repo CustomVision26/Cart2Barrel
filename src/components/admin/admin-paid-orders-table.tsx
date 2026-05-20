@@ -39,6 +39,7 @@ import {
   adminCustomerDisplayLabel,
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { cn } from "@/lib/utils";
 
 const EMPTY_ORDER_CONTAINERS: Record<string, OrderContainerLineAdmin[]> = {};
@@ -139,7 +140,7 @@ export function AdminPaidOrdersTable({
     customerOrderGroups[0]?.orderGroups[0]?.order.id ?? null;
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
       <table className="w-full min-w-[72rem] text-left text-sm">
         <thead className="border-b border-border bg-muted/40">
           <tr>
@@ -193,7 +194,7 @@ export function AdminPaidOrdersTable({
           )}
         </PaidOrderAccordionRoot>
       </table>
-    </div>
+    </FloatingHorizontalScroll>
   );
 }
 

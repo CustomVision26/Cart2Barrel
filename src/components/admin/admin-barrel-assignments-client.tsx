@@ -8,6 +8,10 @@ import {
   adminReassignPackageBarrelAction,
   adminRemovePackageFromBarrelAction,
 } from "@/actions/barrel-package-assignment";
+import {
+  barrelPipelineProductGridClassName,
+  formatBarrelAssignmentWhenShort,
+} from "@/lib/barrel-pipeline-product-display";
 import { ContainerSlotsInventorySection } from "@/components/barrels/container-slots-inventory-section";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
@@ -49,11 +53,7 @@ function formatAssignedAt(iso: string | null): string {
 }
 
 function formatAssignedAtShort(iso: string | null): string | null {
-  if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  return formatBarrelAssignmentWhenShort(iso);
 }
 
 export function AdminBarrelAssignmentsClient({
@@ -135,9 +135,6 @@ export function AdminBarrelAssignmentsClient({
   );
 }
 
-const productGridClassName =
-  "grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
-
 function OwnerAssignmentSection({
   ownerId,
   ownerLines,
@@ -181,7 +178,7 @@ function OwnerAssignmentSection({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Awaiting assignment ({unassigned.length})
           </h3>
-          <div className={productGridClassName}>
+          <div className={barrelPipelineProductGridClassName}>
             {unassigned.map((row) => (
               <AdminPipelineProductCard
                 key={row.packageId}
@@ -200,7 +197,7 @@ function OwnerAssignmentSection({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
             Assigned to container ({assigned.length})
           </h3>
-          <div className={productGridClassName}>
+          <div className={barrelPipelineProductGridClassName}>
             {assigned.map((row) => (
               <AdminPipelineProductCard
                 key={row.packageId}

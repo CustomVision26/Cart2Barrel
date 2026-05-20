@@ -111,7 +111,7 @@ export async function cancelOutsidePurchaseReturnRequestAction(
 
     await insertItemRequestLineSnapshot({
       itemRequestId: req.id,
-      phase: "outside_purchase_intake",
+      phase: "outside_purchase_return_cancelled",
       itemQuoteId: quote.id,
       line: lineSnapshotPayloadFromItemRequest(req),
       auditMemo: `Customer cancelled return-to-retailer request · reverted to Received: ${conditionLabel} · ${formatUsd(pricing.totalPriceCents)} service & handling`,

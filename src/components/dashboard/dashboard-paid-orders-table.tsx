@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import type { ReactNode } from "react";
 import Link from "next/link";
 
@@ -96,7 +97,7 @@ export function DashboardPaidOrdersTable({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
         <table className="w-full min-w-[60rem] text-left text-sm">
           <thead className="border-b border-border bg-muted/40">
             <tr>
@@ -130,7 +131,7 @@ export function DashboardPaidOrdersTable({
             ))}
           </PaidOrderAccordionRoot>
         </table>
-      </div>
+      </FloatingHorizontalScroll>
     </div>
   );
 }

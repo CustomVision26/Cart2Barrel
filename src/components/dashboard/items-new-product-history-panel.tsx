@@ -1,63 +1,43 @@
-"use client";
+﻿"use client";
 
 import { ChevronDown, InfoIcon, SearchIcon } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
-import { AdminStaffNotesBlock } from "@/components/admin-staff-notes-block";
-import { ReinstateProductButton } from "@/components/dashboard/reinstate-product-button";
-import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
+import { ProductHistoryTableRow } from "@/components/dashboard/product-history-table-row";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { OwnerBatchQuoteSessionBundle } from "@/data/batch-quote-sessions";
 import type {
-  BatchQuoteEstimate,
   ItemQuote,
   ItemRequest,
   ItemRequestLineSnapshot,
+  OutsidePurchaseReturnRequest,
 } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
-import {
-  auditSnapshotChangeSummary,
-  auditSnapshotStatusHeadline,
-} from "@/lib/item-request-line-audit-status";
+import { auditSnapshotStatusHeadline } from "@/lib/item-request-line-audit-status";
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
-import {
-  itemRequestStatusLabel,
-  itemRequestStatusLabelForDisplay,
-} from "@/lib/item-request-status-label";
-import { fulfillmentProductHistoryBadgeKindFromSnapshots } from "@/lib/product-history-fulfillment";
-import {
-  batchQuoteSessionEventKindLabel,
-  ownerBatchQuoteSessionStatusBadge,
-} from "@/lib/batch-quote-session-status-labels";
-import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
+import { itemRequestStatusLabel } from "@/lib/item-request-status-label";
+import { resolveProductHistoryStatusDisplay } from "@/lib/product-history-status";
+import { ownerBatchQuoteSessionStatusBadge } from "@/lib/batch-quote-session-status-labels";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
-import {
-  buildOutsidePurchaseLifecycleEvents,
-  outsidePurchaseCurrentStatusLabel,
-  outsidePurchaseReferenceLabel,
-} from "@/lib/outside-purchase-lifecycle";
-import { displaySiteName } from "@/lib/site-name";
-import {
-  batchQuoteSessionBadgeKind,
-  itemRequestWorkflowBadgeKind,
-} from "@/lib/status-badge-map";
+import { batchQuoteSessionBadgeKind } from "@/lib/status-badge-map";
 import { cn } from "@/lib/utils";
 
 import { useAddItemPayload } from "./add-item-payload-context";
 
-function shortId(id: string): string {
-  return `${id.slice(0, 8)}...`;
+function productHistoryStatusLabel(
+  request: ItemRequest,
+  snapshots: ItemRequestLineSnapshot[],
+  fulfillmentLabelByRequestId: Record<string, string>,
+  returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>,
+): string {
+  return resolveProductHistoryStatusDisplay(request, snapshots, {
+    fulfillmentLabelOverride: fulfillmentLabelByRequestId[request.id],
+    returnRequest: returnRequestsByItemRequestId[request.id] ?? null,
+  }).label;
 }
 
 function latestActivityMs(
@@ -234,578 +214,6 @@ function LabelWithHelp({
   );
 }
 
-function ChargesGrid({ rows }: { rows: { label: string; value: ReactNode }[] }) {
-  return (
-    <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-      {rows.map((row) => (
-        <div
-          key={row.label}
-          className="rounded-md border border-border bg-muted/10 p-2"
-        >
-          <dt className="text-xs text-muted-foreground">{row.label}</dt>
-          <dd className="mt-0.5 font-medium tabular-nums text-foreground">
-            {row.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function SingleEstimateRecord({ quote }: { quote: ItemQuote }) {
-  const operational = isOperationalQuoteRow(quote);
-  const label =
-    quote.checkoutSnapshotKind === "paid" ?
-      "Checkout price snapshot"
-    : quote.checkoutSnapshotKind === "company_purchase" ?
-      "Company purchase price snapshot"
-    : quote.voidedAt ?
-      "Superseded single estimate"
-    : "Single estimate";
-
-  return (
-    <div className="space-y-3 rounded-lg border border-border bg-card p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-medium text-foreground">{label}</p>
-          <p className="mt-0.5 break-all font-mono text-[11px] text-muted-foreground">
-            Quote {quote.id}
-          </p>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          <time dateTime={quote.createdAt}>
-            Created {new Date(quote.createdAt).toLocaleString()}
-          </time>
-          {quote.voidedAt ? (
-            <>
-              <br />
-              Updated / voided{" "}
-              <time dateTime={quote.voidedAt}>
-                {new Date(quote.voidedAt).toLocaleString()}
-              </time>
-            </>
-          ) : null}
-        </p>
-      </div>
-      <ChargesGrid
-        rows={[
-          { label: "Item cost", value: formatUsd(quote.itemCost) },
-          {
-            label: "Merchandise savings",
-            value:
-              quote.merchandiseSavingsCents ?
-                formatUsd(quote.merchandiseSavingsCents)
-              : "-",
-          },
-          { label: "Service fee", value: formatUsd(quote.serviceFee) },
-          { label: "Estimated shipping", value: formatUsd(quote.estimatedShipping) },
-          { label: "Total price", value: formatUsd(quote.totalPrice) },
-          { label: "Qty at estimate", value: quote.requestQuantity ?? "-" },
-          { label: "Size at estimate", value: quote.requestProductSize?.trim() || "-" },
-          { label: "Color at estimate", value: quote.requestProductColor?.trim() || "-" },
-        ]}
-      />
-      <AdminStaffNotesBlock staffNote={quote.staffNote} title="Estimate notes" />
-      <p className="text-xs text-muted-foreground">
-        {operational ?
-          "Operational estimate row."
-        : "Timeline snapshot row kept for checkout or purchase history."}
-        {quote.merchandiseIncludesSiteShippingTax ?
-          " Retailer shipping/tax was included in merchandise."
-        : null}
-        {quote.voidReason ? ` Void reason: ${quote.voidReason}.` : null}
-      </p>
-    </div>
-  );
-}
-
-function BatchEstimateRecord({
-  batchNumber,
-  estimate,
-}: {
-  batchNumber: string;
-  estimate: BatchQuoteEstimate;
-}) {
-  return (
-    <div className="space-y-3 rounded-lg border border-primary/25 bg-primary/5 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-medium text-foreground">Batch estimate</p>
-          <p className="mt-0.5 font-mono text-xs text-primary">{batchNumber}</p>
-        </div>
-        <time dateTime={estimate.createdAt} className="text-xs text-muted-foreground">
-          Created {new Date(estimate.createdAt).toLocaleString()}
-        </time>
-      </div>
-      <ChargesGrid
-        rows={[
-          { label: "Batch merchandise", value: formatUsd(estimate.batchMerchandiseTotalCents) },
-          { label: "Site merchandise", value: formatUsd(estimate.siteMerchandiseTotalCents) },
-          { label: "Item discount", value: formatUsd(estimate.itemDiscountCents) },
-          { label: "Service & handling", value: formatUsd(estimate.serviceHandlingTotalCents) },
-          { label: "Batch shipping", value: formatUsd(estimate.batchShippingTotalCents) },
-          { label: "Site shipping", value: formatUsd(estimate.siteShippingTotalCents) },
-          { label: "Shipping discount", value: formatUsd(estimate.shippingDiscountCents) },
-          { label: "Batch sale tax", value: formatUsd(estimate.batchSaleTaxTotalCents) },
-          { label: "Site sale tax", value: formatUsd(estimate.siteSaleTaxTotalCents) },
-          { label: "Sale tax discount", value: formatUsd(estimate.saleTaxDiscountCents) },
-          { label: "Subtotal", value: formatUsd(estimate.subtotalCents) },
-        ]}
-      />
-    </div>
-  );
-}
-
-function OutsidePurchaseTimelineHeader({
-  reference,
-  currentStatus,
-}: {
-  reference: string | null;
-  currentStatus: string;
-}) {
-  return (
-    <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-primary">
-            Outside purchase
-          </p>
-          {reference ? (
-            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{reference}</p>
-          ) : null}
-        </div>
-        <p className="text-xs font-medium text-foreground">Current: {currentStatus}</p>
-      </div>
-    </div>
-  );
-}
-
-function ProductTimeline({
-  snapshots,
-  quotesById,
-  request,
-}: {
-  snapshots: ItemRequestLineSnapshot[];
-  quotesById: Map<string, ItemQuote>;
-  request?: ItemRequest;
-}) {
-  const outsidePurchase = request ? isOutsidePurchaseRequest(request) : false;
-  const lifecycleBySnapshotId = new Map(
-    (outsidePurchase && request ?
-      buildOutsidePurchaseLifecycleEvents(request, snapshots)
-    : []
-    ).map((event) => [event.id, event]),
-  );
-  const opRef = outsidePurchase && request ? outsidePurchaseReferenceLabel(request) : null;
-
-  if (snapshots.length === 0) {
-    return (
-      <div className="space-y-3">
-        {outsidePurchase && request ? (
-          <OutsidePurchaseTimelineHeader
-            reference={opRef}
-            currentStatus={outsidePurchaseCurrentStatusLabel(request)}
-          />
-        ) : null}
-        <p className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-          {outsidePurchase ?
-            "No outside purchase status records were saved for this product yet."
-          : "No timeline snapshots were recorded for this product yet."}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {outsidePurchase && request ? (
-        <OutsidePurchaseTimelineHeader
-          reference={opRef}
-          currentStatus={outsidePurchaseCurrentStatusLabel(request)}
-        />
-      ) : null}
-      {snapshots.map((snap, index) => {
-        const quote = snap.itemQuoteId ? quotesById.get(snap.itemQuoteId) : null;
-        const previous = index > 0 ? snapshots[index - 1]! : null;
-        const lifecycle = lifecycleBySnapshotId.get(snap.id);
-        const phaseLabel =
-          lifecycle ?
-            "Outside purchase status"
-          : itemRequestLineSnapshotPhaseLabel(snap.phase);
-        const headline = lifecycle?.title ?? auditSnapshotStatusHeadline(snap);
-        const changeSummary =
-          lifecycle?.detail && lifecycle.detail !== lifecycle.title ?
-            lifecycle.detail
-          : auditSnapshotChangeSummary(snap, previous);
-
-        return (
-          <div key={snap.id} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
-            <div className="relative flex justify-center">
-              <span className="mt-1 size-2.5 rounded-full bg-primary" aria-hidden />
-              {index < snapshots.length - 1 ? (
-                <span
-                  className="absolute top-4 bottom-[-0.75rem] w-px bg-border"
-                  aria-hidden
-                />
-              ) : null}
-            </div>
-            <div
-              className={cn(
-                "rounded-lg border p-3",
-                lifecycle ?
-                  "border-primary/25 bg-primary/5"
-                : "border-border bg-muted/10",
-              )}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {phaseLabel}
-                  </p>
-                  <p className="mt-1 font-medium text-foreground">{headline}</p>
-                </div>
-                <time
-                  dateTime={snap.createdAt}
-                  className="text-xs tabular-nums text-muted-foreground"
-                >
-                  {new Date(snap.createdAt).toLocaleString()}
-                </time>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">{changeSummary}</p>
-              <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
-                <p>
-                  <span className="text-muted-foreground">Product id:</span>{" "}
-                  <span className="font-mono">{shortId(snap.itemRequestId)}</span>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Product:</span>{" "}
-                  {snap.productName?.trim() || "Unnamed product"}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Qty:</span> {snap.quantity}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Quote:</span>{" "}
-                  <span className="font-mono">
-                    {snap.itemQuoteId ? shortId(snap.itemQuoteId) : "-"}
-                  </span>
-                </p>
-              </div>
-              {quote ? (
-                <div className="mt-3">
-                  <SingleEstimateRecord quote={quote} />
-                </div>
-              ) : null}
-              {snap.batchQuoteSessionId ? (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Batch session{" "}
-                  <span className="font-mono text-primary">
-                    {snap.batchQuoteSessionId}
-                  </span>
-                </p>
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ProductDetailDialog({
-  triggerLabel,
-  triggerSummary,
-  title,
-  description,
-  help,
-  children,
-}: {
-  triggerLabel: string;
-  triggerSummary: string;
-  title: string;
-  description: string;
-  help: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <span className="flex w-full items-start gap-1.5 sm:w-auto">
-      <Dialog>
-        <DialogTrigger
-          type="button"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "lg" }),
-            "h-auto min-h-10 w-full flex-col items-start gap-0.5 px-3 py-2 text-left sm:w-auto",
-          )}
-        >
-          <span>{triggerLabel}</span>
-          <span className="text-xs font-normal text-muted-foreground">
-            {triggerSummary}
-          </span>
-        </DialogTrigger>
-        <DialogContent className="max-h-[min(90vh,46rem)] w-[min(96vw,56rem)] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>{description}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">{children}</div>
-        </DialogContent>
-      </Dialog>
-      <span className="pt-2">
-        <HelpBalloon label={`About ${triggerLabel}`}>{help}</HelpBalloon>
-      </span>
-    </span>
-  );
-}
-
-function ProductHistoryCard({
-  request,
-  snapshots,
-  quotes,
-  bundle,
-  statusLabel,
-}: {
-  request: ItemRequest;
-  snapshots: ItemRequestLineSnapshot[];
-  quotes: ItemQuote[];
-  bundle?: OwnerBatchQuoteSessionBundle;
-  statusLabel: string;
-}) {
-  const quotesById = new Map(quotes.map((quote) => [quote.id, quote]));
-  const latestEstimate = bundle?.latestEstimate ?? null;
-  const outsidePurchase = isOutsidePurchaseRequest(request);
-  const displayStatusLabel = outsidePurchase
-    ? itemRequestStatusLabelForDisplay(request)
-    : statusLabel;
-  const badgeKind =
-    fulfillmentProductHistoryBadgeKindFromSnapshots(snapshots) ??
-    itemRequestWorkflowBadgeKind(request.status);
-
-  return (
-    <article className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground">
-      <div className="grid gap-4 border-b border-border bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
-        <div className="flex min-w-0 gap-4">
-          <ProductRequestThumbnail
-            variant="cart"
-            imageUrl={request.productImageUrl}
-            productLabel={request.productName}
-            className="w-20 max-w-20 sm:w-24 sm:max-w-24"
-          />
-          <div className="min-w-0 space-y-2">
-            <h2 className="line-clamp-2 text-base font-semibold text-foreground">
-              {request.productName?.trim() || "Unnamed product"}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {displaySiteName(request.siteName, request.productUrl)}
-              {bundle ? ` - Batch ${bundle.session.batchNumber}` : " - Single product"}
-            </p>
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <span className="rounded-md border border-border bg-background px-2 py-1">
-                Product id <span className="font-mono">{request.id}</span>
-              </span>
-              <span className="rounded-md border border-border bg-background px-2 py-1">
-                Qty {request.quantity}
-              </span>
-              {request.productSize?.trim() ? (
-                <span className="rounded-md border border-border bg-background px-2 py-1">
-                  Size {request.productSize.trim()}
-                </span>
-              ) : null}
-              {request.productColor?.trim() ? (
-                <span className="rounded-md border border-border bg-background px-2 py-1">
-                  Color {request.productColor.trim()}
-                </span>
-              ) : null}
-            </div>
-            {!outsidePurchase ? (
-              <span className="inline-flex items-center gap-1.5">
-                <a
-                  href={request.productUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  Open product page
-                </a>
-                <HelpBalloon label="About product page link">
-                  Opens the original shopper product URL in a new tab so staff can
-                  verify product details, availability, and retailer information.
-                </HelpBalloon>
-              </span>
-            ) : null}
-          </div>
-        </div>
-        <div className="space-y-3 rounded-lg border border-border bg-background p-3">
-          <div>
-            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Current record status
-              <HelpBalloon label="About current record status">
-                The latest business state for this product. Use the status filter
-                above to isolate products in the same operational stage.
-              </HelpBalloon>
-            </p>
-            <StatusBadge kind={badgeKind} className="mt-1" title={request.status}>
-              {displayStatusLabel}
-            </StatusBadge>
-          </div>
-          <dl className="grid gap-2 text-sm">
-            <div>
-              <dt className="text-xs text-muted-foreground">Created</dt>
-              <dd className="tabular-nums text-foreground">
-                <time dateTime={request.createdAt}>
-                  {new Date(request.createdAt).toLocaleString()}
-                </time>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Last recorded update</dt>
-              <dd className="tabular-nums text-foreground">
-                {new Date(latestActivityMs(request, snapshots, quotes)).toLocaleString()}
-              </dd>
-            </div>
-            {bundle ? (
-              <div>
-                <dt className="text-xs text-muted-foreground">Batch status</dt>
-                <dd>
-                  <StatusBadge kind={batchQuoteSessionBadgeKind(bundle.session.status)}>
-                    {ownerBatchQuoteSessionStatusBadge(bundle.session.status)}
-                  </StatusBadge>
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2 p-4">
-        {request.status === "withdrawn" ? (
-          <ReinstateProductButton
-            itemRequestId={request.id}
-            productLabel={request.productName}
-            isOutsidePurchase={outsidePurchase}
-            paymentPrompted={Boolean(request.outsidePurchasePaymentPromptedAt)}
-          />
-        ) : null}
-        <ProductDetailDialog
-          triggerLabel="Open status timeline"
-          triggerSummary={
-            outsidePurchase ?
-              `${snapshots.length} outside purchase status record${snapshots.length === 1 ? "" : "s"}`
-            : `${snapshots.length} saved product record${snapshots.length === 1 ? "" : "s"}`
-          }
-          title="Recorded Status Timeline"
-          description={
-            outsidePurchase ?
-              "Outside purchase status history from staff send through payment, cart, Active, and reinstate."
-            : "Every saved status and fulfillment snapshot for this product."
-          }
-          help={
-            outsidePurchase ?
-              "Opens the recorded status timeline for this outside purchase: staff intake, payment prompt, cart moves, removal from Active, and reinstate — with timestamps and estimate details when saved."
-            : "Shows each saved product status change in order, including fulfillment snapshots, quote links, batch session IDs, and the timestamp for each record."
-          }
-        >
-          <ProductTimeline
-            snapshots={snapshots}
-            quotesById={quotesById}
-            request={outsidePurchase ? request : undefined}
-          />
-        </ProductDetailDialog>
-
-        <ProductDetailDialog
-          triggerLabel="Open single estimates"
-          triggerSummary={`${quotes.length} quote / price snapshot row${quotes.length === 1 ? "" : "s"}`}
-          title="Single Estimate Records"
-          description="Single-product quote rows and checkout or purchase price snapshots."
-          help="Opens the single-product estimate records with item cost, service fee, shipping, total price, quantity, size, color, and update details."
-        >
-          {quotes.length > 0 ? (
-            <div className="space-y-3">
-              {quotes.map((quote) => (
-                <SingleEstimateRecord key={quote.id} quote={quote} />
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-              No single estimate rows are recorded for this product yet.
-            </p>
-          )}
-        </ProductDetailDialog>
-
-        {bundle ? (
-          <ProductDetailDialog
-            triggerLabel="Open batch experience"
-            triggerSummary={`Batch ${bundle.session.batchNumber} - ${ownerBatchQuoteSessionStatusBadge(bundle.session.status)}`}
-            title="Batch Estimate And Cart Experience"
-            description="Batch estimate totals, cart acceptance, and batch status records."
-            help="Opens the batch estimate and cart journey, including batch totals, accepted cart time, saved estimate values, and batch lifecycle records."
-          >
-            <ChargesGrid
-              rows={[
-                { label: "Batch number", value: bundle.session.batchNumber },
-                { label: "Batch status", value: ownerBatchQuoteSessionStatusBadge(bundle.session.status) },
-                { label: "Created", value: new Date(bundle.session.createdAt).toLocaleString() },
-                {
-                  label: "Submitted",
-                  value: bundle.session.submittedAt ?
-                    new Date(bundle.session.submittedAt).toLocaleString()
-                  : "-",
-                },
-                {
-                  label: "Accepted into cart",
-                  value: bundle.session.cartAcceptanceAcceptedAt ?
-                    new Date(bundle.session.cartAcceptanceAcceptedAt).toLocaleString()
-                  : "-",
-                },
-              ]}
-            />
-            {latestEstimate ? (
-              <BatchEstimateRecord
-                batchNumber={bundle.session.batchNumber}
-                estimate={latestEstimate}
-              />
-            ) : (
-              <p className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-                No batch estimate has been saved for this batch yet.
-              </p>
-            )}
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Batch status records
-              </p>
-              {bundle.statusEvents.length > 0 ? (
-                <div className="space-y-2">
-                  {bundle.statusEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className="rounded-md border border-border bg-muted/10 p-2 text-sm"
-                    >
-                      <div className="flex flex-wrap justify-between gap-2">
-                        <span className="font-medium text-foreground">
-                          {batchQuoteSessionEventKindLabel(event.kind)}
-                        </span>
-                        <time
-                          dateTime={event.createdAt}
-                          className="text-xs text-muted-foreground"
-                        >
-                          {new Date(event.createdAt).toLocaleString()}
-                        </time>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-                  No batch status event rows are recorded yet.
-                </p>
-              )}
-            </div>
-          </ProductDetailDialog>
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
 function ProductHistoryPagination({
   currentPage,
   totalPages,
@@ -907,6 +315,7 @@ export function ItemsNewProductHistoryPanel() {
     snapshotsByRequestId,
     quotesByRequestId,
     fulfillmentLabelByRequestId,
+    returnRequestsByItemRequestId,
   } = useAddItemPayload();
 
   const [search, setSearch] = useState("");
@@ -969,12 +378,21 @@ export function ItemsNewProductHistoryPanel() {
     const labels = new Set<string>();
     for (const request of allRequests) {
       labels.add(
-        fulfillmentLabelByRequestId[request.id] ??
-          itemRequestStatusLabel(request.status),
+        productHistoryStatusLabel(
+          request,
+          snapshotsByRequestId[request.id] ?? [],
+          fulfillmentLabelByRequestId,
+          returnRequestsByItemRequestId,
+        ),
       );
     }
     return [...labels].sort((a, b) => a.localeCompare(b));
-  }, [allRequests, fulfillmentLabelByRequestId]);
+  }, [
+    allRequests,
+    fulfillmentLabelByRequestId,
+    returnRequestsByItemRequestId,
+    snapshotsByRequestId,
+  ]);
 
   const filteredSorted = useMemo(() => {
     const rows = allRequests.filter((request) => {
@@ -989,9 +407,12 @@ export function ItemsNewProductHistoryPanel() {
         normalizedQuery,
       );
       if (!matchesSearch) return false;
-      const statusLabel =
-        fulfillmentLabelByRequestId[request.id] ??
-        itemRequestStatusLabel(request.status);
+      const statusLabel = productHistoryStatusLabel(
+        request,
+        snapshots,
+        fulfillmentLabelByRequestId,
+        returnRequestsByItemRequestId,
+      );
       if (statusFilter !== "all" && statusLabel !== statusFilter) return false;
 
       switch (filter) {
@@ -1043,6 +464,7 @@ export function ItemsNewProductHistoryPanel() {
     fulfillmentLabelByRequestId,
     normalizedQuery,
     quotesByRequestId,
+    returnRequestsByItemRequestId,
     sort,
     statusFilter,
     snapshotsByRequestId,
@@ -1298,7 +720,7 @@ export function ItemsNewProductHistoryPanel() {
           <div className="space-y-1.5">
             <LabelWithHelp
               htmlFor="dash-product-history-page-size"
-              help="Controls how many product cards appear on each page. Smaller pages are easier to scan; larger pages are faster for bulk review."
+              help="Controls how many product rows appear on each page. Smaller pages are easier to scan; larger pages are faster for bulk review."
             >
               Page size
             </LabelWithHelp>
@@ -1409,27 +831,47 @@ export function ItemsNewProductHistoryPanel() {
                 summary={group.summary}
                 defaultOpen={group.defaultOpen ?? true}
               >
-                <div className="space-y-4">
-                  {group.requests.map((request) => {
-                    const snapshots = snapshotsByRequestId[request.id] ?? [];
-                    const quotes = quotesByRequestId[request.id] ?? [];
-                    const bundle = batchBundleByRequestId.get(request.id);
-                    const statusLabel =
-                      fulfillmentLabelByRequestId[request.id] ??
-                      itemRequestStatusLabel(request.status);
-
-                    return (
-                      <ProductHistoryCard
-                        key={request.id}
-                        request={request}
-                        snapshots={snapshots}
-                        quotes={quotes}
-                        bundle={bundle}
-                        statusLabel={statusLabel}
-                      />
-                    );
-                  })}
-                </div>
+                <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+                  <table className="w-full min-w-[56rem] text-left text-sm">
+                    <thead className="border-b border-border bg-muted/20 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="w-10 px-2 py-2" scope="col" />
+                        <th className="px-3 py-2 font-medium" scope="col">
+                          Product
+                        </th>
+                        <th className="px-3 py-2 font-medium" scope="col">
+                          Status
+                        </th>
+                        <th className="px-3 py-2 font-medium" scope="col">
+                          Records
+                        </th>
+                        <th className="px-3 py-2 font-medium" scope="col">
+                          Last activity
+                        </th>
+                        <th className="px-3 py-2 font-medium" scope="col">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.requests.map((request) => (
+                        <ProductHistoryTableRow
+                          key={request.id}
+                          request={request}
+                          snapshots={snapshotsByRequestId[request.id] ?? []}
+                          quotes={quotesByRequestId[request.id] ?? []}
+                          bundle={batchBundleByRequestId.get(request.id)}
+                          fulfillmentLabelOverride={
+                            fulfillmentLabelByRequestId[request.id]
+                          }
+                          returnRequest={
+                            returnRequestsByItemRequestId[request.id] ?? null
+                          }
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </FloatingHorizontalScroll>
               </ToggleBlock>
             ))}
           </div>

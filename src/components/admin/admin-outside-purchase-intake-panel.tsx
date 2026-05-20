@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useRouter } from "next/navigation";
 import { Loader2Icon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useMemo, useState, useTransition } from "react";
@@ -10,6 +11,7 @@ import {
   saveAdminOutsidePurchaseIntakeAction,
 } from "@/actions/admin-outside-purchase-intake";
 import { AdminOutsidePurchaseEditDialog } from "@/components/admin/admin-outside-purchase-edit-dialog";
+import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { CartLinePriceBreakdown } from "@/components/dashboard/cart-line-price-breakdown";
@@ -20,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { OutsidePurchaseIntakeAdminRow } from "@/data/outside-purchase-intake";
 import type { AdminProfilePickerRow } from "@/data/customer-pricing-packages";
-import type { ItemQuote } from "@/db/schema";
+import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd, type MerchantServiceTierRow } from "@/lib/admin-markup";
 import {
   computeOutsidePurchaseCustomerQuoteCents,
@@ -77,6 +79,7 @@ type AdminOutsidePurchaseIntakePanelProps = {
   recentRows: OutsidePurchaseIntakeAdminRow[];
   latestQuotesByRequestId: Record<string, ItemQuote>;
   returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>;
+  snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
   serviceTiers: MerchantServiceTierRow[];
 };
 
@@ -85,6 +88,7 @@ export function AdminOutsidePurchaseIntakePanel({
   recentRows,
   latestQuotesByRequestId,
   returnRequestsByItemRequestId,
+  snapshotsByRequestId = {},
   serviceTiers,
 }: AdminOutsidePurchaseIntakePanelProps) {
   const router = useRouter();
@@ -620,7 +624,7 @@ export function AdminOutsidePurchaseIntakePanel({
           <p className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
             No outside-purchase lines yet.
           </p>
-        : <div className="overflow-x-auto rounded-lg border border-border">
+        : <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[52rem] text-left text-sm">
               <thead className="border-b border-border bg-muted/40">
                 <tr>
@@ -700,6 +704,12 @@ export function AdminOutsidePurchaseIntakePanel({
                               returnRequest={returnReq}
                             />
                           : null}
+                          <ItemRequestLineAuditDialog
+                            itemRequestId={r.id}
+                            productLabel={r.productName?.trim() || ""}
+                            snapshots={snapshotsByRequestId[r.id] ?? []}
+                            triggerLabel="Status records"
+                          />
                           {quote ?
                             <QuoteEstimatePreviewDialog
                               itemRequestId={r.id}
@@ -728,7 +738,7 @@ export function AdminOutsidePurchaseIntakePanel({
                 })}
               </tbody>
             </table>
-          </div>
+          </FloatingHorizontalScroll>
         }
       </section>
     </div>

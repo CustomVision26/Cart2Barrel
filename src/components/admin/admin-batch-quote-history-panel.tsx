@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import {
   useCallback,
   useEffect,
@@ -387,7 +388,7 @@ export function AdminBatchQuoteHistoryPanel({
         ) : null}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
         <table className="w-full min-w-[56rem] text-left text-sm">
           <thead className="border-b border-border bg-muted/40">
             <tr>
@@ -626,7 +627,7 @@ export function AdminBatchQuoteHistoryPanel({
             ))}
           </tbody>
         </table>
-      </div>
+      </FloatingHorizontalScroll>
 
       {filteredSorted.length > 0 ? (
         <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">

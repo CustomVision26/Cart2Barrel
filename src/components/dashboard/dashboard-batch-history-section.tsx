@@ -1,5 +1,6 @@
 "use client";
 
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
@@ -560,7 +561,7 @@ export function DashboardBatchHistorySection({
               hidden={!bodyOpen}
               className={cn(bodyOpen && "space-y-3")}
             >
-              <div className="overflow-x-auto rounded-md border border-border">
+              <FloatingHorizontalScroll viewportClassName="rounded-md border border-border">
                 <table className="w-full min-w-[36rem] text-left text-sm">
                   <thead className="border-b border-border bg-muted/40">
                     <tr>
@@ -602,7 +603,7 @@ export function DashboardBatchHistorySection({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </FloatingHorizontalScroll>
               {statusEvents.length > 0 ? (
                 <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
                   <p className="text-xs font-medium text-foreground">
@@ -723,7 +724,7 @@ export function DashboardBatchHistorySection({
                                   No line items were stored for this stage (often a legacy
                                   log entry).
                                 </p>
-                              : <div className="overflow-x-auto rounded-md border border-border">
+                              : <FloatingHorizontalScroll viewportClassName="rounded-md border border-border">
                                   <table className="w-full min-w-[36rem] text-left text-sm">
                                     <thead className="border-b border-border bg-muted/40">
                                       <tr>
@@ -768,7 +769,7 @@ export function DashboardBatchHistorySection({
                                       ))}
                                     </tbody>
                                   </table>
-                                </div>
+                                </FloatingHorizontalScroll>
                               }
                             </div>
                           : null}

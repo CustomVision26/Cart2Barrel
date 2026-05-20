@@ -48,6 +48,10 @@ export function itemRequestLineSnapshotPhaseLabel(
       return "Return to retailer requested";
     case "outside_purchase_return_estimate_ready":
       return "Return estimate ready";
+    case "outside_purchase_return_estimate_accepted":
+      return "Return estimate accepted";
+    case "outside_purchase_return_cancelled":
+      return "Return request cancelled";
     case "outside_purchase_checkout_paid":
       return "Checkout paid · service fee";
     default: {
