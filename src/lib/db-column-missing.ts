@@ -156,6 +156,29 @@ export function isMissingOutsidePurchaseReturnRequestsTableError(
   return /does not exist|relation\b/i.test(msg);
 }
 
+/** `order_item_product_return_requests` — migration `0050_order_item_product_return_requests` or `npm run db:push`. */
+export function isMissingOrderItemProductReturnRequestsTableError(
+  e: unknown,
+): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("order_item_product_return_requests")) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}
+
+/** `desired_outcome` on return requests — migration `0051_product_return_desired_outcome` or `npm run db:push`. */
+export function isMissingProductReturnDesiredOutcomeColumnError(
+  e: unknown,
+): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("desired_outcome")) return false;
+  if (!msg.includes("order_item_product_return_requests")) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42703") return true;
+  return /column\b.*does not exist|undefined column/i.test(msg);
+}
+
 /** Batch quote tables absent until migration applies. */
 export function isMissingBatchQuoteTablesRelationError(e: unknown): boolean {
   const msg = combinedErrorText(e).toLowerCase();
@@ -184,7 +207,10 @@ export function isMissingCompanyPurchaseRetailerTrackingColumnsError(
 export function isMissingOrderItemWarehouseReceiptColumnsError(
   e: unknown,
 ): boolean {
-  return isUndefinedColumnError(e, "warehouse_received_at");
+  return (
+    isUndefinedColumnError(e, "warehouse_received_at") ||
+    isUndefinedColumnError(e, "warehouse_received_proof_photo_urls")
+  );
 }
 
 /** `batch_quote_sessions.cart_acceptance_*` — apply migration 0016_batch_cart_acceptance or run `npm run db:push`. */

@@ -22,11 +22,13 @@ export function AdminRefundOrderLineButton({
   linePriceCents,
   refundedCents,
   productLabel,
+  triggerLabel = "Refund line",
 }: {
   orderItemId: string;
   linePriceCents: number;
   refundedCents: number;
   productLabel: string;
+  triggerLabel?: string;
 }) {
   const refundableCents = Math.max(0, linePriceCents - refundedCents);
   const [open, setOpen] = useState(false);
@@ -76,7 +78,7 @@ export function AdminRefundOrderLineButton({
         className="whitespace-nowrap"
         onClick={() => onOpenChange(true)}
       >
-        Refund line
+        {triggerLabel}
       </Button>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">

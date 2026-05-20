@@ -20,6 +20,7 @@ export type OrderItemReadCore = Pick<
   warehouseReceivedBarcode?: OrderItem["warehouseReceivedBarcode"];
   warehouseReceivedBarcodeImageUrl?: OrderItem["warehouseReceivedBarcodeImageUrl"];
   warehouseReceivedProofPhotoCount?: OrderItem["warehouseReceivedProofPhotoCount"];
+  warehouseReceivedProofPhotoUrls?: OrderItem["warehouseReceivedProofPhotoUrls"];
 };
 
 export function effectiveOrderItemFulfillmentStatus(

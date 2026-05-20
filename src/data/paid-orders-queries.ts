@@ -29,6 +29,12 @@ import {
 } from "@/db/schema";
 import { orderListSelect, type OrderListCore } from "@/data/order-list-select";
 import {
+  fulfilledProductReturnRequestsByOrderItemIds,
+  pendingProductReturnRequestsByOrderItemIds,
+  type FulfilledProductReturnRequestBrief,
+  type PendingProductReturnRequestBrief,
+} from "@/data/order-item-product-return-requests";
+import {
   pendingRefundRequestsByOrderItemIds,
   type PendingRefundRequestBrief,
 } from "@/data/order-item-refund-requests";
@@ -37,6 +43,7 @@ import {
   isLikelyOrderFulfillmentEnumInQueryFailure,
   isUndefinedColumnError,
 } from "@/lib/db-column-missing";
+import { applyAdminOrdersQueueFulfillmentWhere } from "@/lib/admin-order-queue-fulfillment";
 import type { OrderItemReadCore } from "@/lib/order-item-read-compat";
 
 const batchDirect = alias(batchQuoteSessions, "paid_ord_batch_direct");
@@ -52,6 +59,8 @@ export type PaidOrderLineListRow = {
   resolvedBatchNumber: string | null;
   refundedCents: number;
   pendingRefundRequest: PendingRefundRequestBrief | null;
+  pendingProductReturnRequest: PendingProductReturnRequestBrief | null;
+  fulfilledProductReturnRequest: FulfilledProductReturnRequestBrief | null;
 };
 
 export type PaidOrderLinesPageResult = {
@@ -101,6 +110,7 @@ const orderItemSelectWithFulfillment = {
   warehouseReceivedBarcode: orderItems.warehouseReceivedBarcode,
   warehouseReceivedBarcodeImageUrl: orderItems.warehouseReceivedBarcodeImageUrl,
   warehouseReceivedProofPhotoCount: orderItems.warehouseReceivedProofPhotoCount,
+  warehouseReceivedProofPhotoUrls: orderItems.warehouseReceivedProofPhotoUrls,
 } as const;
 
 type LineSelect =
@@ -181,7 +191,13 @@ function applyLineFulfillmentConstraints(
 }
 
 export async function attachRefundedCents(
-  rows: Omit<PaidOrderLineListRow, "refundedCents" | "pendingRefundRequest">[],
+  rows: Omit<
+    PaidOrderLineListRow,
+    | "refundedCents"
+    | "pendingRefundRequest"
+    | "pendingProductReturnRequest"
+    | "fulfilledProductReturnRequest"
+  >[],
 ): Promise<PaidOrderLineListRow[]> {
   if (rows.length === 0) return [];
   try {
@@ -190,15 +206,21 @@ export async function attachRefundedCents(
       ...r,
       refundedCents: sums.get(r.orderItem.id) ?? 0,
       pendingRefundRequest: null as PendingRefundRequestBrief | null,
+      pendingProductReturnRequest: null as PendingProductReturnRequestBrief | null,
+      fulfilledProductReturnRequest: null as FulfilledProductReturnRequestBrief | null,
     }));
-    return attachPendingRefundRequestsToPaidLines(base);
+    const withRefundReq = await attachPendingRefundRequestsToPaidLines(base);
+    return attachProductReturnRequestsToPaidLines(withRefundReq);
   } catch {
     const base = rows.map((r) => ({
       ...r,
       refundedCents: 0,
       pendingRefundRequest: null as PendingRefundRequestBrief | null,
+      pendingProductReturnRequest: null as PendingProductReturnRequestBrief | null,
+      fulfilledProductReturnRequest: null as FulfilledProductReturnRequestBrief | null,
     }));
-    return attachPendingRefundRequestsToPaidLines(base);
+    const withRefundReq = await attachPendingRefundRequestsToPaidLines(base);
+    return attachProductReturnRequestsToPaidLines(withRefundReq);
   }
 }
 
@@ -219,14 +241,75 @@ export async function attachPendingRefundRequestsToPaidLines(
   }
 }
 
+export async function attachPendingProductReturnRequestsToPaidLines(
+  rows: PaidOrderLineListRow[],
+): Promise<PaidOrderLineListRow[]> {
+  return attachProductReturnRequestsToPaidLines(rows);
+}
+
+export async function attachProductReturnRequestsToPaidLines(
+  rows: PaidOrderLineListRow[],
+): Promise<PaidOrderLineListRow[]> {
+  if (rows.length === 0) return rows;
+  try {
+    const [pendingMap, fulfilledMap] = await Promise.all([
+      pendingProductReturnRequestsByOrderItemIds(rows.map((r) => r.orderItem.id)),
+      fulfilledProductReturnRequestsByOrderItemIds(rows.map((r) => r.orderItem.id)),
+    ]);
+    return rows.map((r) => ({
+      ...r,
+      pendingProductReturnRequest: pendingMap.get(r.orderItem.id) ?? null,
+      fulfilledProductReturnRequest: fulfilledMap.get(r.orderItem.id) ?? null,
+    }));
+  } catch {
+    return rows.map((r) => ({
+      ...r,
+      pendingProductReturnRequest: null,
+      fulfilledProductReturnRequest: null,
+    }));
+  }
+}
+
+export async function attachPaidOrderLineWorkflowRequests(
+  rows: Omit<
+    PaidOrderLineListRow,
+    | "refundedCents"
+    | "pendingRefundRequest"
+    | "pendingProductReturnRequest"
+    | "fulfilledProductReturnRequest"
+  >[],
+): Promise<PaidOrderLineListRow[]> {
+  const withRefunds = await attachRefundedCents(rows);
+  const withRefundReq = await attachPendingRefundRequestsToPaidLines(withRefunds);
+  return attachProductReturnRequestsToPaidLines(withRefundReq);
+}
+
 export function dedupePaidLineRows(
-  rows: Omit<PaidOrderLineListRow, "refundedCents" | "pendingRefundRequest">[],
-): Omit<PaidOrderLineListRow, "refundedCents" | "pendingRefundRequest">[] {
+  rows: Omit<
+    PaidOrderLineListRow,
+    | "refundedCents"
+    | "pendingRefundRequest"
+    | "pendingProductReturnRequest"
+    | "fulfilledProductReturnRequest"
+  >[],
+): Omit<
+  PaidOrderLineListRow,
+  | "refundedCents"
+  | "pendingRefundRequest"
+  | "pendingProductReturnRequest"
+  | "fulfilledProductReturnRequest"
+>[] {
   if (rows.length === 0) return [];
   const orderedIds: string[] = [];
   const merged = new Map<
     string,
-    Omit<PaidOrderLineListRow, "refundedCents" | "pendingRefundRequest">
+    Omit<
+      PaidOrderLineListRow,
+      | "refundedCents"
+      | "pendingRefundRequest"
+      | "pendingProductReturnRequest"
+      | "fulfilledProductReturnRequest"
+    >
   >();
 
   const pickText = (
@@ -369,7 +452,15 @@ async function selectLinesForOrderIds(opts: {
   whereRoot: SQL;
   orderIds: string[];
   orderItemProj: LineSelect;
-}): Promise<Omit<PaidOrderLineListRow, "refundedCents" | "pendingRefundRequest">[]> {
+}): Promise<
+  Omit<
+    PaidOrderLineListRow,
+    | "refundedCents"
+    | "pendingRefundRequest"
+    | "pendingProductReturnRequest"
+    | "fulfilledProductReturnRequest"
+  >[]
+> {
   if (opts.orderIds.length === 0) return [];
   const db = getDb();
   const whereIn = and(opts.whereRoot, inArray(orders.id, opts.orderIds))!;
@@ -419,6 +510,8 @@ async function paginatePaidOrderLinesInner(opts: {
   lineFulfillmentExclude?: OrderItem["fulfillmentStatus"][];
   /** Paginate by filtered lines, but return every product line on each paged order. */
   expandFullOrderLines?: boolean;
+  /** `/admin/orders` queue: money-back returns only for `product_return_awaiting_delivery`. */
+  adminOrdersQueue?: boolean;
 }): Promise<Omit<PaidOrderLinesPageResult, "rows"> & { rows: PaidOrderLineListRow[] }> {
   const {
     scope,
@@ -428,17 +521,23 @@ async function paginatePaidOrderLinesInner(opts: {
     lineFulfillmentIn,
     lineFulfillmentExclude,
     expandFullOrderLines,
+    adminOrdersQueue,
   } = opts;
   const db = getDb();
   const searchCond = buildPaidOrdersSearchPredicate(query.q);
   const paidWhere = buildWhereRoot(scope, searchCond);
-  const whereRoot = applyLineFulfillmentConstraints(paidWhere, {
-    lineFulfillmentIn,
-    lineFulfillmentExclude,
-  });
+  const whereRoot =
+    adminOrdersQueue ?
+      applyAdminOrdersQueueFulfillmentWhere(paidWhere)
+    : applyLineFulfillmentConstraints(paidWhere, {
+        lineFulfillmentIn,
+        lineFulfillmentExclude,
+      });
   const whereAllLinesInPagedOrders =
     expandFullOrderLines ?
-      applyLineFulfillmentConstraints(paidWhere, { lineFulfillmentIn })
+      adminOrdersQueue ?
+        whereRoot
+      : applyLineFulfillmentConstraints(paidWhere, { lineFulfillmentIn })
     : whereRoot;
 
   const [{ cnt }] = await db
@@ -492,7 +591,7 @@ async function paginatePaidOrderLinesInner(opts: {
   }
 
   const sorted = sortPaidOrderLinesWithinPage(bareLines, orderIds);
-  const rows = await attachRefundedCents(sorted);
+  const rows = await attachPaidOrderLineWorkflowRequests(sorted);
 
   return {
     rows,
@@ -516,6 +615,7 @@ export async function listPaidOrderLinesPage(opts: {
    * but each paged order includes all of its paid product lines (batch siblings stay visible).
    */
   expandFullOrderLines?: boolean;
+  adminOrdersQueue?: boolean;
 }): Promise<PaidOrderLinesPageResult> {
   try {
     return await paginatePaidOrderLinesInner({
@@ -526,6 +626,7 @@ export async function listPaidOrderLinesPage(opts: {
       lineFulfillmentIn: opts.lineFulfillmentIn,
       lineFulfillmentExclude: opts.lineFulfillmentExclude,
       expandFullOrderLines: opts.expandFullOrderLines,
+      adminOrdersQueue: opts.adminOrdersQueue,
     });
   } catch (e) {
     if (

@@ -8,7 +8,9 @@ import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { backfillOutsidePurchasePaidServiceFeeFulfillment } from "@/data/backfill-outside-purchase-paid-fulfillment";
 import type { PaidOrderLineListRow, PaidOrderLinesPageResult } from "@/data/paid-orders-queries";
 import { listPaidOrderLinesPage } from "@/data/paid-orders-queries";
-import { DELIVERY_RECEIVED_FULFILLMENT_STATUSES } from "@/lib/warehouse-receipt-queue";
+import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
+import { isMoneyBackProductReturn } from "@/lib/order-line-product-return-display";
+import { isAdminPurchaseOrdersQueueFulfillment } from "@/lib/warehouse-receipt-queue";
 
 export type AdminPaidOrderLineRow = PaidOrderLineListRow;
 
@@ -32,15 +34,30 @@ export async function listAdminPaidOrderLinesPage(
     };
   }
   await backfillOutsidePurchasePaidServiceFeeFulfillment();
-  return listPaidOrderLinesPage({
+  const pack = await listPaidOrderLinesPage({
     scope: resolveAdminPaidOrdersScope(queryInput.userId),
     query: queryInput,
-    lineFulfillmentExclude: [
-      "company_purchase_pending_delivery",
-      ...DELIVERY_RECEIVED_FULFILLMENT_STATUSES,
-    ],
+    adminOrdersQueue: true,
     expandFullOrderLines: true,
   });
+  return {
+    ...pack,
+    rows: pack.rows.filter((row) => {
+      const fulfillment = effectiveOrderItemFulfillmentStatus(
+        row.orderItem,
+        row.order,
+      );
+      if (isAdminPurchaseOrdersQueueFulfillment(fulfillment)) {
+        if (fulfillment === "product_return_awaiting_delivery") {
+          return isMoneyBackProductReturn(
+            row.fulfilledProductReturnRequest?.desiredOutcome,
+          );
+        }
+        return false;
+      }
+      return true;
+    }),
+  };
 }
 
 export async function listAdminPaidOrderHistoryLinesPage(

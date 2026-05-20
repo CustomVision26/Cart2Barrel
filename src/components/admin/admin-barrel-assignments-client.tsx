@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -10,7 +9,16 @@ import {
   adminRemovePackageFromBarrelAction,
 } from "@/actions/barrel-package-assignment";
 import { ContainerSlotsInventorySection } from "@/components/barrels/container-slots-inventory-section";
+import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type {
   AdminBarrelPipelineRow,
@@ -40,13 +48,20 @@ function formatAssignedAt(iso: string | null): string {
   });
 }
 
+function formatAssignedAtShort(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function AdminBarrelAssignmentsClient({
   rows,
   barrelsByOwner,
 }: AdminBarrelAssignmentsClientProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [assignControlsOpen, setAssignControlsOpen] = useState(true);
 
   const grouped = useMemo(() => {
     const map = new Map<string, AdminBarrelPipelineRow[]>();
@@ -106,70 +121,13 @@ export function AdminBarrelAssignmentsClient({
       : (
         grouped.map(([ownerId, ownerLines]) => (
           <section key={ownerId} className="space-y-4">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-foreground">Customer</h2>
-              <p className="font-mono text-xs text-muted-foreground">{ownerId}</p>
-            </div>
-
-            <ContainerSlotsInventorySection
+            <OwnerAssignmentSection
+              ownerId={ownerId}
+              ownerLines={ownerLines}
               barrels={barrelsByOwner[ownerId] ?? []}
-              embedded
-              showMarkFull
+              pending={pending}
+              onAction={runAction}
             />
-
-            <div className="overflow-hidden rounded-lg border border-border">
-              <div className="flex items-center justify-end border-b border-border bg-muted/30 px-3 py-1.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  aria-expanded={assignControlsOpen}
-                  onClick={() => setAssignControlsOpen((open) => !open)}
-                >
-                  <ChevronDown
-                    className={cn(
-                      "size-4 shrink-0 transition-transform",
-                      assignControlsOpen ? "rotate-180" : "rotate-0",
-                    )}
-                    aria-hidden
-                  />
-                  {assignControlsOpen ? "Hide" : "Show"} move to container
-                </Button>
-              </div>
-              <div className="overflow-x-auto">
-              <table
-                className={cn(
-                  "w-full text-left text-sm",
-                  assignControlsOpen ? "min-w-[52rem]" : "min-w-[36rem]",
-                )}
-              >
-                <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Product</th>
-                    <th className="px-3 py-2 font-medium">Fulfillment</th>
-                    <th className="px-3 py-2 font-medium">Container</th>
-                    <th className="px-3 py-2 font-medium">Assigned</th>
-                    {assignControlsOpen ?
-                      <th className="px-3 py-2 font-medium">Move to container</th>
-                    : null}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {ownerLines.map((row) => (
-                    <AdminPipelineRowActions
-                      key={row.packageId}
-                      row={row}
-                      barrels={barrelsByOwner[ownerId] ?? []}
-                      pending={pending}
-                      showAssignControls={assignControlsOpen}
-                      onAction={runAction}
-                    />
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            </div>
           </section>
         ))
       )}
@@ -177,17 +135,191 @@ export function AdminBarrelAssignmentsClient({
   );
 }
 
-function AdminPipelineRowActions({
+const productGridClassName =
+  "grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
+
+function OwnerAssignmentSection({
+  ownerId,
+  ownerLines,
+  barrels,
+  pending,
+  onAction,
+}: {
+  ownerId: string;
+  ownerLines: AdminBarrelPipelineRow[];
+  barrels: UserBarrelOptionRow[];
+  pending: boolean;
+  onAction: (
+    fn: () => Promise<{ ok: boolean; message: string }>,
+    onSuccess?: () => void,
+  ) => void;
+}) {
+  const unassigned = ownerLines.filter((row) => !row.assignedBarrelId);
+  const assigned = ownerLines.filter((row) => Boolean(row.assignedBarrelId));
+
+  return (
+    <>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="space-y-0.5">
+          <h2 className="text-base font-semibold text-foreground">Customer</h2>
+          <p className="font-mono text-[11px] text-muted-foreground">{ownerId}</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            {unassigned.length} awaiting
+          </span>
+          <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+            {assigned.length} assigned
+          </span>
+        </div>
+      </div>
+
+      <ContainerSlotsInventorySection barrels={barrels} embedded showMarkFull />
+
+      {unassigned.length > 0 ?
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Awaiting assignment ({unassigned.length})
+          </h3>
+          <div className={productGridClassName}>
+            {unassigned.map((row) => (
+              <AdminPipelineProductCard
+                key={row.packageId}
+                row={row}
+                barrels={barrels}
+                pending={pending}
+                onAction={onAction}
+              />
+            ))}
+          </div>
+        </div>
+      : null}
+
+      {assigned.length > 0 ?
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+            Assigned to container ({assigned.length})
+          </h3>
+          <div className={productGridClassName}>
+            {assigned.map((row) => (
+              <AdminPipelineProductCard
+                key={row.packageId}
+                row={row}
+                barrels={barrels}
+                pending={pending}
+                onAction={onAction}
+              />
+            ))}
+          </div>
+        </div>
+      : null}
+    </>
+  );
+}
+
+function AdminPipelineProductCard({
   row,
   barrels,
   pending,
-  showAssignControls,
   onAction,
 }: {
   row: AdminBarrelPipelineRow;
   barrels: UserBarrelOptionRow[];
   pending: boolean;
-  showAssignControls: boolean;
+  onAction: (
+    fn: () => Promise<{ ok: boolean; message: string }>,
+    onSuccess?: () => void,
+  ) => void;
+}) {
+  const [assignOpen, setAssignOpen] = useState(false);
+  const isAssigned = Boolean(row.assignedBarrelId);
+  const assignedShort = formatAssignedAtShort(row.assignedAt);
+
+  return (
+    <article className="group flex gap-2.5 overflow-hidden rounded-lg border border-border/80 bg-card/90 p-2 shadow-sm transition-[border-color,box-shadow,background-color] hover:border-border hover:bg-card hover:shadow-md">
+      <div className="relative shrink-0 self-start">
+        <ProductRequestThumbnail
+          variant="list"
+          imageUrl={row.productImageUrl}
+          productLabel={row.productName}
+        />
+        {row.quantity > 1 ?
+          <span
+            className="absolute -bottom-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 py-px text-[9px] font-semibold leading-none text-primary-foreground shadow-sm"
+            title={`Quantity ${row.quantity}`}
+          >
+            {row.quantity}
+          </span>
+        : null}
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="space-y-0.5">
+          <h3
+            className="line-clamp-2 text-xs font-semibold leading-snug text-foreground"
+            title={row.productName}
+          >
+            {row.productName}
+          </h3>
+          <p
+            className="line-clamp-1 text-[10px] leading-tight text-muted-foreground"
+            title={row.fulfillmentLabel}
+          >
+            {row.fulfillmentLabel}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]">
+          {isAssigned ?
+            <span className="inline-flex min-w-0 items-center gap-1 text-foreground">
+              <span
+                className="size-1.5 shrink-0 rounded-full bg-emerald-500"
+                aria-hidden
+              />
+              <span className="truncate font-medium">{row.assignedContainerAlias}</span>
+              {assignedShort ?
+                <span className="shrink-0 text-muted-foreground">· {assignedShort}</span>
+              : null}
+            </span>
+          : <span className="text-muted-foreground">Awaiting assignment</span>}
+        </div>
+
+        <Button
+          type="button"
+          variant={isAssigned ? "outline" : "default"}
+          size="sm"
+          className="mt-0.5 h-7 w-full text-xs"
+          onClick={() => setAssignOpen(true)}
+        >
+          {isAssigned ? "Move" : "Assign to container"}
+        </Button>
+      </div>
+
+      <AdminPipelineAssignDialog
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+        row={row}
+        barrels={barrels}
+        pending={pending}
+        onAction={onAction}
+      />
+    </article>
+  );
+}
+
+function AdminPipelineAssignDialog({
+  open,
+  onOpenChange,
+  row,
+  barrels,
+  pending,
+  onAction,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  row: AdminBarrelPipelineRow;
+  barrels: UserBarrelOptionRow[];
+  pending: boolean;
   onAction: (
     fn: () => Promise<{ ok: boolean; message: string }>,
     onSuccess?: () => void,
@@ -216,6 +348,12 @@ function AdminPipelineRowActions({
   const [adminNote, setAdminNote] = useState("");
 
   useEffect(() => {
+    if (!open) return;
+    setToBarrelId(defaultBarrelId);
+    setAdminNote("");
+  }, [open, defaultBarrelId]);
+
+  useEffect(() => {
     if (!toBarrelId || !assignableBarrels.some((b) => b.barrelId === toBarrelId)) {
       setToBarrelId(defaultBarrelId);
     }
@@ -224,29 +362,35 @@ function AdminPipelineRowActions({
   const isAssigned = Boolean(row.assignedBarrelId);
 
   return (
-    <tr className="align-top hover:bg-muted/20">
-      <td className="px-3 py-2.5">
-        <span className="font-medium text-foreground">{row.productName}</span>
-        <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
-          Pkg {row.packageId.slice(0, 8)}…
-        </span>
-      </td>
-      <td className="px-3 py-2.5 text-muted-foreground">{row.fulfillmentLabel}</td>
-      <td className="px-3 py-2.5">
-        {row.assignedContainerAlias ?
-          <span className="font-medium text-foreground">{row.assignedContainerAlias}</span>
-        : <span className="text-muted-foreground">—</span>}
-      </td>
-      <td className="px-3 py-2.5 text-muted-foreground">
-        {formatAssignedAt(row.assignedAt)}
-      </td>
-      {showAssignControls ?
-        <td className="px-3 py-2.5">
-          <div className="flex min-w-[14rem] flex-col gap-2">
-            <label className="grid gap-1 text-xs">
-              <span className="text-muted-foreground">
-                {isAssigned ? "Move to container" : "Assign to container"}
-              </span>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {isAssigned ? "Move to container" : "Assign to container"}
+          </DialogTitle>
+          <DialogDescription className="line-clamp-3">{row.productName}</DialogDescription>
+          <div className="font-mono text-[10px] text-muted-foreground">
+            Pkg {row.packageId.slice(0, 8)}… · Assigned {formatAssignedAt(row.assignedAt)}
+          </div>
+        </DialogHeader>
+
+        <div className="flex gap-3">
+          <ProductRequestThumbnail
+            variant="dialog"
+            imageUrl={row.productImageUrl}
+            productLabel={row.productName}
+          />
+          <div className="min-w-0 flex-1 space-y-1 text-sm">
+            <p className="text-muted-foreground">{row.fulfillmentLabel}</p>
+            {row.quantity > 1 ?
+              <p className="text-xs text-muted-foreground">Quantity: {row.quantity}</p>
+            : null}
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium text-foreground">Container</span>
             <select
               className={selectClassName}
               value={toBarrelId}
@@ -281,62 +425,69 @@ function AdminPipelineRowActions({
               : null}
             </select>
           </label>
-          <Input
-            className="h-8 text-xs"
-            value={adminNote}
-            onChange={(e) => setAdminNote(e.target.value)}
-            placeholder="Staff note (optional)"
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium text-foreground">Staff note (optional)</span>
+            <Input
+              value={adminNote}
+              onChange={(e) => setAdminNote(e.target.value)}
+              placeholder="Reason for reassignment, fit issue, etc."
+              disabled={pending}
+            />
+          </label>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
             disabled={pending}
-          />
-          <div className="flex flex-wrap gap-1.5">
+          >
+            Cancel
+          </Button>
+          {isAssigned ?
             <Button
               type="button"
-              size="sm"
-              variant="secondary"
-              disabled={
-                pending ||
-                assignableBarrels.length === 0 ||
-                !toBarrelId ||
-                (isAssigned && toBarrelId === row.assignedBarrelId)
-              }
+              variant="destructive"
+              disabled={pending}
               onClick={() => {
                 onAction(
                   () =>
-                    adminReassignPackageBarrelAction({
+                    adminRemovePackageFromBarrelAction({
                       packageId: row.packageId,
-                      toBarrelId,
                       adminNote: adminNote.trim() || undefined,
                     }),
-                  () => setAdminNote(""),
+                  () => onOpenChange(false),
                 );
               }}
             >
-              {isAssigned ? "Reassign" : "Assign"}
+              Remove
             </Button>
-            {isAssigned ?
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                disabled={pending}
-                onClick={() => {
-                  onAction(
-                    () =>
-                      adminRemovePackageFromBarrelAction({
-                        packageId: row.packageId,
-                        adminNote: adminNote.trim() || undefined,
-                      }),
-                    () => setAdminNote(""),
-                  );
-                }}
-              >
-                Remove
-              </Button>
-            : null}
-          </div>
-        </div>
-        </td>
-      : null}
-    </tr>
+          : null}
+          <Button
+            type="button"
+            disabled={
+              pending ||
+              assignableBarrels.length === 0 ||
+              !toBarrelId ||
+              (isAssigned && toBarrelId === row.assignedBarrelId)
+            }
+            onClick={() => {
+              onAction(
+                () =>
+                  adminReassignPackageBarrelAction({
+                    packageId: row.packageId,
+                    toBarrelId,
+                    adminNote: adminNote.trim() || undefined,
+                  }),
+                () => onOpenChange(false),
+              );
+            }}
+          >
+            {isAssigned ? "Reassign" : "Assign"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

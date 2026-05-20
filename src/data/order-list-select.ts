@@ -56,6 +56,7 @@ export const orderItemWarehouseReceiptNulls = {
   warehouseReceivedBarcode: null,
   warehouseReceivedBarcodeImageUrl: null,
   warehouseReceivedProofPhotoCount: null,
+  warehouseReceivedProofPhotoUrls: null,
 } as const;
 
 /**
@@ -70,6 +71,7 @@ export const orderItemWarehouseReceiptSelect = {
   warehouseReceivedBarcode: orderItems.warehouseReceivedBarcode,
   warehouseReceivedBarcodeImageUrl: orderItems.warehouseReceivedBarcodeImageUrl,
   warehouseReceivedProofPhotoCount: orderItems.warehouseReceivedProofPhotoCount,
+  warehouseReceivedProofPhotoUrls: orderItems.warehouseReceivedProofPhotoUrls,
 } as const;
 
 export const orderItemFulfillmentCoreSelectWithWarehouse = {
@@ -100,5 +102,6 @@ export type OrderItemFulfillmentCore = Pick<
       | "warehouseReceivedBarcode"
       | "warehouseReceivedBarcodeImageUrl"
       | "warehouseReceivedProofPhotoCount"
+      | "warehouseReceivedProofPhotoUrls"
     >
   >;

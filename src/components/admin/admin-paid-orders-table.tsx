@@ -18,10 +18,7 @@ import type {
   ItemQuote,
   ItemRequestLineSnapshot,
 } from "@/db/schema";
-import {
-  batchEstimateSummaryRows,
-  singleQuoteSummaryRows,
-} from "@/lib/admin-order-estimate-summary-rows";
+import { batchEstimateSummaryRows } from "@/lib/admin-order-estimate-summary-rows";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   containerOfferingKindLabel,
@@ -261,7 +258,6 @@ function OrderBlock({
             row={row}
             snapshotsByRequestId={snapshotsByRequestId}
             latestQuotesByRequestId={quotesByRequestId}
-            showSingleEstimateSummary
           />
         ))
       : buckets.map((bucket, bi) => {
@@ -342,7 +338,6 @@ function OrderBlock({
                   row={row}
                   snapshotsByRequestId={snapshotsByRequestId}
                   latestQuotesByRequestId={quotesByRequestId}
-                  showSingleEstimateSummary
                 />
               ))}
             </CollapsibleOrderBatchBucket>
@@ -435,7 +430,6 @@ function AdminOrderDataRow(props: {
   row: AdminPaidOrderLineRow;
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   latestQuotesByRequestId?: Record<string, ItemQuote>;
-  showSingleEstimateSummary?: boolean;
   /** Renders each batch member as its own product row (batch roll-up stays in section header). */
   inBatchGroup?: boolean;
 }) {
@@ -443,12 +437,10 @@ function AdminOrderDataRow(props: {
     row,
     snapshotsByRequestId,
     latestQuotesByRequestId = {},
-    showSingleEstimateSummary = false,
     inBatchGroup = false,
   } = props;
   const r = row.request;
   const isOutside = isOutsidePurchaseRequest(r);
-  const latestQuote = latestQuotesByRequestId[r.id];
   const fulfillment = effectiveOutsidePurchasePaidFulfillment(
     r,
     row.orderItem,
@@ -457,6 +449,7 @@ function AdminOrderDataRow(props: {
   const outsidePurchasePaidServiceFee =
     fulfillment === BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID;
   const purchaseFlag = lineShowsPurchaseAction(row);
+  const pendingProductReturn = row.pendingProductReturnRequest != null;
   const isBatch =
     !inBatchGroup &&
     (!!(row.resolvedBatchSessionId && row.resolvedBatchSessionId.trim()) ||
@@ -541,14 +534,7 @@ function AdminOrderDataRow(props: {
             </p>
           </div>
         : (
-          <div className="space-y-2">
-            <span className="text-sm italic text-muted-foreground">Single product</span>
-            {showSingleEstimateSummary && !isOutside ?
-              latestQuote ?
-                <AdminOrderEstimateSummary rows={singleQuoteSummaryRows(latestQuote)} />
-              : <p className="text-xs text-muted-foreground">No estimate on file.</p>
-            : null}
-          </div>
+          <span className="text-sm italic text-muted-foreground">Single product</span>
         )}
       </td>
       <td className="max-w-[10rem] px-3 py-3 align-top font-medium text-foreground">
@@ -597,12 +583,17 @@ function AdminOrderDataRow(props: {
         <StatusBadge
           kind={orderItemFulfillmentBadgeKind(row.orderItem, row.order, {
             pendingRefundRequest: row.pendingRefundRequest != null,
+            pendingProductReturnRequest: pendingProductReturn,
             fulfillmentOverride: fulfillment,
           })}
           title={fulfillment}
         >
           {adminOrderLineStatusLabel(fulfillment, {
             pendingRefundRequest: row.pendingRefundRequest != null,
+            pendingProductReturnRequest: pendingProductReturn,
+            fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+            refundedCents: row.refundedCents,
+            linePriceCents: row.orderItem.price,
           })}
         </StatusBadge>
       </td>
@@ -628,6 +619,8 @@ function AdminOrderDataRow(props: {
             }}
             retailerReceiptImageUrls={row.orderItem.companyPurchaseReceiptImageUrls}
             pendingRefundRequest={row.pendingRefundRequest}
+            pendingProductReturnRequest={row.pendingProductReturnRequest}
+            fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
           />
         }
       </td>

@@ -10,6 +10,7 @@ import {
 } from "@/lib/refund-request-audit-memo";
 import { parseWarehouseReceiptMemo } from "@/lib/warehouse-receipt-snapshot-memo";
 import { PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL } from "@/lib/outside-purchase-paid-status";
+import { PRODUCT_RETURN_REQUEST_PENDING_LABEL } from "@/lib/product-return-request-labels";
 import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
 
 function trimEq(
@@ -31,6 +32,8 @@ export function auditSnapshotStatusHeadline(
       }
       return itemRequestLineSnapshotPhaseLabel(row.phase);
     }
+    case "product_return_requested":
+      return PRODUCT_RETURN_REQUEST_PENDING_LABEL;
     case "product_return_tracking_saved": {
       const memo = parseProductReturnTrackingMemo(row.auditMemo);
       const noteFirst = row.note?.trim().split("\n")[0]?.trim();

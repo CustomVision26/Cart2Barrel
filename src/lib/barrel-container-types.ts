@@ -33,6 +33,8 @@ export type AdminBarrelPipelineRow = {
   orderId: string;
   ownerClerkUserId: string;
   productName: string;
+  productImageUrl: string | null;
+  quantity: number;
   fulfillmentStatus: string;
   fulfillmentLabel: string;
   assignedBarrelId: string | null;

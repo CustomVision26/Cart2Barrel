@@ -10,7 +10,11 @@ import { CollapsibleOrderTableSection } from "@/components/orders/collapsible-or
 import { PaidOrderAccordionRoot } from "@/components/orders/paid-order-accordion";
 import { DashboardOrderLineTracking } from "@/components/dashboard/dashboard-order-line-tracking";
 import { DashboardCheckoutChargesPreviewDialog } from "@/components/dashboard/dashboard-checkout-charges-preview-dialog";
-import { DashboardRequestRefundDialog } from "@/components/dashboard/dashboard-request-refund-dialog";
+import { DashboardProductReturnPreviewDialog } from "@/components/dashboard/dashboard-product-return-preview-dialog";
+import { DashboardStripeRefundReceiptLinks } from "@/components/dashboard/dashboard-stripe-refund-receipt-links";
+import { DashboardAcceptDeliveryConditionDialog } from "@/components/dashboard/dashboard-accept-delivery-condition-dialog";
+import { DashboardProductReturnRequestDialog } from "@/components/dashboard/dashboard-product-return-request-dialog";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import {
   Dialog,
   DialogContent,
@@ -25,8 +29,15 @@ import type { DashboardPaidOrderLineRow } from "@/data/dashboard-order-lines";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import type { OrderListCore } from "@/data/order-list-select";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  deliveryConditionAcceptedAwaitingBarrelLabel,
+  isDeliveryConditionAcceptedForBarrel,
+  isProblemDeliveryReceiptFulfillment,
+  problemDeliveryWarehouseCondition,
+} from "@/lib/delivery-condition-acceptance";
 import { dashboardOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
+import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
 import {
   groupPaidRowsStableByOrder,
   partitionPaidLinesIntoBatchBuckets,
@@ -399,7 +410,45 @@ function DashboardOrderDataRow(props: {
   const r = row.request;
   const fulfillment = effectiveOrderItemFulfillmentStatus(row.orderItem, row.order);
   const pendingRefund = row.pendingRefundRequest != null;
-  const showTracking = dashboardShowLineTracking(row);
+  const pendingReturn = row.pendingProductReturnRequest != null;
+  const fulfilledReturn = row.fulfilledProductReturnRequest != null;
+  const isOutside = isOutsidePurchaseRequest(r);
+  const showTracking =
+    !pendingReturn && fulfillment !== "product_return_awaiting_delivery" &&
+    dashboardShowLineTracking(row);
+  const returnWorkflowActive =
+    pendingReturn ||
+    fulfilledReturn ||
+    fulfillment === "product_return_awaiting_delivery";
+
+  const problemWarehouseCondition = isProblemDeliveryReceiptFulfillment(fulfillment) ?
+    problemDeliveryWarehouseCondition(
+      fulfillment,
+      row.orderItem.warehouseReceivedCondition,
+    )
+  : null;
+  const lineStatusLabelOpts = {
+    pendingRefundRequest: pendingRefund,
+    pendingProductReturnRequest: pendingReturn,
+    fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+    refundedCents: row.refundedCents,
+    linePriceCents: row.orderItem.price,
+    warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
+  };
+  const acceptedAwaitingBarrelLabel = deliveryConditionAcceptedAwaitingBarrelLabel(
+    row.orderItem.warehouseReceivedCondition,
+  );
+  const statusBadgeTitle =
+    problemWarehouseCondition ?
+      `Received condition: ${warehouseReceiveConditionLabel(problemWarehouseCondition)}`
+    : isDeliveryConditionAcceptedForBarrel(
+          fulfillment,
+          row.orderItem.warehouseReceivedCondition,
+        ) && acceptedAwaitingBarrelLabel ?
+      acceptedAwaitingBarrelLabel
+    : pendingRefund || pendingReturn ?
+      undefined
+    : dashboardOrderLineStatusLabel(fulfillment, lineStatusLabelOpts);
 
   return (
     <tr className="align-top">
@@ -451,12 +500,11 @@ function DashboardOrderDataRow(props: {
         <StatusBadge
           kind={orderItemFulfillmentBadgeKind(row.orderItem, row.order, {
             pendingRefundRequest: pendingRefund,
+            pendingProductReturnRequest: pendingReturn,
           })}
-          title={pendingRefund ? undefined : fulfillment}
+          title={statusBadgeTitle}
         >
-          {dashboardOrderLineStatusLabel(fulfillment, {
-            pendingRefundRequest: pendingRefund,
-          })}
+          {dashboardOrderLineStatusLabel(fulfillment, lineStatusLabelOpts)}
         </StatusBadge>
       </td>
       <td className="px-3 py-3 align-top">
@@ -472,13 +520,29 @@ function DashboardOrderDataRow(props: {
         )}
       </td>
       <td className="px-3 py-3 align-top">
-        <DashboardRefundPreviewDialog row={row} />
-        <DashboardRequestRefundDialog row={row} />
+        {returnWorkflowActive && !isOutside ?
+          <>
+            <DashboardProductReturnPreviewDialog row={row} />
+            <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
+          </>
+        : !isOutside ?
+          <>
+            <DashboardRefundPreviewDialog row={row} />
+            <DashboardProductReturnRequestDialog row={row} />
+            <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
+          </>
+        : (
+          <>
+            <DashboardRefundPreviewDialog row={row} />
+            <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
+          </>
+        )}
         {row.pendingRefundRequest ?
           <p className="mt-2 text-[10px] font-medium text-amber-900 dark:text-amber-100">
             Awaiting staff approval
           </p>
         : null}
+        <DashboardAcceptDeliveryConditionDialog row={row} />
       </td>
       <td className="px-3 py-3 align-top">
         <ItemRequestLineAuditDialog

@@ -56,8 +56,9 @@ export default async function AdminAssignToBarrelPage({ searchParams }: PageProp
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Assign inbound products to customer containers, reassign when an item does not fit, mark
-          containers full, or remove assignments. Shoppers see read-only status on their Product
-          to barrel page; every change is recorded in history.
+          containers full, or remove assignments. Both awaiting and already-assigned products
+          appear below. Shoppers see read-only status on their Product to barrel page; every
+          change is recorded in history.
         </p>
       </div>
       <AdminBarrelAssignmentsClient rows={rows} barrelsByOwner={barrelsByOwner} />

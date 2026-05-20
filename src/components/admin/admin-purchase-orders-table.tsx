@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
 
-import { TruckIcon } from "lucide-react";
+import { PackageCheck, TruckIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveWarehouseReceiptSnapshotsAction } from "@/actions/save-warehouse-receipt-snapshots";
@@ -17,6 +17,7 @@ import {
   receivingConditionSelectClassName,
   ReceivingRowActions,
 } from "@/components/admin/receiving-row-actions";
+import { WarehouseProofPhotosField } from "@/components/orders/warehouse-proof-photos-field";
 import { WarehouseBarcodeImageField } from "@/components/orders/warehouse-barcode-image-field";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compa
 import { buildAdminOrdersListHref } from "@/lib/paid-orders-list-params";
 import { orderItemFulfillmentBadgeKind } from "@/lib/status-badge-map";
 import { canSubmitWarehouseReceiptForFulfillment } from "@/lib/warehouse-receipt-queue";
+import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
 import { displaySiteName } from "@/lib/site-name";
 import {
   adminCustomerDisplayLabel,
@@ -69,6 +71,26 @@ function isReceiveCondition(
   );
 }
 
+function inboundReceiptSavedTooltip(row: PurchaseQueueLineRow): string | null {
+  const at = row.orderItem.warehouseReceivedAt;
+  if (!at) return null;
+  const when = new Date(at).toLocaleString();
+  const cond = isReceiveCondition(row.orderItem.warehouseReceivedCondition) ?
+    warehouseReceiveConditionLabel(row.orderItem.warehouseReceivedCondition)
+  : null;
+  const qty =
+    row.orderItem.warehouseReceivedQty != null ?
+      `${row.orderItem.warehouseReceivedQty}/${row.orderItem.quantity} received`
+    : null;
+  return [
+    `Inbound receipt saved ${when}`,
+    cond ? `Condition: ${cond}` : null,
+    qty,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function receiptSelectableRow(row: PurchaseQueueLineRow): boolean {
   const fulfillment = effectiveOrderItemFulfillmentStatus(
     row.orderItem,
@@ -84,11 +106,16 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
     const cond = isReceiveCondition(oi.warehouseReceivedCondition) ?
         oi.warehouseReceivedCondition
       : "good";
+    const proofPhotoUrls = [...(oi.warehouseReceivedProofPhotoUrls ?? [])];
     return {
       receivedQty: oi.warehouseReceivedQty ?? oi.quantity,
       condition: cond,
       shelfLocation: oi.warehouseShelfLocation ?? "",
-      proofFileCount: oi.warehouseReceivedProofPhotoCount ?? 0,
+      proofPhotoUrls,
+      proofFileCount:
+        proofPhotoUrls.length > 0 ?
+          proofPhotoUrls.length
+        : (oi.warehouseReceivedProofPhotoCount ?? 0),
       barcodeValue: oi.warehouseReceivedBarcode ?? "",
     };
   }
@@ -96,6 +123,7 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
     receivedQty: oi.quantity,
     condition: "good",
     shelfLocation: "",
+    proofPhotoUrls: [],
     proofFileCount: 0,
     barcodeValue: "",
   };
@@ -106,6 +134,7 @@ type ReceiveDraft = {
   condition: WarehouseReceiveCondition;
   shelfLocation: string;
   proofFileCount: number;
+  proofPhotoUrls: string[];
   barcodeValue: string;
 };
 
@@ -443,19 +472,27 @@ export function AdminPurchaseOrdersTable({
                       lineLabel={lineLabel}
                       shelfLocation={draft.shelfLocation}
                       proofFileCount={draft.proofFileCount}
+                      showProofPhotos={false}
                       onShelfAssigned={(shelf) =>
                         updateDraft(orderItemId, { shelfLocation: shelf })
                       }
-                      onProofFilesAdded={(count) =>
-                        updateDraft(orderItemId, {
-                          proofFileCount: draft.proofFileCount + count,
-                        })
-                      }
+                      onProofFilesAdded={() => {}}
                       onBarcodeApplied={(value) =>
                         updateDraft(orderItemId, { barcodeValue: value })
                       }
                     />
                   </div>
+                  <WarehouseProofPhotosField
+                    orderItemId={orderItemId}
+                    imageUrls={draft.proofPhotoUrls}
+                    disabled={savePending}
+                    onUrlsChange={(urls) =>
+                      updateDraft(orderItemId, {
+                        proofPhotoUrls: urls,
+                        proofFileCount: urls.length,
+                      })
+                    }
+                  />
                   <WarehouseBarcodeImageField
                     orderItemId={orderItemId}
                     imageUrl={row.orderItem.warehouseReceivedBarcodeImageUrl}
@@ -495,7 +532,8 @@ export function AdminPurchaseOrdersTable({
                       receivedQty: d.receivedQty,
                       condition: d.condition,
                       shelfLocation: d.shelfLocation,
-                      proofPhotoCount: d.proofFileCount,
+                      proofPhotoCount: d.proofPhotoUrls.length,
+                      proofPhotoUrls: d.proofPhotoUrls,
                       barcodeValue:
                         d.barcodeValue.trim() === "" ? undefined : d.barcodeValue,
                     },
@@ -570,6 +608,7 @@ function PurchaseQueueRow(props: {
 
   const retailerLabel = displaySiteName(r.siteName, r.productUrl);
   const productTitle = r.productName?.trim() || "Unnamed product";
+  const inboundReceiptTip = inboundReceiptSavedTooltip(row);
 
   return (
     <tr
@@ -607,13 +646,20 @@ function PurchaseQueueRow(props: {
         <p className="mt-1 font-mono text-[10px] text-muted-foreground" title={r.id}>
           Req {r.id.slice(0, 8)}…
         </p>
-        {row.orderItem.warehouseReceivedAt ?
-          <p className="mt-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-            Inbound receipt saved{" "}
-            <time dateTime={row.orderItem.warehouseReceivedAt}>
-              {new Date(row.orderItem.warehouseReceivedAt).toLocaleString()}
-            </time>
-          </p>
+        {inboundReceiptTip ?
+          <span
+            className="mt-1 inline-flex cursor-default items-center gap-1 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-1.5 py-0.5"
+            title={inboundReceiptTip}
+          >
+            <PackageCheck
+              className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+              aria-hidden
+            />
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+              Receipt
+            </span>
+            <span className="sr-only">{inboundReceiptTip}</span>
+          </span>
         : null}
       </td>
       <td className="max-w-[9rem] px-3 py-3 align-top text-muted-foreground">
@@ -712,6 +758,11 @@ function PurchaseQueueRow(props: {
         >
           {adminOrderLineStatusLabel(fulfillment, {
             pendingRefundRequest: row.pendingRefundRequest != null,
+            pendingProductReturnRequest: row.pendingProductReturnRequest != null,
+            fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+            refundedCents: row.refundedCents,
+            linePriceCents: row.orderItem.price,
+            warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
           })}
         </StatusBadge>
       </td>
@@ -734,6 +785,7 @@ function PurchaseQueueRow(props: {
           }}
           retailerReceiptImageUrls={row.orderItem.companyPurchaseReceiptImageUrls}
           pendingRefundRequest={row.pendingRefundRequest}
+          fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
         />
       </td>
       <td className="px-3 py-3 align-top">

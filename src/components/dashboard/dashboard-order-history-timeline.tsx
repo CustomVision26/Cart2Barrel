@@ -4,6 +4,10 @@ import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
+import {
+  DashboardOrderHistoryEventPreviewDialog,
+  type OrderHistoryTimelinePreview,
+} from "@/components/dashboard/dashboard-order-history-event-preview-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { DashboardPaidOrderLineRow } from "@/data/dashboard-order-lines";
@@ -29,6 +33,7 @@ const POST_CHECKOUT_PHASES = new Set<ItemRequestLineSnapshot["phase"]>([
   "outside_purchase_checkout_paid",
   "company_purchase_pending_delivery",
   "warehouse_delivery_received",
+  "product_return_requested",
   "product_return_tracking_saved",
   "customer_refund_request_submitted",
 ]);
@@ -39,7 +44,8 @@ type TimelineEvent = {
   headline: string;
   detail: string;
   at: string;
-  kind: "snapshot" | "current";
+  kind: "snapshot" | "current" | "checkout_fallback";
+  preview: OrderHistoryTimelinePreview;
 };
 
 type CustomerOrderGroup = {
@@ -58,14 +64,18 @@ function orderLineTimelineEvents(
   snapshots: ItemRequestLineSnapshot[],
 ): TimelineEvent[] {
   const filtered = snapshots.filter((snap) => POST_CHECKOUT_PHASES.has(snap.phase));
-  const events: TimelineEvent[] = filtered.map((snap, index) => ({
-    id: snap.id,
-    label: itemRequestLineSnapshotPhaseLabel(snap.phase),
-    headline: auditSnapshotStatusHeadline(snap),
-    detail: auditSnapshotChangeSummary(snap, index > 0 ? filtered[index - 1]! : null),
-    at: snap.createdAt,
-    kind: "snapshot" as const,
-  }));
+  const events: TimelineEvent[] = filtered.map((snap, index) => {
+    const prev = index > 0 ? filtered[index - 1]! : null;
+    return {
+      id: snap.id,
+      label: itemRequestLineSnapshotPhaseLabel(snap.phase),
+      headline: auditSnapshotStatusHeadline(snap),
+      detail: auditSnapshotChangeSummary(snap, prev),
+      at: snap.createdAt,
+      kind: "snapshot" as const,
+      preview: { kind: "snapshot", snapshot: snap, prevSnapshot: prev },
+    };
+  });
 
   const hasCheckoutSnapshot = filtered.some(
     (snap) =>
@@ -79,7 +89,8 @@ function orderLineTimelineEvents(
       headline: "Checkout complete from cart",
       detail: `${formatUsd(row.orderItem.price)} recorded for this product line.`,
       at: row.order.createdAt,
-      kind: "snapshot",
+      kind: "checkout_fallback",
+      preview: { kind: "checkout_fallback", row },
     });
   }
 
@@ -90,6 +101,10 @@ function orderLineTimelineEvents(
     label: "Current status",
     headline: dashboardOrderLineStatusLabel(current, {
       pendingRefundRequest: row.pendingRefundRequest != null,
+      pendingProductReturnRequest: row.pendingProductReturnRequest != null,
+      fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+      refundedCents: row.refundedCents,
+      linePriceCents: row.orderItem.price,
     }),
     detail:
       row.pendingRefundRequest != null
@@ -97,6 +112,7 @@ function orderLineTimelineEvents(
         : "Latest fulfillment status saved on this order line.",
     at: row.orderItem.warehouseReceivedAt ?? latestRecordedAt ?? row.order.createdAt,
     kind: "current",
+    preview: { kind: "current", row },
   });
 
   return events;
@@ -274,6 +290,10 @@ function ProductHistoryCard({
             >
               {dashboardOrderLineStatusLabel(fulfillment, {
                 pendingRefundRequest: pendingRefund,
+                pendingProductReturnRequest: row.pendingProductReturnRequest != null,
+                fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+                refundedCents: row.refundedCents,
+                linePriceCents: row.orderItem.price,
               })}
             </StatusBadge>
           </div>
@@ -304,7 +324,16 @@ function ProductHistoryCard({
         </div>
       </div>
 
-      <div className="p-4">
+      <ToggleSection
+        ariaLabel="Toggle track record log for this product"
+        title={
+          <span className="text-sm font-semibold text-foreground">Track record log</span>
+        }
+        summary={`${events.length} status event${events.length === 1 ? "" : "s"} after checkout`}
+        className="border-0 bg-transparent"
+        bodyClassName="px-4 pb-4 pt-0"
+        defaultOpen
+      >
         <div className="space-y-4">
           {events.map((event, index) => (
             <div
@@ -335,12 +364,19 @@ function ProductHistoryCard({
                       {event.headline}
                     </p>
                   </div>
-                  <time
-                    dateTime={event.at}
-                    className="shrink-0 text-xs tabular-nums text-muted-foreground"
-                  >
-                    {new Date(event.at).toLocaleString()}
-                  </time>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <time
+                      dateTime={event.at}
+                      className="text-xs tabular-nums text-muted-foreground"
+                    >
+                      {new Date(event.at).toLocaleString()}
+                    </time>
+                    <DashboardOrderHistoryEventPreviewDialog
+                      eventLabel={event.label}
+                      eventHeadline={event.headline}
+                      preview={event.preview}
+                    />
+                  </div>
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {event.detail}
@@ -349,7 +385,7 @@ function ProductHistoryCard({
             </div>
           ))}
         </div>
-      </div>
+      </ToggleSection>
     </article>
   );
 }

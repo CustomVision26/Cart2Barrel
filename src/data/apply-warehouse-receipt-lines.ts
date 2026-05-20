@@ -156,6 +156,11 @@ export async function applyWarehouseReceiptLines(
       const line = parsed.lines[i]!;
       const shelfTrim = line.shelfLocation.trim();
       const barcodeTrim = line.barcodeValue?.trim();
+      const proofUrls = line.proofPhotoUrls;
+      const proofCount =
+        proofUrls !== undefined ?
+          proofUrls.length
+        : line.proofPhotoCount;
       await db
         .update(orderItems)
         .set({
@@ -168,7 +173,13 @@ export async function applyWarehouseReceiptLines(
           warehouseShelfLocation: shelfTrim === "" ? null : shelfTrim,
           warehouseReceivedBarcode:
             barcodeTrim === undefined || barcodeTrim === "" ? null : barcodeTrim,
-          warehouseReceivedProofPhotoCount: line.proofPhotoCount,
+          warehouseReceivedProofPhotoCount: proofCount,
+          ...(proofUrls !== undefined ?
+            {
+              warehouseReceivedProofPhotoUrls:
+                proofUrls.length > 0 ? proofUrls : null,
+            }
+          : {}),
         })
         .where(eq(orderItems.id, line.orderItemId));
       if (

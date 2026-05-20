@@ -1,17 +1,15 @@
-import {
-  AdminWarehouseReceivingSection,
-  type WarehouseReceivingLine,
-} from "@/components/admin/admin-warehouse-receiving-section";
+import { AdminWarehouseReceivingSection } from "@/components/admin/admin-warehouse-receiving-section";
 import { AdminPackagesListControls } from "@/components/admin/admin-packages-list-controls";
 import {
   listAdminPackagesQueuePage,
   type PurchaseQueueLineRow,
 } from "@/data/admin-purchase-queue";
-import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import {
-  adminCustomerDisplayLabel,
-  adminCustomerSortKey,
-} from "@/lib/admin-customer-group";
+  groupItemRequestLineSnapshotsByRequestId,
+  listItemRequestLineSnapshotsByRequestIds,
+} from "@/data/item-request-line-snapshots";
+import { purchaseQueueRowToWarehouseReceivingLine } from "@/lib/admin-package-receiving-line";
+import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
@@ -20,36 +18,6 @@ type PageProps = {
 };
 
 export const dynamic = "force-dynamic";
-
-function toWarehouseReceivingLine(
-  row: PurchaseQueueLineRow,
-): WarehouseReceivingLine {
-  const clerkUserId = row.order.clerkUserId;
-  return {
-    id: row.orderItem.id,
-    itemLabel: `Order ${row.order.id.slice(0, 8)}… · Item ${row.orderItem.id.slice(0, 8)}…`,
-    productName: row.request.productName?.trim() || "Unnamed product",
-    orderedQty: row.orderItem.quantity,
-    orderItem: row.orderItem,
-    orderStatus: row.order.status,
-    orderNumber: row.order.id,
-    batchNumber: row.resolvedBatchNumber,
-    batchSessionId: row.resolvedBatchSessionId,
-    clerkUserId,
-    customerGroupSortKey: adminCustomerSortKey({
-      fullName: row.customerFullName,
-      email: row.customerEmail,
-      clerkUserId,
-    }),
-    customerDisplayLabel: adminCustomerDisplayLabel({
-      fullName: row.customerFullName,
-      email: row.customerEmail,
-      clerkUserId,
-    }),
-    refundedCents: row.refundedCents,
-    pendingRefundRequest: row.pendingRefundRequest,
-  };
-}
 
 export default async function AdminPackagesPage({ searchParams }: PageProps) {
   const cu = await safeCurrentUser();
@@ -82,7 +50,23 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
       }
     : await listAdminPackagesQueuePage(query);
 
-  const lines = pagePack.rows.map(toWarehouseReceivingLine);
+  const snapshotRows =
+    admin && pagePack.rows.length > 0 ?
+      await listItemRequestLineSnapshotsByRequestIds(
+        cu.user,
+        [...new Set(pagePack.rows.map((row) => row.request.id))],
+      )
+    : [];
+  const snapshotsByRequestId = groupItemRequestLineSnapshotsByRequestId(
+    snapshotRows,
+  );
+
+  const lines = pagePack.rows.map((row) =>
+    purchaseQueueRowToWarehouseReceivingLine(
+      row,
+      snapshotsByRequestId.get(row.request.id),
+    ),
+  );
   const hasActiveSearch = query.q.trim().length > 0;
   const emptyQueue = admin && pagePack.totalLines === 0 && !hasActiveSearch;
   const noSearchHits = admin && pagePack.totalLines === 0 && hasActiveSearch;
@@ -94,14 +78,12 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
           Packages
         </h1>
         <p className="text-sm text-muted-foreground">
-          Warehouse receiving for paid order lines marked{" "}
-          <span className="font-medium text-foreground">
-            Delivery received: good - awaiting barrel
-          </span>{" "}
-          ({pagePack.totalLines} matching package line
-          {pagePack.totalLines === 1 ? "" : "s"}). Use the control center to
-          filter by customer, product, order, request, or batch, then sort the
-          receiving workload for ecommerce operations.
+          All paid package lines on the barrel pipeline: awaiting barrel (good, damaged accepted,
+          or wrong item accepted) and already assigned in-container (
+          <span className="font-medium text-foreground">In barrel: awaiting shipping</span>
+          ). {pagePack.totalLines} matching package line
+          {pagePack.totalLines === 1 ? "" : "s"}. Use the control center to filter by customer,
+          product, order, request, or batch.
         </p>
       </div>
       {!admin ?
@@ -120,8 +102,9 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
           />
           {emptyQueue ?
             <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              No packages are awaiting barrel or consolidation yet. Lines appear here after a
-              delivery is received in good condition from Purchase orders.
+              No packages are awaiting barrel or consolidation yet. Lines appear here after
+              warehouse receipt from Purchase orders, including customer-accepted damaged or
+              wrong-item deliveries.
             </p>
           : null}
           {noSearchHits ?

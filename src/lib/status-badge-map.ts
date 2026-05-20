@@ -7,6 +7,7 @@ import type {
   OrderItem,
 } from "@/db/schema";
 import type { StatusBadgeKind } from "@/lib/status-badge-kinds";
+import { isDeliveryConditionAcceptedForBarrel } from "@/lib/delivery-condition-acceptance";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import type { OrderItemReadCore } from "@/lib/order-item-read-compat";
 
@@ -16,15 +17,24 @@ export function orderItemFulfillmentBadgeKind(
   order: Pick<Order, "status">,
   extras?: {
     pendingRefundRequest?: boolean;
+    pendingProductReturnRequest?: boolean;
     fulfillmentOverride?: OrderItem["fulfillmentStatus"];
   },
 ): StatusBadgeKind {
   if (extras?.pendingRefundRequest) {
     return "refundPendingApproval";
   }
+  if (extras?.pendingProductReturnRequest) {
+    return "companyPurchasePendingDelivery";
+  }
   const f =
     extras?.fulfillmentOverride ??
     effectiveOrderItemFulfillmentStatus(orderItem, order);
+  if (isDeliveryConditionAcceptedForBarrel(f, orderItem.warehouseReceivedCondition)) {
+    return orderItem.warehouseReceivedCondition === "damaged" ?
+        "partialReceived"
+      : "customerResend";
+  }
   switch (f) {
     case "paid_pending_company_purchase":
       return "awaitingPurchase";

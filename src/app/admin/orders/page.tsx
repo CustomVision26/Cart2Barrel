@@ -107,12 +107,13 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Orders</h1>
         <p className="text-sm text-muted-foreground">
           Paid checkouts grouped by order — lines that still need{" "}
-          <span className="font-medium text-foreground">Review and approve</span>, return-shipment follow-up
-          (<span className="font-medium text-foreground">Product return: awaiting delivery</span>), or
-          other pre-delivery ops. Once a retailer purchase is confirmed (inbound), the line leaves this list
-          and shows under{" "}
-          <span className="font-medium text-foreground">Purchase orders</span> for shipment tracking and
-          refunds until delivery handoff is complete elsewhere.
+          <span className="font-medium text-foreground">Review and approve</span>, pending return requests,
+          or <span className="font-medium text-foreground">Product Returned: awaiting refund</span> after
+          staff save return tracking for a money-back return. Replacement returns in transit (
+          <span className="font-medium text-foreground">returned:awaiting delivery</span>) appear under{" "}
+          <span className="font-medium text-foreground">Purchase orders</span>. Once a retailer purchase is
+          confirmed (inbound), the line leaves this list and shows under Purchase orders for shipment
+          tracking until delivery handoff is complete elsewhere.
         </p>
       </div>
 

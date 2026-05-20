@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { RETAILER_RECEIPT_IMAGES_MAX } from "@/lib/retailer-receipt-images";
+
 export const warehouseReceiveConditionSchema = z.enum([
   "good",
   "damaged",
@@ -13,6 +15,10 @@ export const warehouseReceiptLineInputSchema = z.object({
   condition: warehouseReceiveConditionSchema,
   shelfLocation: z.string().max(500),
   proofPhotoCount: z.number().int().min(0).max(500),
+  proofPhotoUrls: z
+    .array(z.string().url())
+    .max(RETAILER_RECEIPT_IMAGES_MAX)
+    .optional(),
   barcodeValue: z.string().max(500).optional(),
 });
 

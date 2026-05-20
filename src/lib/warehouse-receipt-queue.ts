@@ -1,4 +1,5 @@
 import type { OrderItem } from "@/db/schema";
+import { BARREL_PIPELINE_IN_CONTAINER } from "@/lib/barrel-pipeline-fulfillment";
 
 /** All hub “delivery received” outcomes on `order_items.fulfillment_status`. */
 export const DELIVERY_RECEIVED_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
@@ -18,15 +19,28 @@ export const DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES: OrderItem["fulfillm
   ];
 
 /**
- * `/admin/purchase-orders`: inbound coordination, pre-good receipt, and problem receipts.
- * `delivery_received_good_awaiting_barrel` is excluded — those lines appear on `/admin/packages` only.
- * `product_return_awaiting_delivery` is listed on `/admin/orders` instead.
+ * `/admin/purchase-orders`: inbound coordination, pre-good receipt, problem receipts, and
+ * replacement returns in transit (`returned:awaiting delivery`).
+ * `delivery_received_good_awaiting_barrel` is excluded — good receipts appear on `/admin/packages`;
+ * Customer-accepted damaged/wrong receipts also appear on `/admin/packages` and assign-to-barrel.
+ * Money-back returns awaiting refund stay on `/admin/orders`.
  */
-export const ADMIN_PURCHASE_ORDERS_QUEUE_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
+
+/** `/admin/packages`: good receipt awaiting barrel (any warehouse condition) and packed in container. */
+export const ADMIN_PACKAGES_QUEUE_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
+  ["delivery_received_good_awaiting_barrel", BARREL_PIPELINE_IN_CONTAINER];
+/** Purchase queue statuses excluding replacement return (handled via separate SQL branch). */
+export const ADMIN_PURCHASE_ORDERS_QUEUE_BASE_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
   [
     "company_purchase_pending_delivery",
     "delivery_requested_pending_fulfillment",
     ...DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES,
+  ];
+
+export const ADMIN_PURCHASE_ORDERS_QUEUE_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
+  [
+    ...ADMIN_PURCHASE_ORDERS_QUEUE_BASE_FULFILLMENT_STATUSES,
+    "product_return_awaiting_delivery",
   ];
 
 /**
@@ -36,7 +50,7 @@ export const ADMIN_PURCHASE_ORDERS_QUEUE_FULFILLMENT_STATUSES: OrderItem["fulfil
 export const WAREHOUSE_RECEIPT_SUBMITTABLE_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
   [
     ...ADMIN_PURCHASE_ORDERS_QUEUE_FULFILLMENT_STATUSES,
-    "delivery_received_good_awaiting_barrel",
+    ...ADMIN_PACKAGES_QUEUE_FULFILLMENT_STATUSES,
     "product_return_awaiting_delivery",
   ];
 

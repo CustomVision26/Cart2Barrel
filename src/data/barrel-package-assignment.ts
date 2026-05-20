@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -339,7 +339,9 @@ export async function listProductToBarrelLinesForUser(
       packageId: r.pkg.id,
       productName: r.request.productName?.trim() || "Unnamed product",
       fulfillmentStatus,
-      fulfillmentLabel: dashboardOrderLineStatusLabel(fulfillmentStatus),
+      fulfillmentLabel: dashboardOrderLineStatusLabel(fulfillmentStatus, {
+        warehouseReceivedCondition: r.orderItem.warehouseReceivedCondition,
+      }),
       assignedContainerAlias: bid ? (aliasByBarrelId.get(bid) ?? null) : null,
       assignedAt: bid ? (assignedAtByPackage.get(r.pkg.id) ?? null) : null,
     };
@@ -394,7 +396,10 @@ export async function listAdminBarrelPipelineLines(): Promise<
     .where(
       and(
         eq(orders.status, "paid"),
-        inArray(orderItems.fulfillmentStatus, pipelineStatuses),
+        or(
+          inArray(orderItems.fulfillmentStatus, pipelineStatuses),
+          isNotNull(barrelItems.barrelId),
+        ),
       )!,
     )
     .orderBy(desc(orders.createdAt));
@@ -444,8 +449,12 @@ export async function listAdminBarrelPipelineLines(): Promise<
       orderId: r.order.id,
       ownerClerkUserId: r.order.clerkUserId,
       productName: r.request.productName?.trim() || "Unnamed product",
+      productImageUrl: r.request.productImageUrl ?? null,
+      quantity: r.orderItem.quantity,
       fulfillmentStatus,
-      fulfillmentLabel: dashboardOrderLineStatusLabel(fulfillmentStatus),
+      fulfillmentLabel: dashboardOrderLineStatusLabel(fulfillmentStatus, {
+        warehouseReceivedCondition: r.orderItem.warehouseReceivedCondition,
+      }),
       assignedBarrelId: bid,
       assignedContainerAlias: bid ? (aliasByBarrelId.get(bid) ?? null) : null,
       assignedAt: bid ? (assignedAtByPackage.get(r.pkg.id) ?? null) : null,

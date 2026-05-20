@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   inArray,
+  or,
   sql,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -31,7 +32,7 @@ import {
   orderListSelect,
 } from "@/data/order-list-select";
 import {
-  attachRefundedCents,
+  attachPaidOrderLineWorkflowRequests,
   buildPaidOrdersSearchPredicate,
   dedupePaidLineRows,
   type PaidOrderLineListRow,
@@ -42,7 +43,15 @@ import {
   isUndefinedColumnError,
   isInvalidOrderItemFulfillmentStatusEnumError,
 } from "@/lib/db-column-missing";
-import { ADMIN_PURCHASE_ORDERS_QUEUE_FULFILLMENT_STATUSES } from "@/lib/warehouse-receipt-queue";
+import {
+  productReturnAwaitingDeliveryOnPurchaseOrders,
+} from "@/lib/admin-order-queue-fulfillment";
+import { excludeDeliveryConditionAcceptedAwaitingBarrelSql } from "@/lib/delivery-condition-acceptance";
+import {
+  ADMIN_PACKAGES_QUEUE_FULFILLMENT_STATUSES,
+  ADMIN_PURCHASE_ORDERS_QUEUE_BASE_FULFILLMENT_STATUSES,
+  ADMIN_PURCHASE_ORDERS_QUEUE_FULFILLMENT_STATUSES,
+} from "@/lib/warehouse-receipt-queue";
 
 const batchDirect = alias(batchQuoteSessions, "paid_ord_batch_direct");
 const batchViaLine = alias(batchQuoteSessions, "paid_ord_batch_via_line");
@@ -61,24 +70,32 @@ const resolvedBatchNumberSel = sql<
 >`NULLIF(TRIM(COALESCE(${batchDirect.batchNumber}, ${batchViaLine.batchNumber}, '')), '')`;
 
 /**
- * Purchase orders: lines awaiting inbound receipt, or a problem receipt that needs correction.
- * Lines with fulfillment `delivery_received_good_awaiting_barrel` are listed on `/admin/packages` only.
- * Lines with `product_return_awaiting_delivery` are listed on `/admin/orders`.
+ * Purchase orders: inbound coordination, problem receipts, and replacement returns in transit.
+ * Money-back returns awaiting refund stay on `/admin/orders`.
  */
 function postApprovedPurchaseWhere(
-  fulfillmentStatuses: OrderItem["fulfillmentStatus"][] = ADMIN_PURCHASE_ORDERS_QUEUE_FULFILLMENT_STATUSES,
+  fulfillmentStatuses: OrderItem["fulfillmentStatus"][] = ADMIN_PURCHASE_ORDERS_QUEUE_BASE_FULFILLMENT_STATUSES,
 ): SQL {
+  const baseStatuses = fulfillmentStatuses.filter(
+    (s) => s !== "product_return_awaiting_delivery",
+  );
   return and(
     eq(orders.status, "paid"),
-    inArray(orderItems.fulfillmentStatus, fulfillmentStatuses),
+    or(
+      inArray(orderItems.fulfillmentStatus, baseStatuses),
+      productReturnAwaitingDeliveryOnPurchaseOrders(),
+    )!,
+    excludeDeliveryConditionAcceptedAwaitingBarrelSql(),
   )!;
 }
 
-/** Hub confirmed receipt as good — next step is barrel / consolidation (`/admin/packages`). */
+/** Package file inventory (`/admin/packages`): awaiting barrel and in-container lines. */
 function packagesAwaitingBarrelWhere(): SQL {
   return and(
     eq(orders.status, "paid"),
-    eq(orderItems.fulfillmentStatus, "delivery_received_good_awaiting_barrel"),
+    inArray(orderItems.fulfillmentStatus, [
+      ...ADMIN_PACKAGES_QUEUE_FULFILLMENT_STATUSES,
+    ]),
   )!;
 }
 
@@ -187,7 +204,15 @@ export type PurchaseQueuePageResult = {
 
 async function fetchLineRowsForIds(
   ids: string[],
-): Promise<Omit<PaidOrderLineListRow, "refundedCents" | "pendingRefundRequest">[]> {
+): Promise<
+  Omit<
+    PaidOrderLineListRow,
+    | "refundedCents"
+    | "pendingRefundRequest"
+    | "pendingProductReturnRequest"
+    | "fulfilledProductReturnRequest"
+  >[]
+> {
   if (ids.length === 0) return [];
   const db = getDb();
 
@@ -348,12 +373,12 @@ async function listPurchaseQueueInner(
       (orderIndex.get(b.orderItem.id) ?? 0),
   );
 
-  const withRefunds = await attachRefundedCents(fetched);
+  const withWorkflow = await attachPaidOrderLineWorkflowRequests(fetched);
   const quoteMap = await mapLatestOperationalQuoteItemCostByRequestIds(
-    withRefunds.map((r) => r.request.id),
+    withWorkflow.map((r) => r.request.id),
   );
 
-  const rows: PurchaseQueueLineRow[] = withRefunds.map((r) => ({
+  const rows: PurchaseQueueLineRow[] = withWorkflow.map((r) => ({
     ...r,
     quotedItemCostCents: quoteMap.get(r.request.id) ?? null,
   }));

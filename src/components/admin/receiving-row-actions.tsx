@@ -36,6 +36,7 @@ export function ReceivingRowActions({
   onShelfAssigned,
   onProofFilesAdded,
   onBarcodeApplied,
+  showProofPhotos = true,
 }: {
   lineLabel: string;
   shelfLocation: string;
@@ -43,6 +44,8 @@ export function ReceivingRowActions({
   onShelfAssigned: (shelf: string) => void;
   onProofFilesAdded: (count: number) => void;
   onBarcodeApplied?: (value: string) => void;
+  /** When false, use `WarehouseProofPhotosField` for uploads instead. */
+  showProofPhotos?: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [barcodeOpen, setBarcodeOpen] = useState(false);
@@ -60,29 +63,33 @@ export function ReceivingRowActions({
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="sr-only"
-        onChange={onFilesSelected}
-      />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="gap-1"
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <CameraIcon />
-        Photos
-        {proofFileCount > 0 ? (
-          <span className="tabular-nums text-muted-foreground">
-            ({proofFileCount})
-          </span>
-        ) : null}
-      </Button>
+      {showProofPhotos ?
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="sr-only"
+            onChange={onFilesSelected}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <CameraIcon />
+            Photos
+            {proofFileCount > 0 ?
+              <span className="tabular-nums text-muted-foreground">
+                ({proofFileCount})
+              </span>
+            : null}
+          </Button>
+        </>
+      : null}
 
       <Dialog open={barcodeOpen} onOpenChange={setBarcodeOpen}>
         <DialogTrigger

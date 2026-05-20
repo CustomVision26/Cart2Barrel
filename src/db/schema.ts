@@ -74,6 +74,8 @@ export const itemRequestLineSnapshotPhaseEnum = pgEnum(
     "batch_request_submitted_to_staff",
     /** Staff recorded physical receipt at warehouse (qty, condition, shelf, proof metadata). */
     "warehouse_delivery_received",
+    /** Customer requested a product return; pending staff return shipment setup. */
+    "product_return_requested",
     /** Staff saved return-to-retailer shipment tracking after a problem receipt. */
     "product_return_tracking_saved",
     /** Customer submitted a refund request; pending staff approval. */
@@ -640,6 +642,10 @@ export const orderItems = pgTable(
     warehouseReceivedProofPhotoCount: integer(
       "warehouse_received_proof_photo_count",
     ),
+    /** Intake / receiving proof photos (package condition, labels) as public blob URLs. */
+    warehouseReceivedProofPhotoUrls: jsonb(
+      "warehouse_received_proof_photo_urls",
+    ).$type<string[] | null>(),
   },
   (t) => [
     index("order_items_order_id_idx").on(t.orderId),
@@ -670,6 +676,63 @@ export const orderItemRefunds = pgTable(
   },
   (t) => [
     index("order_item_refunds_order_item_id_idx").on(t.orderItemId),
+  ],
+);
+
+export const orderItemProductReturnRequestStatusEnum = pgEnum(
+  "order_item_product_return_request_status",
+  ["submitted", "fulfilled", "cancelled"],
+);
+
+export const orderItemProductReturnDesiredOutcomeEnum = pgEnum(
+  "order_item_product_return_desired_outcome",
+  ["money_back", "replacement"],
+);
+
+/** Customer-initiated return-to-retailer request; staff records return tracking and receipt. */
+export const orderItemProductReturnRequests = pgTable(
+  "order_item_product_return_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderItemId: uuid("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id").notNull(),
+    desiredOutcome: orderItemProductReturnDesiredOutcomeEnum("desired_outcome"),
+    reasonKind: orderItemRefundReasonKindEnum("reason_kind").notNull(),
+    details: text("details").notNull(),
+    returnWindowStart: timestamp("return_window_start", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    returnWindowEnd: timestamp("return_window_end", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    customerNotes: text("customer_notes"),
+    status: orderItemProductReturnRequestStatusEnum("status")
+      .notNull()
+      .default("submitted"),
+    fulfilledAt: timestamp("fulfilled_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    fulfilledByClerkUserId: text("fulfilled_by_clerk_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("order_item_product_return_requests_order_item_id_unique").on(
+      t.orderItemId,
+    ),
+    index("order_item_product_return_requests_clerk_user_id_idx").on(
+      t.clerkUserId,
+    ),
+    index("order_item_product_return_requests_status_idx").on(t.status),
   ],
 );
 
@@ -1316,8 +1379,19 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   deliveryRequests: many(deliveryRequests),
   refunds: many(orderItemRefunds),
   refundRequests: many(orderItemRefundRequests),
+  productReturnRequest: one(orderItemProductReturnRequests),
   barrelAssignmentEvents: many(barrelPackageAssignmentEvents),
 }));
+
+export const orderItemProductReturnRequestsRelations = relations(
+  orderItemProductReturnRequests,
+  ({ one }) => ({
+    orderItem: one(orderItems, {
+      fields: [orderItemProductReturnRequests.orderItemId],
+      references: [orderItems.id],
+    }),
+  }),
+);
 
 export const orderItemRefundRequestsRelations = relations(
   orderItemRefundRequests,
@@ -1465,6 +1539,11 @@ export type NewOrderItemRefund = typeof orderItemRefunds.$inferInsert;
 
 export type OrderItemRefundRequest = typeof orderItemRefundRequests.$inferSelect;
 export type NewOrderItemRefundRequest = typeof orderItemRefundRequests.$inferInsert;
+
+export type OrderItemProductReturnRequest =
+  typeof orderItemProductReturnRequests.$inferSelect;
+export type NewOrderItemProductReturnRequest =
+  typeof orderItemProductReturnRequests.$inferInsert;
 
 export type DeliveryRequest = typeof deliveryRequests.$inferSelect;
 export type NewDeliveryRequest = typeof deliveryRequests.$inferInsert;

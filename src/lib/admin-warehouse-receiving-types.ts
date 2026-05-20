@@ -1,0 +1,32 @@
+import type { Order } from "@/db/schema";
+import type { PendingRefundRequestBrief } from "@/data/order-item-refund-requests";
+import type { OrderItemReadCore } from "@/lib/order-item-read-compat";
+
+export type WarehouseReceivingLine = {
+  id: string;
+  itemRequestId: string;
+  itemLabel: string;
+  productName: string;
+  productImageUrl: string | null;
+  productUrl: string | null;
+  productSize: string | null;
+  productColor: string | null;
+  orderedQty: number;
+  orderItem: OrderItemReadCore;
+  orderStatus: Order["status"];
+  orderNumber: string;
+  batchNumber: string | null;
+  batchSessionId: string | null;
+  clerkUserId: string;
+  customerGroupSortKey: string;
+  customerDisplayLabel: string;
+  refundedCents: number;
+  pendingRefundRequest: PendingRefundRequestBrief | null;
+  companyPurchaseReceiptImageUrls: string[] | null;
+  warehouseBarcodeImageUrl: string | null;
+  intakeSnapshotQuantity: number | null;
+  intakeSnapshotSize: string | null;
+  intakeSnapshotColor: string | null;
+  intakeSnapshotProductUrl: string | null;
+  intakeSnapshotProductImageUrl: string | null;
+};

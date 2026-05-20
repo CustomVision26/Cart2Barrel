@@ -1,3 +1,7 @@
+import type {
+  FulfilledProductReturnRequestBrief,
+  PendingProductReturnRequestBrief,
+} from "@/data/order-item-product-return-requests";
 import type { PendingRefundRequestBrief } from "@/data/order-item-refund-requests";
 import type { PaidOrdersQueryInput } from "@/lib/paid-orders-list-params";
 
@@ -19,6 +23,8 @@ export type DashboardPaidOrderLineRow = {
   refundedCents: number;
   refundDetails: OrderItemRefundDetail[];
   pendingRefundRequest: PendingRefundRequestBrief | null;
+  pendingProductReturnRequest: PendingProductReturnRequestBrief | null;
+  fulfilledProductReturnRequest: FulfilledProductReturnRequestBrief | null;
   customerEmail: string | null;
   customerFullName: string | null;
   resolvedBatchSessionId: string | null;
@@ -61,6 +67,8 @@ async function withDashboardRefundDetails(
     request: r.request,
     refundedCents: r.refundedCents,
     pendingRefundRequest: r.pendingRefundRequest,
+    pendingProductReturnRequest: r.pendingProductReturnRequest,
+    fulfilledProductReturnRequest: r.fulfilledProductReturnRequest,
     customerEmail: r.customerEmail,
     customerFullName: r.customerFullName,
     resolvedBatchSessionId: r.resolvedBatchSessionId,

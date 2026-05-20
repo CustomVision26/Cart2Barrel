@@ -5,11 +5,17 @@ import {
   AdminPurchaseTrackingDialog,
   AdminPurchaseTrackingLink,
 } from "@/components/admin/admin-purchase-tracking-dialog";
+import { AdminProductReturnRequestDialog } from "@/components/admin/admin-product-return-request-dialog";
 import { AdminRefundOrderLineButton } from "@/components/admin/admin-refund-order-line-button";
 import { AdminRefundRequestControls } from "@/components/admin/admin-refund-request-controls";
 import type { OrderItem } from "@/db/schema";
+import type {
+  FulfilledProductReturnRequestBrief,
+  PendingProductReturnRequestBrief,
+} from "@/data/order-item-product-return-requests";
 import type { PendingRefundRequestBrief } from "@/data/order-item-refund-requests";
 import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
+import { adminMayRefundLineAfterProductReturn } from "@/lib/order-line-product-return-display";
 
 /** Staff quote row `item_cost` plus display fields — used only for pending company purchase UI. */
 export type AdminPurchaseReviewContext = {
@@ -41,6 +47,8 @@ export function AdminOrderLineActions({
   purchaseTracking,
   retailerReceiptImageUrls,
   pendingRefundRequest,
+  pendingProductReturnRequest,
+  fulfilledProductReturnRequest,
 }: {
   orderItemId: string;
   fulfillmentStatus: OrderItem["fulfillmentStatus"];
@@ -55,12 +63,31 @@ export function AdminOrderLineActions({
   purchaseTracking?: AdminPurchaseTrackingSlice | null;
   retailerReceiptImageUrls?: string[] | null;
   pendingRefundRequest?: PendingRefundRequestBrief | null;
+  pendingProductReturnRequest?: PendingProductReturnRequestBrief | null;
+  fulfilledProductReturnRequest?: FulfilledProductReturnRequestBrief | null;
 }) {
   const refundableCents = Math.max(0, linePriceCents - refundedCents);
+  const returnRefundContext = {
+    fulfillmentStatus,
+    fulfilledProductReturnRequest,
+  };
 
   if (fulfillmentStatus === BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID) {
     return (
       <span className="text-xs text-muted-foreground">—</span>
+    );
+  }
+
+  if (pendingProductReturnRequest) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <AdminProductReturnRequestDialog
+          orderItemId={orderItemId}
+          productLabel={productLabel}
+          returnRequest={pendingProductReturnRequest}
+          initialReceiptImageUrls={retailerReceiptImageUrls}
+        />
+      </div>
     );
   }
 
@@ -137,6 +164,9 @@ export function AdminOrderLineActions({
       fulfillmentStatus === "delivery_received_item_missing" ||
       fulfillmentStatus === "delivery_received_item_damaged" ||
       fulfillmentStatus === "delivery_received_wrong_item";
+    const showRefundLine =
+      !pendingRefundRequest &&
+      adminMayRefundLineAfterProductReturn(returnRefundContext);
 
     return (
       <div className="flex flex-col items-start gap-2">
@@ -177,12 +207,13 @@ export function AdminOrderLineActions({
               : undefined
             }
           />
-          {!pendingRefundRequest ?
+          {showRefundLine ?
             <AdminRefundOrderLineButton
               orderItemId={orderItemId}
               linePriceCents={linePriceCents}
               refundedCents={refundedCents}
               productLabel={productLabel}
+              triggerLabel="Refund line"
             />
           : null}
         </div>

@@ -70,18 +70,17 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
           Purchase orders
         </h1>
         <p className="text-sm text-muted-foreground">
-          Inbound coordination and receipt logging for lines that belong on this queue (pending delivery,
-          non-good receipts, and problem receipts you are correcting). They are listed here instead of{" "}
-          <span className="font-medium text-foreground">Orders</span>. Lines in{" "}
-          <span className="font-medium text-foreground">Product return: awaiting delivery</span> are
-          managed under{" "}
+          Inbound coordination and receipt logging for lines on this queue: pending delivery, non-good
+          receipts, problem receipts you are correcting, and replacement returns in transit (
+          <span className="font-medium text-foreground">returned:awaiting delivery</span>). Money-back
+          returns awaiting refund stay on{" "}
           <Link
             href="/admin/orders"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
             Orders
-          </Link>{" "}
-          (shipment tracking and refunds). When{" "}
+          </Link>
+          . When{" "}
           <span className="font-medium text-foreground">Received delivery</span> records condition{" "}
           <span className="font-medium text-foreground">Good</span>, fulfillment becomes{" "}
           <span className="font-medium text-foreground">
@@ -108,15 +107,15 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
           <span className="font-medium text-foreground">Tracking product</span> to edit inbound link /
           carrier / number (or{" "}
           <span className="font-medium text-foreground">Return product</span> when a receipt needs
-          correction and you are logging return shipment tracking — after return tracking is saved, follow-up
-          moves to{" "}
+          correction and you are logging return shipment tracking. Replacement returns remain here until
+          receipt is logged; money-back returns move to{" "}
           <Link
             href="/admin/orders"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
             Orders
-          </Link>
-          , and <span className="font-medium text-foreground">Refund</span> if needed. Purchase
+          </Link>{" "}
+          for refund. Purchase
           approval still starts from <span className="font-medium text-foreground">Orders</span> →{" "}
           <span className="font-medium text-foreground">Review and approve</span>.
         </p>
