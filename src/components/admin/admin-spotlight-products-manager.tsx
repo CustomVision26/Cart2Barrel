@@ -3,15 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { ImageIcon, Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
+import { AdminSpotlightCategoryAddForm } from "@/components/admin/admin-spotlight-category-add-form";
 import { AdminSpotlightProductEditDialog } from "@/components/admin/admin-spotlight-product-edit-dialog";
 import { AdminSpotlightProductVariantsPanel } from "@/components/admin/admin-spotlight-product-variants-panel";
 
 import {
-  adminCreateSpotlightProductAction,
   adminDeleteSpotlightProductAction,
   adminRefreshSpotlightProductImageAction,
+  adminSetSpotlightProductImageUrlAction,
+  adminUploadSpotlightProductImageAction,
 } from "@/actions/admin-spotlight-products";
+import { AdminSpotlightPreviewImageField } from "@/components/admin/admin-spotlight-preview-image-field";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,8 +24,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { AdminSpotlightProductRow } from "@/data/spotlight-category-products";
 import {
   SPOTLIGHT_CATEGORIES,
@@ -54,6 +64,26 @@ function SpotlightCategoryPanel({
   onEditProduct: (product: AdminSpotlightProductRow) => void;
 }) {
   const Icon = category.icon;
+  const [removeTarget, setRemoveTarget] = useState<AdminSpotlightProductRow | null>(
+    null,
+  );
+
+  const confirmRemove = () => {
+    if (!removeTarget) return;
+    const product = removeTarget;
+    setRemoveTarget(null);
+    onStatusMessage(null);
+    runMutation(async () => {
+      const res = await adminDeleteSpotlightProductAction({ id: product.id });
+      if (res.ok) {
+        toast.success(res.message ?? "Product removed from spotlight.");
+        onRefresh();
+      } else {
+        toast.error(res.message);
+        onStatusMessage(res.message);
+      }
+    });
+  };
 
   return (
     <Card>
@@ -79,104 +109,17 @@ function SpotlightCategoryPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
-        <form
-          className="grid gap-4 sm:grid-cols-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = e.currentTarget;
-            const fd = new FormData(form);
-            onStatusMessage(null);
-            runMutation(async () => {
-              const res = await adminCreateSpotlightProductAction({
-                categorySlug: category.slug,
-                productUrl: String(fd.get("productUrl") ?? ""),
-                label: String(fd.get("label") ?? "") || undefined,
-                priceUsd: String(fd.get("priceUsd") ?? "") || undefined,
-                productSize: String(fd.get("productSize") ?? "") || undefined,
-                productColor: String(fd.get("productColor") ?? "") || undefined,
-              });
-              onStatusMessage(res.message ?? (res.ok ? "Saved." : "Failed."));
-              if (res.ok) {
-                form.reset();
-                onRefresh();
-              }
-            });
-          }}
-        >
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor={`url-${category.slug}`}>Product URL (https)</Label>
-            <Input
-              id={`url-${category.slug}`}
-              name="productUrl"
-              required
-              type="url"
-              placeholder="https://retailer.com/product/…"
-              disabled={pending}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`label-${category.slug}`}>
-              Label <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id={`label-${category.slug}`}
-              name="label"
-              placeholder="e.g. 128GB USB flash drive"
-              disabled={pending}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`price-${category.slug}`}>
-              Product cost (USD){" "}
-              <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id={`price-${category.slug}`}
-              name="priceUsd"
-              type="text"
-              inputMode="decimal"
-              placeholder="e.g. 12.99"
-              disabled={pending}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`size-${category.slug}`}>
-              Size <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id={`size-${category.slug}`}
-              name="productSize"
-              placeholder="e.g. 128GB, Large"
-              disabled={pending}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`color-${category.slug}`}>
-              Color <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id={`color-${category.slug}`}
-              name="productColor"
-              placeholder="e.g. Black, Navy"
-              disabled={pending}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Button type="submit" disabled={pending}>
-              {pending ?
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                  Adding…
-                </>
-              : "Add product to category"}
-            </Button>
-          </div>
-        </form>
+        <AdminSpotlightCategoryAddForm
+          categorySlug={category.slug}
+          pending={pending}
+          onRefresh={onRefresh}
+          runMutation={runMutation}
+        />
 
         {products.length === 0 ?
           <p className="text-sm text-muted-foreground">
-            No products yet. Add HTTPS product links above—they appear as image
-            previews on the home carousel when fetch succeeds.
+            No products yet. Use Add product to category with SerpApi, then save
+            rows to the spotlight carousel.
           </p>
         : <ul className="divide-y divide-border rounded-lg border border-border">
             {products.map((product) => (
@@ -231,6 +174,11 @@ function SpotlightCategoryPanel({
                     >
                       {product.productUrl}
                     </a>
+                    {!product.imageUrl ?
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        No preview image — refresh, upload, or paste a URL below.
+                      </p>
+                    : null}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -250,15 +198,16 @@ function SpotlightCategoryPanel({
                     size="sm"
                     disabled={pending}
                     onClick={() => {
-                      onStatusMessage(null);
                       runMutation(async () => {
                         const res = await adminRefreshSpotlightProductImageAction({
                           id: product.id,
                         });
-                        onStatusMessage(
-                          res.message ?? (res.ok ? "Updated." : "Failed."),
-                        );
-                        if (res.ok) onRefresh();
+                        if (res.ok) {
+                          toast.success(res.message ?? "Image updated.");
+                          onRefresh();
+                        } else {
+                          toast.error(res.message);
+                        }
                       });
                     }}
                   >
@@ -270,31 +219,35 @@ function SpotlightCategoryPanel({
                     variant="destructive"
                     size="sm"
                     disabled={pending}
-                    onClick={() => {
-                      if (
-                        !window.confirm(
-                          "Remove this product from the spotlight category?",
-                        )
-                      ) {
-                        return;
-                      }
-                      onStatusMessage(null);
-                      runMutation(async () => {
-                        const res = await adminDeleteSpotlightProductAction({
-                          id: product.id,
-                        });
-                        onStatusMessage(
-                          res.message ?? (res.ok ? "Removed." : "Failed."),
-                        );
-                        if (res.ok) onRefresh();
-                      });
-                    }}
+                    onClick={() => setRemoveTarget(product)}
                   >
                     <Trash2 className="size-3.5" aria-hidden />
                     Remove
                   </Button>
                 </div>
                 </div>
+                {!product.imageUrl ?
+                  <AdminSpotlightPreviewImageField
+                    label="Product image"
+                    imageUrl={product.imageUrl}
+                    pending={pending}
+                    compact
+                    entityIdField="productId"
+                    entityId={product.id}
+                    onRefresh={() =>
+                      adminRefreshSpotlightProductImageAction({ id: product.id })
+                    }
+                    onUpload={adminUploadSpotlightProductImageAction}
+                    onSetImageUrl={(url) =>
+                      adminSetSpotlightProductImageUrlAction({
+                        id: product.id,
+                        imageUrl: url,
+                      })
+                    }
+                    onSuccess={onRefresh}
+                    runMutation={runMutation}
+                  />
+                : null}
                 <AdminSpotlightProductVariantsPanel
                   product={product}
                   pending={pending}
@@ -307,6 +260,50 @@ function SpotlightCategoryPanel({
           </ul>
         }
       </CardContent>
+
+      <Dialog
+        open={removeTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+      >
+        <DialogContent showCloseButton={false} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove spotlight product?</DialogTitle>
+            <DialogDescription>
+              {removeTarget ?
+                <>
+                  This removes{" "}
+                  <span className="font-medium text-foreground">
+                    {removeTarget.label?.trim() ||
+                      displaySiteName(null, removeTarget.productUrl)}
+                  </span>{" "}
+                  from <span className="font-medium">{category.title}</span>.
+                  Variants for this product are deleted too. This cannot be undone.
+                </>
+              : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setRemoveTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pending}
+              onClick={confirmRemove}
+            >
+              {pending ? "Removing…" : "Remove product"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

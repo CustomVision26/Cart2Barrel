@@ -137,6 +137,17 @@ export async function getSpotlightVariantById(id: string) {
   return row ?? null;
 }
 
+export async function updateSpotlightVariantImage(
+  id: string,
+  imageUrl: string | null,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(spotlightProductVariants)
+    .set({ imageUrl })
+    .where(eq(spotlightProductVariants.id, id));
+}
+
 /** Active variant with parent row for storefront prefill. */
 export async function getActiveSpotlightVariantForPrefill(
   variantId: string,

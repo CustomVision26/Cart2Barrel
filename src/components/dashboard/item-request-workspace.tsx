@@ -9,18 +9,14 @@ import {
   useState,
   useTransition,
 } from "react";
-import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { ExternalLink, Info, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  compareRetailerPricesAction,
-  type RetailerPriceOffer,
-} from "@/actions/compare-retailer-prices";
+import { compareRetailerPricesAction } from "@/actions/compare-retailer-prices";
+import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { draftItemRequestFromUrlAction } from "@/actions/customer-ai-item-draft";
-import {
-  fetchProductVariantsAction,
-  type ProductVariantOffer,
-} from "@/actions/product-variants";
+import { fetchProductVariantsAction } from "@/actions/product-variants";
+import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { ItemRequestProductVariants } from "@/components/dashboard/item-request-product-variants";
 import { createItemRequestAction } from "@/actions/item-request";
 import { ItemRequestCompareRetailers } from "@/components/dashboard/item-request-compare-retailers";
@@ -57,6 +53,10 @@ import {
   MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT,
 } from "@/lib/item-request-product-name-hint";
 import { isRetailerPageFetchBlockedMessage } from "@/lib/ai/fetch-page-for-ai";
+import {
+  parseValidHttpsProductUrl,
+  validateItemRequestRetailerUrl,
+} from "@/lib/product-url/item-request-retailer-url";
 import { cn } from "@/lib/utils";
 
 const IFRAME_TITLE = "Shopping site preview";
@@ -278,23 +278,54 @@ export function ItemRequestWorkspace({
 
   const hasPreviewUrl = Boolean(normalizeUrlInput(previewInput));
   const hasProductLinkUrl = Boolean(normalizeUrlInput(productUrl));
+  const validProductLinkUrl = parseValidHttpsProductUrl(productUrl);
+  const hasValidProductLinkUrl = Boolean(validProductLinkUrl);
+  const retailerProductUrlCheck = useMemo(
+    () => validateItemRequestRetailerUrl(productUrl),
+    [productUrl],
+  );
+  const isRetailerProductUrl = retailerProductUrlCheck.ok;
   const canUseUrlSync = hasPreviewUrl || hasProductLinkUrl;
 
   const urlsAligned = urlsMatchForSubmit(previewInput, productUrl);
   const quantityOk = parseQuantity(quantity) != null;
   const canSubmit = urlsAligned && quantityOk && !isPending;
   const canRunAi =
-    urlsAligned && quantityOk && !isAiPending && !isSpotlightFeed;
+    urlsAligned &&
+    quantityOk &&
+    isRetailerProductUrl &&
+    !isAiPending &&
+    !isSpotlightFeed;
+  const fillAiDisabledTitle =
+    isSpotlightFeed ?
+      "Details were loaded from spotlight—edit fields manually if needed."
+    : isAiPending || isPending ? undefined
+    : !hasPreviewUrl || !hasProductLinkUrl ?
+      "Fill preview and product URLs"
+    : !urlsAligned ?
+      "Product link must match the preview URL"
+    : !quantityOk ?
+      "Enter quantity 1–999"
+    : !isRetailerProductUrl ?
+      retailerProductUrlCheck.message
+    : undefined;
   const productNameReadyForCompare = isProductNameReadyForCompare(productName);
   const needsManualProductName =
     Boolean(normalizeUrlInput(productUrl)) && !productNameReadyForCompare;
   const canCompare =
     productNameReadyForCompare && !isComparePending && !isPending;
   const canLoadVariants =
+    hasValidProductLinkUrl &&
     urlsAligned &&
-    Boolean(normalizeUrlInput(productUrl)) &&
     !isVariantsPending &&
     !isPending;
+  const loadVariantsDisabledTitle =
+    isVariantsPending || isPending ? undefined
+    : !hasValidProductLinkUrl ?
+      "Enter a valid https product link"
+    : !urlsAligned ?
+      "Product link must match the preview URL"
+    : undefined;
   const fallbackCompareImage =
     draftProductImageUrl?.trim() ||
     spotlightPrefill?.imageUrl?.trim() ||
@@ -312,6 +343,11 @@ export function ItemRequestWorkspace({
     setLastAiNotes(null);
     setDraftSiteName(null);
     setDraftProductImageUrl(null);
+    const retailerCheck = validateItemRequestRetailerUrl(productUrl);
+    if (!retailerCheck.ok) {
+      setAiMessage(retailerCheck.message);
+      return;
+    }
     if (!urlsMatchForSubmit(previewInput, productUrl)) {
       setAiMessage(
         'Product URL (preview) and Product link must match. Use "Use preview URL above" so both fields use the same address.'
@@ -324,7 +360,7 @@ export function ItemRequestWorkspace({
     }
     startAiTransition(async () => {
       const res = await draftItemRequestFromUrlAction({
-        productUrl: normalizeUrlInput(productUrl),
+        productUrl: retailerCheck.href,
         quantity,
         productSize: productSize.trim() || undefined,
         productColor: productColor.trim() || undefined,
@@ -480,8 +516,12 @@ export function ItemRequestWorkspace({
 
   const runLoadVariants = useCallback(() => {
     setVariantsMessage(null);
-    const url = normalizeUrlInput(productUrl);
-    if (!url || !urlsMatchForSubmit(previewInput, productUrl)) {
+    const url = parseValidHttpsProductUrl(productUrl);
+    if (!url) {
+      setVariantsMessage("Enter a valid https product link before loading variants.");
+      return;
+    }
+    if (!urlsMatchForSubmit(previewInput, productUrl)) {
       setVariantsMessage(
         "Product URL (preview) and Product link must match before loading variants.",
       );
@@ -830,26 +870,28 @@ export function ItemRequestWorkspace({
     "flex h-[min(50vh,360px)] w-full items-center justify-center px-6 text-center text-sm text-muted-foreground xl:min-h-[min(44vh,380px)]";
 
   const browseCard = (
-    <Card className="overflow-hidden shadow-sm">
-      <CardHeader className="border-b border-border/80 bg-muted/20 pb-4">
-        <CardTitle className="text-lg">Browse a store</CardTitle>
-        <CardDescription>
-          Enter a shop or product URL to load a preview below. Many large
-          retailers block embedded frames for security—if you see a blank area,
-          use <span className="font-medium text-foreground">Open in new tab</span>{" "}
-          to shop, then paste the product link into the request form.
+    <Card className="overflow-hidden border-border/80 shadow-none">
+      <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
+        <CardTitle className="text-base font-semibold tracking-tight">
+          Product preview
+        </CardTitle>
+        <CardDescription className="text-sm leading-relaxed">
+          Enter the retailer product URL to load an embedded preview. If the frame
+          is blank, the store may block embeds—use{" "}
+          <span className="font-medium text-foreground">Open in new tab</span> to
+          view the listing, then confirm the same URL in the request form.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-          <div className="space-y-2">
+      <CardContent className="space-y-4 px-6 py-5">
+          <div className="space-y-1.5">
             <label
               htmlFor="item-preview-product-url"
               className="text-sm font-medium text-foreground"
             >
-              Product URL <span className="font-normal text-muted-foreground">(preview)</span>
+              Preview URL
             </label>
             <p className="text-xs text-muted-foreground">
-              Enter a shop or product address to load the preview frame.
+              Must match the product link submitted with your request.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -885,7 +927,7 @@ export function ItemRequestWorkspace({
               </Button>
             </div>
           </div>
-          <div className="relative overflow-hidden rounded-lg border border-border bg-muted/20">
+          <div className="relative overflow-hidden rounded-md border border-border bg-muted/15">
             {iframeSrc ? (
               <iframe
                 title={IFRAME_TITLE}
@@ -895,8 +937,8 @@ export function ItemRequestWorkspace({
               />
             ) : (
               <div className={previewPlaceholderClass}>
-                Preview will appear here after you enter a URL and choose Load
-                preview.
+                Enter a URL above and select Load preview to display the listing
+                here.
               </div>
             )}
           </div>
@@ -905,67 +947,66 @@ export function ItemRequestWorkspace({
   );
 
   const requestCard = (
-    <Card className="overflow-hidden shadow-sm ring-1 ring-border/50">
-      <CardHeader className="border-b border-border/80 bg-muted/15 pb-4">
-        <CardTitle className="text-lg">Item request</CardTitle>
-        <CardDescription>
-          AI reads the listing for title, variant, and an estimated{" "}
-          <span className="font-medium text-foreground">merchandise</span> total (what the
-          store charges for the product line). Review the preview and your fields, then
-          submit to staff for an official quote.
+    <Card className="overflow-hidden border-border/80 shadow-none">
+      <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
+        <CardTitle className="text-base font-semibold tracking-tight">
+          Request details
+        </CardTitle>
+        <CardDescription className="text-sm leading-relaxed">
+          Complete the fields below. AI can extract title, variant, and an estimated
+          merchandise subtotal (retailer product cost only). Staff will issue an
+          official quote after review.
         </CardDescription>
       </CardHeader>
-        <CardContent>
-          <FieldSet key={formResetKey} className="gap-5">
-            <div className="space-y-3 rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+        <CardContent className="px-6 py-5">
+          <FieldSet key={formResetKey} className="gap-6">
+            <div className="space-y-4 rounded-md border border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
                 <div
                   role="note"
-                  className="space-y-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-950 dark:text-amber-50/95"
+                  className="flex gap-3 rounded-md border border-border bg-background/80 px-3 py-3 text-xs leading-relaxed"
                 >
-                  <p className="font-medium text-foreground">
-                    How to read the AI merchandise estimate
-                  </p>
-                  <p>
-                    On the retailer&apos;s site, the price you pay often{" "}
-                    <span className="font-medium text-foreground">
-                      changes with quantity, size, and color
-                    </span>{" "}
-                    for the same product. The amounts below are{" "}
-                    <span className="font-medium text-foreground">
-                      an AI reading of the listing
-                    </span>{" "}
-                    and may be wrong, incomplete, or out of date.
-                  </p>
-                  <p>
-                    <span className="font-medium text-foreground">
-                      Tax, Cart2Barrel service &amp; handling, and shipment fees are not
-                      included
-                    </span>{" "}
-                    in this preview. Staff will send you a full quote that includes
-                    those items where they apply.
-                  </p>
+                  <Info
+                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <div className="space-y-2 min-w-0">
+                    <p className="font-medium text-foreground">
+                      About merchandise estimates
+                    </p>
+                    <ul className="list-disc space-y-1.5 pl-4 text-muted-foreground">
+                      <li>
+                        Retailer prices may vary by quantity, size, and color. Figures
+                        shown are AI-derived from the listing and may be incomplete or
+                        outdated.
+                      </li>
+                      <li>
+                        Tax, Cart2Barrel service and handling, and shipping are not
+                        included. Staff will provide a full quote where applicable.
+                      </li>
+                    </ul>
+                  </div>
                 </div>
-                <p>
+                <p className="leading-relaxed">
                   {variantRows.length > 0 ?
                     <>
-                      Store variants are loaded—open the{" "}
+                      Variants are available on the{" "}
                       <span className="font-medium text-foreground">
                         Store variants
                       </span>{" "}
-                      tab, click Apply on a row, then compare prices or submit. Edit
-                      any field before you send the request to admin.
+                      tab. Select Apply to populate the form, then review all fields
+                      before submission.
                     </>
                   : <>
-                      Link the preview URL and product link, set quantity, add optional
-                      size/color to help match variants, then use{" "}
+                      Align the preview URL with the product link, enter quantity and
+                      optional variant fields, then use{" "}
                       <span className="font-medium text-foreground">
-                        Load store variants
+                        Extract listing details
                       </span>{" "}
                       or{" "}
                       <span className="font-medium text-foreground">
-                        Fill details with AI
+                        Load store variants
                       </span>
-                      . Edit any field before you submit your request to admin.
+                      . All fields remain editable before you submit.
                     </>
                   }
                 </p>
@@ -973,23 +1014,14 @@ export function ItemRequestWorkspace({
                 {variantRows.length === 0 ?
                   <Button
                     type="button"
-                    className={cn("gap-1.5", isSpotlightFeed && "opacity-50")}
+                    className={cn(
+                      "gap-1.5",
+                      (!canRunAi || isSpotlightFeed) && "opacity-50",
+                    )}
                     variant="secondary"
                     disabled={!canRunAi}
                     onClick={runAiDraft}
-                    title={
-                      isSpotlightFeed ?
-                        "Details were loaded from spotlight—edit fields manually if needed."
-                      : !canRunAi && !isAiPending
-                        ? !hasPreviewUrl || !hasProductLinkUrl
-                          ? "Fill preview and product URLs"
-                          : !urlsAligned
-                            ? "URLs must match"
-                            : !quantityOk
-                              ? "Enter quantity 1–999"
-                              : undefined
-                        : undefined
-                    }
+                    title={fillAiDisabledTitle}
                   >
                     {isAiPending ?
                       <>
@@ -997,8 +1029,8 @@ export function ItemRequestWorkspace({
                         Filling…
                       </>
                     : <>
-                        <Sparkles className="size-4" />
-                        Fill details with AI
+                        <Sparkles className="size-4" aria-hidden />
+                        Extract listing details
                       </>
                     }
                   </Button>
@@ -1006,8 +1038,12 @@ export function ItemRequestWorkspace({
                 <Button
                   type="button"
                   variant="outline"
-                  className="gap-1.5"
+                  className={cn(
+                    "gap-1.5",
+                    !canLoadVariants && "opacity-50",
+                  )}
                   disabled={!canLoadVariants}
+                  title={loadVariantsDisabledTitle}
                   onClick={runLoadVariants}
                 >
                   {isVariantsPending ?
@@ -1029,7 +1065,7 @@ export function ItemRequestWorkspace({
                       <Loader2 className="size-4 animate-spin" aria-hidden />
                       Comparing…
                     </>
-                  : "Compare prices with AI"}
+                  : "Compare retailer prices"}
                 </Button>
                 </div>
                 {aiMessage ? (
@@ -1048,20 +1084,20 @@ export function ItemRequestWorkspace({
                   </p>
                 ) : null}
                 {aiMerchPreview ? (
-                  <div className="rounded-md border border-border bg-background/80 px-3 py-3 text-foreground">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Merchandise preview (retailer only)
+                  <div className="rounded-md border border-border bg-background px-4 py-4 text-foreground">
+                    <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                      Merchandise estimate
                     </p>
                     {pricePreviewStale ? (
                       <p
                         role="status"
-                        className="mt-2 text-xs text-amber-700 dark:text-amber-300"
+                        className="mt-2 text-xs text-muted-foreground"
                       >
-                        You changed quantity, size, or color after this run.{" "}
-                        <span className="font-medium">
-                          Fill details with AI again
+                        Quantity, size, or color changed after extraction. Run{" "}
+                        <span className="font-medium text-foreground">
+                          Extract listing details
                         </span>{" "}
-                        to refresh the cost preview.
+                        again to refresh the estimate.
                       </p>
                     ) : null}
                     <div className="mt-3 space-y-2 tabular-nums text-sm">
@@ -1147,10 +1183,7 @@ export function ItemRequestWorkspace({
 
             <Field data-invalid={Boolean(fieldError("productName")?.length)}>
               <FieldLabel htmlFor="item-product-name">
-                Product name{" "}
-                <span className="font-normal text-muted-foreground">
-                  (filled by AI or type)
-                </span>
+                Product name
               </FieldLabel>
               <FieldContent>
                 <Input
@@ -1162,9 +1195,9 @@ export function ItemRequestWorkspace({
                   aria-invalid={Boolean(fieldError("productName")?.length)}
                 />
                 <FieldDescription>
-                  Required for Compare prices with AI (at least 2 characters). If
-                  Apply or Fill with AI could not read the page, open the retailer
-                  listing and paste the title from the site here.
+                  Required for price comparison (minimum 2 characters). If extraction
+                  or Apply could not read the page, copy the product title from the
+                  retailer listing.
                 </FieldDescription>
                 <FieldError errors={fieldError("productName")?.map((m) => ({ message: m }))} />
               </FieldContent>
@@ -1173,10 +1206,10 @@ export function ItemRequestWorkspace({
             {needsManualProductName ?
               <p
                 role="status"
-                className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm leading-relaxed text-amber-950 dark:text-amber-100"
+                className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm leading-relaxed text-muted-foreground"
               >
                 <span className="font-medium text-foreground">
-                  Product name needed for price comparison.
+                  Product name required.
                 </span>{" "}
                 {MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE}{" "}
                 {MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}
@@ -1288,7 +1321,7 @@ export function ItemRequestWorkspace({
 
             <Field data-invalid={Boolean(fieldError("note")?.length)}>
               <FieldLabel htmlFor="item-note">
-                Note for staff{" "}
+                Staff notes{" "}
                 <span className="font-normal text-muted-foreground">(optional)</span>
               </FieldLabel>
               <FieldContent>
@@ -1296,7 +1329,7 @@ export function ItemRequestWorkspace({
                   id="item-note"
                   name="note"
                   rows={3}
-                  placeholder="Variants, seller preferences, budget cap, etc."
+                  placeholder="Variant preferences, seller requirements, budget limit, etc."
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1312,11 +1345,13 @@ export function ItemRequestWorkspace({
             !fieldErrors?.productUrl?.length ? (
               <p
                 role="status"
-                className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+                className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground"
               >
-                Product URL (preview) and Product link must match. Click{" "}
-                <span className="font-medium">Use preview URL above</span> or change
-                one field so both use the exact same product page URL.
+                Preview URL and product link must match. Select{" "}
+                <span className="font-medium text-foreground">
+                  Use preview URL above
+                </span>{" "}
+                or edit both fields to use the same product page address.
               </p>
             ) : null}
 
@@ -1353,7 +1388,7 @@ export function ItemRequestWorkspace({
                   Submitting…
                 </>
               ) : (
-                "Submit request"
+                "Submit for staff review"
               )}
             </Button>
           </FieldSet>
@@ -1366,26 +1401,27 @@ export function ItemRequestWorkspace({
 
   const tabClass = (tab: WorkspaceTab) =>
     cn(
-      "-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+      "shrink-0 rounded-md px-4 py-2 text-sm font-medium transition-colors",
       activeTab === tab
-        ? "border-primary text-foreground"
-        : "border-transparent text-muted-foreground hover:text-foreground",
+        ? "bg-background text-foreground shadow-sm"
+        : "text-muted-foreground hover:text-foreground",
     );
+
+  const tabCountClass =
+    "ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-foreground";
 
   return (
     <div className="space-y-6">
       {showSpotlightPrefillNotice ?
         <div
           role="status"
-          className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-md border border-border bg-muted/25 px-4 py-3.5 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="text-pretty leading-relaxed">
-            <span className="font-medium">Loaded from spotlight.</span> Link, name,
-            cost, size, color, and image (when available) are prefilled.{" "}
-            <span className="font-medium">Fill with AI</span> is disabled—review and
-            submit, or use{" "}
-            <span className="font-medium">Compare prices with AI</span> on the other
-            tab.
+          <p className="text-pretty leading-relaxed text-muted-foreground">
+            <span className="font-medium text-foreground">Spotlight prefill applied.</span>{" "}
+            Product link, name, pricing, variant, and image (when available) have been
+            populated. Listing extraction is disabled—review the form, submit for staff
+            review, or open Price comparison to evaluate other retailers.
           </p>
           <Button
             type="button"
@@ -1402,7 +1438,7 @@ export function ItemRequestWorkspace({
       <div
         role="tablist"
         aria-label="Request workflow"
-        className="flex gap-1 overflow-x-auto border-b border-border"
+        className="inline-flex max-w-full gap-1 overflow-x-auto rounded-lg border border-border bg-muted/30 p-1"
       >
         <button
           type="button"
@@ -1411,7 +1447,7 @@ export function ItemRequestWorkspace({
           className={tabClass("request")}
           onClick={() => setActiveTab("request")}
         >
-          Item request
+          Request form
         </button>
         <button
           type="button"
@@ -1422,9 +1458,7 @@ export function ItemRequestWorkspace({
         >
           Store variants
           {variantRows.length > 0 ?
-            <span className="ml-2 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-              {variantRows.length}
-            </span>
+            <span className={tabCountClass}>{variantRows.length}</span>
           : null}
         </button>
         <button
@@ -1434,11 +1468,9 @@ export function ItemRequestWorkspace({
           className={tabClass("compare")}
           onClick={() => setActiveTab("compare")}
         >
-          Comparing retailer offers
+          Price comparison
           {compareOffers.length > 0 ?
-            <span className="ml-2 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-              {compareOffers.length}
-            </span>
+            <span className={tabCountClass}>{compareOffers.length}</span>
           : null}
         </button>
       </div>
@@ -1465,6 +1497,7 @@ export function ItemRequestWorkspace({
             onApplyVariant={applyVariant}
             onSubmitVariant={submitFromVariant}
             canLoadVariants={canLoadVariants}
+            loadVariantsDisabledTitle={loadVariantsDisabledTitle}
           />
           <p className="text-center text-xs text-muted-foreground">
             <button
@@ -1472,7 +1505,7 @@ export function ItemRequestWorkspace({
               className="font-medium text-primary underline-offset-4 hover:underline"
               onClick={() => setActiveTab("request")}
             >
-              Back to item request form
+              Return to request form
             </button>
           </p>
         </div>
@@ -1495,7 +1528,7 @@ export function ItemRequestWorkspace({
               className="font-medium text-primary underline-offset-4 hover:underline"
               onClick={() => setActiveTab("request")}
             >
-              Back to item request form
+              Return to request form
             </button>
           </p>
         </div>

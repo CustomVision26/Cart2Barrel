@@ -50,6 +50,26 @@ function parseAmazonPrice(raw: {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Title, price, and image for one Amazon ASIN (one SerpApi call). */
+export async function fetchAmazonProductSummary(
+  asin: string,
+  amazonDomain: string,
+): Promise<{
+  title: string | null;
+  priceUsdCents: number | null;
+  imageUrl: string | null;
+  productUrl: string | null;
+}> {
+  const hit = await fetchAmazonAsinPrice(asin, amazonDomain);
+  return {
+    title: hit.title,
+    priceUsdCents:
+      hit.priceUsd != null ? Math.round(hit.priceUsd * 100) : null,
+    imageUrl: hit.imageUrl,
+    productUrl: hit.link,
+  };
+}
+
 async function fetchAmazonAsinPrice(
   asin: string,
   amazonDomain: string,

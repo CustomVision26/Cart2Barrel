@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ImageIcon, Loader2, Pencil } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, Pencil } from "lucide-react";
 
 import {
+  adminRefreshSpotlightProductImageAction,
+  adminSetSpotlightProductImageUrlAction,
   adminUpdateSpotlightProductAction,
   adminUploadSpotlightProductImageAction,
 } from "@/actions/admin-spotlight-products";
+import { AdminSpotlightPreviewImageField } from "@/components/admin/admin-spotlight-preview-image-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +24,6 @@ import { Label } from "@/components/ui/label";
 import type { AdminSpotlightProductRow } from "@/data/spotlight-category-products";
 import { formatUsd } from "@/lib/admin-markup";
 import { displaySiteName } from "@/lib/site-name";
-import { revokeBlobPreviewUrl } from "@/lib/staged-product-image";
 
 function centsToUsdInput(cents: number | null): string {
   if (cents == null || cents <= 0) return "";
@@ -50,38 +52,15 @@ export function AdminSpotlightProductEditDialog({
   const [priceUsd, setPriceUsd] = useState("");
   const [productSize, setProductSize] = useState("");
   const [productColor, setProductColor] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const showImageUpload = product != null && !product.imageUrl;
 
   useEffect(() => {
     if (!open || !product) return;
     setPriceUsd(centsToUsdInput(product.priceUsdCents));
     setProductSize(product.productSize?.trim() ?? "");
     setProductColor(product.productColor?.trim() ?? "");
-    setImageFile(null);
-    setImagePreview(null);
     setDialogError(null);
   }, [open, product]);
-
-  useEffect(() => {
-    return () => {
-      revokeBlobPreviewUrl(imagePreview);
-    };
-  }, [imagePreview]);
-
-  const handleImageChange = (file: File | null) => {
-    revokeBlobPreviewUrl(imagePreview);
-    setImageFile(file);
-    if (file) {
-      setImagePreview(URL.createObjectURL(file));
-    } else {
-      setImagePreview(null);
-    }
-  };
 
   const handleSave = () => {
     if (!product) return;
@@ -101,26 +80,7 @@ export function AdminSpotlightProductEditDialog({
         return;
       }
 
-      if (showImageUpload && imageFile) {
-        const fd = new FormData();
-        fd.set("productId", product.id);
-        fd.set("file", imageFile);
-        const uploadRes = await adminUploadSpotlightProductImageAction(fd);
-        if (!uploadRes.ok) {
-          setDialogError(uploadRes.message);
-          onStatusMessage(
-            `${updateRes.message ?? "Price saved."} ${uploadRes.message}`,
-          );
-          onRefresh();
-          return;
-        }
-      }
-
-      onStatusMessage(
-        showImageUpload && imageFile ?
-          "Product updated with image."
-        : (updateRes.message ?? "Product updated."),
-      );
+      onStatusMessage(updateRes.message ?? "Product updated.");
       onOpenChange(false);
       onRefresh();
     });
@@ -194,64 +154,25 @@ export function AdminSpotlightProductEditDialog({
               product browser when set.
             </p>
 
-            {showImageUpload ?
-              <div className="min-w-0 space-y-2">
-                <Label htmlFor="spotlight-edit-image">Product image</Label>
-                <p className="text-pretty text-xs leading-relaxed break-words text-muted-foreground">
-                  No preview image yet. Upload one for the home carousel and category
-                  browser.
-                </p>
-                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start">
-                  <div className="relative size-20 shrink-0 overflow-hidden rounded-md border border-border bg-muted/50">
-                    {imagePreview ?
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={imagePreview}
-                        alt=""
-                        className="size-full object-cover"
-                      />
-                    : <div className="flex size-full items-center justify-center text-muted-foreground">
-                        <ImageIcon className="size-6" aria-hidden />
-                      </div>
-                    }
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-2">
-                    <input
-                      ref={fileInputRef}
-                      id="spotlight-edit-image"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="w-full max-w-full min-w-0 text-sm file:mr-2 file:max-w-[50%] file:truncate file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-sm"
-                      disabled={pending}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] ?? null;
-                        handleImageChange(f);
-                      }}
-                    />
-                    {imageFile ?
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto self-start px-0 text-xs"
-                        disabled={pending}
-                        onClick={() => {
-                          handleImageChange(null);
-                          if (fileInputRef.current) fileInputRef.current.value = "";
-                        }}
-                      >
-                        Clear selected image
-                      </Button>
-                    : null}
-                  </div>
-                </div>
-              </div>
-            : <p className="text-pretty text-xs leading-relaxed break-words text-muted-foreground">
-                Preview image is set. Use{" "}
-                <span className="font-medium text-foreground">Refresh image</span> on
-                the list to re-fetch from the product URL.
-              </p>
-            }
+            <AdminSpotlightPreviewImageField
+              label="Product image"
+              imageUrl={product.imageUrl}
+              pending={pending}
+              entityIdField="productId"
+              entityId={product.id}
+              onRefresh={() =>
+                adminRefreshSpotlightProductImageAction({ id: product.id })
+              }
+              onUpload={adminUploadSpotlightProductImageAction}
+              onSetImageUrl={(url) =>
+                adminSetSpotlightProductImageUrlAction({
+                  id: product.id,
+                  imageUrl: url,
+                })
+              }
+              onSuccess={onRefresh}
+              runMutation={runMutation}
+            />
 
             {dialogError ?
               <p

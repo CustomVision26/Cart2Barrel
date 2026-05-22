@@ -7,7 +7,11 @@ import {
   adminCreateSpotlightVariantAction,
   adminDeleteSpotlightVariantAction,
   adminImportSpotlightVariantsAction,
+  adminRefreshSpotlightVariantImageAction,
+  adminSetSpotlightVariantImageUrlAction,
+  adminUploadSpotlightVariantImageAction,
 } from "@/actions/admin-spotlight-variants";
+import { AdminSpotlightPreviewImageField } from "@/components/admin/admin-spotlight-preview-image-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,8 +42,9 @@ function VariantRow({
   runMutation: (fn: () => Promise<void>) => void;
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-border/80 bg-muted/20 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 text-sm">
+    <li className="flex flex-col gap-3 rounded-md border border-border/80 bg-muted/20 px-3 py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 flex-1 text-sm">
         <p className="font-medium text-foreground">
           {variant.label?.trim() || "Variant"}
           {!variant.isActive ?
@@ -75,6 +80,7 @@ function VariantRow({
         type="button"
         variant="destructive"
         size="sm"
+        className="shrink-0"
         disabled={pending}
         onClick={() => {
           if (!window.confirm("Remove this variant?")) return;
@@ -89,6 +95,22 @@ function VariantRow({
         <Trash2 className="size-3.5" aria-hidden />
         Remove
       </Button>
+      </div>
+      <AdminSpotlightPreviewImageField
+        label="Variant image"
+        imageUrl={variant.imageUrl}
+        pending={pending}
+        compact
+        entityIdField="variantId"
+        entityId={variant.id}
+        onRefresh={() => adminRefreshSpotlightVariantImageAction({ id: variant.id })}
+        onUpload={adminUploadSpotlightVariantImageAction}
+        onSetImageUrl={(url) =>
+          adminSetSpotlightVariantImageUrlAction({ id: variant.id, imageUrl: url })
+        }
+        onSuccess={onRefresh}
+        runMutation={runMutation}
+      />
     </li>
   );
 }

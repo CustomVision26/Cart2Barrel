@@ -1,9 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { ItemRequestWorkspace } from "@/components/dashboard/item-request-workspace";
 import { getActiveSpotlightProductForPrefill } from "@/data/spotlight-category-products";
+import { Button } from "@/components/ui/button";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
 import {
@@ -15,6 +16,25 @@ import { sanitizeSpotlightUuidQueryParam } from "@/lib/spotlight-request-prefill
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+const WORKFLOW_STEPS = [
+  {
+    step: "01",
+    title: "Product preview",
+    description: "Enter the retailer URL and confirm the listing in the preview panel.",
+  },
+  {
+    step: "02",
+    title: "Request details",
+    description:
+      "Extract listing information with AI, load store variants, or compare prices across retailers.",
+  },
+  {
+    step: "03",
+    title: "Submit for review",
+    description: "Send the completed request to staff for verification and an official quote.",
+  },
+] as const;
 
 function firstQueryParam(
   raw: string | string[] | undefined,
@@ -77,75 +97,70 @@ export default async function DashboardAiAssistedItemRequestPage({
     spotlightPrefill?.productUrl ?? normalizedUrl ?? undefined;
 
   return (
-    <div className="space-y-8">
-      <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-        <ol className="flex flex-wrap items-center gap-1.5">
+    <div className="space-y-10">
+      <nav aria-label="Breadcrumb">
+        <ol className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
           <li>
             <Link
               href={DASHBOARD_REQUESTED_ITEMS_ROUTE}
-              className="font-medium text-foreground underline-offset-4 hover:underline"
+              className="transition-colors hover:text-foreground"
             >
               Requested items
             </Link>
           </li>
-          <li className="flex items-center gap-1.5" aria-hidden>
-            <ChevronRight className="size-3.5 shrink-0 opacity-60" />
-            <span className="text-muted-foreground">AI-assisted request</span>
+          <li className="flex items-center gap-1" aria-hidden>
+            <ChevronRight className="size-3.5 shrink-0 opacity-50" />
+            <span className="font-medium text-foreground">
+              AI-assisted request
+            </span>
           </li>
         </ol>
       </nav>
 
-      <header className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-background to-background p-6 shadow-sm sm:p-8">
-        <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/5 blur-3xl" />
-        <div className="relative space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
-            <Sparkles className="size-3.5 text-primary" aria-hidden />
-            Smart listing read
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Request an item with AI help
-            </h1>
-            <p className="max-w-2xl text-pretty text-sm text-muted-foreground sm:text-base">
-              Paste a product link, preview the store in your browser, then let AI
-              pull title, variant, and a merchandise estimate from the page—or
-              compare prices across retailers before you submit.
-            </p>
-          </div>
-          <ol className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-            {[
-              { step: "1", label: "Load preview", detail: "Shop the listing here" },
-              {
-                step: "2",
-                label: "Fill or compare",
-                detail: "AI details or retailer search",
-              },
-              { step: "3", label: "Submit", detail: "Staff reviews & quotes" },
-            ].map(({ step, label, detail }) => (
-              <li
-                key={step}
-                className="flex min-w-0 items-start gap-3 rounded-xl border border-border/80 bg-background/60 px-3 py-2.5 shadow-sm backdrop-blur sm:max-w-[13rem]"
-              >
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
-                  {step}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-foreground">
-                    {label}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{detail}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Link
-              href={DASHBOARD_ADD_ITEM_ROUTES.productsActive}
-              className="inline-flex items-center justify-center rounded-lg border border-transparent bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+      <header className="space-y-8 border-b border-border pb-8">
+        <div className="space-y-3">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+            New item request
+          </p>
+          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            AI-assisted item request
+          </h1>
+          <p className="max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+            Provide a product URL, review the listing, and submit structured details
+            for staff review. AI can extract title, variant, and an estimated
+            merchandise total, or help you compare verified offers from other
+            retailers before submission.
+          </p>
+        </div>
+
+        <ol className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3">
+          {WORKFLOW_STEPS.map(({ step, title, description }) => (
+            <li
+              key={step}
+              className="flex flex-col gap-2 bg-background px-4 py-4 sm:px-5"
             >
-              View your requests
-            </Link>
-          </div>
+              <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">
+                {step}
+              </span>
+              <span className="text-sm font-medium text-foreground">{title}</span>
+              <span className="text-xs leading-relaxed text-muted-foreground">
+                {description}
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            nativeButton={false}
+            render={
+              <Link href={DASHBOARD_ADD_ITEM_ROUTES.productsActive} />
+            }
+            variant="outline"
+            size="sm"
+          >
+            View submitted requests
+          </Button>
         </div>
       </header>
 

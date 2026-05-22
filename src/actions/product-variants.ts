@@ -6,8 +6,6 @@ import { fetchProductVariants } from "@/lib/product-variants/fetch-product-varia
 import type { FetchProductVariantsResult } from "@/lib/product-variants/types";
 import { fetchProductVariantsSchema } from "@/lib/validations/product-variants";
 
-export type { ProductVariantOffer } from "@/lib/product-variants/types";
-
 export async function fetchProductVariantsAction(
   raw: unknown,
 ): Promise<FetchProductVariantsResult> {

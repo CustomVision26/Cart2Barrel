@@ -51,6 +51,33 @@ function walmartUrlFromIds(
   return null;
 }
 
+/** Title, price, and hero image for a Walmart product id (one SerpApi call). */
+export async function fetchWalmartProductSummary(productId: string): Promise<{
+  title: string | null;
+  priceUsdCents: number | null;
+  imageUrl: string | null;
+  productUrl: string | null;
+}> {
+  const data = await serpApiGet<WalmartProductResponse>({
+    engine: "walmart_product",
+    product_id: productId,
+  });
+  const pr = data.product_result;
+  if (!pr) {
+    return { title: null, priceUsdCents: null, imageUrl: null, productUrl: null };
+  }
+  return {
+    title: pr.title?.trim() || null,
+    priceUsdCents: priceUsdToCents(pr.price_map?.price),
+    imageUrl: pr.images?.[0]?.trim() || null,
+    productUrl: walmartUrlFromIds(
+      pr.product_page_url,
+      pr.us_item_id,
+      pr.product_id,
+    ),
+  };
+}
+
 /**
  * All SKU rows from Walmart `variant_swatches` (one SerpApi call).
  */

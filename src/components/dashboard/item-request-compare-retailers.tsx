@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, Loader2, ShoppingBag } from "lucide-react";
 
-import type { RetailerPriceOffer } from "@/actions/compare-retailer-prices";
+import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -53,19 +53,19 @@ export function ItemRequestCompareRetailers({
     previewUrl ? offers.find((o) => o.productUrl === previewUrl) : null;
 
   return (
-    <Card className="overflow-hidden shadow-sm ring-1 ring-border/50">
-      <CardHeader className="border-b border-border/80 bg-muted/15 pb-4">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <ShoppingBag className="size-5" aria-hidden />
-          Comparing retailer offers
+    <Card className="overflow-hidden border-border/80 shadow-none">
+      <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
+          <ShoppingBag className="size-4 text-muted-foreground" aria-hidden />
+          Retailer price comparison
         </CardTitle>
-        <CardDescription>
-          SerpApi searches Google Shopping; OpenAI verifies each hit matches your
-          product (≥90% confidence). Preview a listing, then submit a request for
-          staff to quote.
+        <CardDescription className="text-sm leading-relaxed">
+          Search verified offers across retailers. Each result is matched to your
+          product name before display. Preview a listing, then submit for staff review
+          and quotation.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-4 px-6 py-5">
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
@@ -78,7 +78,7 @@ export function ItemRequestCompareRetailers({
                 <Loader2 className="size-4 animate-spin" aria-hidden />
                 Comparing…
               </>
-            : "Compare prices with AI"}
+            : "Compare retailer prices"}
           </Button>
           {searchQuery ?
             <span className="text-xs text-muted-foreground">
@@ -203,7 +203,7 @@ export function ItemRequestCompareRetailers({
                               {isSubmitPending ?
                                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
                               : null}
-                              Submit request
+                              Submit for review
                             </Button>
                           </div>
                         </td>

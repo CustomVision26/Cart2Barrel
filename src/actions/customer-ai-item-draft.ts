@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { extractProductWithOpenAI } from "@/lib/ai/extract-product-openai";
 import { fetchPageHtmlForAi } from "@/lib/ai/fetch-page-for-ai";
+import { validateItemRequestRetailerUrl } from "@/lib/product-url/item-request-retailer-url";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 import { parseCustomerAiItemDraftInput } from "@/lib/validations/customer-ai-item-draft";
 
@@ -56,7 +57,13 @@ export async function draftItemRequestFromUrlAction(
     return { ok: false, fieldErrors, message: "Invalid input." };
   }
 
-  const { productUrl, quantity, productSize, productColor } = parsed.data;
+  const retailerCheck = validateItemRequestRetailerUrl(parsed.data.productUrl);
+  if (!retailerCheck.ok) {
+    return { ok: false, message: retailerCheck.message };
+  }
+
+  const { quantity, productSize, productColor } = parsed.data;
+  const productUrl = retailerCheck.href;
 
   try {
     const html = await fetchPageHtmlForAi(productUrl);

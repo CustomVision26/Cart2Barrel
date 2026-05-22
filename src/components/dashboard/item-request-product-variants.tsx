@@ -27,6 +27,7 @@ type ItemRequestProductVariantsProps = {
   onApplyVariant: (variant: ProductVariantOffer) => void;
   onSubmitVariant: (variant: ProductVariantOffer) => void;
   canLoadVariants: boolean;
+  loadVariantsDisabledTitle?: string;
 };
 
 function stockLabel(inStock: boolean | null): string {
@@ -48,27 +49,28 @@ export function ItemRequestProductVariants({
   onApplyVariant,
   onSubmitVariant,
   canLoadVariants,
+  loadVariantsDisabledTitle,
 }: ItemRequestProductVariantsProps) {
   return (
-    <Card className="overflow-hidden shadow-sm ring-1 ring-border/50">
-      <CardHeader className="border-b border-border/80 bg-muted/15 pb-4">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Layers className="size-5" aria-hidden />
+    <Card className="overflow-hidden border-border/80 shadow-none">
+      <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
+          <Layers className="size-4 text-muted-foreground" aria-hidden />
           Store variants
         </CardTitle>
-        <CardDescription>
-          Loads sizes, colors, and pack options for this retailer from SerpApi
-          (Walmart, Amazon, Google Shopping) and from the product page (Temu,
-          Shein, and others). Apply copies the variant and reads the product
-          title from the retailer page into the request form.
+        <CardDescription className="text-sm leading-relaxed">
+          Load available sizes, colors, and pack options for the current product URL.
+          Apply copies variant details and listing information into the request form.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-4 px-6 py-5">
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="secondary"
+            className={cn(!canLoadVariants && "opacity-50")}
             disabled={!canLoadVariants || isVariantsPending || isSubmitPending}
+            title={loadVariantsDisabledTitle}
             onClick={onLoadVariants}
           >
             {isVariantsPending ?
@@ -76,7 +78,7 @@ export function ItemRequestProductVariants({
                 <Loader2 className="size-4 animate-spin" aria-hidden />
                 Loading variants…
               </>
-            : "Load all store variants"}
+            : "Load store variants"}
           </Button>
           {retailer ?
             <span className="text-sm text-muted-foreground">{retailer}</span>
@@ -173,7 +175,7 @@ export function ItemRequestProductVariants({
                           disabled={isSubmitPending}
                           onClick={() => onSubmitVariant(row)}
                         >
-                          Submit request
+                          Submit for review
                         </Button>
                         {row.productUrl ?
                           <a

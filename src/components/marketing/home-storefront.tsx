@@ -117,7 +117,6 @@ export function HomeStorefront({
       <HomeSpotlightCarousel
         isSignedIn={isSignedIn}
         productsByCategory={productsByCategory}
-        secondaryHref={secondaryHref}
       />
     </main>
   );

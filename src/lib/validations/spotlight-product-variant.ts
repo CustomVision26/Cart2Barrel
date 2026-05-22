@@ -34,6 +34,15 @@ export const adminImportSpotlightVariantsSchema = z.object({
   replaceExisting: z.boolean().optional().default(false),
 });
 
+const optionalHttpsImageUrl = z
+  .string()
+  .trim()
+  .max(2048)
+  .optional()
+  .refine((s) => !s || /^https:\/\//i.test(s), {
+    message: "Image URL must start with https://",
+  });
+
 export const adminCreateSpotlightVariantSchema = z.object({
   parentProductId: z.string().uuid(),
   label: z.string().trim().max(200).optional(),
@@ -42,6 +51,7 @@ export const adminCreateSpotlightVariantSchema = z.object({
   productColor: optionalVariantText,
   packLabel: optionalVariantText,
   productUrl: httpsProductUrlOptional,
+  imageUrl: optionalHttpsImageUrl,
 });
 
 export const adminUpdateSpotlightVariantSchema = z.object({
@@ -59,6 +69,22 @@ export const adminDeleteSpotlightVariantSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const adminRefreshSpotlightVariantImageSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export const adminSetSpotlightVariantImageUrlSchema = z.object({
+  id: z.string().uuid(),
+  imageUrl: z
+    .string()
+    .trim()
+    .min(8)
+    .max(2048)
+    .refine((s) => /^https:\/\//i.test(s), {
+      message: "Image URL must start with https://",
+    }),
+});
+
 export function spotlightVariantFieldsFromInput(input: {
   label?: string;
   priceUsd?: string;
@@ -66,6 +92,7 @@ export function spotlightVariantFieldsFromInput(input: {
   productColor?: string;
   packLabel?: string;
   productUrl?: string;
+  imageUrl?: string;
 }): {
   label: string | null;
   priceUsdCents: number | null;
@@ -73,6 +100,7 @@ export function spotlightVariantFieldsFromInput(input: {
   productColor: string | null;
   packLabel: string | null;
   productUrl: string | null;
+  imageUrl: string | null;
 } {
   return {
     label: normalizeOptionalVariantField(input.label),
@@ -81,5 +109,6 @@ export function spotlightVariantFieldsFromInput(input: {
     productColor: normalizeOptionalVariantField(input.productColor),
     packLabel: normalizeOptionalVariantField(input.packLabel),
     productUrl: normalizeOptionalVariantField(input.productUrl),
+    imageUrl: normalizeOptionalVariantField(input.imageUrl),
   };
 }

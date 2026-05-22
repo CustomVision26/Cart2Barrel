@@ -26,6 +26,15 @@ const optionalPriceUsd = z
 
 const optionalVariantText = z.string().trim().max(120).optional();
 
+const optionalHttpsImageUrl = z
+  .string()
+  .trim()
+  .max(2048)
+  .optional()
+  .refine((s) => !s || /^https:\/\//i.test(s), {
+    message: "Image URL must start with https://",
+  });
+
 export const adminCreateSpotlightProductSchema = z.object({
   categorySlug: z.enum(spotlightCategorySlugSchema),
   productUrl: httpsProductUrl,
@@ -34,6 +43,8 @@ export const adminCreateSpotlightProductSchema = z.object({
   priceUsd: optionalPriceUsd,
   productSize: optionalVariantText,
   productColor: optionalVariantText,
+  /** SerpApi / listing image; skips og fetch when provided. */
+  imageUrl: optionalHttpsImageUrl,
 });
 
 export type AdminCreateSpotlightProductInput = z.infer<
@@ -46,6 +57,18 @@ export const adminDeleteSpotlightProductSchema = z.object({
 
 export const adminRefreshSpotlightProductImageSchema = z.object({
   id: z.string().uuid(),
+});
+
+export const adminSetSpotlightProductImageUrlSchema = z.object({
+  id: z.string().uuid(),
+  imageUrl: z
+    .string()
+    .trim()
+    .min(8)
+    .max(2048)
+    .refine((s) => /^https:\/\//i.test(s), {
+      message: "Image URL must start with https://",
+    }),
 });
 
 export const adminUpdateSpotlightProductSchema = z.object({

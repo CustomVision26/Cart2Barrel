@@ -1,4 +1,3 @@
-import { currentUser } from "@clerk/nextjs/server";
 import {
   ArrowRight,
   Box,
@@ -6,7 +5,6 @@ import {
   Package,
   PlusCircle,
   ShoppingCart,
-  Sparkles,
   Truck,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,7 +19,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getDashboardOverviewStats } from "@/data/dashboard-overview";
-import { getProfileByClerkId } from "@/data/profiles";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
 import { cn } from "@/lib/utils";
@@ -88,37 +85,34 @@ const FLOW_STEPS = [
   },
 ] as const;
 
-function displayName(
-  firstName: string | null | undefined,
-  fullName: string | null | undefined,
-): string {
-  if (firstName?.trim()) return firstName.trim();
-  const fromProfile = fullName?.trim();
-  if (fromProfile) return fromProfile.split(/\s+/)[0] ?? fromProfile;
-  return "there";
-}
-
 function StatCard({
   label,
   value,
   hint,
   href,
   highlight,
+  highlightTone = "amber",
 }: {
   label: string;
   value: number | string;
   hint: string;
   href: string;
   highlight?: boolean;
+  highlightTone?: "amber" | "sky";
 }) {
   return (
     <Link
       href={href}
       className={cn(
         "group flex flex-col gap-2 rounded-xl border bg-card/80 p-4 shadow-sm ring-1 transition-all hover:-translate-y-0.5 hover:shadow-md",
-        highlight
-          ? "border-amber-500/40 ring-amber-500/25 hover:border-amber-500/55"
-          : "border-border/80 ring-foreground/5 hover:border-primary/35 hover:ring-primary/15",
+        !highlight &&
+          "border-border/80 ring-foreground/5 hover:border-primary/35 hover:ring-primary/15",
+        highlight &&
+          highlightTone === "sky" &&
+          "border-sky-500/40 ring-sky-500/25 hover:border-sky-500/55",
+        highlight &&
+          highlightTone === "amber" &&
+          "border-amber-500/40 ring-amber-500/25 hover:border-amber-500/55",
       )}
     >
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -135,76 +129,13 @@ function StatCard({
 }
 
 export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }) {
-  const [stats, profile, user] = await Promise.all([
-    getDashboardOverviewStats(clerkUserId),
-    getProfileByClerkId(clerkUserId),
-    currentUser(),
-  ]);
-
-  const name = displayName(user?.firstName, profile?.fullName ?? null);
+  const stats = await getDashboardOverviewStats(clerkUserId);
 
   return (
     <div className="space-y-8">
-      <section className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/30 p-6 shadow-sm ring-1 ring-foreground/5 sm:p-8">
-        <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-primary/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-12 -left-10 size-44 rounded-full bg-violet-500/10 blur-2xl" />
-        <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
-              <Sparkles className="size-3.5 text-primary" aria-hidden />
-              Your shopping hub
-            </div>
-            <div className="space-y-2">
-              <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                Welcome back, {name}
-              </h1>
-              <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                Request US products, checkout when quotes are ready, and track everything
-                from purchase through barrel shipping to Jamaica.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button nativeButton={false} render={<Link href={DASHBOARD_ADD_ITEM_ROUTES.productsActive} />}>
-                <PlusCircle className="size-4" aria-hidden />
-                Add a product
-              </Button>
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={<Link href="/dashboard/cart" />}
-              >
-                <ShoppingCart className="size-4" aria-hidden />
-                View cart
-                {stats.cartItemCount > 0 ?
-                  <span className="ml-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                    {stats.cartItemCount}
-                  </span>
-                : null}
-              </Button>
-            </div>
-          </div>
-          <div className="hidden rounded-xl border border-border/60 bg-background/50 p-4 backdrop-blur-sm lg:block lg:min-w-[14rem]">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Storefront tip
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-foreground">
-              Batch two or more items from the same retailer to unlock bundled checkout
-              estimates.
-            </p>
-            <Link
-              href={DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-            >
-              Open batch quotes
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
-          </div>
-        </div>
-      </section>
-
       <DashboardRefundAwaitingBanner clerkUserId={clerkUserId} />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label="Cart"
           value={stats.cartItemCount}
@@ -222,6 +153,25 @@ export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }
           hint="Approve estimates to add to cart"
           href={DASHBOARD_ADD_ITEM_ROUTES.productsActive}
           highlight={stats.quotedProductCount > 0}
+        />
+        <StatCard
+          label="Awaiting inbound"
+          value={stats.awaitingInboundProductCount}
+          hint={
+            stats.awaitingInboundProductCount === 1
+              ? "Product en route to the warehouse"
+              : "Products en route to the warehouse"
+          }
+          href="/dashboard/orders"
+          highlight={stats.awaitingInboundProductCount > 0}
+          highlightTone="sky"
+        />
+        <StatCard
+          label="Need corrections"
+          value={stats.needCorrectionsProductCount}
+          hint="Refund, return, or receipt issues needing attention"
+          href="/dashboard/orders"
+          highlight={stats.needCorrectionsProductCount > 0}
         />
         <StatCard
           label="Paid orders"

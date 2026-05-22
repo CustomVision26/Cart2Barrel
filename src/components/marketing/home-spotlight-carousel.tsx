@@ -19,7 +19,13 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { SpotlightAllCategoriesCatalogDialog } from "@/components/marketing/spotlight-all-categories-catalog-dialog";
 import { SpotlightCategoryProductsDialog } from "@/components/marketing/spotlight-category-products-dialog";
+import { SpotlightProductOffersCarousel } from "@/components/marketing/spotlight-product-offers-carousel";
+import {
+  aiAssistedRequestUrlWithSpotlightProduct,
+} from "@/lib/ai-assisted-request-url";
+import { displaySiteName } from "@/lib/site-name";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
 import {
   SPOTLIGHT_CATEGORIES,
@@ -33,17 +39,41 @@ type HomeSpotlightCarouselProps = {
   productsByCategory: Partial<
     Record<SpotlightCategorySlug, PublicSpotlightProduct[]>
   >;
-  secondaryHref: string;
 };
 
-const PREVIEW_THUMB_MAX = 5;
+function categorySlideOffers(
+  products: PublicSpotlightProduct[],
+  isSignedIn: boolean,
+) {
+  return products.map((product) => {
+    const title =
+      product.label?.trim() || displaySiteName(null, product.productUrl);
+    const addHref =
+      isSignedIn ?
+        aiAssistedRequestUrlWithSpotlightProduct(product)
+      : `/signup?redirect_url=${encodeURIComponent(aiAssistedRequestUrlWithSpotlightProduct(product))}`;
+
+    return {
+      id: product.id,
+      title,
+      imageUrl: product.imageUrl?.trim() || null,
+      priceUsdCents: product.priceUsdCents,
+      attributes: [product.productSize, product.productColor]
+        .map((p) => p?.trim())
+        .filter(Boolean)
+        .join(" · ") || null,
+      storeUrl: product.productUrl,
+      addHref,
+    };
+  });
+}
 
 export function HomeSpotlightCarousel({
   isSignedIn,
   productsByCategory,
-  secondaryHref,
 }: HomeSpotlightCarouselProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [activeCategory, setActiveCategory] =
     useState<SpotlightCategoryDefinition | null>(null);
 
@@ -63,16 +93,15 @@ export function HomeSpotlightCarousel({
             Featured &amp; spotlight
           </h2>
           <p className="text-sm text-muted-foreground">
-            Horizontal carousel—double-click a category to browse curated product
-            links.
+            Swipe categories, then browse products in each slide—or open the full
+            catalog.
           </p>
         </div>
         <Button
           variant="ghost"
           size="sm"
           className="text-muted-foreground hover:text-foreground"
-          nativeButton={false}
-          render={<Link href={secondaryHref} />}
+          onClick={() => setCatalogOpen(true)}
         >
           View all categories
         </Button>
@@ -84,84 +113,58 @@ export function HomeSpotlightCarousel({
             {SPOTLIGHT_CATEGORIES.map((slide) => {
               const Icon = slide.icon;
               const products = productsByCategory[slide.slug] ?? [];
-              const previews = products
-                .filter((p) => p.imageUrl)
-                .slice(0, PREVIEW_THUMB_MAX);
+              const slideOffers = categorySlideOffers(products, isSignedIn);
 
               return (
                 <CarouselItem
                   key={slide.slug}
-                  className="basis-[88%] pl-3 sm:basis-[70%] md:basis-[48%] md:pl-4 lg:basis-[34%]"
+                  className="basis-[92%] pl-3 sm:basis-[78%] md:basis-[62%] md:pl-4 lg:basis-[48%] xl:basis-[40%]"
                 >
-                  <Card
-                    className="h-full cursor-pointer overflow-hidden border-border/80 shadow-sm transition-shadow hover:shadow-md"
-                    onDoubleClick={() => openCategory(slide)}
-                    title="Double-click to view products in this category"
-                  >
+                  <Card className="flex h-full flex-col overflow-hidden border-border/80 shadow-sm">
                     <div
                       className={cn(
-                        "relative flex h-36 flex-col justify-between bg-gradient-to-br p-4 md:h-40",
+                        "relative flex shrink-0 items-start justify-between bg-gradient-to-br p-4",
                         slide.gradient,
                       )}
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
                         <div className="rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur">
                           {slide.tag}
                         </div>
-                        <Icon
-                          className="size-14 text-foreground/25 md:size-16"
-                          aria-hidden
-                        />
+                        <CardTitle className="text-lg text-foreground">
+                          {slide.title}
+                        </CardTitle>
                       </div>
-                      {previews.length > 0 ?
-                        <div className="flex items-center gap-1.5">
-                          {previews.map((product) => (
-                            <div
-                              key={product.id}
-                              className="size-9 overflow-hidden rounded-md border border-background/60 bg-background/90 shadow-sm ring-1 ring-border/40"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={product.imageUrl!}
-                                alt=""
-                                className="size-full object-cover"
-                              />
-                            </div>
-                          ))}
-                          {products.length > previews.length ?
-                            <span className="rounded-md bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-foreground shadow-sm backdrop-blur">
-                              +{products.length - previews.length}
-                            </span>
-                          : null}
-                        </div>
-                      : null}
+                      <Icon
+                        className="size-12 shrink-0 text-foreground/20 sm:size-14"
+                        aria-hidden
+                      />
                     </div>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">{slide.title}</CardTitle>
-                      <CardDescription>{slide.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <p className="text-sm font-medium text-foreground">
-                        {slide.priceHint}
-                      </p>
-                      {products.length > 0 ?
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {products.length} curated product
-                          {products.length === 1 ? "" : "s"} · double-click to browse
+
+                    <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pt-4">
+                      <CardDescription className="line-clamp-2">
+                        {slide.description}
+                      </CardDescription>
+                      {slideOffers.length > 0 ?
+                        <SpotlightProductOffersCarousel
+                          offers={slideOffers}
+                          loop={slideOffers.length > 1}
+                          showControls={slideOffers.length > 1}
+                        />
+                      : <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-6 text-center text-xs text-muted-foreground">
+                          Curated products coming soon for this category.
                         </p>
-                      : null}
+                      }
                     </CardContent>
-                    <CardFooter className="border-t border-border/60 bg-muted/30">
+
+                    <CardFooter className="shrink-0 border-t border-border/60 bg-muted/30">
                       <Button
                         variant="secondary"
                         size="sm"
                         className="w-full"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          openCategory(slide);
-                        }}
+                        onClick={() => openCategory(slide)}
                       >
-                        Browse products
+                        View all in {slide.title}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -185,6 +188,13 @@ export function HomeSpotlightCarousel({
         onOpenChange={setDialogOpen}
         category={activeCategory}
         products={activeProducts}
+        isSignedIn={isSignedIn}
+      />
+
+      <SpotlightAllCategoriesCatalogDialog
+        open={catalogOpen}
+        onOpenChange={setCatalogOpen}
+        productsByCategory={productsByCategory}
         isSignedIn={isSignedIn}
       />
     </section>

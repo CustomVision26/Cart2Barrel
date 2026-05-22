@@ -29,13 +29,14 @@ import {
   adminCreateSpotlightProductSchema,
   adminDeleteSpotlightProductSchema,
   adminRefreshSpotlightProductImageSchema,
+  adminSetSpotlightProductImageUrlSchema,
   adminUpdateSpotlightProductSchema,
   normalizeOptionalVariantField,
   parseOptionalPriceUsdToCents,
 } from "@/lib/validations/spotlight-category-product";
 
 export type AdminSpotlightProductMutationState =
-  | { ok: true; message?: string }
+  | { ok: true; message?: string; productId?: string }
   | { ok: false; message: string };
 
 function revalidateSpotlightPaths(): void {
@@ -59,36 +60,52 @@ export async function adminCreateSpotlightProductAction(
     };
   }
 
-  const { categorySlug, productUrl, label, priceUsd, productSize, productColor } =
-    parsed.data;
+  const {
+    categorySlug,
+    productUrl,
+    label,
+    priceUsd,
+    productSize,
+    productColor,
+    imageUrl: imageUrlInput,
+  } = parsed.data;
   const priceUsdCents = parseOptionalPriceUsdToCents(priceUsd);
-  let imageUrl: string | null = null;
-  try {
-    imageUrl = await resolveSpotlightProductPreviewImage(productUrl);
-  } catch {
-    imageUrl = null;
+  let imageUrl: string | null = imageUrlInput?.trim() || null;
+  if (!imageUrl) {
+    try {
+      imageUrl = await resolveSpotlightProductPreviewImage(productUrl);
+    } catch {
+      imageUrl = null;
+    }
   }
 
   const sortIndex = await nextSpotlightSortIndex(categorySlug);
   const db = getDb();
-  await db.insert(spotlightCategoryProducts).values({
-    categorySlug,
-    productUrl,
-    imageUrl,
-    priceUsdCents,
-    productSize: normalizeOptionalVariantField(productSize),
-    productColor: normalizeOptionalVariantField(productColor),
-    label: label?.trim() || null,
-    sortIndex,
-    isActive: true,
-  });
+  const [inserted] = await db
+    .insert(spotlightCategoryProducts)
+    .values({
+      categorySlug,
+      productUrl,
+      imageUrl,
+      priceUsdCents,
+      productSize: normalizeOptionalVariantField(productSize),
+      productColor: normalizeOptionalVariantField(productColor),
+      label: label?.trim() || null,
+      sortIndex,
+      isActive: true,
+    })
+    .returning({ id: spotlightCategoryProducts.id });
 
   revalidateSpotlightPaths();
   const previewNote =
     imageUrl ?
       "Product added with preview image."
     : "Product added. Preview image could not be fetched—you can retry refresh.";
-  return { ok: true, message: previewNote };
+  return {
+    ok: true,
+    message: previewNote,
+    productId: inserted?.id,
+  };
 }
 
 export async function adminDeleteSpotlightProductAction(
@@ -151,7 +168,7 @@ export async function adminRefreshSpotlightProductImageAction(
     return {
       ok: false,
       message:
-        "Could not fetch a preview image from that URL. The retailer may block automated access.",
+        "Could not fetch a preview image. Amazon/Walmart pages often block HTML scraping; variant rows usually get images from SerpApi at import. Try Upload, Paste URL, or use a /dp/ASIN product link.",
     };
   }
   return { ok: true, message: "Preview image updated." };
@@ -223,10 +240,12 @@ export async function adminUploadSpotlightProductImageAction(
   if (!row) {
     return { ok: false, message: "Product not found." };
   }
-  if (row.imageUrl) {
+  const replace = formData.get("replace") === "true";
+  if (row.imageUrl && !replace) {
     return {
       ok: false,
-      message: "This product already has an image. Use Refresh image to replace it.",
+      message:
+        "This product already has an image. Upload again with replace enabled, or use Refresh image.",
     };
   }
 
@@ -260,4 +279,31 @@ export async function adminUploadSpotlightProductImageAction(
   await updateSpotlightProductImage(productId, imageUrl);
   revalidateSpotlightPaths();
   return { ok: true, imageUrl };
+}
+
+/** Set preview image from an https URL (manual paste). */
+export async function adminSetSpotlightProductImageUrlAction(
+  input: unknown,
+): Promise<AdminSpotlightProductMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminSetSpotlightProductImageUrlSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  const row = await getSpotlightProductById(parsed.data.id);
+  if (!row) {
+    return { ok: false, message: "Product not found." };
+  }
+
+  await updateSpotlightProductImage(parsed.data.id, parsed.data.imageUrl.trim());
+  revalidateSpotlightPaths();
+  return { ok: true, message: "Preview image saved." };
 }
