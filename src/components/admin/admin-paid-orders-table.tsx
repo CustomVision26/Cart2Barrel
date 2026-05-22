@@ -595,6 +595,7 @@ function AdminOrderDataRow(props: {
             fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
             refundedCents: row.refundedCents,
             linePriceCents: row.orderItem.price,
+            warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
           })}
         </StatusBadge>
       </td>

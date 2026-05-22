@@ -11,7 +11,7 @@ export async function DashboardRefundAwaitingBanner({
   if (n < 1) return null;
 
   return (
-    <div className="rounded-lg border border-amber-500/35 bg-amber-500/[0.12] px-4 py-3 text-sm">
+    <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.12] px-4 py-4 text-sm shadow-sm ring-1 ring-amber-500/20">
       <p className="font-medium text-amber-950 dark:text-amber-50">
         {n === 1
           ? "You have one refund request waiting for Cart2Barrel approval."

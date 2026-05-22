@@ -3,14 +3,78 @@ import { ChevronRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { ItemRequestWorkspace } from "@/components/dashboard/item-request-workspace";
+import { getActiveSpotlightProductForPrefill } from "@/data/spotlight-category-products";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
+import {
+  normalizeSpotlightProductUrlInput,
+  resolveSpotlightProductPageMeta,
+} from "@/lib/spotlight-product-preview";
+import { sanitizeSpotlightUuidQueryParam } from "@/lib/spotlight-request-prefill";
 
-export default async function DashboardAiAssistedItemRequestPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function firstQueryParam(
+  raw: string | string[] | undefined,
+): string | undefined {
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) return raw[0];
+  return undefined;
+}
+
+export default async function DashboardAiAssistedItemRequestPage({
+  searchParams,
+}: PageProps) {
   const { userId } = await auth();
   if (!userId) {
     return null;
   }
+
+  const rawSp = (await searchParams) ?? {};
+  const spotlightProductId = sanitizeSpotlightUuidQueryParam(
+    firstQueryParam(rawSp.spotlightProductId),
+  );
+  const spotlightVariantId = sanitizeSpotlightUuidQueryParam(
+    firstQueryParam(rawSp.spotlightVariantId),
+  );
+  const productUrlParam = firstQueryParam(rawSp.productUrl);
+  const normalizedUrl = normalizeSpotlightProductUrlInput(productUrlParam ?? "");
+
+  let spotlightPrefill = null;
+  try {
+    spotlightPrefill = await getActiveSpotlightProductForPrefill({
+      id: spotlightProductId,
+      variantId: spotlightVariantId,
+      productUrl: normalizedUrl ?? undefined,
+    });
+  } catch {
+    spotlightPrefill = null;
+  }
+
+  if (spotlightPrefill) {
+    const needsImage = !spotlightPrefill.imageUrl?.trim();
+    const needsName = !spotlightPrefill.label?.trim();
+    if (needsImage || needsName) {
+      try {
+        const meta = await resolveSpotlightProductPageMeta(
+          spotlightPrefill.productUrl,
+        );
+        spotlightPrefill = {
+          ...spotlightPrefill,
+          imageUrl:
+            spotlightPrefill.imageUrl?.trim() || meta.imageUrl || null,
+          label: spotlightPrefill.label?.trim() || meta.title || null,
+        };
+      } catch {
+        // Keep DB values only.
+      }
+    }
+  }
+
+  const initialProductUrl =
+    spotlightPrefill?.productUrl ?? normalizedUrl ?? undefined;
 
   return (
     <div className="space-y-8">
@@ -44,14 +108,18 @@ export default async function DashboardAiAssistedItemRequestPage() {
             </h1>
             <p className="max-w-2xl text-pretty text-sm text-muted-foreground sm:text-base">
               Paste a product link, preview the store in your browser, then let AI
-              pull title, variant, and a merchandise estimate from the page. You
-              review everything before staff quotes you.
+              pull title, variant, and a merchandise estimate from the page—or
+              compare prices across retailers before you submit.
             </p>
           </div>
           <ol className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
             {[
               { step: "1", label: "Load preview", detail: "Shop the listing here" },
-              { step: "2", label: "Fill with AI", detail: "Match URL & quantity" },
+              {
+                step: "2",
+                label: "Fill or compare",
+                detail: "AI details or retailer search",
+              },
               { step: "3", label: "Submit", detail: "Staff reviews & quotes" },
             ].map(({ step, label, detail }) => (
               <li
@@ -81,7 +149,10 @@ export default async function DashboardAiAssistedItemRequestPage() {
         </div>
       </header>
 
-      <ItemRequestWorkspace />
+      <ItemRequestWorkspace
+        initialProductUrl={initialProductUrl}
+        spotlightPrefill={spotlightPrefill}
+      />
     </div>
   );
 }

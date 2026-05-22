@@ -7,6 +7,7 @@ import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { HomeStorefront } from "@/components/marketing/home-storefront";
 import { Button } from "@/components/ui/button";
 import { getProfileByClerkId, isOnboardingComplete } from "@/data/profiles";
+import { listActiveSpotlightProductsByCategory } from "@/data/spotlight-category-products";
 
 export default async function Home() {
   const { userId } = await auth();
@@ -16,6 +17,13 @@ export default async function Home() {
     if (!profile || !(await isOnboardingComplete(userId, profile))) {
       redirect("/onboarding");
     }
+  }
+
+  let productsByCategory = {};
+  try {
+    productsByCategory = await listActiveSpotlightProductsByCategory();
+  } catch {
+    productsByCategory = {};
   }
 
   return (
@@ -56,7 +64,10 @@ export default async function Home() {
           </nav>
         </div>
       </header>
-      <HomeStorefront isSignedIn={Boolean(userId)} />
+      <HomeStorefront
+        isSignedIn={Boolean(userId)}
+        productsByCategory={productsByCategory}
+      />
     </div>
   );
 }

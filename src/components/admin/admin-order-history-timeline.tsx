@@ -119,6 +119,7 @@ function orderLineTimelineEvents(
     label: "Current fulfillment",
     headline: adminOrderLineStatusLabel(current, {
       pendingRefundRequest: row.pendingRefundRequest != null,
+      warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
     }),
     detail:
       row.pendingRefundRequest != null
@@ -230,6 +231,7 @@ function ProductHistoryCard({
           >
             {adminOrderLineStatusLabel(fulfillment, {
               pendingRefundRequest: pendingRefund,
+              warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
             })}
           </StatusBadge>
           <span className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground">
@@ -291,6 +293,7 @@ function ProductHistoryCard({
             >
               {adminOrderLineStatusLabel(fulfillment, {
                 pendingRefundRequest: pendingRefund,
+                warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
               })}
             </StatusBadge>
           </div>

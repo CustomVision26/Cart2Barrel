@@ -129,8 +129,12 @@ export function DashboardOrdersListControls(props: {
         </button>
       </form>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Results paginate by <span className="font-medium text-foreground">checkout order</span> (each
-        order includes all paid lines below it). Pagination links keep search and sort.
+        Orders appear in horizontal lanes below —{" "}
+        <span className="font-medium text-foreground">Awaiting purchase</span>,{" "}
+        <span className="font-medium text-foreground">Funded</span>, and{" "}
+        <span className="font-medium text-foreground">Need corrections</span> — newest first in each
+        lane. Double-click a card to open the full table grouped by batch and single. Pagination
+        counts orders across all lanes.
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4 text-xs text-muted-foreground">

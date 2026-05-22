@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { confirmCompanyPurchaseAction } from "@/actions/admin-confirm-company-purchase";
 import { AdminRetailerReceiptImagesField } from "@/components/admin/admin-retailer-receipt-images-field";
@@ -33,6 +34,7 @@ export type AdminCompanyPurchaseDialogProps = {
   batchLabel: string | null;
 };
 
+/** Approve paid lines awaiting company purchase; outcomes use Sonner toasts. */
 export function AdminCompanyPurchaseDialog(
   props: AdminCompanyPurchaseDialogProps & {
     initialReceiptImageUrls?: string[] | null;
@@ -57,26 +59,21 @@ export function AdminCompanyPurchaseDialog(
   const [trackingUrl, setTrackingUrl] = useState("");
   const [retailerTrackingCompany, setRetailerTrackingCompany] = useState("");
   const [retailerTrackingNumber, setRetailerTrackingNumber] = useState("");
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [feedbackOk, setFeedbackOk] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const refundable = Math.max(0, linePriceCents - refundedCents);
 
   const submit = useCallback(() => {
-    setFeedback(null);
     const companyTrim = retailerTrackingCompany.trim();
     const numberTrim = retailerTrackingNumber.trim();
     if (numberTrim !== "" && companyTrim === "") {
-      setFeedbackOk(false);
-      setFeedback(
+      toast.error(
         "Enter the retailer / carrier tracking company name when you add a tracking number.",
       );
       return;
     }
     if (companyTrim !== "" && numberTrim === "") {
-      setFeedbackOk(false);
-      setFeedback(
+      toast.error(
         "Enter the tracking number when you add a retailer / carrier name.",
       );
       return;
@@ -89,14 +86,15 @@ export function AdminCompanyPurchaseDialog(
           companyTrim === "" ? undefined : companyTrim,
         retailerTrackingNumber: numberTrim === "" ? undefined : numberTrim,
       });
-      setFeedbackOk(res.ok);
-      setFeedback(res.message);
       if (res.ok) {
+        toast.success(res.message);
         setOpen(false);
         setTrackingUrl("");
         setRetailerTrackingCompany("");
         setRetailerTrackingNumber("");
         router.refresh();
+      } else {
+        toast.error(res.message);
       }
     });
   }, [
@@ -116,8 +114,6 @@ export function AdminCompanyPurchaseDialog(
       onOpenChange={(next) => {
         setOpen(next);
         if (!next) {
-          setFeedback(null);
-          setFeedbackOk(false);
           setTrackingUrl("");
           setRetailerTrackingCompany("");
           setRetailerTrackingNumber("");
@@ -262,17 +258,6 @@ export function AdminCompanyPurchaseDialog(
             </fieldset>
           </div>
 
-          {feedback ?
-            <p
-              className={`rounded-md px-3 py-2 text-xs ${
-                feedbackOk ?
-                  "border border-emerald-500/35 bg-emerald-500/10 text-emerald-100"
-                : "border border-destructive/35 bg-destructive/10 text-foreground"
-              }`}
-            >
-              {feedback}
-            </p>
-          : null}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">

@@ -1,4 +1,4 @@
-import { AdminPaidOrdersTable } from "@/components/admin/admin-paid-orders-table";
+import { AdminOrdersCarouselView } from "@/components/admin/admin-orders-carousel-view";
 import { AdminOrdersListControls } from "@/components/admin/admin-orders-list-controls";
 import { AdminOrdersTabNav } from "@/components/admin/admin-orders-tab-nav";
 import { parseAdminListQuery } from "@/lib/admin-customer-filter";
@@ -106,15 +106,14 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Orders</h1>
         <p className="text-sm text-muted-foreground">
-          Paid checkouts grouped by order — lines that still need{" "}
-          <span className="font-medium text-foreground">Review and approve</span> or have a pending return
-          request. Replacement returns in transit (
-          <span className="font-medium text-foreground">returned:awaiting delivery</span>) and money-back
-          returns (
-          <span className="font-medium text-foreground">Product Returned: awaiting refund</span>) appear
-          under <span className="font-medium text-foreground">Purchase orders</span>. Once a retailer purchase is
-          confirmed (inbound), the line leaves this list and shows under Purchase orders for shipment
-          tracking until delivery handoff is complete elsewhere.
+          Browse paid checkouts in horizontal lanes —{" "}
+          <span className="font-medium text-foreground">Awaiting purchase</span>,{" "}
+          <span className="font-medium text-foreground">Funded</span>, and{" "}
+          <span className="font-medium text-foreground">Need corrections</span> — with a product
+          preview on each card. Double-click a card to open the full table grouped by batch and
+          single
+          items. Replacement returns in transit and money-back returns appear under{" "}
+          <span className="font-medium text-foreground">Purchase orders</span>.
         </p>
       </div>
 
@@ -146,13 +145,12 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             </p>
           : null}
           {!noOrdersAtAll && !noSearchHits ?
-            <AdminPaidOrdersTable
+            <AdminOrdersCarouselView
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
               latestQuotesByRequestId={latestQuotesByRequestId}
               batchEstimatesBySessionId={batchEstimatesBySessionId}
               orderContainerLinesByOrderId={orderContainerLinesByOrderId}
-              orderAccordionResetKey={`${query.page}:${query.ps}:${query.sort}:${query.q}`}
             />
           : null}
         </>

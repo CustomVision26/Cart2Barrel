@@ -1300,6 +1300,72 @@ export const containerOfferingImages = pgTable(
   ],
 );
 
+/**
+ * Admin-curated product links shown on the home page spotlight carousel
+ * (`src/lib/spotlight-categories.ts` slugs).
+ */
+export const spotlightCategoryProducts = pgTable(
+  "spotlight_category_products",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    categorySlug: text("category_slug").notNull(),
+    productUrl: text("product_url").notNull(),
+    /** Cached og:image (or similar) for carousel / dialog previews. */
+    imageUrl: text("image_url"),
+    /** Optional display price (USD cents) for admin / storefront hints. */
+    priceUsdCents: integer("price_usd_cents"),
+    productSize: text("product_size"),
+    productColor: text("product_color"),
+    label: text("label"),
+    sortIndex: integer("sort_index").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("spotlight_category_products_slug_active_sort_idx").on(
+      t.categorySlug,
+      t.isActive,
+      t.sortIndex,
+    ),
+  ],
+);
+
+/**
+ * SKU / pack / size-color rows for a curated spotlight parent product.
+ * Shoppers pick a variant in the category dialog; carousel still shows the parent.
+ */
+export const spotlightProductVariants = pgTable(
+  "spotlight_product_variants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    parentProductId: uuid("parent_product_id")
+      .notNull()
+      .references(() => spotlightCategoryProducts.id, { onDelete: "cascade" }),
+    /** Per-variant URL when different from parent; null uses parent product_url. */
+    productUrl: text("product_url"),
+    imageUrl: text("image_url"),
+    priceUsdCents: integer("price_usd_cents"),
+    productSize: text("product_size"),
+    productColor: text("product_color"),
+    packLabel: text("pack_label"),
+    label: text("label"),
+    sortIndex: integer("sort_index").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("spotlight_product_variants_parent_active_sort_idx").on(
+      t.parentProductId,
+      t.isActive,
+      t.sortIndex,
+    ),
+  ],
+);
+
 /** Shopper staging for container SKUs before checkout (cleared when a pending order reserves them). */
 export const userContainerCartLines = pgTable(
   "user_container_cart_lines",
@@ -1881,6 +1947,15 @@ export type NewContainerOffering = typeof containerOfferings.$inferInsert;
 export type ContainerOfferingImage = typeof containerOfferingImages.$inferSelect;
 export type NewContainerOfferingImage =
   typeof containerOfferingImages.$inferInsert;
+
+export type SpotlightCategoryProduct =
+  typeof spotlightCategoryProducts.$inferSelect;
+export type NewSpotlightCategoryProduct =
+  typeof spotlightCategoryProducts.$inferInsert;
+
+export type SpotlightProductVariant = typeof spotlightProductVariants.$inferSelect;
+export type NewSpotlightProductVariant =
+  typeof spotlightProductVariants.$inferInsert;
 
 export type UserContainerCartLine = typeof userContainerCartLines.$inferSelect;
 export type NewUserContainerCartLine = typeof userContainerCartLines.$inferInsert;

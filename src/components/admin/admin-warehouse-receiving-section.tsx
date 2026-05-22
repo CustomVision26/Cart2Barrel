@@ -101,6 +101,7 @@ function AwaitingBarrelPackagesTable({ lines }: { lines: WarehouseReceivingLine[
             const pendingRefund = line.pendingRefundRequest != null;
             const statusLabel = adminOrderLineStatusLabel(fulfillment, {
               pendingRefundRequest: pendingRefund,
+              warehouseReceivedCondition: line.orderItem.warehouseReceivedCondition,
             });
             return (
               <tr

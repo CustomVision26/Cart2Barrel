@@ -403,7 +403,7 @@ function DashboardRefundPreviewDialog({ row }: { row: DashboardPaidOrderLineRow 
   );
 }
 
-function DashboardOrderDataRow(props: {
+export function DashboardOrderDataRow(props: {
   row: DashboardPaidOrderLineRow;
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
 }) {

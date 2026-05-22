@@ -10,6 +10,7 @@
     "lint": "eslint",
     "db:push": "drizzle-kit push",
     "db:ensure-out-of-stock-enum": "node scripts/ensure-out-of-stock-enum.mjs",
+    "db:ensure-spotlight": "node scripts/ensure-spotlight-schema.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

@@ -99,10 +99,10 @@ export function deliveryConditionAcceptedAwaitingBarrelLabel(
   warehouseReceivedCondition: string | null | undefined,
 ): string | null {
   if (warehouseReceivedCondition === "damaged") {
-    return "Delivery damaged accepted awaiting barrel";
+    return "Delivery received: damaged accepted — awaiting barrel";
   }
   if (warehouseReceivedCondition === "wrong_item") {
-    return "Delivery wrong item accepted awaiting barrel";
+    return "Delivery received: wrong item accepted — awaiting barrel";
   }
   return null;
 }

@@ -1,12 +1,29 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  compareRetailerPricesAction,
+  type RetailerPriceOffer,
+} from "@/actions/compare-retailer-prices";
 import { draftItemRequestFromUrlAction } from "@/actions/customer-ai-item-draft";
+import {
+  fetchProductVariantsAction,
+  type ProductVariantOffer,
+} from "@/actions/product-variants";
+import { ItemRequestProductVariants } from "@/components/dashboard/item-request-product-variants";
 import { createItemRequestAction } from "@/actions/item-request";
+import { ItemRequestCompareRetailers } from "@/components/dashboard/item-request-compare-retailers";
 import { uploadItemRequestProductImageAction } from "@/actions/upload-item-request-product-image";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +45,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  spotlightFormSeedFromPrefill,
+  spotlightPrefillMerchPreview,
+  type SpotlightRequestPrefill,
+} from "@/lib/spotlight-request-prefill";
+import {
+  COMPARE_REQUIRES_PRODUCT_NAME_MESSAGE,
+  isProductNameReadyForCompare,
+  MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE,
+  MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT,
+} from "@/lib/item-request-product-name-hint";
+import { isRetailerPageFetchBlockedMessage } from "@/lib/ai/fetch-page-for-ai";
 import { cn } from "@/lib/utils";
 
 const IFRAME_TITLE = "Shopping site preview";
@@ -65,41 +94,140 @@ type AiMerchPreviewState = {
   variantColorNorm: string;
 };
 
-export function ItemRequestWorkspace() {
+type WorkspaceTab = "request" | "variants" | "compare";
+
+type ItemRequestWorkspaceProps = {
+  /** Prefill URL from query string when spotlight row is not resolved. */
+  initialProductUrl?: string;
+  /** Full curated row from home spotlight (`spotlightProductId` + URL). */
+  spotlightPrefill?: SpotlightRequestPrefill | null;
+};
+
+export function ItemRequestWorkspace({
+  initialProductUrl,
+  spotlightPrefill = null,
+}: ItemRequestWorkspaceProps = {}) {
+  const spotlightSeed = spotlightPrefill ?
+    spotlightFormSeedFromPrefill(spotlightPrefill, 1)
+  : null;
+
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isAiPending, startAiTransition] = useTransition();
+  const [isComparePending, startCompareTransition] = useTransition();
+  const [isVariantsPending, startVariantsTransition] = useTransition();
+  const [isApplyVariantPending, startApplyVariantTransition] = useTransition();
+  const [applyingVariantId, setApplyingVariantId] = useState<string | null>(
+    null,
+  );
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("request");
+  const [variantRows, setVariantRows] = useState<ProductVariantOffer[]>([]);
+  const [variantRetailer, setVariantRetailer] = useState<string | null>(null);
+  const [variantMethod, setVariantMethod] = useState<string | null>(null);
+  const [variantsMessage, setVariantsMessage] = useState<string | null>(null);
+  const [compareOffers, setCompareOffers] = useState<RetailerPriceOffer[]>([]);
+  const [compareSearchQuery, setCompareSearchQuery] = useState<string | null>(
+    null,
+  );
+  const [compareMessage, setCompareMessage] = useState<string | null>(null);
+  const [isSpotlightFeed, setIsSpotlightFeed] = useState(Boolean(spotlightSeed));
 
-  const [previewInput, setPreviewInput] = useState("");
-  const [iframeSrc, setIframeSrc] = useState<string | null>(null);
+  const [previewInput, setPreviewInput] = useState(spotlightSeed?.productUrl ?? "");
+  const [iframeSrc, setIframeSrc] = useState<string | null>(
+    spotlightSeed?.productUrl || null,
+  );
 
-  const [productUrl, setProductUrl] = useState("");
-  const [productName, setProductName] = useState("");
-  const [productSize, setProductSize] = useState("");
-  const [productColor, setProductColor] = useState("");
+  const [productUrl, setProductUrl] = useState(spotlightSeed?.productUrl ?? "");
+  const [productName, setProductName] = useState(spotlightSeed?.productName ?? "");
+  const [productSize, setProductSize] = useState(spotlightSeed?.productSize ?? "");
+  const [productColor, setProductColor] = useState(spotlightSeed?.productColor ?? "");
   const [quantity, setQuantity] = useState("1");
   const [note, setNote] = useState("");
 
   const [formMessage, setFormMessage] = useState<string | null>(null);
-  const [aiMessage, setAiMessage] = useState<string | null>(null);
+  const [aiMessage, setAiMessage] = useState<string | null>(
+    spotlightSeed ?
+      "Loaded from spotlight: review the fields below, then submit your request to staff."
+    : null,
+  );
   const [lastAiNotes, setLastAiNotes] = useState<string | null>(null);
   /** From last successful AI draft; sent on submit so DB stores retailer label. */
-  const [draftSiteName, setDraftSiteName] = useState<string | null>(null);
+  const [draftSiteName, setDraftSiteName] = useState<string | null>(
+    spotlightSeed?.draftSiteName ?? null,
+  );
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, string[] | undefined> | undefined
   >();
   const [formResetKey, setFormResetKey] = useState(0);
   /** From last AI draft — saved as https product_image_url on submit when present. */
   const [draftProductImageUrl, setDraftProductImageUrl] = useState<string | null>(
-    null,
+    spotlightSeed?.draftProductImageUrl ?? null,
+  );
+  const [aiMerchPreview, setAiMerchPreview] = useState<AiMerchPreviewState | null>(
+    spotlightSeed?.aiMerchPreview ?? null,
   );
   const [pendingProductPhoto, setPendingProductPhoto] = useState<File | null>(
     null,
   );
   const productPhotoRef = useRef<HTMLInputElement>(null);
-  const [aiMerchPreview, setAiMerchPreview] = useState<AiMerchPreviewState | null>(
-    null,
-  );
+  const [spotlightPrefillDismissed, setSpotlightPrefillDismissed] = useState(false);
+
+  const spotlightAppliedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!spotlightPrefill) {
+      spotlightAppliedIdRef.current = null;
+      setIsSpotlightFeed(false);
+      const raw = initialProductUrl?.trim();
+      if (!raw) return;
+      const normalized = normalizeUrlInput(raw);
+      if (!normalized) return;
+      setPreviewInput(normalized);
+      setProductUrl(normalized);
+      return;
+    }
+
+    if (spotlightAppliedIdRef.current === spotlightPrefill.id) return;
+    spotlightAppliedIdRef.current = spotlightPrefill.id;
+
+    const seed = spotlightFormSeedFromPrefill(
+      spotlightPrefill,
+      parseQuantity(quantity) ?? 1,
+    );
+    const url = seed.productUrl.trim() ?
+      normalizeUrlInput(seed.productUrl)
+    : "";
+
+    const q = parseQuantity(quantity) ?? 1;
+    if (url) {
+      setPreviewInput(url);
+      setProductUrl(url);
+      setIframeSrc(url);
+    }
+    setProductName(seed.productName);
+    setProductSize(seed.productSize);
+    setProductColor(seed.productColor);
+    setDraftSiteName(seed.draftSiteName);
+    setDraftProductImageUrl(seed.draftProductImageUrl);
+    setPendingProductPhoto(null);
+    const merch = spotlightPrefillMerchPreview(spotlightPrefill, q);
+    setAiMerchPreview(merch);
+    setAiMessage(
+      merch ?
+        "Loaded from spotlight: review the fields below, then submit your request to staff."
+      : "Loaded from spotlight: review the link and details, then submit your request to staff.",
+    );
+    setIsSpotlightFeed(true);
+    setSpotlightPrefillDismissed(false);
+  }, [spotlightPrefill, initialProductUrl, quantity]);
+
+  useEffect(() => {
+    if (!isSpotlightFeed || !spotlightPrefill) return;
+    const q = parseQuantity(quantity);
+    if (q == null) return;
+    const merch = spotlightPrefillMerchPreview(spotlightPrefill, q);
+    if (merch) setAiMerchPreview(merch);
+  }, [quantity, isSpotlightFeed, spotlightPrefill]);
 
   const pricePreviewStale = useMemo(() => {
     if (!aiMerchPreview) return false;
@@ -155,7 +283,22 @@ export function ItemRequestWorkspace() {
   const urlsAligned = urlsMatchForSubmit(previewInput, productUrl);
   const quantityOk = parseQuantity(quantity) != null;
   const canSubmit = urlsAligned && quantityOk && !isPending;
-  const canRunAi = urlsAligned && quantityOk && !isAiPending;
+  const canRunAi =
+    urlsAligned && quantityOk && !isAiPending && !isSpotlightFeed;
+  const productNameReadyForCompare = isProductNameReadyForCompare(productName);
+  const needsManualProductName =
+    Boolean(normalizeUrlInput(productUrl)) && !productNameReadyForCompare;
+  const canCompare =
+    productNameReadyForCompare && !isComparePending && !isPending;
+  const canLoadVariants =
+    urlsAligned &&
+    Boolean(normalizeUrlInput(productUrl)) &&
+    !isVariantsPending &&
+    !isPending;
+  const fallbackCompareImage =
+    draftProductImageUrl?.trim() ||
+    spotlightPrefill?.imageUrl?.trim() ||
+    null;
 
   const fieldError = useMemo(
     () =>
@@ -193,7 +336,12 @@ export function ItemRequestWorkspace() {
         setAiMerchPreview(null);
         setDraftSiteName(null);
         setDraftProductImageUrl(null);
-        setAiMessage(res.message ?? "AI could not read this page.");
+        const blocked = isRetailerPageFetchBlockedMessage(res.message ?? "");
+        setAiMessage(
+          blocked ?
+            `${MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}`
+          : (res.message ?? "AI could not read this page."),
+        );
         return;
       }
       setFieldErrors(undefined);
@@ -330,6 +478,352 @@ export function ItemRequestWorkspace() {
     router,
   ]);
 
+  const runLoadVariants = useCallback(() => {
+    setVariantsMessage(null);
+    const url = normalizeUrlInput(productUrl);
+    if (!url || !urlsMatchForSubmit(previewInput, productUrl)) {
+      setVariantsMessage(
+        "Product URL (preview) and Product link must match before loading variants.",
+      );
+      return;
+    }
+    startVariantsTransition(async () => {
+      const res = await fetchProductVariantsAction({
+        productUrl: url,
+        productName: productName.trim() || undefined,
+        productSize: productSize.trim() || undefined,
+        productColor: productColor.trim() || undefined,
+      });
+      if (!res.ok) {
+        setVariantsMessage(res.message);
+        return;
+      }
+      setVariantRows(res.variants);
+      setVariantRetailer(res.retailer);
+      setVariantMethod(res.method);
+      setVariantsMessage(
+        `Found ${res.variants.length} variant${res.variants.length === 1 ? "" : "s"} at ${res.retailer}.`,
+      );
+      setActiveTab("variants");
+    });
+  }, [previewInput, productUrl, productName, productSize, productColor]);
+
+  const applyVariant = useCallback(
+    (variant: ProductVariantOffer) => {
+      const url = normalizeUrlInput(variant.productUrl ?? productUrl);
+      if (!url) {
+        toast.error("No product URL for this variant.");
+        return;
+      }
+      const q = parseQuantity(quantity);
+      if (q == null) {
+        toast.error("Enter a quantity between 1 and 999.");
+        return;
+      }
+
+      setPreviewInput(url);
+      setProductUrl(url);
+      setIframeSrc(url);
+      if (variant.size) setProductSize(variant.size);
+      if (variant.color) setProductColor(variant.color);
+
+      const sizeNorm = (variant.size ?? productSize).trim().toLowerCase();
+      const colorNorm = (variant.color ?? productColor).trim().toLowerCase();
+
+      if (variant.priceUsdCents != null) {
+        setAiMerchPreview({
+          quantity: q,
+          unitPriceCents: variant.priceUsdCents,
+          merchandiseSubtotalCents: variant.priceUsdCents * q,
+          variantSizeNorm: sizeNorm,
+          variantColorNorm: colorNorm,
+        });
+      }
+
+      const applyListingImage = (imageUrl: string | null | undefined) => {
+        const image = imageUrl?.trim();
+        if (!image || !/^https:\/\//i.test(image)) return false;
+        setDraftProductImageUrl(image);
+        setPendingProductPhoto(null);
+        if (productPhotoRef.current) productPhotoRef.current.value = "";
+        return true;
+      };
+
+      applyListingImage(variant.imageUrl);
+
+      setActiveTab("request");
+      setApplyingVariantId(variant.id);
+
+      startApplyVariantTransition(async () => {
+        try {
+          const res = await draftItemRequestFromUrlAction({
+            productUrl: url,
+            quantity: String(q),
+            productSize: variant.size?.trim() || productSize.trim() || undefined,
+            productColor:
+              variant.color?.trim() || productColor.trim() || undefined,
+          });
+
+          if (!res.ok) {
+            const fallbackName = variant.label?.trim();
+            if (fallbackName && isProductNameReadyForCompare(fallbackName)) {
+              setProductName(fallbackName);
+            }
+            const hasImage = applyListingImage(variant.imageUrl);
+            const blocked = isRetailerPageFetchBlockedMessage(res.message ?? "");
+            toast.error(
+              blocked ?
+                `${MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}${hasImage ? " Listing image was applied from the variant when available." : ""}`
+              : `${res.message ?? "Could not read this listing."} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}${hasImage ? " Listing image was applied from the variant when available." : ""}`,
+              { duration: 10_000 },
+            );
+            return;
+          }
+
+          const resolvedName =
+            res.productName?.trim() ||
+            (isProductNameReadyForCompare(variant.label ?? "")
+              ? variant.label!.trim()
+              : "");
+
+          if (resolvedName) {
+            setProductName(resolvedName);
+          }
+
+          if (res.siteName) setDraftSiteName(res.siteName);
+          const hasListingImage = applyListingImage(
+            res.productImageUrl ?? variant.imageUrl,
+          );
+
+          if (res.unitPriceCents != null) {
+            setAiMerchPreview({
+              quantity: q,
+              unitPriceCents: res.unitPriceCents,
+              merchandiseSubtotalCents: res.merchandiseSubtotalCents,
+              variantSizeNorm: sizeNorm,
+              variantColorNorm: colorNorm,
+            });
+          }
+
+          const imageNote = hasListingImage ? " Product photo updated from the listing." : "";
+
+          if (isProductNameReadyForCompare(resolvedName)) {
+            toast.success(
+              `Variant applied with product name from the listing.${imageNote}`,
+            );
+          } else {
+            toast.warning(
+              `Variant applied (URL, size, color, price).${imageNote} ${MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}`,
+              { duration: 10_000 },
+            );
+          }
+        } finally {
+          setApplyingVariantId(null);
+        }
+      });
+    },
+    [productUrl, quantity, productSize, productColor],
+  );
+
+  const submitFromVariant = useCallback(
+    (variant: ProductVariantOffer) => {
+      const url = normalizeUrlInput(variant.productUrl ?? productUrl);
+      if (!url) {
+        toast.error("No product URL for this variant.");
+        return;
+      }
+      setFormMessage(null);
+      setFieldErrors(undefined);
+      const q = parseQuantity(quantity);
+      if (q == null) {
+        toast.error("Enter a quantity between 1 and 999.");
+        return;
+      }
+      const payload = {
+        productUrl: url,
+        productName: productName.trim() || undefined,
+        productSize: variant.size?.trim() || productSize.trim() || undefined,
+        productColor: variant.color?.trim() || productColor.trim() || undefined,
+        quantity: String(q),
+        note: note.trim() || undefined,
+        siteName:
+          variantRetailer?.trim() || draftSiteName?.trim() || undefined,
+        productImageUrl:
+          variant.imageUrl?.trim() ||
+          draftProductImageUrl?.trim() ||
+          spotlightPrefill?.imageUrl?.trim() ||
+          undefined,
+      };
+      const photoSnapshot = pendingProductPhoto;
+      startTransition(async () => {
+        const result = await createItemRequestAction(payload);
+        if (result.ok) {
+          let photoUploadError: string | undefined;
+          if (result.itemRequestId && photoSnapshot) {
+            const fd = new FormData();
+            fd.set("itemRequestId", result.itemRequestId);
+            fd.append("file", photoSnapshot);
+            const up = await uploadItemRequestProductImageAction(fd);
+            if (!up.ok) photoUploadError = up.message;
+          }
+          toast.success(
+            result.message?.trim() ||
+              "Your item request was submitted. Staff will review it soon.",
+          );
+          if (photoUploadError) {
+            toast.error(
+              `Request saved, but the product photo did not upload: ${photoUploadError}`,
+            );
+          }
+          router.refresh();
+          return;
+        }
+        if (result.fieldErrors) {
+          setFieldErrors(result.fieldErrors);
+          toast.error(
+            result.message ?? "Please fix the highlighted fields and try again.",
+          );
+          setActiveTab("request");
+          return;
+        }
+        toast.error(result.message ?? "Could not submit request.");
+      });
+    },
+    [
+      productUrl,
+      productName,
+      productSize,
+      productColor,
+      quantity,
+      note,
+      variantRetailer,
+      draftSiteName,
+      draftProductImageUrl,
+      spotlightPrefill,
+      pendingProductPhoto,
+      router,
+    ],
+  );
+
+  const runComparePrices = useCallback(() => {
+    setCompareMessage(null);
+    const name = productName.trim();
+    if (!isProductNameReadyForCompare(name)) {
+      setCompareMessage(COMPARE_REQUIRES_PRODUCT_NAME_MESSAGE);
+      return;
+    }
+    startCompareTransition(async () => {
+      const res = await compareRetailerPricesAction({
+        productName: name,
+        productSize: productSize.trim() || undefined,
+        productColor: productColor.trim() || undefined,
+        originalProductUrl: normalizeUrlInput(productUrl) || undefined,
+        originalRetailer: draftSiteName?.trim() || undefined,
+        originalPriceUsdCents: aiMerchPreview?.unitPriceCents ?? undefined,
+        originalImageUrl:
+          draftProductImageUrl?.trim() ||
+          spotlightPrefill?.imageUrl?.trim() ||
+          undefined,
+      });
+      if (!res.ok) {
+        setCompareMessage(res.message);
+        return;
+      }
+      setCompareOffers(res.offers);
+      setCompareSearchQuery(res.searchQuery);
+      setCompareMessage(
+        `Found ${res.offers.length} verified offer${res.offers.length === 1 ? "" : "s"}.`,
+      );
+      setActiveTab("compare");
+    });
+  }, [
+    productName,
+    productSize,
+    productColor,
+    productUrl,
+    draftSiteName,
+    aiMerchPreview,
+    draftProductImageUrl,
+    spotlightPrefill,
+  ]);
+
+  const submitFromOffer = useCallback(
+    (offer: RetailerPriceOffer) => {
+      const url = normalizeUrlInput(offer.productUrl);
+      if (!url) {
+        toast.error("Invalid product URL for this offer.");
+        return;
+      }
+      setFormMessage(null);
+      setFieldErrors(undefined);
+      const q = parseQuantity(quantity);
+      if (q == null) {
+        toast.error("Enter a quantity between 1 and 999.");
+        return;
+      }
+      const payload = {
+        productUrl: url,
+        productName: offer.title.trim() || productName.trim() || undefined,
+        productSize: productSize.trim() || undefined,
+        productColor: productColor.trim() || undefined,
+        quantity: String(q),
+        note: note.trim() || undefined,
+        siteName: offer.retailer.trim() || draftSiteName?.trim() || undefined,
+        productImageUrl:
+          offer.imageUrl?.trim() ||
+          draftProductImageUrl?.trim() ||
+          spotlightPrefill?.imageUrl?.trim() ||
+          undefined,
+      };
+      const photoSnapshot = pendingProductPhoto;
+      startTransition(async () => {
+        const result = await createItemRequestAction(payload);
+        if (result.ok) {
+          let photoUploadError: string | undefined;
+          if (result.itemRequestId && photoSnapshot) {
+            const fd = new FormData();
+            fd.set("itemRequestId", result.itemRequestId);
+            fd.append("file", photoSnapshot);
+            const up = await uploadItemRequestProductImageAction(fd);
+            if (!up.ok) photoUploadError = up.message;
+          }
+          toast.success(
+            result.message?.trim() ||
+              "Your item request was submitted. Staff will review it soon.",
+          );
+          if (photoUploadError) {
+            toast.error(
+              `Request saved, but the product photo did not upload: ${photoUploadError}`,
+            );
+          }
+          router.refresh();
+          return;
+        }
+        if (result.fieldErrors) {
+          setFieldErrors(result.fieldErrors);
+          toast.error(
+            result.message ?? "Please fix the highlighted fields and try again.",
+          );
+          setActiveTab("request");
+          return;
+        }
+        toast.error(result.message ?? "Could not submit request.");
+      });
+    },
+    [
+      quantity,
+      productName,
+      productSize,
+      productColor,
+      note,
+      draftSiteName,
+      draftProductImageUrl,
+      spotlightPrefill,
+      pendingProductPhoto,
+      router,
+    ],
+  );
+
   const previewIframeClass =
     "h-[min(72vh,560px)] w-full bg-background xl:h-[min(78vh,620px)]";
   const previewPlaceholderClass =
@@ -452,40 +946,92 @@ export function ItemRequestWorkspace() {
                   </p>
                 </div>
                 <p>
-                  Link the preview URL and product link, set quantity, add optional
-                  size/color to help match variants, then run AI. Edit any field before
-                  you submit your request to admin.
+                  {variantRows.length > 0 ?
+                    <>
+                      Store variants are loaded—open the{" "}
+                      <span className="font-medium text-foreground">
+                        Store variants
+                      </span>{" "}
+                      tab, click Apply on a row, then compare prices or submit. Edit
+                      any field before you send the request to admin.
+                    </>
+                  : <>
+                      Link the preview URL and product link, set quantity, add optional
+                      size/color to help match variants, then use{" "}
+                      <span className="font-medium text-foreground">
+                        Load store variants
+                      </span>{" "}
+                      or{" "}
+                      <span className="font-medium text-foreground">
+                        Fill details with AI
+                      </span>
+                      . Edit any field before you submit your request to admin.
+                    </>
+                  }
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                {variantRows.length === 0 ?
+                  <Button
+                    type="button"
+                    className={cn("gap-1.5", isSpotlightFeed && "opacity-50")}
+                    variant="secondary"
+                    disabled={!canRunAi}
+                    onClick={runAiDraft}
+                    title={
+                      isSpotlightFeed ?
+                        "Details were loaded from spotlight—edit fields manually if needed."
+                      : !canRunAi && !isAiPending
+                        ? !hasPreviewUrl || !hasProductLinkUrl
+                          ? "Fill preview and product URLs"
+                          : !urlsAligned
+                            ? "URLs must match"
+                            : !quantityOk
+                              ? "Enter quantity 1–999"
+                              : undefined
+                        : undefined
+                    }
+                  >
+                    {isAiPending ?
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Filling…
+                      </>
+                    : <>
+                        <Sparkles className="size-4" />
+                        Fill details with AI
+                      </>
+                    }
+                  </Button>
+                : null}
                 <Button
                   type="button"
-                  className="mt-3 gap-1.5"
-                  variant="secondary"
-                  disabled={!canRunAi}
-                  onClick={runAiDraft}
-                  title={
-                    !canRunAi && !isAiPending
-                      ? !hasPreviewUrl || !hasProductLinkUrl
-                        ? "Fill preview and product URLs"
-                        : !urlsAligned
-                          ? "URLs must match"
-                          : !quantityOk
-                            ? "Enter quantity 1–999"
-                            : undefined
-                      : undefined
-                  }
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={!canLoadVariants}
+                  onClick={runLoadVariants}
                 >
-                  {isAiPending ? (
+                  {isVariantsPending ?
                     <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Filling…
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                      Loading…
                     </>
-                  ) : (
-                    <>
-                      <Sparkles className="size-4" />
-                      Fill details with AI
-                    </>
-                  )}
+                  : "Load store variants"}
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={!canCompare}
+                  onClick={runComparePrices}
+                >
+                  {isComparePending ?
+                    <>
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                      Comparing…
+                    </>
+                  : "Compare prices with AI"}
+                </Button>
+                </div>
                 {aiMessage ? (
                   <p
                     className={cn(
@@ -615,9 +1161,27 @@ export function ItemRequestWorkspace() {
                   onChange={(e) => setProductName(e.target.value)}
                   aria-invalid={Boolean(fieldError("productName")?.length)}
                 />
+                <FieldDescription>
+                  Required for Compare prices with AI (at least 2 characters). If
+                  Apply or Fill with AI could not read the page, open the retailer
+                  listing and paste the title from the site here.
+                </FieldDescription>
                 <FieldError errors={fieldError("productName")?.map((m) => ({ message: m }))} />
               </FieldContent>
             </Field>
+
+            {needsManualProductName ?
+              <p
+                role="status"
+                className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm leading-relaxed text-amber-950 dark:text-amber-100"
+              >
+                <span className="font-medium text-foreground">
+                  Product name needed for price comparison.
+                </span>{" "}
+                {MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE}{" "}
+                {MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}
+              </p>
+            : null}
 
             <div className="grid gap-5 sm:grid-cols-2">
               <Field data-invalid={Boolean(fieldError("productSize")?.length)}>
@@ -681,8 +1245,9 @@ export function ItemRequestWorkspace() {
               </FieldLabel>
               <FieldContent className="space-y-2">
                 <FieldDescription>
-                  Upload a screenshot or photo when helpful. JPEG, PNG, WebP, or GIF up to 8 MB.
-                  Files are stored on Vercel Blob after your request is created.
+                  Filled from the listing when you Apply a store variant or run AI. You can
+                  also upload your own file (JPEG, PNG, WebP, or GIF up to 8 MB)—upload
+                  replaces the listing image on submit.
                 </FieldDescription>
                 {draftProductImageUrl?.trim() ?
                   <div className="flex flex-wrap items-start gap-3 rounded-md border border-border bg-muted/20 p-2">
@@ -796,14 +1361,145 @@ export function ItemRequestWorkspace() {
       </Card>
   );
 
+  const showSpotlightPrefillNotice =
+    isSpotlightFeed && !spotlightPrefillDismissed;
+
+  const tabClass = (tab: WorkspaceTab) =>
+    cn(
+      "-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+      activeTab === tab
+        ? "border-primary text-foreground"
+        : "border-transparent text-muted-foreground hover:text-foreground",
+    );
+
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,26rem)] xl:items-start xl:gap-8">
-        <div className="min-w-0">{browseCard}</div>
-        <div className="min-w-0 xl:sticky xl:top-6 xl:z-10 xl:self-start">
-          {requestCard}
+      {showSpotlightPrefillNotice ?
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="text-pretty leading-relaxed">
+            <span className="font-medium">Loaded from spotlight.</span> Link, name,
+            cost, size, color, and image (when available) are prefilled.{" "}
+            <span className="font-medium">Fill with AI</span> is disabled—review and
+            submit, or use{" "}
+            <span className="font-medium">Compare prices with AI</span> on the other
+            tab.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => setSpotlightPrefillDismissed(true)}
+          >
+            Dismiss
+          </Button>
         </div>
+      : null}
+
+      <div
+        role="tablist"
+        aria-label="Request workflow"
+        className="flex gap-1 overflow-x-auto border-b border-border"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "request"}
+          className={tabClass("request")}
+          onClick={() => setActiveTab("request")}
+        >
+          Item request
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "variants"}
+          className={tabClass("variants")}
+          onClick={() => setActiveTab("variants")}
+        >
+          Store variants
+          {variantRows.length > 0 ?
+            <span className="ml-2 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              {variantRows.length}
+            </span>
+          : null}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "compare"}
+          className={tabClass("compare")}
+          onClick={() => setActiveTab("compare")}
+        >
+          Comparing retailer offers
+          {compareOffers.length > 0 ?
+            <span className="ml-2 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              {compareOffers.length}
+            </span>
+          : null}
+        </button>
       </div>
+
+      {activeTab === "request" ?
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,26rem)] xl:items-start xl:gap-8">
+          <div className="min-w-0">{browseCard}</div>
+          <div className="min-w-0 xl:sticky xl:top-6 xl:z-10 xl:self-start">
+            {requestCard}
+          </div>
+        </div>
+      : activeTab === "variants" ?
+        <div className="min-w-0 space-y-6">
+          <ItemRequestProductVariants
+            variants={variantRows}
+            retailer={variantRetailer}
+            method={variantMethod}
+            variantsMessage={variantsMessage}
+            isVariantsPending={isVariantsPending}
+            isApplyVariantPending={isApplyVariantPending}
+            applyingVariantId={applyingVariantId}
+            isSubmitPending={isPending}
+            onLoadVariants={runLoadVariants}
+            onApplyVariant={applyVariant}
+            onSubmitVariant={submitFromVariant}
+            canLoadVariants={canLoadVariants}
+          />
+          <p className="text-center text-xs text-muted-foreground">
+            <button
+              type="button"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => setActiveTab("request")}
+            >
+              Back to item request form
+            </button>
+          </p>
+        </div>
+      : <div className="min-w-0 space-y-6">
+          <ItemRequestCompareRetailers
+            offers={compareOffers}
+            searchQuery={compareSearchQuery}
+            fallbackImageUrl={fallbackCompareImage}
+            compareMessage={compareMessage}
+            isComparePending={isComparePending}
+            isSubmitPending={isPending}
+            onCompare={runComparePrices}
+            onSubmitOffer={submitFromOffer}
+            canCompare={canCompare}
+            needsManualProductName={needsManualProductName}
+          />
+          <p className="text-center text-xs text-muted-foreground">
+            <button
+              type="button"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => setActiveTab("request")}
+            >
+              Back to item request form
+            </button>
+          </p>
+        </div>
+      }
     </div>
   );
 }

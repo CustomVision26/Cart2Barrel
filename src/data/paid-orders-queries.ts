@@ -536,7 +536,10 @@ async function paginatePaidOrderLinesInner(opts: {
   const whereAllLinesInPagedOrders =
     expandFullOrderLines ?
       adminOrdersQueue ?
-        whereRoot
+        // Paginate by `/admin/orders` lane filters, but load every paid product line on
+        // each order so batch siblings on purchase-orders / packages queues still appear
+        // in the order-products detail (matches customer dashboard grouping).
+        paidWhere
       : applyLineFulfillmentConstraints(paidWhere, { lineFulfillmentIn })
     : whereRoot;
 

@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
 import { DashboardOrderHistoryTimeline } from "@/components/dashboard/dashboard-order-history-timeline";
+import { DashboardOrdersCarouselView } from "@/components/dashboard/dashboard-orders-carousel-view";
 import { DashboardOrdersListControls } from "@/components/dashboard/dashboard-orders-list-controls";
 import { DashboardOrdersTabNav } from "@/components/dashboard/dashboard-orders-tab-nav";
-import { DashboardPaidOrdersTable } from "@/components/dashboard/dashboard-paid-orders-table";
 import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsForOwnerByRequestIds,
@@ -29,10 +29,12 @@ const viewCopy = {
     basePath: "/dashboard/orders",
     description: (
       <>
-        Paid cart checkouts appear here right after payment, starting at{" "}
-        <span className="font-medium text-foreground">Awaiting purchase</span>. When staff
-        confirms the company purchase, tracking and later fulfillment stages update on the same
-        lines under <span className="font-medium text-foreground">Tracking</span>.
+        Browse paid checkouts in horizontal lanes —{" "}
+        <span className="font-medium text-foreground">Awaiting purchase</span>,{" "}
+        <span className="font-medium text-foreground">Funded</span>, and{" "}
+        <span className="font-medium text-foreground">Need corrections</span> — with a product
+        preview on each card. Double-click a card to open the full table grouped by batch and
+        single items. Tracking and fulfillment actions are in that table.
       </>
     ),
     empty:
@@ -125,10 +127,9 @@ export async function DashboardOrdersView({
             snapshotsByRequestId={snapshotsByRequestId}
           />
         : (
-          <DashboardPaidOrdersTable
+          <DashboardOrdersCarouselView
             rows={pagePack.rows}
             snapshotsByRequestId={snapshotsByRequestId}
-            orderAccordionResetKey={`${query.page}:${query.ps}:${query.sort}:${query.q}`}
           />
         )
       : null}

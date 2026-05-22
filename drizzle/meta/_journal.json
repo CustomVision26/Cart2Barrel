@@ -260,6 +260,20 @@
       "when": 1781500000000,
       "tag": "0045_outside_purchase_lifecycle_phases",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0058_spotlight_category_products",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0059_spotlight_product_variant",
+      "breakpoints": true
     }
   ]
 }

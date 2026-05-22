@@ -1,99 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Headphones,
-  Heart,
-  Home,
-  Package,
-  Shirt,
-  Sparkles,
-  Truck,
-} from "lucide-react";
+import { Package, Sparkles, Truck } from "lucide-react";
 
+import { HomeSpotlightCarousel } from "@/components/marketing/home-spotlight-carousel";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
+import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
-
-type PromoSlide = {
-  title: string;
-  description: string;
-  tag: string;
-  priceHint: string;
-  gradient: string;
-  icon: typeof Package;
-};
-
-const PROMO_SLIDES: PromoSlide[] = [
-  {
-    title: "Electronics & tech",
-    description: "Laptops, audio, and smart home—request a quote, we handle the buy.",
-    tag: "Popular",
-    priceHint: "Estimates from $89",
-    gradient:
-      "from-sky-500/25 via-violet-500/15 to-background dark:from-sky-400/20 dark:via-violet-500/10",
-    icon: Headphones,
-  },
-  {
-    title: "Fashion & footwear",
-    description: "Seasonal drops and everyday staples consolidated for barrel shipping.",
-    tag: "New season",
-    priceHint: "Bundle & save",
-    gradient:
-      "from-rose-500/25 via-amber-500/10 to-background dark:from-rose-400/15 dark:via-amber-500/10",
-    icon: Shirt,
-  },
-  {
-    title: "Home & kitchen",
-    description: "Small appliances, cookware, and décor shipped to our hub for packing.",
-    tag: "Editor's pick",
-    priceHint: "Deals weekly",
-    gradient:
-      "from-emerald-500/20 via-teal-500/10 to-background dark:from-emerald-400/15",
-    icon: Home,
-  },
-  {
-    title: "Beauty & wellness",
-    description: "Top brands with vetted listings—checkout when your cart is ready.",
-    tag: "Self-care",
-    priceHint: "From $12 items",
-    gradient:
-      "from-fuchsia-500/20 via-pink-500/10 to-background dark:from-fuchsia-400/15",
-    icon: Heart,
-  },
-  {
-    title: "Barrel-ready bundles",
-    description: "Mix categories in one shipment; we consolidate and label for Jamaica.",
-    tag: "Best value",
-    priceHint: "One hub, one address",
-    gradient:
-      "from-orange-500/25 via-amber-500/15 to-background dark:from-orange-400/15",
-    icon: Package,
-  },
-];
+import type { SpotlightCategorySlug } from "@/lib/spotlight-categories";
 
 type HomeStorefrontProps = {
   isSignedIn: boolean;
+  productsByCategory: Partial<
+    Record<SpotlightCategorySlug, PublicSpotlightProduct[]>
+  >;
 };
 
-export function HomeStorefront({ isSignedIn }: HomeStorefrontProps) {
+export function HomeStorefront({
+  isSignedIn,
+  productsByCategory,
+}: HomeStorefrontProps) {
   const primaryHref = isSignedIn ? "/dashboard" : "/signup";
   const primaryLabel = isSignedIn ? "Open dashboard" : "Start shopping";
   const secondaryHref = isSignedIn
@@ -186,99 +114,11 @@ export function HomeStorefront({ isSignedIn }: HomeStorefrontProps) {
         </div>
       </section>
 
-      <section className="space-y-5">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">
-              Featured &amp; spotlight
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Horizontal carousel—promotional blocks for categories and campaigns.
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground"
-            nativeButton={false}
-            render={<Link href={secondaryHref} />}
-          >
-            View all categories
-          </Button>
-        </div>
-
-        <Carousel
-          opts={{ align: "start", loop: true }}
-          className="w-full"
-        >
-          <div className="relative">
-            <CarouselContent className="-ml-3 md:-ml-4">
-              {PROMO_SLIDES.map((slide) => {
-                const Icon = slide.icon;
-                return (
-                  <CarouselItem
-                    key={slide.title}
-                    className="basis-[88%] pl-3 sm:basis-[70%] md:basis-[48%] md:pl-4 lg:basis-[34%]"
-                  >
-                    <Card className="h-full overflow-hidden border-border/80 shadow-sm transition-shadow hover:shadow-md">
-                      <div
-                        className={cn(
-                          "relative flex h-36 items-end justify-between bg-gradient-to-br p-4 md:h-40",
-                          slide.gradient
-                        )}
-                      >
-                        <div className="rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur">
-                          {slide.tag}
-                        </div>
-                        <Icon
-                          className="size-14 text-foreground/25 md:size-16"
-                          aria-hidden
-                        />
-                      </div>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">{slide.title}</CardTitle>
-                        <CardDescription>{slide.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <p className="text-sm font-medium text-foreground">
-                          {slide.priceHint}
-                        </p>
-                      </CardContent>
-                      <CardFooter className="border-t border-border/60 bg-muted/30">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="w-full"
-                          nativeButton={false}
-                          render={
-                            <Link
-                              href={
-                                isSignedIn
-                                  ? DASHBOARD_ADD_ITEM_ROUTES.productsActive
-                                  : "/signup"
-                              }
-                            />
-                          }
-                        >
-                          {isSignedIn ? "Request an item" : "Get started"}
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  </CarouselItem>
-                );
-              })}
-            </CarouselContent>
-            <CarouselPrevious
-              variant="outline"
-              className="left-0 border-border bg-background/90 shadow-sm backdrop-blur sm:-left-1"
-            />
-            <CarouselNext
-              variant="outline"
-              className="right-0 border-border bg-background/90 shadow-sm backdrop-blur sm:-right-1"
-            />
-          </div>
-        </Carousel>
-      </section>
+      <HomeSpotlightCarousel
+        isSignedIn={isSignedIn}
+        productsByCategory={productsByCategory}
+        secondaryHref={secondaryHref}
+      />
     </main>
   );
 }

@@ -173,6 +173,8 @@ function ToggleSection({
   summary,
   children,
   defaultOpen = true,
+  open: openControlled,
+  onOpenChange,
   className,
   bodyClassName,
   ariaLabel,
@@ -181,18 +183,25 @@ function ToggleSection({
   summary?: ReactNode;
   children: ReactNode;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   className?: string;
   bodyClassName?: string;
   ariaLabel: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [openUncontrolled, setOpenUncontrolled] = useState(defaultOpen);
+  const open = openControlled ?? openUncontrolled;
+  const setOpen = (next: boolean) => {
+    if (openControlled === undefined) setOpenUncontrolled(next);
+    onOpenChange?.(next);
+  };
 
   return (
     <section className={cn("overflow-hidden rounded-xl border border-border", className)}>
       <div className="flex flex-wrap items-center gap-3 bg-muted/25 px-3 py-3">
         <button
           type="button"
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={() => setOpen(!open)}
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-expanded={open}
           aria-label={ariaLabel}
@@ -406,6 +415,7 @@ export function DashboardOrderHistoryTimeline({
   }
 
   const customerGroups = groupRowsByCustomerAndOrder(rows);
+  const [openOrderId, setOpenOrderId] = useState<string | null>(null);
 
   return (
     <div className="space-y-5">
@@ -413,6 +423,7 @@ export function DashboardOrderHistoryTimeline({
         <ToggleSection
           key={customerGroup.key}
           ariaLabel="Toggle products for this customer"
+          defaultOpen
           title={
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground">Customer</span>
@@ -440,6 +451,10 @@ export function DashboardOrderHistoryTimeline({
               <ToggleSection
                 key={order.id}
                 ariaLabel="Toggle products for this order"
+                open={openOrderId === order.id}
+                onOpenChange={(next) => {
+                  setOpenOrderId(next ? order.id : null);
+                }}
                 title={
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-foreground">Order</span>
