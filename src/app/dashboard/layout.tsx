@@ -43,13 +43,15 @@ export default async function DashboardLayout({
           </div>
         </div>
       </header>
-      <div className="mx-auto flex w-full max-w-6xl flex-1 gap-8 px-4 py-8">
-        <aside className="hidden w-52 shrink-0 md:block">
-          <DashboardNav />
+      <div className="mx-auto flex w-full max-w-6xl flex-1 gap-6 px-4 py-6 lg:gap-8 lg:py-8">
+        <aside className="hidden w-60 shrink-0 lg:block">
+          <div className="sticky top-6 rounded-xl border border-sidebar-border bg-sidebar/95 p-3 shadow-sm ring-1 ring-sidebar-border/60 backdrop-blur-sm">
+            <DashboardNav />
+          </div>
         </aside>
         <div className="min-w-0 flex-1">
-          <div className="mb-6 md:hidden">
-            <DashboardNav />
+          <div className="mb-6 overflow-x-auto rounded-xl border border-sidebar-border bg-sidebar/90 p-2 shadow-sm ring-1 ring-sidebar-border/50 lg:hidden">
+            <DashboardNav variant="mobile" className="w-max min-w-full px-0.5 pb-0.5" />
           </div>
           {children}
         </div>

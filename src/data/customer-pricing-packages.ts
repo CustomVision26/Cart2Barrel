@@ -1,12 +1,8 @@
-import { clerkClient } from "@clerk/nextjs/server";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 
+import { resolveStaffClerkUserIds } from "@/data/admin-staff-clerk-ids";
 import { getDb } from "@/db";
-import {
-  clerkPublicMetadataRole,
-  isClerkStaffRole,
-} from "@/lib/is-clerk-admin";
 import {
   customerPricingPackages,
   profiles,
@@ -38,43 +34,6 @@ export type AdminProfilePickerRow = {
   hasCustomPackage: boolean;
   accountKind: AdminProfileAccountKind;
 };
-
-const CLERK_USER_LOOKUP_CHUNK = 20;
-
-async function staffClerkUserIdsFromClerk(
-  clerkUserIds: string[],
-): Promise<Set<string>> {
-  const staff = new Set<string>();
-  if (clerkUserIds.length === 0) {
-    return staff;
-  }
-
-  try {
-    const client = await clerkClient();
-    for (let i = 0; i < clerkUserIds.length; i += CLERK_USER_LOOKUP_CHUNK) {
-      const chunk = clerkUserIds.slice(i, i + CLERK_USER_LOOKUP_CHUNK);
-      const results = await Promise.all(
-        chunk.map(async (id) => {
-          try {
-            const user = await client.users.getUser(id);
-            return { id, role: clerkPublicMetadataRole(user.publicMetadata) };
-          } catch {
-            return { id, role: undefined };
-          }
-        }),
-      );
-      for (const row of results) {
-        if (isClerkStaffRole(row.role)) {
-          staff.add(row.id);
-        }
-      }
-    }
-  } catch {
-    return staff;
-  }
-
-  return staff;
-}
 
 export type CustomerPricingPackageListRow = {
   clerkUserId: string;
@@ -306,13 +265,20 @@ export async function listProfilesForAdminPicker(): Promise<AdminProfilePickerRo
 async function attachAccountKinds(
   rows: Omit<AdminProfilePickerRow, "accountKind">[],
 ): Promise<AdminProfilePickerRow[]> {
-  const staffIds = await staffClerkUserIdsFromClerk(
-    rows.map((r) => r.clerkUserId),
+  const staffIds = await resolveStaffClerkUserIds(
+    rows.map((r) => ({ clerkUserId: r.clerkUserId, email: r.email })),
   );
   return rows.map((r) => ({
     ...r,
     accountKind: staffIds.has(r.clerkUserId) ? "admin" : "customer",
   }));
+}
+
+/** Uncached profile list with fresh Clerk staff detection (admin user management). */
+export async function listProfilesForAdminUserManagement(): Promise<
+  AdminProfilePickerRow[]
+> {
+  return listProfilesForAdminPickerUncached();
 }
 
 export async function upsertCustomerPricingPackage(params: {

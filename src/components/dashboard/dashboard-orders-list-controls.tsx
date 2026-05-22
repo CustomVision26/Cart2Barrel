@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { orderSlideLaneNamesList } from "@/lib/admin-orders-slide-filters";
 import {
   buildDashboardOrdersListHref,
   paidOrderLineSortValues,
@@ -130,9 +131,8 @@ export function DashboardOrdersListControls(props: {
       </form>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         Orders appear in horizontal lanes below —{" "}
-        <span className="font-medium text-foreground">Awaiting purchase</span>,{" "}
-        <span className="font-medium text-foreground">Funded</span>, and{" "}
-        <span className="font-medium text-foreground">Need corrections</span> — newest first in each
+        <span className="font-medium text-foreground">{orderSlideLaneNamesList()}</span> —
+        newest first in each
         lane. Double-click a card to open the full table grouped by batch and single. Pagination
         counts orders across all lanes.
       </p>

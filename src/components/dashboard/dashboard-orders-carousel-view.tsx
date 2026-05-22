@@ -17,6 +17,7 @@ import {
   groupOrdersForSlideLane,
   laneDescription,
   laneTitle,
+  ORDER_SLIDE_LANE_AUDIENCE,
   type OrderSlideGroup,
   type OrdersSlideLane,
 } from "@/lib/admin-orders-slide-filters";
@@ -76,10 +77,10 @@ export function DashboardOrdersCarouselView({
           >
             <div className="space-y-1.5">
               <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                {laneTitle(lane)}
+                {laneTitle(lane, ORDER_SLIDE_LANE_AUDIENCE)}
               </h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                {laneDescription(lane)}
+                {laneDescription(lane, ORDER_SLIDE_LANE_AUDIENCE)}
                 {groups.length > 0 ?
                   <>
                     {" "}
@@ -104,13 +105,16 @@ export function DashboardOrdersCarouselView({
                     {groups.map((group) => (
                       <CarouselItem
                         key={`${lane}:${group.order.id}`}
-                        className="basis-[min(88%,20rem)] pl-4 sm:basis-[min(55%,18rem)] md:basis-[min(42%,17rem)] lg:basis-[min(32%,16.5rem)] xl:basis-[min(26%,16rem)]"
+                        className="shrink-0 grow-0 basis-[17rem] pl-4"
                       >
-                        <DashboardOrderSlideCard
-                          group={group}
-                          lane={lane}
-                          onOpenDetail={() => setDetailGroup(group)}
-                        />
+                        <div className="h-[22rem] w-full">
+                          <DashboardOrderSlideCard
+                            group={group}
+                            lane={lane}
+                            onOpenDetail={() => setDetailGroup(group)}
+                            className="h-full"
+                          />
+                        </div>
                       </CarouselItem>
                     ))}
                   </CarouselContent>

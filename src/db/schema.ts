@@ -911,6 +911,30 @@ export const customerPricingPackages = pgTable("customer_pricing_packages", {
     .notNull(),
 });
 
+/** Append-only log when staff grant Clerk `publicMetadata.role` admin access. */
+export const adminRoleGrants = pgTable(
+  "admin_role_grants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    targetClerkUserId: text("target_clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    /** Clerk role value applied (e.g. `admin`). */
+    grantedRole: text("granted_role").notNull(),
+    grantedByClerkUserId: text("granted_by_clerk_user_id").notNull(),
+    grantedByDisplayName: text("granted_by_display_name").notNull(),
+    targetDisplayName: text("target_display_name").notNull(),
+    targetEmail: text("target_email"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("admin_role_grants_created_idx").on(t.createdAt),
+    index("admin_role_grants_target_idx").on(t.targetClerkUserId),
+  ],
+);
+
 /**
  * Staff-applied container packing fee snapshot for a shopper cart (barrel/bin qty + cents).
  * Cart checkout uses this when counts still match; otherwise recomputes from package rates.
@@ -1433,6 +1457,14 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
     fields: [profiles.clerkUserId],
     references: [userCartContainerPackingFees.clerkUserId],
   }),
+  adminRoleGrantsReceived: many(adminRoleGrants),
+}));
+
+export const adminRoleGrantsRelations = relations(adminRoleGrants, ({ one }) => ({
+  targetProfile: one(profiles, {
+    fields: [adminRoleGrants.targetClerkUserId],
+    references: [profiles.clerkUserId],
+  }),
 }));
 
 export const customerPricingPackagesRelations = relations(
@@ -1839,6 +1871,8 @@ export type NewProfile = typeof profiles.$inferInsert;
 export type CustomerPricingPackage = typeof customerPricingPackages.$inferSelect;
 export type NewCustomerPricingPackage =
   typeof customerPricingPackages.$inferInsert;
+export type AdminRoleGrant = typeof adminRoleGrants.$inferSelect;
+export type NewAdminRoleGrant = typeof adminRoleGrants.$inferInsert;
 export type UserCartContainerPackingFees =
   typeof userCartContainerPackingFees.$inferSelect;
 

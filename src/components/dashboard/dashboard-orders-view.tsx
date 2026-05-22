@@ -14,6 +14,7 @@ import {
   listDashboardPaidOrderHistoryLinesPage,
   listDashboardPaidOrderLinesPage,
 } from "@/data/dashboard-order-lines";
+import { orderSlideLaneNamesList } from "@/lib/admin-orders-slide-filters";
 import { parsePaidOrdersQuery } from "@/lib/paid-orders-list-params";
 
 type DashboardOrdersViewMode = "orders" | "history";
@@ -30,11 +31,11 @@ const viewCopy = {
     description: (
       <>
         Browse paid checkouts in horizontal lanes —{" "}
-        <span className="font-medium text-foreground">Awaiting purchase</span>,{" "}
-        <span className="font-medium text-foreground">Funded</span>, and{" "}
-        <span className="font-medium text-foreground">Need corrections</span> — with a product
-        preview on each card. Double-click a card to open the full table grouped by batch and
-        single items. Tracking and fulfillment actions are in that table.
+        <span className="font-medium text-foreground">
+          {orderSlideLaneNamesList()}
+        </span>{" "}
+        — with a product preview on each card. Double-click a card to open the full table grouped
+        by batch and single items. Tracking and fulfillment actions are in that table.
       </>
     ),
     empty:

@@ -6,6 +6,7 @@ import { ProductRequestThumbnail } from "@/components/product-request-thumbnail"
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import {
   laneTitle,
+  ORDER_SLIDE_LANE_AUDIENCE,
   type AdminOrderSlideGroup,
   type AdminOrdersSlideLane,
 } from "@/lib/admin-orders-slide-filters";
@@ -71,14 +72,18 @@ function countSummary(group: AdminOrderSlideGroup): string {
   return parts.join(" · ") || `${group.lines.length} items`;
 }
 
+const PREVIEW_SLOT_COUNT = 4;
+
 export function AdminOrderSlideCard({
   group,
   lane,
   onOpenDetail,
+  className,
 }: {
   group: AdminOrderSlideGroup;
   lane: AdminOrdersSlideLane;
   onOpenDetail: () => void;
+  className?: string;
 }) {
   const first = group.lines[0]!;
   const customer = adminCustomerDisplayLabel({
@@ -87,6 +92,7 @@ export function AdminOrderSlideCard({
     clerkUserId: group.order.clerkUserId,
   });
   const tiles = previewTiles(group);
+  const previewSlots = Array.from({ length: PREVIEW_SLOT_COUNT }, (_, i) => tiles[i] ?? null);
   const extraCount = Math.max(
     0,
     partitionPaidLinesIntoBatchBuckets(group.lines).reduce(
@@ -96,7 +102,12 @@ export function AdminOrderSlideCard({
   );
 
   return (
-    <div className="relative isolate w-full min-w-[17rem] overflow-hidden rounded-xl">
+    <div
+      className={cn(
+        "relative isolate w-full min-w-0 overflow-hidden rounded-xl",
+        className,
+      )}
+    >
       <div
         aria-hidden
         className={cn(
@@ -106,64 +117,54 @@ export function AdminOrderSlideCard({
       />
       <article
         className={cn(
-          "relative z-10 flex min-h-[18rem] w-full flex-col overflow-hidden rounded-[10px] bg-card text-left shadow-sm transition-shadow hover:shadow-md",
+          "relative z-10 flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[10px] bg-card text-left shadow-sm transition-shadow hover:shadow-md",
           ORDER_SLIDE_BORDER_INSET,
         )}
       >
       <button
         type="button"
-        className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="flex h-full min-h-0 flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onDoubleClick={(e) => {
           e.preventDefault();
           onOpenDetail();
         }}
         title="Double-click to view all products in a table"
       >
-      <div className="grid grid-cols-2 gap-px bg-border">
-        {tiles.length > 0 ?
-          tiles.map((tile, i) => (
-            <div
-              key={`${tile.label}:${i}`}
-              className="relative aspect-square bg-muted/30"
-            >
+      <div className="grid h-[11rem] shrink-0 grid-cols-2 grid-rows-2 gap-px bg-border">
+        {previewSlots.map((tile, i) => (
+          <div
+            key={tile ? `${tile.label}:${i}` : `empty:${i}`}
+            className="relative min-h-0 overflow-hidden bg-muted/30"
+          >
+            {tile ?
               <ProductRequestThumbnail
                 variant="admin"
                 imageUrl={tile.imageUrl}
                 productLabel={tile.label}
                 className="size-full max-w-none rounded-none border-0 sm:w-full"
               />
-              {i === tiles.length - 1 && extraCount > 0 ?
-                <span className="absolute inset-0 flex items-center justify-center bg-background/65 text-sm font-semibold text-foreground">
-                  +{extraCount}
-                </span>
-              : null}
-            </div>
-          ))
-        : (
-          <div
-            className="col-span-2 flex aspect-[2/1] items-center justify-center bg-muted/25 text-muted-foreground"
-            aria-hidden
-          >
-            <Package className="size-10 opacity-40" />
+            : tiles.length === 0 && i === 0 ?
+              <div
+                className="flex size-full items-center justify-center bg-muted/25 text-muted-foreground"
+                aria-hidden
+              >
+                <Package className="size-10 opacity-40" />
+              </div>
+            : (
+              <div className="size-full bg-muted/20" aria-hidden />
+            )}
+            {tile && i === tiles.length - 1 && extraCount > 0 ?
+              <span className="absolute inset-0 flex items-center justify-center bg-background/65 text-sm font-semibold text-foreground">
+                +{extraCount}
+              </span>
+            : null}
           </div>
-        )}
-        {tiles.length === 1 ?
-          <div className="aspect-square bg-muted/20" aria-hidden />
-        : null}
-        {tiles.length === 2 ?
-          <>
-            <div className="aspect-square bg-muted/20" aria-hidden />
-            <div className="aspect-square bg-muted/20" aria-hidden />
-          </>
-        : null}
-        {tiles.length === 3 ?
-          <div className="aspect-square bg-muted/20" aria-hidden />
-        : null}
+        ))}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
         <p className="line-clamp-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {laneTitle(lane)}
+          {laneTitle(lane, ORDER_SLIDE_LANE_AUDIENCE)}
         </p>
         <p className="line-clamp-1 text-sm font-semibold text-foreground">
           {customer}

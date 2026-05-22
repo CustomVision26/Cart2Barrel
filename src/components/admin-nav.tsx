@@ -1,55 +1,249 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
+import {
+  Box,
+  ClipboardList,
+  LayoutDashboard,
+  Package,
+  ShoppingBag,
+  Sparkles,
+  Truck,
+  Users,
+  Warehouse,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
+import { cn } from "@/lib/utils";
 
-const links = [
-  { href: "/admin/overview", label: "Overview" },
-  { href: ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue, label: "Item requests" },
-  { href: "/admin/orders", label: "Orders" },
-  { href: "/admin/purchase-orders", label: "Purchase orders" },
-  { href: "/admin/packages", label: "Packages" },
-  { href: "/admin/barrels", label: "Barrels" },
-  { href: "/admin/spotlight-products", label: "Spotlight" },
-  { href: "/admin/shipments", label: "Shipments" },
-  { href: "/admin/users", label: "Users" },
-] as const;
+type AdminNavLink = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  match: (path: string) => boolean;
+};
 
-export function AdminNav() {
+type AdminNavSection = {
+  title: string;
+  links: AdminNavLink[];
+};
+
+function isOrdersPath(path: string): boolean {
+  return (
+    path === "/admin/orders" ||
+    path.startsWith("/admin/orders/") ||
+    path === "/admin/orders-history" ||
+    path.startsWith("/admin/orders-history/")
+  );
+}
+
+const SECTIONS: AdminNavSection[] = [
+  {
+    title: "Commerce",
+    links: [
+      {
+        href: "/admin/overview",
+        label: "Overview",
+        icon: LayoutDashboard,
+        match: (path) => path === "/admin/overview" || path === "/admin",
+      },
+      {
+        href: ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue,
+        label: "Item requests",
+        icon: ClipboardList,
+        match: (path) => path.startsWith("/admin/item-requests"),
+      },
+      {
+        href: "/admin/orders",
+        label: "Orders",
+        icon: ShoppingBag,
+        match: isOrdersPath,
+      },
+    ],
+  },
+  {
+    title: "Fulfillment",
+    links: [
+      {
+        href: "/admin/purchase-orders",
+        label: "Purchase orders",
+        icon: Truck,
+        match: (path) =>
+          path === "/admin/purchase-orders" ||
+          path.startsWith("/admin/purchase-orders/"),
+      },
+      {
+        href: "/admin/packages",
+        label: "Packages",
+        icon: Package,
+        match: (path) =>
+          path === "/admin/packages" || path.startsWith("/admin/packages/"),
+      },
+      {
+        href: "/admin/barrels",
+        label: "Barrels",
+        icon: Box,
+        match: (path) =>
+          path === "/admin/barrels" || path.startsWith("/admin/barrels/"),
+      },
+      {
+        href: "/admin/shipments",
+        label: "Shipments",
+        icon: Warehouse,
+        match: (path) =>
+          path === "/admin/shipments" || path.startsWith("/admin/shipments/"),
+      },
+    ],
+  },
+  {
+    title: "Catalog & team",
+    links: [
+      {
+        href: "/admin/spotlight-products",
+        label: "Spotlight",
+        icon: Sparkles,
+        match: (path) =>
+          path === "/admin/spotlight-products" ||
+          path.startsWith("/admin/spotlight-products/"),
+      },
+      {
+        href: "/admin/users",
+        label: "Users",
+        icon: Users,
+        match: (path) =>
+          path === "/admin/users" || path.startsWith("/admin/users/"),
+      },
+    ],
+  },
+];
+
+function NavLinkItem({
+  href,
+  label,
+  icon: Icon,
+  active,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+        active
+          ? "bg-sidebar-primary/15 text-sidebar-foreground shadow-sm ring-1 ring-sidebar-primary/25"
+          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+      )}
+    >
+      <span
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-md border transition-colors",
+          active
+            ? "border-sidebar-primary/30 bg-sidebar-primary/20 text-sidebar-primary"
+            : "border-sidebar-border/80 bg-sidebar-accent/50 text-sidebar-foreground/60 group-hover:border-sidebar-border group-hover:text-sidebar-foreground",
+        )}
+      >
+        <Icon className="size-4" aria-hidden />
+      </span>
+      <span className="min-w-0 truncate">{label}</span>
+    </Link>
+  );
+}
+
+const ALL_LINKS = SECTIONS.flatMap((section) => section.links);
+
+function MobileNavLink({
+  href,
+  label,
+  icon: Icon,
+  active,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors",
+        active
+          ? "border-sidebar-primary/40 bg-sidebar-primary/15 text-sidebar-foreground"
+          : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/70 hover:text-sidebar-foreground",
+      )}
+    >
+      <Icon className="size-3.5 shrink-0" aria-hidden />
+      {label}
+    </Link>
+  );
+}
+
+export function AdminNav({
+  className,
+  variant = "sidebar",
+}: {
+  className?: string;
+  variant?: "sidebar" | "mobile";
+}) {
   const currentPath = usePathname() ?? "/admin";
   const { hrefWithFilter } = useAdminCustomerFilter();
-  return (
-    <nav className="flex flex-col gap-1">
-      {links.map(({ href, label }) => {
-        const navHref = hrefWithFilter(href);
-        const active =
-          href === "/admin/overview"
-            ? currentPath === "/admin/overview" || currentPath === "/admin"
-            : href === ADMIN_ITEM_REQUESTS_ROUTES.activeRequestsQueue
-              ? currentPath.startsWith("/admin/item-requests")
-              : href === "/admin/orders"
-                ? currentPath === "/admin/orders" ||
-                  currentPath.startsWith("/admin/orders/") ||
-                  currentPath === "/admin/orders-history" ||
-                  currentPath.startsWith("/admin/orders-history/")
-              : currentPath === href || currentPath.startsWith(`${href}/`);
-        return (
-          <Link
+
+  if (variant === "mobile") {
+    return (
+      <nav
+        aria-label="Admin"
+        className={cn("flex gap-2", className)}
+      >
+        {ALL_LINKS.map(({ href, label, icon, match }) => (
+          <MobileNavLink
             key={href}
-            href={navHref}
-            className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              active
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-            }`}
-          >
-            {label}
-          </Link>
-        );
-      })}
+            href={hrefWithFilter(href)}
+            label={label}
+            icon={icon}
+            active={match(currentPath)}
+          />
+        ))}
+      </nav>
+    );
+  }
+
+  return (
+    <nav
+      aria-label="Admin"
+      className={cn("flex flex-col gap-6", className)}
+    >
+      {SECTIONS.map((section) => (
+        <div key={section.title} className="space-y-1.5">
+          <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/45">
+            {section.title}
+          </p>
+          <ul className="flex flex-col gap-0.5">
+            {section.links.map(({ href, label, icon, match }) => {
+              const active = match(currentPath);
+              const navHref = hrefWithFilter(href);
+              return (
+                <li key={href}>
+                  <NavLinkItem
+                    href={navHref}
+                    label={label}
+                    icon={icon}
+                    active={active}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </nav>
   );
 }

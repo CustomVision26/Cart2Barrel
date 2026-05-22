@@ -12,6 +12,10 @@ import {
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
+import {
+  orderSlideLaneNamesList,
+  ORDER_SLIDE_LANE_AUDIENCE,
+} from "@/lib/admin-orders-slide-filters";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
@@ -107,9 +111,10 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Orders</h1>
         <p className="text-sm text-muted-foreground">
           Browse paid checkouts in horizontal lanes —{" "}
-          <span className="font-medium text-foreground">Awaiting purchase</span>,{" "}
-          <span className="font-medium text-foreground">Funded</span>, and{" "}
-          <span className="font-medium text-foreground">Need corrections</span> — with a product
+          <span className="font-medium text-foreground">
+            {orderSlideLaneNamesList(ORDER_SLIDE_LANE_AUDIENCE)}
+          </span>{" "}
+          — with a product
           preview on each card. Double-click a card to open the full table grouped by batch and
           single
           items. Replacement returns in transit and money-back returns appear under{" "}
