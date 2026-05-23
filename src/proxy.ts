@@ -1,6 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-import { clerkAuthorizedParties } from "@/lib/clerk-middleware-options";
+import { clerkAuthorizedParties, parseClerkJwtKeyForMiddleware } from "@/lib/clerk-middleware-options";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -11,8 +11,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks/clerk(.*)",
 ]);
 
-const rawJwt = process.env.CLERK_JWT_KEY?.trim();
-const jwtKey = rawJwt?.replace(/\\n/g, "\n");
+const jwtKey = parseClerkJwtKeyForMiddleware();
 
 export default clerkMiddleware(
   async (auth, request) => {
