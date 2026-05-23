@@ -6,6 +6,7 @@ import type { AdminSpotlightProductMutationState } from "@/actions/admin-spotlig
 import { adminCreateSpotlightProductAction } from "@/actions/admin-spotlight-products";
 import { adminCreateSpotlightVariantAction } from "@/actions/admin-spotlight-variants";
 import { resolveAdminSpotlightFromSerpApi } from "@/lib/spotlight/admin-spotlight-serpapi-resolve";
+import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { adminResolveSpotlightProductSchema } from "@/lib/validations/admin-spotlight-resolve";
 import {
@@ -38,16 +39,7 @@ export type AdminResolveSpotlightProductResult =
       }>;
       variantMethod: string;
       variantRetailer: string;
-      compareOffers: Array<{
-        id: string;
-        retailer: string;
-        title: string;
-        productUrl: string;
-        priceUsdCents: number | null;
-        imageUrl: string | null;
-        matchConfidence: number | null;
-        isOriginal: boolean;
-      }>;
+      compareOffers: RetailerPriceOffer[];
       compareSearchQuery: string;
       compareMessage: string | null;
     }

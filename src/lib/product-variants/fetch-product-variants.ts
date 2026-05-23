@@ -19,6 +19,10 @@ import {
 import { displaySiteName, hostnameFromProductUrl } from "@/lib/site-name";
 
 import { enrichVariantsWithListingTitle } from "@/lib/product-variants/enrich-listing-title";
+import type {
+  FetchProductVariantsResult,
+  ProductVariantOffer,
+} from "@/lib/product-variants/types";
 
 const MAX_VARIANTS = 32;
 

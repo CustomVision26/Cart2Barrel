@@ -21,6 +21,7 @@ import { getSpotlightProductById } from "@/data/spotlight-category-products";
 import { getDb } from "@/db";
 import { spotlightProductVariants } from "@/db/schema";
 import { fetchProductVariants } from "@/lib/product-variants/fetch-product-variants";
+import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import {
   isRetailerReceiptImageMime,
@@ -84,7 +85,7 @@ export async function adminImportSpotlightVariantsAction(
   }
 
   let sortBase = await nextSpotlightVariantSortIndex(parent.id);
-  const rows = result.variants.map((v) => ({
+  const rows = result.variants.map((v: ProductVariantOffer) => ({
     productUrl:
       v.productUrl && v.productUrl !== parent.productUrl ? v.productUrl : null,
     imageUrl: v.imageUrl,

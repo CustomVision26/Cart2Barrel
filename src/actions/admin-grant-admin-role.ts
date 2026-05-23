@@ -1,7 +1,7 @@
 "use server";
 
 import { currentUser } from "@clerk/nextjs/server";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import { insertAdminRoleGrant } from "@/data/admin-role-grants";
 import { resolveStaffClerkUserIds } from "@/data/admin-staff-clerk-ids";
@@ -100,7 +100,7 @@ export async function grantAdminRoleAction(
     };
   }
 
-  revalidateTag("admin-profile-picker");
+  updateTag("admin-profile-picker");
   revalidatePath("/admin/users", "layout");
   revalidatePath("/admin/users/assign-admin");
   revalidatePath("/admin/users/grant-log");
