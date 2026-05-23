@@ -68,6 +68,9 @@ export async function isOnboardingComplete(
   clerkUserId: string,
   profile: Profile
 ): Promise<boolean> {
+  if (profile.onboardingSkippedAt) {
+    return true;
+  }
   if (!isContactProfileComplete(profile) || !hasSavedContactStep(profile)) {
     return false;
   }

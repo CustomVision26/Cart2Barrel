@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
   "/login(.*)",
   "/signup(.*)",
   "/api/webhooks/stripe(.*)",
+  "/api/webhooks/clerk(.*)",
 ]);
 
 const rawJwt = process.env.CLERK_JWT_KEY?.trim();

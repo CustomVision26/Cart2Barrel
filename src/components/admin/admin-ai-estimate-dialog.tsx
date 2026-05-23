@@ -11,6 +11,7 @@ import {
 } from "@/actions/admin-ai-estimate";
 import { saveAdminItemQuoteAction } from "@/actions/admin-item-quote";
 import { AdminAiEstimateResultFields } from "@/components/admin/admin-ai-estimate-result-fields";
+import { AdminProductImagePreview } from "@/components/admin/admin-product-image-preview";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,12 +43,17 @@ function centsToDollarInput(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
+function isBlobPreviewUrl(url: string | null | undefined): boolean {
+  return typeof url === "string" && url.startsWith("blob:");
+}
+
 type AdminAiEstimateDialogProps = {
   itemRequestId: string;
   productUrl: string;
   initialQuantity: number;
   initialProductSize?: string | null;
   initialProductColor?: string | null;
+  initialProductImageUrl?: string | null;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
@@ -57,6 +63,7 @@ export function AdminAiEstimateDialog({
   initialQuantity,
   initialProductSize = null,
   initialProductColor = null,
+  initialProductImageUrl = null,
   merchantEstimateFees,
 }: AdminAiEstimateDialogProps) {
   const router = useRouter();
@@ -112,10 +119,16 @@ export function AdminAiEstimateDialog({
     setMerchandiseIncludesSiteShippingTax(false);
     setStagedProductImageFile(null);
     setUploadedProductImageUrl((prev) => {
-      revokeBlobPreviewUrl(prev);
-      return null;
+      if (isBlobPreviewUrl(prev)) revokeBlobPreviewUrl(prev);
+      return initialProductImageUrl?.trim() || null;
     });
-  }, [open, initialQuantity, initialProductSize, initialProductColor]);
+  }, [
+    open,
+    initialQuantity,
+    initialProductSize,
+    initialProductColor,
+    initialProductImageUrl,
+  ]);
 
   useEffect(() => {
     if (!result?.ok) return;
@@ -138,8 +151,12 @@ export function AdminAiEstimateDialog({
     );
     setEditTaxDollars(centsToDollarInput(result.estimate.taxCents));
     setEditSavingsDollars("0.00");
-    if (result.extraction.productImageUrl?.trim()) {
-      setUploadedProductImageUrl(result.extraction.productImageUrl.trim());
+    const extractedImage = result.extraction.productImageUrl?.trim();
+    if (extractedImage) {
+      setUploadedProductImageUrl((prev) => {
+        if (isBlobPreviewUrl(prev)) revokeBlobPreviewUrl(prev);
+        return extractedImage;
+      });
     }
   }, [result]);
 
@@ -155,10 +172,16 @@ export function AdminAiEstimateDialog({
   const runEstimate = useCallback(
     (skipPageFetch: boolean) => {
       setResult(null);
+      setStagedProductImageFile(null);
       if (!skipPageFetch) {
-        revokeBlobPreviewUrl(uploadedProductImageUrl);
-        setUploadedProductImageUrl(null);
-        setStagedProductImageFile(null);
+        setUploadedProductImageUrl((prev) => {
+          if (isBlobPreviewUrl(prev)) revokeBlobPreviewUrl(prev);
+          return (
+            prev && !isBlobPreviewUrl(prev) ?
+              prev
+            : initialProductImageUrl?.trim() || null
+          );
+        });
       }
       startAiTransition(async () => {
         const res = await adminAiEstimateFromUrlAction({
@@ -179,6 +202,7 @@ export function AdminAiEstimateDialog({
       variantColor,
       itemRequestId,
       uploadedProductImageUrl,
+      initialProductImageUrl,
     ]
   );
 
@@ -357,9 +381,10 @@ export function AdminAiEstimateDialog({
         <DialogHeader>
           <DialogTitle>AI product estimate</DialogTitle>
           <DialogDescription>
-            Run AI on the product URL to extract details and the primary product image.
-            When extraction succeeds, the HTTPS image URL is saved on the request right
-            away for cart and shopper-facing lists. If AI finds no image, use{" "}
+            Uses SerpApi (Walmart, Amazon, Google Shopping) with the product URL and
+            size/color fields below to load title, image, and pack price. When lookup
+            succeeds, the HTTPS image URL is saved on the request right away for cart
+            and shopper-facing lists. If SerpApi finds no image, use{" "}
             <span className="font-medium text-foreground">Upload product image</span> to
             pick a file (preview only).{" "}
             <span className="font-medium text-foreground">Save quote</span> uploads the
@@ -368,6 +393,13 @@ export function AdminAiEstimateDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {uploadedProductImageUrl && !result?.ok ?
+            <AdminProductImagePreview
+              imageUrl={uploadedProductImageUrl}
+              productUrl={productUrl}
+              imageClassName="max-h-40"
+            />
+          : null}
           <div className="space-y-3">
             <Field>
               <FieldLabel htmlFor="ai-estimate-qty">Quantity (packs)</FieldLabel>
@@ -427,7 +459,7 @@ export function AdminAiEstimateDialog({
               ) : (
                 <>
                   <SparklesIcon className="size-4" />
-                  Run AI extraction
+                  Run SerpApi lookup
                 </>
               )}
             </Button>
@@ -480,6 +512,7 @@ export function AdminAiEstimateDialog({
                 idPrefix="ai-est"
                 itemRequestId={itemRequestId}
                 productImageUrl={uploadedProductImageUrl}
+                productUrl={productUrl}
                 deferProductImagePersist
                 onProductImageStaged={handleProductImageStaged}
                 editStaffNote={editStaffNote}

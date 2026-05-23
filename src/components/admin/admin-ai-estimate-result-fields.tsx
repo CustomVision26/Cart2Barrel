@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import type { AdminAiEstimateSuccess } from "@/actions/admin-ai-estimate";
 import { AdminItemRequestProductImageUpload } from "@/components/admin/admin-item-request-product-image-upload";
+import { AdminProductImagePreview } from "@/components/admin/admin-product-image-preview";
 import { formatUsd } from "@/lib/admin-markup";
 import { cn } from "@/lib/utils";
 
@@ -145,28 +146,15 @@ export function AdminAiEstimateResultFields({
               : "space-y-2",
           )}
         >
-        <div
-          className={cn(
-            "overflow-hidden border border-border bg-muted/30",
-            polishedEditLayout ? "rounded-xl" : "rounded-lg",
-          )}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element -- retailer or Blob URLs */}
-          <img
-            src={displayImageUrl}
-            alt={
-              (showEditableProduct ? editProductName : result.extraction.productName)?.trim()
-                ? `Product: ${(showEditableProduct ? editProductName : result.extraction.productName)!.trim()}`
-                : "Product image"
-            }
-            className={cn(
-              "mx-auto w-full object-contain",
-              polishedEditLayout ? "max-h-44" : "max-h-52",
-            )}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
-        </div>
+        <AdminProductImagePreview
+          imageUrl={displayImageUrl}
+          productLabel={
+            showEditableProduct ? editProductName : result.extraction.productName
+          }
+          productUrl={productUrl}
+          frameClassName={polishedEditLayout ? "rounded-xl" : "rounded-lg"}
+          imageClassName={polishedEditLayout ? "max-h-44" : "max-h-52"}
+        />
         {alwaysShowImageUpload && itemRequestId ? (
           <div
             className={cn(

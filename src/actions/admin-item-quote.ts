@@ -21,6 +21,7 @@ import { ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT } from "@/lib/item-quote-void-
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseSaveAdminItemQuoteInput } from "@/lib/validations/admin-item-quote";
+import { recordEstimateReadyActivity } from "@/data/user-status-update-events";
 
 export type SaveAdminItemQuoteState = {
   ok: boolean;
@@ -112,6 +113,15 @@ export async function saveAdminItemQuoteAction(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to save quote.";
     return { ok: false, message: msg };
+  }
+
+  const reqAfter = await getItemRequestById(d.itemRequestId);
+  if (reqAfter) {
+    await recordEstimateReadyActivity({
+      clerkUserId: reqAfter.clerkUserId,
+      itemRequestId: reqAfter.id,
+      productName: reqAfter.productName,
+    });
   }
 
   revalidatePath("/admin/item-requests", "layout");

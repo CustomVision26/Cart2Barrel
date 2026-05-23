@@ -172,3 +172,47 @@ export async function fetchImmersiveProductVariants(
 
   return rows;
 }
+
+export type ImmersiveStoreOffer = {
+  retailer: string;
+  title: string;
+  productUrl: string;
+  priceUsd: number | null;
+  imageUrl: string | null;
+};
+
+/** "Across the web" seller rows from Google Immersive Product (real retailer URLs). */
+export async function fetchImmersiveProductStoreOffers(
+  pageToken: string,
+): Promise<ImmersiveStoreOffer[]> {
+  const data = await serpApiGet<ImmersiveProductResponse>({
+    engine: "google_immersive_product",
+    page_token: pageToken,
+    more_stores: "true",
+  });
+
+  const pr = data.product_results;
+  if (!pr?.stores?.length) return [];
+
+  const heroImage = pr.thumbnails?.[0]?.trim() || null;
+  const offers: ImmersiveStoreOffer[] = [];
+
+  for (const store of pr.stores) {
+    const productUrl = store.link?.trim();
+    if (!productUrl || !/^https:\/\//i.test(productUrl)) continue;
+
+    const retailer = store.name?.trim();
+    const title = store.title?.trim() || pr.title?.trim();
+    if (!retailer || !title) continue;
+
+    offers.push({
+      retailer,
+      title,
+      productUrl,
+      priceUsd: parsePriceFromRow(store),
+      imageUrl: heroImage,
+    });
+  }
+
+  return offers;
+}

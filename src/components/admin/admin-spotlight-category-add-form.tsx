@@ -454,11 +454,15 @@ export function AdminSpotlightCategoryAddForm({
                             <p className="font-medium">{offer.retailer}</p>
                             {offer.isOriginal ?
                               <span className="text-xs text-primary">Original</span>
-                            : offer.matchConfidence != null ?
+                            : offer.aiVerified && offer.matchConfidence != null ?
                               <span className="text-xs text-muted-foreground">
-                                {offer.matchConfidence}% match
+                                Verified {Math.round(offer.matchConfidence * 100)}%
                               </span>
-                            : null}
+                            : (
+                              <span className="text-xs text-amber-700 dark:text-amber-300">
+                                Across the web
+                              </span>
+                            )}
                           </td>
                           <td className="max-w-[200px] px-3 py-2">
                             <p className="line-clamp-2 text-foreground">{offer.title}</p>

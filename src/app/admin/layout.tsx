@@ -6,7 +6,9 @@ import {
   AdminCustomerFilterShell,
 } from "@/components/admin/admin-customer-filter-shell";
 import { ClerkUserButton } from "@/components/clerk-user-button";
+import { AdminNotificationsBell } from "@/components/admin/admin-notifications-bell";
 import { AdminNav } from "@/components/admin-nav";
+import { loadAdminActivityNotificationSummary } from "@/data/admin-user-activity-events";
 import { listProfilesForAdminPicker } from "@/data/customer-pricing-packages";
 import { getClerkSessionGate } from "@/lib/clerk-session";
 
@@ -31,6 +33,9 @@ export default async function AdminLayout({
   }
 
   const adminPickerUsers = await listProfilesForAdminPicker();
+  const activitySummary = await loadAdminActivityNotificationSummary(
+    gate.userId,
+  );
 
   return (
     <AdminCustomerFilterShell users={adminPickerUsers}>
@@ -47,7 +52,8 @@ export default async function AdminLayout({
               <span className="text-xs text-muted-foreground">Cart2Barrel</span>
             </div>
             <AdminCustomerFilterBar users={adminPickerUsers} />
-            <div className="flex shrink-0 items-center gap-3 lg:ml-auto">
+            <div className="flex shrink-0 items-center gap-2 lg:ml-auto">
+              <AdminNotificationsBell initial={activitySummary} />
               <Link
                 href="/dashboard"
                 className="text-sm text-muted-foreground hover:text-foreground"
@@ -61,12 +67,24 @@ export default async function AdminLayout({
         <div className="mx-auto flex w-full max-w-6xl flex-1 gap-6 px-4 py-6 lg:gap-8 lg:py-8">
           <aside className="hidden w-60 shrink-0 lg:block">
             <div className="sticky top-6 rounded-xl border border-sidebar-border bg-sidebar/95 p-3 shadow-sm ring-1 ring-sidebar-border/60 backdrop-blur-sm">
-              <AdminNav />
+              <AdminNav
+                badges={{
+                  itemRequests: activitySummary.itemRequestsUnread,
+                  orders: activitySummary.ordersUnread,
+                }}
+              />
             </div>
           </aside>
           <div className="min-w-0 flex-1">
             <div className="mb-6 overflow-x-auto rounded-xl border border-sidebar-border bg-sidebar/90 p-2 shadow-sm ring-1 ring-sidebar-border/50 lg:hidden">
-              <AdminNav variant="mobile" className="w-max min-w-full px-0.5 pb-0.5" />
+              <AdminNav
+                variant="mobile"
+                className="w-max min-w-full px-0.5 pb-0.5"
+                badges={{
+                  itemRequests: activitySummary.itemRequestsUnread,
+                  orders: activitySummary.ordersUnread,
+                }}
+              />
             </div>
             {children}
           </div>

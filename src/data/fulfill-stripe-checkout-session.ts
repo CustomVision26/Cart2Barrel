@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import type Stripe from "stripe";
 
 import { applyPaidCheckoutFulfillmentForOrder } from "@/data/apply-paid-checkout-fulfillment";
+import { recordCheckoutPaymentSucceededActivity } from "@/data/admin-user-activity-events";
 import {
   fulfillOutboundShippingChargesFromCheckout,
   parseOutboundChargeIdsFromMetadata,
@@ -154,6 +155,12 @@ export async function fulfillPaidCheckoutFromStripeSession(
   });
 
   await markInCartBatchSessionsPaidForCheckoutOrder(order.id);
+
+  await recordCheckoutPaymentSucceededActivity({
+    orderId: order.id,
+    customerClerkUserId: order.clerkUserId,
+    totalAmountCents: order.totalAmount,
+  });
 
   await trySendOwnerPaidOrderReceiptEmail(order.id);
 

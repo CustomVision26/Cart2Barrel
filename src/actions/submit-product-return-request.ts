@@ -14,6 +14,7 @@ import {
   orders,
 } from "@/db/schema";
 import { lineSnapshotPayloadFromItemRequest } from "@/data/item-request-line-snapshots";
+import { recordProductReturnRequestedActivity } from "@/data/admin-user-activity-events";
 import { getItemRequestById } from "@/data/item-requests";
 import { pendingProductReturnRequestsByOrderItemIds } from "@/data/order-item-product-return-requests";
 import { pendingRefundRequestsByOrderItemIds } from "@/data/order-item-refund-requests";
@@ -199,6 +200,12 @@ export async function submitProductReturnRequestAction(
       /* snapshot phase may lag migrations */
     }
   }
+
+  await recordProductReturnRequestedActivity({
+    customerClerkUserId: userId,
+    orderItemId: scoped.orderItem.id,
+    productName: scoped.itemRequest.productName,
+  });
 
   revalidatePath("/dashboard/orders");
   revalidatePath("/admin/orders");

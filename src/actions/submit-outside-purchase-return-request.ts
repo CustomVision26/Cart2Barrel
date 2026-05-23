@@ -11,6 +11,7 @@ import {
   insertItemRequestLineSnapshot,
   lineSnapshotPayloadFromItemRequest,
 } from "@/data/item-request-line-snapshots";
+import { recordOutsidePurchaseReturnSubmittedActivity } from "@/data/admin-user-activity-events";
 import { getItemRequestById } from "@/data/item-requests";
 import { getOutsidePurchaseReturnRequestByItemRequestId } from "@/data/outside-purchase-return-requests";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
@@ -154,6 +155,12 @@ export async function submitOutsidePurchaseReturnRequestAction(
     }
     throw e;
   }
+
+  await recordOutsidePurchaseReturnSubmittedActivity({
+    customerClerkUserId: userId,
+    itemRequestId: req.id,
+    productName: req.productName,
+  });
 
   revalidateDashboardAddItem();
   revalidatePath("/admin/item-requests", "layout");

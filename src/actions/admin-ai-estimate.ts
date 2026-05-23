@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/fetch-page-for-ai";
 import { extractProductWithOpenAI } from "@/lib/ai/extract-product-openai";
 import type { AiProductExtraction } from "@/lib/ai/extract-product-openai";
+import { extractAdminAiProductWithSerpApi } from "@/lib/admin/admin-ai-estimate-serpapi";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 import {
   computeLineEstimateCents,
@@ -23,6 +24,7 @@ import {
 } from "@/data/item-requests";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import { getSerpApiKey } from "@/lib/serpapi/env";
 import { parseAdminAiEstimateRequest } from "@/lib/validations/admin-ai-estimate";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
@@ -75,9 +77,11 @@ export async function adminAiEstimateFromUrlAction(
 
   try {
     let feeOwnerId: string | undefined;
+    let existingProductName: string | null = null;
     if (itemRequestId) {
       const req = await getItemRequestById(itemRequestId);
       feeOwnerId = req?.clerkUserId;
+      existingProductName = req?.productName ?? null;
     }
     const feeSnap = await getMerchantPricingForEstimates(feeOwnerId);
     const variantContext = {
@@ -98,12 +102,37 @@ export async function adminAiEstimateFromUrlAction(
         notes:
           "Manual quote — product page was not fetched (retailer blocked automated access or staff chose manual entry).",
       };
+    } else if (getSerpApiKey()) {
+      const serp = await extractAdminAiProductWithSerpApi({
+        productUrl,
+        productName: existingProductName,
+        productSize: productSize ?? null,
+        productColor: productColor ?? null,
+      });
+      if (serp.ok) {
+        extraction = serp.extraction;
+      } else {
+        const html = await fetchPageHtmlForAi(productUrl);
+        extraction = await extractProductWithOpenAI(
+          html,
+          productUrl,
+          variantContext,
+        );
+        if (serp.message && !extraction.notes?.includes("SerpApi")) {
+          extraction = {
+            ...extraction,
+            notes: [extraction.notes, `SerpApi: ${serp.message}`]
+              .filter(Boolean)
+              .join(" "),
+          };
+        }
+      }
     } else {
       const html = await fetchPageHtmlForAi(productUrl);
       extraction = await extractProductWithOpenAI(
         html,
         productUrl,
-        variantContext
+        variantContext,
       );
     }
     const unitPriceCents =

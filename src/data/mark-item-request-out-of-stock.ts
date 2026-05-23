@@ -10,6 +10,7 @@ import { getItemRequestById } from "@/data/item-requests";
 import { getDb } from "@/db";
 import { batchQuoteSessions, itemRequests } from "@/db/schema";
 import { ITEM_QUOTE_VOID_REASON_STAFF_OUT_OF_STOCK } from "@/lib/item-quote-void-reason";
+import { recordItemOutOfStockActivity } from "@/data/user-status-update-events";
 
 /**
  * Staff marks a pending or quoted line as out of stock: voids operational quotes,
@@ -89,6 +90,12 @@ export async function markItemRequestOutOfStockForAdmin(
       phase: "post_admin_estimate_edit",
       auditMemo: "Staff marked this product as out of stock.",
       line: lineSnapshotPayloadFromItemRequest(after),
+    });
+
+    await recordItemOutOfStockActivity({
+      clerkUserId: after.clerkUserId,
+      itemRequestId: after.id,
+      productName: after.productName,
     });
   }
 }

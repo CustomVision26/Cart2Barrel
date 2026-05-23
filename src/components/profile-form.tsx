@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import type { SaveProfileState } from "@/actions/profile";
 import { saveContactProfileAction } from "@/actions/profile";
+import { OnboardingSkipButton } from "@/components/onboarding-skip-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,12 +33,15 @@ type ProfileFormProps = {
   profile: Profile;
   /** Where to send the user after a successful save (allowlisted server-side). */
   afterSaveRedirect?: AfterSaveRedirect;
+  /** Show skip control (onboarding only). */
+  showSkip?: boolean;
 };
 
 /** Account name & phone (billing / legal contact). Shipping street lines use `ShippingAddressForm`. */
 export function ProfileForm({
   profile,
   afterSaveRedirect = "/",
+  showSkip = false,
 }: ProfileFormProps) {
   const [state, formAction, pending] = useActionState(
     saveContactProfileAction,
@@ -99,6 +103,9 @@ export function ProfileForm({
               {state.message}
             </p>
           )}
+          {showSkip ?
+            <OnboardingSkipButton />
+          : null}
           <Button type="submit" disabled={pending} size="lg">
             {pending ? "Saving…" : "Save contact"}
           </Button>

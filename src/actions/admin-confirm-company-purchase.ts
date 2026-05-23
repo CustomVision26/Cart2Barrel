@@ -25,6 +25,7 @@ import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compa
 import { confirmCompanyPurchaseSchema } from "@/lib/validations/admin-order-item";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
+import { recordCompanyPurchaseConfirmedActivity } from "@/data/user-status-update-events";
 
 export type ConfirmCompanyPurchaseState =
   | { ok: true; message: string }
@@ -125,6 +126,14 @@ export async function confirmCompanyPurchaseAction(
       });
     }
   }
+
+  const reqForNotify = await getItemRequestById(row.orderItem.itemRequestId);
+  await recordCompanyPurchaseConfirmedActivity({
+    clerkUserId: row.order.clerkUserId,
+    orderId: row.order.id,
+    orderItemId: row.orderItem.id,
+    productName: reqForNotify?.productName ?? null,
+  });
 
   revalidatePath("/admin/orders");
   revalidatePath("/admin/purchase-orders");

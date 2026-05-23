@@ -13,11 +13,25 @@ type SerpShoppingRaw = {
   title?: string;
   source?: string;
   link?: string;
+  product_link?: string;
   price?: string;
   extracted_price?: number;
   thumbnail?: string;
+  serpapi_thumbnail?: string;
   immersive_product_page_token?: string;
 };
+
+function shoppingResultUrl(raw: SerpShoppingRaw): string | null {
+  const direct = raw.link?.trim();
+  if (direct && /^https:\/\//i.test(direct)) return direct;
+  const productLink = raw.product_link?.trim();
+  if (productLink && /^https:\/\//i.test(productLink)) return productLink;
+  return null;
+}
+
+function shoppingResultImage(raw: SerpShoppingRaw): string | null {
+  return raw.thumbnail?.trim() || raw.serpapi_thumbnail?.trim() || null;
+}
 
 function parsePriceUsd(raw: SerpShoppingRaw): number | null {
   if (
@@ -82,16 +96,16 @@ export async function searchGoogleShopping(
 
   for (const row of rows) {
     const title = row.title?.trim();
-    const productUrl = row.link?.trim();
+    const productUrl = shoppingResultUrl(row);
     const retailer = row.source?.trim() || "Retailer";
-    if (!title || !productUrl || !/^https:\/\//i.test(productUrl)) continue;
+    if (!title || !productUrl) continue;
 
     out.push({
       title,
       retailer,
       productUrl,
       priceUsd: parsePriceUsd(row),
-      imageUrl: row.thumbnail?.trim() || null,
+      imageUrl: shoppingResultImage(row),
       immersiveProductPageToken:
         row.immersive_product_page_token?.trim() || null,
     });

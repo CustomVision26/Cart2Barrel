@@ -32,7 +32,7 @@ export type OriginalProductContext = {
   retailer: string | null;
 };
 
-const MATCH_CONFIDENCE_THRESHOLD = 0.9;
+const MATCH_CONFIDENCE_THRESHOLD = 0.75;
 
 export { MATCH_CONFIDENCE_THRESHOLD };
 
@@ -79,7 +79,8 @@ export async function verifyShoppingMatchesWithOpenAI(
         content: [
           "You verify whether Google Shopping search results refer to the SAME purchasable product as a reference listing.",
           "Reject: different generation/model, refurbished/open-box unless reference is refurbished, bundles, accessories, wrong color/size when reference specifies them.",
-          "Accept only near-exact matches (same model and variant when variant is known).",
+          "Accept the same model sold by another retailer or marketplace seller when the title clearly refers to the same item.",
+          "Third-party sellers (e.g. office supply stores reselling the same SKU) can match when the product is the same.",
           `Return JSON: { "results": [ { "candidateIndex": number, "match": boolean, "confidence": 0-1, "reason": string } ] }`,
           `Only mark match true when confidence >= ${MATCH_CONFIDENCE_THRESHOLD}.`,
           "Include every candidate index from the list.",

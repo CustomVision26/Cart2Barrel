@@ -336,6 +336,7 @@ function ActiveQueueLineTableRow({
             initialQuantity={r.quantity}
             initialProductSize={r.productSize}
             initialProductColor={r.productColor}
+            initialProductImageUrl={r.productImageUrl}
             merchantEstimateFees={merchantEstimateFees}
           />
         ) : canEditQuote && latestQuote ? (

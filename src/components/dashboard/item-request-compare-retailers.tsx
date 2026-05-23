@@ -29,10 +29,12 @@ type ItemRequestCompareRetailersProps = {
   needsManualProductName?: boolean;
 };
 
-function confidenceLabel(offer: RetailerPriceOffer): string {
-  if (offer.isOriginal) return "Original";
-  if (offer.matchConfidence == null) return "—";
-  return `${Math.round(offer.matchConfidence * 100)}%`;
+function matchLabel(offer: RetailerPriceOffer): string {
+  if (offer.isOriginal) return "Your link";
+  if (offer.aiVerified && offer.matchConfidence != null) {
+    return `Verified ${Math.round(offer.matchConfidence * 100)}%`;
+  }
+  return "Across the web";
 }
 
 export function ItemRequestCompareRetailers({
@@ -60,9 +62,10 @@ export function ItemRequestCompareRetailers({
           Retailer price comparison
         </CardTitle>
         <CardDescription className="text-sm leading-relaxed">
-          Search verified offers across retailers. Each result is matched to your
-          product name before display. Preview a listing, then submit for staff review
-          and quotation.
+          Search Google Shopping via SerpApi for offers across the web (same as
+          browser shopping extensions). Verified rows are AI-checked for the same
+          SKU; others are shown for price discovery—confirm on the retailer site
+          before submitting.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-6 py-5">
@@ -165,7 +168,15 @@ export function ItemRequestCompareRetailers({
                           : "—"}
                         </td>
                         <td className="px-3 py-3 align-top text-muted-foreground">
-                          {confidenceLabel(offer)}
+                          <span
+                            className={cn(
+                              offer.aiVerified || offer.isOriginal ?
+                                "text-foreground"
+                              : "text-amber-700 dark:text-amber-300",
+                            )}
+                          >
+                            {matchLabel(offer)}
+                          </span>
                         </td>
                         <td className="px-3 py-3 align-top">
                           <div className="flex flex-wrap justify-end gap-2">
@@ -215,27 +226,17 @@ export function ItemRequestCompareRetailers({
             </div>
 
             {previewOffer ?
-              <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
-                <p className="text-sm font-medium text-foreground">
-                  Preview: {previewOffer.retailer}
-                </p>
-                <div className="overflow-hidden rounded-md border border-border bg-background">
-                  <iframe
-                    title={`Preview ${previewOffer.retailer}`}
-                    src={previewOffer.productUrl}
-                    className="h-[min(50vh,420px)] w-full"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  If the frame is blank, use Open beside that row—the retailer may
-                  block embeds.
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Selected{" "}
+                <span className="font-medium text-foreground">
+                  {previewOffer.retailer}
+                </span>
+                — use Open beside that row to view the listing on the retailer site.
+              </p>
             : null}
           </div>
         : <p className="text-sm text-muted-foreground">
-            Run a comparison to see verified offers from other retailers.
+            Run a comparison to see offers across the web from Google Shopping.
           </p>
         }
       </CardContent>

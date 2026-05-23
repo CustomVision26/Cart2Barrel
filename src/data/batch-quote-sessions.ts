@@ -53,6 +53,8 @@ import {
   appendBatchQuoteSessionStatusEvent,
   listBatchQuoteSessionStatusEventsForSessions,
 } from "@/data/batch-quote-session-status-events";
+import { notifyAdminsOfBatchQuoteSubmitted } from "@/data/admin-user-activity-events";
+import { recordBatchEstimateReadyActivity } from "@/data/user-status-update-events";
 import { buildBatchQuoteHistorySnapshot } from "@/lib/batch-quote-history-snapshot";
 import {
   insertItemRequestLineSnapshot,
@@ -990,6 +992,8 @@ export async function submitDraftBatchSessionForOwner(params: {
           }
         : undefined,
     });
+
+    await notifyAdminsOfBatchQuoteSubmitted(sessionId, clerkUserId);
     return;
   }
 
@@ -1095,6 +1099,13 @@ export async function markSessionEstimated(
           estimate: latestEstimate,
         }),
       },
+    });
+
+    await recordBatchEstimateReadyActivity({
+      clerkUserId: before.clerkUserId,
+      batchSessionId: sessionId,
+      batchNumber: before.batchNumber,
+      lineCount: lineRequests.length,
     });
   }
 }

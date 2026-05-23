@@ -11,6 +11,8 @@ import {
 } from "@/db/schema";
 import { performOrderItemStripeRefund } from "@/data/perform-order-item-stripe-refund";
 import { sumRefundedCentsByOrderItemIds } from "@/data/order-item-refunds";
+import { getItemRequestById } from "@/data/item-requests";
+import { recordRefundApprovedActivity } from "@/data/user-status-update-events";
 import { refundableLineRemainderCents } from "@/lib/order-line-refund-eligibility";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { approveRefundRequestSchema } from "@/lib/validations/order-item-refund-request";
@@ -114,6 +116,15 @@ export async function approveOrderItemRefundRequestAction(
       rejectionNote: null,
     })
     .where(eq(orderItemRefundRequests.id, row.req.id));
+
+  const reqLine = await getItemRequestById(row.orderItem.itemRequestId);
+  await recordRefundApprovedActivity({
+    clerkUserId: row.order.clerkUserId,
+    orderId: row.order.id,
+    orderItemId: row.orderItem.id,
+    productName: reqLine?.productName ?? null,
+    amountCents: result.refundedCents,
+  });
 
   revalidatePath("/admin/overview");
   revalidatePath("/admin/orders");

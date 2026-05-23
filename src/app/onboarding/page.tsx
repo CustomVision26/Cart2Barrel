@@ -54,7 +54,11 @@ export default async function OnboardingPage() {
           </p>
         </div>
         <div className="flex w-full max-w-lg flex-col gap-8">
-          <ProfileForm profile={profile} afterSaveRedirect="/onboarding" />
+          <ProfileForm
+            profile={profile}
+            afterSaveRedirect="/onboarding"
+            showSkip
+          />
           <ShippingAddressForm address={shipping} afterSaveRedirect="/" />
         </div>
       </main>

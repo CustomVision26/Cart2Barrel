@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { itemRequests } from "@/db/schema";
 import { insertItemRequestLineSnapshot } from "@/data/item-request-line-snapshots";
+import { recordItemRequestSubmittedActivity } from "@/data/admin-user-activity-events";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 import { parseCreateItemRequestInput } from "@/lib/validations/item-request";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
@@ -77,6 +78,13 @@ export async function createItemRequestAction(
       productImageUrl: created.productImageUrl,
       siteName: created.siteName,
     },
+  });
+
+  await recordItemRequestSubmittedActivity({
+    customerClerkUserId: userId,
+    itemRequestId: created.id,
+    productName: created.productName,
+    siteName: created.siteName,
   });
 
   revalidatePath("/dashboard/items");

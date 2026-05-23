@@ -19,6 +19,7 @@ import {
   productReturnTrackingHumanNote,
 } from "@/lib/product-return-tracking-memo";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
+import { recordPurchaseTrackingUpdatedActivity } from "@/data/user-status-update-events";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 import { updateOrderItemPurchaseTrackingSchema } from "@/lib/validations/admin-order-item";
 import { DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES } from "@/lib/warehouse-receipt-queue";
@@ -187,6 +188,19 @@ export async function updateOrderItemPurchaseTrackingAction(
       siteName: payload.siteName,
     });
   }
+
+  const reqForNotify = await getItemRequestById(row.orderItem.itemRequestId);
+  const statusLabel =
+    nextFulfillment === "product_return_awaiting_delivery" ?
+      "return tracking saved"
+    : "tracking updated";
+  await recordPurchaseTrackingUpdatedActivity({
+    clerkUserId: row.order.clerkUserId,
+    orderId: row.order.id,
+    orderItemId: row.orderItem.id,
+    productName: reqForNotify?.productName ?? null,
+    statusLabel,
+  });
 
   revalidatePath("/admin/orders");
   revalidatePath("/admin/purchase-orders");

@@ -14,6 +14,7 @@ import {
   orders,
 } from "@/db/schema";
 import { lineSnapshotPayloadFromItemRequest } from "@/data/item-request-line-snapshots";
+import { recordRefundRequestSubmittedActivity } from "@/data/admin-user-activity-events";
 import { getItemRequestById } from "@/data/item-requests";
 import { sumRefundedCentsByOrderItemIds } from "@/data/order-item-refunds";
 import { pendingRefundRequestsByOrderItemIds } from "@/data/order-item-refund-requests";
@@ -192,6 +193,12 @@ export async function submitCustomerRefundRequestAction(
     console.error("[Cart2Barrel] Could not save refund request:", e);
     return { ok: false, message: "Could not save your refund request. Try again." };
   }
+
+  await recordRefundRequestSubmittedActivity({
+    customerClerkUserId: userId,
+    orderItemId: scoped.orderItem.id,
+    productName: scoped.itemRequest.productName,
+  });
 
   revalidatePath("/dashboard/orders");
   revalidatePath("/dashboard");

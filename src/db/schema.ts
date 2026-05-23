@@ -30,6 +30,11 @@ export const profiles = pgTable("profiles", {
     withTimezone: true,
     mode: "string",
   }),
+  /** Set when the shopper bypasses onboarding; they can finish contact/shipping later. */
+  onboardingSkippedAt: timestamp("onboarding_skipped_at", {
+    withTimezone: true,
+    mode: "string",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
     .defaultNow()
     .notNull(),
@@ -932,6 +937,127 @@ export const adminRoleGrants = pgTable(
   (t) => [
     index("admin_role_grants_created_idx").on(t.createdAt),
     index("admin_role_grants_target_idx").on(t.targetClerkUserId),
+  ],
+);
+
+/** Shopper-driven updates surfaced to staff in the admin notification center. */
+export const adminUserActivityEventKindEnum = pgEnum(
+  "admin_user_activity_event_kind",
+  [
+    "item_request_submitted",
+    "batch_quote_submitted",
+    "batch_estimate_accepted",
+    "checkout_payment_succeeded",
+    "refund_request_submitted",
+    "product_return_requested",
+    "outside_purchase_return_submitted",
+  ],
+);
+
+export const adminUserActivityEvents = pgTable(
+  "admin_user_activity_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    customerClerkUserId: text("customer_clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    kind: adminUserActivityEventKindEnum("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    /** Admin deep link (includes customer filter when helpful). */
+    href: text("href").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("admin_user_activity_events_customer_created_idx").on(
+      t.customerClerkUserId,
+      t.createdAt,
+    ),
+    index("admin_user_activity_events_created_idx").on(t.createdAt),
+    index("admin_user_activity_events_kind_created_idx").on(t.kind, t.createdAt),
+  ],
+);
+
+/** Per-admin read state for activity feed items. */
+export const adminUserActivityEventReads = pgTable(
+  "admin_user_activity_event_reads",
+  {
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => adminUserActivityEvents.id, { onDelete: "cascade" }),
+    adminClerkUserId: text("admin_clerk_user_id").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("admin_user_activity_event_reads_unique").on(
+      t.eventId,
+      t.adminClerkUserId,
+    ),
+    index("admin_user_activity_event_reads_admin_idx").on(t.adminClerkUserId),
+  ],
+);
+
+/** Staff-driven product status updates surfaced to the owning shopper. */
+export const userStatusUpdateKindEnum = pgEnum("user_status_update_kind", [
+  "estimate_ready",
+  "batch_estimate_ready",
+  "item_out_of_stock",
+  "company_purchase_confirmed",
+  "purchase_tracking_updated",
+  "refund_approved",
+  "refund_rejected",
+  "product_return_fulfilled",
+  "outside_purchase_return_estimate_ready",
+]);
+
+export const userStatusUpdateEvents = pgTable(
+  "user_status_update_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    kind: userStatusUpdateKindEnum("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    /** Customer dashboard deep link. */
+    href: text("href").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("user_status_update_events_user_created_idx").on(
+      t.clerkUserId,
+      t.createdAt,
+    ),
+    index("user_status_update_events_created_idx").on(t.createdAt),
+    index("user_status_update_events_kind_created_idx").on(t.kind, t.createdAt),
+  ],
+);
+
+/** Per-user read state for staff status update feed items. */
+export const userStatusUpdateEventReads = pgTable(
+  "user_status_update_event_reads",
+  {
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => userStatusUpdateEvents.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("user_status_update_event_reads_unique").on(t.eventId),
+    index("user_status_update_event_reads_event_idx").on(t.eventId),
   ],
 );
 
@@ -1873,6 +1999,13 @@ export type NewCustomerPricingPackage =
   typeof customerPricingPackages.$inferInsert;
 export type AdminRoleGrant = typeof adminRoleGrants.$inferSelect;
 export type NewAdminRoleGrant = typeof adminRoleGrants.$inferInsert;
+export type AdminUserActivityEvent = typeof adminUserActivityEvents.$inferSelect;
+export type NewAdminUserActivityEvent = typeof adminUserActivityEvents.$inferInsert;
+export type AdminUserActivityEventKind =
+  AdminUserActivityEvent["kind"];
+export type UserStatusUpdateEvent = typeof userStatusUpdateEvents.$inferSelect;
+export type NewUserStatusUpdateEvent = typeof userStatusUpdateEvents.$inferInsert;
+export type UserStatusUpdateKind = UserStatusUpdateEvent["kind"];
 export type UserCartContainerPackingFees =
   typeof userCartContainerPackingFees.$inferSelect;
 

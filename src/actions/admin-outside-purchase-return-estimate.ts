@@ -18,6 +18,7 @@ import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { isMissingOutsidePurchaseReturnRequestsTableError } from "@/lib/db-column-missing";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
+import { recordOutsidePurchaseReturnEstimateReadyActivity } from "@/data/user-status-update-events";
 import { adminOutsidePurchaseReturnEstimateSchema } from "@/lib/validations/outside-purchase-return-request";
 
 export type AdminOutsidePurchaseReturnEstimateState =
@@ -107,6 +108,12 @@ export async function publishAdminOutsidePurchaseReturnEstimateAction(
     }
     throw e;
   }
+
+  await recordOutsidePurchaseReturnEstimateReadyActivity({
+    clerkUserId: req.clerkUserId,
+    itemRequestId: req.id,
+    productName: req.productName,
+  });
 
   revalidatePath("/admin/item-requests", "layout");
   revalidateDashboardAddItem();

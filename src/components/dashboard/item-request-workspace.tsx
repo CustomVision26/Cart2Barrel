@@ -9,15 +9,15 @@ import {
   useState,
   useTransition,
 } from "react";
-import { ExternalLink, Info, Loader2, Sparkles } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { compareRetailerPricesAction } from "@/actions/compare-retailer-prices";
 import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
-import { draftItemRequestFromUrlAction } from "@/actions/customer-ai-item-draft";
+import { draftItemRequestFromSerpApiAction } from "@/actions/customer-ai-item-draft";
 import { fetchProductVariantsAction } from "@/actions/product-variants";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
-import { ItemRequestProductVariants } from "@/components/dashboard/item-request-product-variants";
+import { ItemRequestProductVariants, VARIANT_APPLY_TOOLTIP } from "@/components/dashboard/item-request-product-variants";
 import { createItemRequestAction } from "@/actions/item-request";
 import { ItemRequestCompareRetailers } from "@/components/dashboard/item-request-compare-retailers";
 import { uploadItemRequestProductImageAction } from "@/actions/upload-item-request-product-image";
@@ -57,9 +57,8 @@ import {
   parseValidHttpsProductUrl,
   validateItemRequestRetailerUrl,
 } from "@/lib/product-url/item-request-retailer-url";
+import { findVariantMatchingColor } from "@/lib/product-variants/merge-walmart-variants";
 import { cn } from "@/lib/utils";
-
-const IFRAME_TITLE = "Shopping site preview";
 
 function normalizeUrlInput(value: string): string {
   const t = value.trim();
@@ -85,6 +84,51 @@ function parseQuantity(value: string): number | null {
   return n;
 }
 
+function formatVariantsLoadedMessage(
+  count: number,
+  retailer: string,
+  method: string,
+): string {
+  const countLabel =
+    count === 1 ? "1 variant was" : `${count} variants were`;
+  if (method.includes("page_ai")) {
+    return `${countLabel} retrieved from ${retailer}. Where available, promotional prices were taken from the live store listing. Please verify all prices and availability on the retailer's website before submitting your request.`;
+  }
+  return `${countLabel} retrieved from ${retailer}. Listed prices are based on catalog data and may differ from current promotions or rollback pricing on the retailer's site. Please verify the current price on the store listing before submitting your request.`;
+}
+
+function isAiErrorMessage(message: string): boolean {
+  const low = message.toLowerCase();
+  return (
+    low.includes("could not") ||
+    low.includes("failed") ||
+    low.includes("invalid") ||
+    low.includes("enter a valid")
+  );
+}
+
+function merchPreviewFromVariant(
+  variant: ProductVariantOffer,
+  q: number,
+  productSize: string,
+  productColor: string,
+): {
+  quantity: number;
+  unitPriceCents: number;
+  merchandiseSubtotalCents: number;
+  variantSizeNorm: string;
+  variantColorNorm: string;
+} | null {
+  if (variant.priceUsdCents == null) return null;
+  return {
+    quantity: q,
+    unitPriceCents: variant.priceUsdCents,
+    merchandiseSubtotalCents: variant.priceUsdCents * q,
+    variantSizeNorm: (variant.size ?? productSize).trim().toLowerCase(),
+    variantColorNorm: (variant.color ?? productColor).trim().toLowerCase(),
+  };
+}
+
 /** Snapshot after a successful AI draft; used for merchandise preview + stale detection. */
 type AiMerchPreviewState = {
   quantity: number;
@@ -94,7 +138,7 @@ type AiMerchPreviewState = {
   variantColorNorm: string;
 };
 
-type WorkspaceTab = "request" | "variants" | "compare";
+type WorkspaceTab = "request" | "compare";
 
 type ItemRequestWorkspaceProps = {
   /** Prefill URL from query string when spotlight row is not resolved. */
@@ -113,7 +157,6 @@ export function ItemRequestWorkspace({
 
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [isAiPending, startAiTransition] = useTransition();
   const [isComparePending, startCompareTransition] = useTransition();
   const [isVariantsPending, startVariantsTransition] = useTransition();
   const [isApplyVariantPending, startApplyVariantTransition] = useTransition();
@@ -133,9 +176,6 @@ export function ItemRequestWorkspace({
   const [isSpotlightFeed, setIsSpotlightFeed] = useState(Boolean(spotlightSeed));
 
   const [previewInput, setPreviewInput] = useState(spotlightSeed?.productUrl ?? "");
-  const [iframeSrc, setIframeSrc] = useState<string | null>(
-    spotlightSeed?.productUrl || null,
-  );
 
   const [productUrl, setProductUrl] = useState(spotlightSeed?.productUrl ?? "");
   const [productName, setProductName] = useState(spotlightSeed?.productName ?? "");
@@ -170,6 +210,11 @@ export function ItemRequestWorkspace({
     null,
   );
   const productPhotoRef = useRef<HTMLInputElement>(null);
+  const productLinkBlurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [productLinkFocused, setProductLinkFocused] = useState(false);
+  const [urlSyncHintDismissed, setUrlSyncHintDismissed] = useState(false);
   const [spotlightPrefillDismissed, setSpotlightPrefillDismissed] = useState(false);
 
   const spotlightAppliedIdRef = useRef<string | null>(null);
@@ -202,7 +247,6 @@ export function ItemRequestWorkspace({
     if (url) {
       setPreviewInput(url);
       setProductUrl(url);
-      setIframeSrc(url);
     }
     setProductName(seed.productName);
     setProductSize(seed.productSize);
@@ -225,8 +269,16 @@ export function ItemRequestWorkspace({
     if (!isSpotlightFeed || !spotlightPrefill) return;
     const q = parseQuantity(quantity);
     if (q == null) return;
-    const merch = spotlightPrefillMerchPreview(spotlightPrefill, q);
-    if (merch) setAiMerchPreview(merch);
+    setAiMerchPreview((prev) => {
+      if (prev?.unitPriceCents != null) {
+        return {
+          ...prev,
+          quantity: q,
+          merchandiseSubtotalCents: prev.unitPriceCents * q,
+        };
+      }
+      return spotlightPrefillMerchPreview(spotlightPrefill, q);
+    });
   }, [quantity, isSpotlightFeed, spotlightPrefill]);
 
   const pricePreviewStale = useMemo(() => {
@@ -240,41 +292,124 @@ export function ItemRequestWorkspace({
     return false;
   }, [aiMerchPreview, quantity, productSize, productColor]);
 
-  const openPreviewInNewTab = useCallback(() => {
-    const url =
-      normalizeUrlInput(previewInput) || normalizeUrlInput(productUrl);
-    if (!url) return;
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, [previewInput, productUrl]);
-
-  const loadPreview = useCallback(() => {
-    const fromPreview = normalizeUrlInput(previewInput);
-    const fromLink = normalizeUrlInput(productUrl);
-    const url = fromPreview || fromLink;
-    if (!url) {
-      setIframeSrc(null);
-      return;
-    }
-    if (!fromPreview && fromLink) {
-      const raw = productUrl.trim();
-      setPreviewInput(/^https?:\/\//i.test(raw) ? raw : fromLink);
-    }
-    setIframeSrc(url);
-  }, [previewInput, productUrl]);
-
   const syncPreviewAndProductLink = useCallback(() => {
     const fromPreview = normalizeUrlInput(previewInput);
     if (fromPreview) {
       setProductUrl(fromPreview);
+      setUrlSyncHintDismissed(true);
       return;
     }
     const fromLink = normalizeUrlInput(productUrl);
     if (fromLink) {
       const raw = productUrl.trim();
       setPreviewInput(/^https?:\/\//i.test(raw) ? raw : fromLink);
-      setIframeSrc(fromLink);
+      setUrlSyncHintDismissed(true);
     }
   }, [previewInput, productUrl]);
+
+  useEffect(() => {
+    setUrlSyncHintDismissed(false);
+  }, [previewInput]);
+
+  useEffect(() => {
+    return () => {
+      if (productLinkBlurTimeoutRef.current) {
+        clearTimeout(productLinkBlurTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const runLoadVariants = useCallback(() => {
+    setVariantsMessage(null);
+    let storeUrl = normalizeUrlInput(previewInput);
+    let linkUrl = normalizeUrlInput(productUrl);
+
+    if (!storeUrl && !linkUrl) {
+      setVariantsMessage(
+        "Enter a valid https product link before loading from the store.",
+      );
+      return;
+    }
+
+    if (!storeUrl && linkUrl) {
+      storeUrl = linkUrl;
+      const raw = productUrl.trim();
+      setPreviewInput(/^https?:\/\//i.test(raw) ? raw : linkUrl);
+    }
+    if (storeUrl && !linkUrl) {
+      linkUrl = storeUrl;
+      setProductUrl(storeUrl);
+    }
+    if (storeUrl && linkUrl && !urlsMatchForSubmit(storeUrl, linkUrl)) {
+      setProductUrl(storeUrl);
+      linkUrl = storeUrl;
+    }
+
+    const alignedUrl = parseValidHttpsProductUrl(storeUrl);
+    if (!alignedUrl) {
+      setVariantsMessage(
+        "Enter a valid https product link before loading from the store.",
+      );
+      return;
+    }
+    if (!urlsMatchForSubmit(storeUrl, linkUrl)) {
+      setVariantsMessage(
+        "Store product URL and Product link must match before loading from the store.",
+      );
+      return;
+    }
+
+    startVariantsTransition(async () => {
+      const res = await fetchProductVariantsAction({
+        productUrl: alignedUrl,
+        productName: productName.trim() || undefined,
+        productSize: productSize.trim() || undefined,
+        productColor: productColor.trim() || undefined,
+      });
+      if (!res.ok) {
+        setVariantRows([]);
+        setVariantRetailer(null);
+        setVariantMethod(null);
+        setVariantsMessage(res.message);
+        return;
+      }
+      setVariantRows(res.variants);
+      setVariantRetailer(res.retailer);
+      setVariantMethod(res.method);
+      const serpTitle = res.listingTitle?.trim();
+      const serpImage = res.listingImageUrl?.trim();
+      if (serpTitle && !productName.trim()) {
+        setProductName(serpTitle);
+      }
+      if (serpImage && /^https:\/\//i.test(serpImage)) {
+        setDraftProductImageUrl(serpImage);
+      }
+      if (res.variants.length > 0 && res.variants[0]?.label && !productName.trim() && !serpTitle) {
+        const primary = res.variants.find((v) => v.isCurrent) ?? res.variants[0];
+        if (primary?.label) {
+          setProductName(primary.label.split("·")[0]?.trim() || primary.label);
+        }
+      }
+      const q = parseQuantity(quantity) ?? 1;
+      const matched =
+        findVariantMatchingColor(res.variants, productColor) ??
+        res.variants.find((v) => v.isCurrent) ??
+        res.variants[0];
+      const liveMerch =
+        matched ?
+          merchPreviewFromVariant(matched, q, productSize, productColor)
+        : null;
+      if (liveMerch) {
+        setAiMerchPreview(liveMerch);
+        setAiMessage(null);
+      }
+      setVariantsMessage(
+        res.variants.length > 0 ?
+          formatVariantsLoadedMessage(res.variants.length, res.retailer, res.method)
+        : `No variants were returned for this listing. Enter the product URL again or open the retailer's site in a new tab to verify the link.`,
+      );
+    });
+  }, [previewInput, productUrl, productName, productSize, productColor, quantity]);
 
   const hasPreviewUrl = Boolean(normalizeUrlInput(previewInput));
   const hasProductLinkUrl = Boolean(normalizeUrlInput(productUrl));
@@ -288,27 +423,13 @@ export function ItemRequestWorkspace({
   const canUseUrlSync = hasPreviewUrl || hasProductLinkUrl;
 
   const urlsAligned = urlsMatchForSubmit(previewInput, productUrl);
+  const showUrlSyncHint =
+    productLinkFocused &&
+    hasPreviewUrl &&
+    !urlsAligned &&
+    !urlSyncHintDismissed;
   const quantityOk = parseQuantity(quantity) != null;
   const canSubmit = urlsAligned && quantityOk && !isPending;
-  const canRunAi =
-    urlsAligned &&
-    quantityOk &&
-    isRetailerProductUrl &&
-    !isAiPending &&
-    !isSpotlightFeed;
-  const fillAiDisabledTitle =
-    isSpotlightFeed ?
-      "Details were loaded from spotlight—edit fields manually if needed."
-    : isAiPending || isPending ? undefined
-    : !hasPreviewUrl || !hasProductLinkUrl ?
-      "Fill preview and product URLs"
-    : !urlsAligned ?
-      "Product link must match the preview URL"
-    : !quantityOk ?
-      "Enter quantity 1–999"
-    : !isRetailerProductUrl ?
-      retailerProductUrlCheck.message
-    : undefined;
   const productNameReadyForCompare = isProductNameReadyForCompare(productName);
   const needsManualProductName =
     Boolean(normalizeUrlInput(productUrl)) && !productNameReadyForCompare;
@@ -324,7 +445,7 @@ export function ItemRequestWorkspace({
     : !hasValidProductLinkUrl ?
       "Enter a valid https product link"
     : !urlsAligned ?
-      "Product link must match the preview URL"
+      "Product link must match the store product URL"
     : undefined;
   const fallbackCompareImage =
     draftProductImageUrl?.trim() ||
@@ -338,94 +459,60 @@ export function ItemRequestWorkspace({
     [fieldErrors]
   );
 
-  const runAiDraft = useCallback(() => {
+  const resetWorkspaceForm = useCallback(() => {
+    setFormMessage(null);
+    setFieldErrors(undefined);
     setAiMessage(null);
     setLastAiNotes(null);
     setDraftSiteName(null);
     setDraftProductImageUrl(null);
-    const retailerCheck = validateItemRequestRetailerUrl(productUrl);
-    if (!retailerCheck.ok) {
-      setAiMessage(retailerCheck.message);
-      return;
-    }
-    if (!urlsMatchForSubmit(previewInput, productUrl)) {
-      setAiMessage(
-        'Product URL (preview) and Product link must match. Use "Use preview URL above" so both fields use the same address.'
-      );
-      return;
-    }
-    if (parseQuantity(quantity) == null) {
-      setAiMessage("Enter a quantity between 1 and 999.");
-      return;
-    }
-    startAiTransition(async () => {
-      const res = await draftItemRequestFromUrlAction({
-        productUrl: retailerCheck.href,
-        quantity,
-        productSize: productSize.trim() || undefined,
-        productColor: productColor.trim() || undefined,
-      });
-      if (!res.ok) {
-        if (res.fieldErrors) {
-          setFieldErrors(res.fieldErrors);
-        }
-        setAiMerchPreview(null);
-        setDraftSiteName(null);
-        setDraftProductImageUrl(null);
-        const blocked = isRetailerPageFetchBlockedMessage(res.message ?? "");
-        setAiMessage(
-          blocked ?
-            `${MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}`
-          : (res.message ?? "AI could not read this page."),
-        );
-        return;
-      }
-      setFieldErrors(undefined);
-      setDraftSiteName(res.siteName ?? null);
-      setDraftProductImageUrl(res.productImageUrl ?? null);
-      if (res.productName) {
-        setProductName(res.productName);
-      }
-      if (res.productSize) {
-        setProductSize(res.productSize);
-      }
-      if (res.productColor) {
-        setProductColor(res.productColor);
-      }
-      setAiMerchPreview({
-        quantity: res.quantity,
-        unitPriceCents: res.unitPriceCents,
-        merchandiseSubtotalCents: res.merchandiseSubtotalCents,
-        variantSizeNorm: (
-          res.productSize?.trim() ? res.productSize : productSize
-        )
-          .trim()
-          .toLowerCase(),
-        variantColorNorm: (
-          res.productColor?.trim() ? res.productColor : productColor
-        )
-          .trim()
-          .toLowerCase(),
-      });
-      setLastAiNotes(res.aiNotes);
-      if (res.aiNotes) {
-        setNote((prev) => {
-          const t = prev.trim();
-          return t ? `${t}\n\n— From AI: ${res.aiNotes}` : res.aiNotes!;
-        });
-      }
-      setAiMessage(
-        "Details and a merchandise cost preview were filled from the listing. Review everything, then submit your request to staff."
-      );
-    });
-  }, [previewInput, productUrl, quantity, productSize, productColor]);
+    setAiMerchPreview(null);
+    setPendingProductPhoto(null);
+    if (productPhotoRef.current) productPhotoRef.current.value = "";
+    setPreviewInput("");
+    setVariantRows([]);
+    setVariantRetailer(null);
+    setVariantMethod(null);
+    setVariantsMessage(null);
+    setCompareOffers([]);
+    setCompareSearchQuery(null);
+    setCompareMessage(null);
+    setProductUrl("");
+    setProductName("");
+    setProductSize("");
+    setProductColor("");
+    setNote("");
+    setQuantity("1");
+    setIsSpotlightFeed(false);
+    setSpotlightPrefillDismissed(true);
+    setActiveTab("request");
+    setApplyingVariantId(null);
+    setFormResetKey((k) => k + 1);
+  }, []);
+
+  const canClearForm =
+    !isPending &&
+    !isVariantsPending &&
+    !isComparePending &&
+    !isApplyVariantPending &&
+    (hasPreviewUrl ||
+      hasProductLinkUrl ||
+      productName.trim().length > 0 ||
+      productSize.trim().length > 0 ||
+      productColor.trim().length > 0 ||
+      note.trim().length > 0 ||
+      quantity !== "1" ||
+      pendingProductPhoto != null ||
+      variantRows.length > 0 ||
+      compareOffers.length > 0 ||
+      aiMerchPreview != null);
 
   const submit = useCallback(() => {
     setFormMessage(null);
     setFieldErrors(undefined);
     if (!urlsMatchForSubmit(previewInput, productUrl)) {
       setFormMessage(
-        'Product URL (preview) and Product link must be the same address. Use "Use preview URL above" or edit both fields so they match.'
+        'Store product URL and Product link must be the same address. Use "Use store URL above" or edit both fields so they match.'
       );
       return;
     }
@@ -459,22 +546,7 @@ export function ItemRequestWorkspace({
         }
         setFieldErrors(undefined);
         setFormMessage(null);
-        setAiMessage(null);
-        setLastAiNotes(null);
-        setDraftSiteName(null);
-        setDraftProductImageUrl(null);
-        setAiMerchPreview(null);
-        setPendingProductPhoto(null);
-        if (productPhotoRef.current) productPhotoRef.current.value = "";
-        setPreviewInput("");
-        setIframeSrc(null);
-        setProductUrl("");
-        setProductName("");
-        setProductSize("");
-        setProductColor("");
-        setNote("");
-        setQuantity("1");
-        setFormResetKey((k) => k + 1);
+        resetWorkspaceForm();
         toast.success(
           result.message?.trim() ||
             "Your item request was submitted. Staff will review it soon.",
@@ -512,41 +584,8 @@ export function ItemRequestWorkspace({
     draftProductImageUrl,
     pendingProductPhoto,
     router,
+    resetWorkspaceForm,
   ]);
-
-  const runLoadVariants = useCallback(() => {
-    setVariantsMessage(null);
-    const url = parseValidHttpsProductUrl(productUrl);
-    if (!url) {
-      setVariantsMessage("Enter a valid https product link before loading variants.");
-      return;
-    }
-    if (!urlsMatchForSubmit(previewInput, productUrl)) {
-      setVariantsMessage(
-        "Product URL (preview) and Product link must match before loading variants.",
-      );
-      return;
-    }
-    startVariantsTransition(async () => {
-      const res = await fetchProductVariantsAction({
-        productUrl: url,
-        productName: productName.trim() || undefined,
-        productSize: productSize.trim() || undefined,
-        productColor: productColor.trim() || undefined,
-      });
-      if (!res.ok) {
-        setVariantsMessage(res.message);
-        return;
-      }
-      setVariantRows(res.variants);
-      setVariantRetailer(res.retailer);
-      setVariantMethod(res.method);
-      setVariantsMessage(
-        `Found ${res.variants.length} variant${res.variants.length === 1 ? "" : "s"} at ${res.retailer}.`,
-      );
-      setActiveTab("variants");
-    });
-  }, [previewInput, productUrl, productName, productSize, productColor]);
 
   const applyVariant = useCallback(
     (variant: ProductVariantOffer) => {
@@ -563,7 +602,6 @@ export function ItemRequestWorkspace({
 
       setPreviewInput(url);
       setProductUrl(url);
-      setIframeSrc(url);
       if (variant.size) setProductSize(variant.size);
       if (variant.color) setProductColor(variant.color);
 
@@ -596,7 +634,7 @@ export function ItemRequestWorkspace({
 
       startApplyVariantTransition(async () => {
         try {
-          const res = await draftItemRequestFromUrlAction({
+          const res = await draftItemRequestFromSerpApiAction({
             productUrl: url,
             quantity: String(q),
             productSize: variant.size?.trim() || productSize.trim() || undefined,
@@ -771,8 +809,12 @@ export function ItemRequestWorkspace({
       }
       setCompareOffers(res.offers);
       setCompareSearchQuery(res.searchQuery);
+      const verifiedNote =
+        res.verifiedCount > 0 ?
+          `${res.verifiedCount} verified · `
+        : "";
       setCompareMessage(
-        `Found ${res.offers.length} verified offer${res.offers.length === 1 ? "" : "s"}.`,
+        `${verifiedNote}${res.offers.length} offer${res.offers.length === 1 ? "" : "s"} across the web (SerpApi Google Shopping).`,
       );
       setActiveTab("compare");
     });
@@ -864,86 +906,84 @@ export function ItemRequestWorkspace({
     ],
   );
 
-  const previewIframeClass =
-    "h-[min(72vh,560px)] w-full bg-background xl:h-[min(78vh,620px)]";
-  const previewPlaceholderClass =
-    "flex h-[min(50vh,360px)] w-full items-center justify-center px-6 text-center text-sm text-muted-foreground xl:min-h-[min(44vh,380px)]";
-
   const browseCard = (
     <Card className="overflow-hidden border-border/80 shadow-none">
       <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
         <CardTitle className="text-base font-semibold tracking-tight">
-          Product preview
+          Product from store
         </CardTitle>
         <CardDescription className="text-sm leading-relaxed">
-          Enter the retailer product URL to load an embedded preview. If the frame
-          is blank, the store may block embeds—use{" "}
-          <span className="font-medium text-foreground">Open in new tab</span> to
-          view the listing, then confirm the same URL in the request form.
+          Paste the retailer product URL and load sizes, colors, and prices from the
+          store listing (SerpAPI for Walmart, Amazon, and similar retailers). Must
+          match the product link on your request.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-6 py-5">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="item-preview-product-url"
-              className="text-sm font-medium text-foreground"
-            >
-              Preview URL
-            </label>
-            <p className="text-xs text-muted-foreground">
-              Must match the product link submitted with your request.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              id="item-preview-product-url"
-              key={`preview-${formResetKey}`}
-              name="previewProductUrl"
-              autoComplete="off"
-              aria-label="Product URL for preview"
-              placeholder="https://example-store.com/…"
-              value={previewInput}
-              onChange={(e) => setPreviewInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  loadPreview();
-                }
-              }}
-              className="min-w-0 flex-1"
-            />
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Button type="button" onClick={loadPreview} disabled={!canUseUrlSync}>
-                Load preview
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={openPreviewInNewTab}
-                disabled={!canUseUrlSync}
-              >
-                <ExternalLink className="size-4" />
-                Open in new tab
-              </Button>
-            </div>
-          </div>
-          <div className="relative overflow-hidden rounded-md border border-border bg-muted/15">
-            {iframeSrc ? (
-              <iframe
-                title={IFRAME_TITLE}
-                src={iframeSrc}
-                className={previewIframeClass}
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            ) : (
-              <div className={previewPlaceholderClass}>
-                Enter a URL above and select Load preview to display the listing
-                here.
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        <div className="space-y-1.5">
+          <label
+            htmlFor="item-preview-product-url"
+            className="text-sm font-medium text-foreground"
+          >
+            Store product URL
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Must match the product link submitted with your request.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Input
+            id="item-preview-product-url"
+            key={`preview-${formResetKey}`}
+            name="previewProductUrl"
+            autoComplete="off"
+            aria-label="Store product URL"
+            placeholder="https://example-store.com/…"
+            value={previewInput}
+            onChange={(e) => setPreviewInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                runLoadVariants();
+              }
+            }}
+            className="min-w-0 flex-1"
+          />
+          <Button
+            type="button"
+            onClick={runLoadVariants}
+            disabled={!canLoadVariants}
+            title={loadVariantsDisabledTitle}
+          >
+            {isVariantsPending ?
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                Loading…
+              </>
+            : "Load product from store"}
+          </Button>
+        </div>
+
+        {variantRows.length > 0 || isVariantsPending || variantsMessage ?
+          <ItemRequestProductVariants
+            embedded
+            hideLoadButton
+            variants={variantRows}
+            retailer={variantRetailer}
+            method={variantMethod}
+            variantsMessage={variantsMessage}
+            isVariantsPending={isVariantsPending}
+            isApplyVariantPending={isApplyVariantPending}
+            applyingVariantId={applyingVariantId}
+            isSubmitPending={isPending}
+            onLoadVariants={runLoadVariants}
+            onApplyVariant={applyVariant}
+            onSubmitVariant={submitFromVariant}
+            canLoadVariants={canLoadVariants}
+            loadVariantsDisabledTitle={loadVariantsDisabledTitle}
+          />
+        : null}
+      </CardContent>
+    </Card>
   );
 
   const requestCard = (
@@ -953,8 +993,8 @@ export function ItemRequestWorkspace({
           Request details
         </CardTitle>
         <CardDescription className="text-sm leading-relaxed">
-          Complete the fields below. AI can extract title, variant, and an estimated
-          merchandise subtotal (retailer product cost only). Staff will issue an
+          Complete the fields below. Apply a store variant or enter details manually.
+          Merchandise estimates reflect retailer product cost only—staff will issue an
           official quote after review.
         </CardDescription>
       </CardHeader>
@@ -989,100 +1029,41 @@ export function ItemRequestWorkspace({
                 <p className="leading-relaxed">
                   {variantRows.length > 0 ?
                     <>
-                      Variants are available on the{" "}
+                      This variant is loaded by{" "}
                       <span className="font-medium text-foreground">
-                        Store variants
+                        Product from store
+                      </span>
+                      : select{" "}
+                      <span
+                        className="font-medium text-foreground underline decoration-dotted underline-offset-4"
+                        title={VARIANT_APPLY_TOOLTIP}
+                      >
+                        Apply
                       </span>{" "}
-                      tab. Select Apply to populate the form, then review all fields
-                      before submission.
+                      on another available product row above to populate the form.
                     </>
                   : <>
-                      Align the preview URL with the product link, enter quantity and
-                      optional variant fields, then use{" "}
+                      Align the store product URL with the product link, then use{" "}
                       <span className="font-medium text-foreground">
-                        Extract listing details
-                      </span>{" "}
-                      or{" "}
-                      <span className="font-medium text-foreground">
-                        Load store variants
+                        Load product from store
                       </span>
                       . All fields remain editable before you submit.
                     </>
                   }
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                {variantRows.length === 0 ?
-                  <Button
-                    type="button"
-                    className={cn(
-                      "gap-1.5",
-                      (!canRunAi || isSpotlightFeed) && "opacity-50",
-                    )}
-                    variant="secondary"
-                    disabled={!canRunAi}
-                    onClick={runAiDraft}
-                    title={fillAiDisabledTitle}
-                  >
-                    {isAiPending ?
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Filling…
-                      </>
-                    : <>
-                        <Sparkles className="size-4" aria-hidden />
-                        Extract listing details
-                      </>
-                    }
-                  </Button>
-                : null}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={cn(
-                    "gap-1.5",
-                    !canLoadVariants && "opacity-50",
-                  )}
-                  disabled={!canLoadVariants}
-                  title={loadVariantsDisabledTitle}
-                  onClick={runLoadVariants}
-                >
-                  {isVariantsPending ?
-                    <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                      Loading…
-                    </>
-                  : "Load store variants"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-1.5"
-                  disabled={!canCompare}
-                  onClick={runComparePrices}
-                >
-                  {isComparePending ?
-                    <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                      Comparing…
-                    </>
-                  : "Compare retailer prices"}
-                </Button>
-                </div>
-                {aiMessage ? (
+                {aiMessage ?
                   <p
                     className={cn(
-                      "mt-2 text-sm",
-                      aiMessage.includes("Review") ||
-                      aiMessage.includes("filled") ||
-                      aiMessage.includes("merchandise cost preview")
-                        ? "text-muted-foreground"
-                        : "text-destructive"
+                      "mt-2 text-sm leading-relaxed",
+                      isAiErrorMessage(aiMessage) ?
+                        "text-destructive"
+                      : "rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-amber-950 dark:text-amber-100",
                     )}
-                    role="status"
+                    role={isAiErrorMessage(aiMessage) ? "status" : "note"}
                   >
                     {aiMessage}
                   </p>
-                ) : null}
+                : null}
                 {aiMerchPreview ? (
                   <div className="rounded-md border border-border bg-background px-4 py-4 text-foreground">
                     <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
@@ -1093,9 +1074,10 @@ export function ItemRequestWorkspace({
                         role="status"
                         className="mt-2 text-xs text-muted-foreground"
                       >
-                        Quantity, size, or color changed after extraction. Run{" "}
+                        Quantity, size, or color changed after loading from the
+                        store. Use{" "}
                         <span className="font-medium text-foreground">
-                          Extract listing details
+                          Load product from store
                         </span>{" "}
                         again to refresh the estimate.
                       </p>
@@ -1152,31 +1134,71 @@ export function ItemRequestWorkspace({
                     placeholder="https://…"
                     value={productUrl}
                     onChange={(e) => setProductUrl(e.target.value)}
+                    onFocus={() => {
+                      if (productLinkBlurTimeoutRef.current) {
+                        clearTimeout(productLinkBlurTimeoutRef.current);
+                        productLinkBlurTimeoutRef.current = null;
+                      }
+                      setProductLinkFocused(true);
+                    }}
+                    onBlur={() => {
+                      productLinkBlurTimeoutRef.current = setTimeout(() => {
+                        setProductLinkFocused(false);
+                      }, 180);
+                    }}
                     aria-invalid={Boolean(fieldError("productUrl")?.length)}
+                    aria-describedby={
+                      showUrlSyncHint ? "item-product-url-sync-hint" : undefined
+                    }
                   />
                   <FieldDescription>
                     Paste the product page URL for this request (sent to staff). It must
-                    match the Product URL (preview) above—use{" "}
+                    match the store product URL above—use{" "}
                     <span className="font-medium text-foreground">
-                      Use preview URL above
+                      Use store URL above
                     </span>{" "}
-                    to copy the preview link here.
+                    to copy the link here.
                   </FieldDescription>
                   <FieldError errors={fieldError("productUrl")?.map((m) => ({ message: m }))} />
                 </FieldContent>
               </Field>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-fit"
-                onClick={syncPreviewAndProductLink}
-                disabled={!canUseUrlSync}
-              >
-                {hasPreviewUrl
-                  ? "Use preview URL above"
-                  : "Use product link in preview"}
-              </Button>
+              <div className="relative w-fit">
+                {showUrlSyncHint ? (
+                  <div
+                    id="item-product-url-sync-hint"
+                    role="status"
+                    className="absolute bottom-full left-0 z-20 mb-2 w-[min(18rem,calc(100vw-3rem))] rounded-lg border border-primary/40 bg-primary/15 px-3 py-2.5 text-xs leading-relaxed text-foreground shadow-lg ring-1 ring-primary/20"
+                  >
+                    <span
+                      aria-hidden
+                      className="absolute -bottom-1.5 left-5 size-2.5 rotate-45 border-b border-r border-primary/40 bg-primary/15"
+                    />
+                    Store URL is ready — click{" "}
+                    <span className="font-semibold text-foreground">
+                      Use store URL above
+                    </span>{" "}
+                    to copy it into Product link.
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-fit"
+                  onPointerDown={() => {
+                    if (productLinkBlurTimeoutRef.current) {
+                      clearTimeout(productLinkBlurTimeoutRef.current);
+                      productLinkBlurTimeoutRef.current = null;
+                    }
+                  }}
+                  onClick={syncPreviewAndProductLink}
+                  disabled={!canUseUrlSync}
+                >
+                  {hasPreviewUrl
+                    ? "Use store URL above"
+                    : "Use product link above"}
+                </Button>
+              </div>
             </FieldGroup>
 
             <Separator />
@@ -1195,9 +1217,8 @@ export function ItemRequestWorkspace({
                   aria-invalid={Boolean(fieldError("productName")?.length)}
                 />
                 <FieldDescription>
-                  Required for price comparison (minimum 2 characters). If extraction
-                  or Apply could not read the page, copy the product title from the
-                  retailer listing.
+                  Required for price comparison (minimum 2 characters). If Apply could
+                  not read the page, copy the product title from the retailer listing.
                 </FieldDescription>
                 <FieldError errors={fieldError("productName")?.map((m) => ({ message: m }))} />
               </FieldContent>
@@ -1347,9 +1368,9 @@ export function ItemRequestWorkspace({
                 role="status"
                 className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground"
               >
-                Preview URL and product link must match. Select{" "}
+                Store product URL and product link must match. Select{" "}
                 <span className="font-medium text-foreground">
-                  Use preview URL above
+                  Use store URL above
                 </span>{" "}
                 or edit both fields to use the same product page address.
               </p>
@@ -1366,31 +1387,46 @@ export function ItemRequestWorkspace({
               </p>
             )}
 
-            <Button
-              type="button"
-              disabled={!canSubmit}
-              title={
-                !canSubmit && !isPending
-                  ? !hasPreviewUrl || !hasProductLinkUrl
-                    ? "Fill in Product URL (preview) and Product link"
-                    : !urlsAligned
-                      ? "Preview URL and product link must match"
-                      : !quantityOk
-                        ? "Enter a valid quantity (1–999)"
-                        : undefined
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canClearForm}
+                title={
+                  !canClearForm && !isPending ?
+                    "Nothing to clear"
                   : undefined
-              }
-              onClick={submit}
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Submitting…
-                </>
-              ) : (
-                "Submit for staff review"
-              )}
-            </Button>
+                }
+                onClick={resetWorkspaceForm}
+              >
+                Clear form
+              </Button>
+              <Button
+                type="button"
+                disabled={!canSubmit}
+                title={
+                  !canSubmit && !isPending
+                    ? !hasPreviewUrl || !hasProductLinkUrl
+                      ? "Fill in store product URL and product link"
+                      : !urlsAligned
+                        ? "Store product URL and product link must match"
+                        : !quantityOk
+                          ? "Enter a valid quantity (1–999)"
+                          : undefined
+                    : undefined
+                }
+                onClick={submit}
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Submitting…
+                  </>
+                ) : (
+                  "Submit for staff review"
+                )}
+              </Button>
+            </div>
           </FieldSet>
         </CardContent>
       </Card>
@@ -1420,8 +1456,8 @@ export function ItemRequestWorkspace({
           <p className="text-pretty leading-relaxed text-muted-foreground">
             <span className="font-medium text-foreground">Spotlight prefill applied.</span>{" "}
             Product link, name, pricing, variant, and image (when available) have been
-            populated. Listing extraction is disabled—review the form, submit for staff
-            review, or open Price comparison to evaluate other retailers.
+            populated. Review the form and submit for staff review, or open the Price
+            comparison tab to evaluate other retailers.
           </p>
           <Button
             type="button"
@@ -1452,18 +1488,6 @@ export function ItemRequestWorkspace({
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab === "variants"}
-          className={tabClass("variants")}
-          onClick={() => setActiveTab("variants")}
-        >
-          Store variants
-          {variantRows.length > 0 ?
-            <span className={tabCountClass}>{variantRows.length}</span>
-          : null}
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={activeTab === "compare"}
           className={tabClass("compare")}
           onClick={() => setActiveTab("compare")}
@@ -1481,33 +1505,6 @@ export function ItemRequestWorkspace({
           <div className="min-w-0 xl:sticky xl:top-6 xl:z-10 xl:self-start">
             {requestCard}
           </div>
-        </div>
-      : activeTab === "variants" ?
-        <div className="min-w-0 space-y-6">
-          <ItemRequestProductVariants
-            variants={variantRows}
-            retailer={variantRetailer}
-            method={variantMethod}
-            variantsMessage={variantsMessage}
-            isVariantsPending={isVariantsPending}
-            isApplyVariantPending={isApplyVariantPending}
-            applyingVariantId={applyingVariantId}
-            isSubmitPending={isPending}
-            onLoadVariants={runLoadVariants}
-            onApplyVariant={applyVariant}
-            onSubmitVariant={submitFromVariant}
-            canLoadVariants={canLoadVariants}
-            loadVariantsDisabledTitle={loadVariantsDisabledTitle}
-          />
-          <p className="text-center text-xs text-muted-foreground">
-            <button
-              type="button"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-              onClick={() => setActiveTab("request")}
-            >
-              Return to request form
-            </button>
-          </p>
         </div>
       : <div className="min-w-0 space-y-6">
           <ItemRequestCompareRetailers

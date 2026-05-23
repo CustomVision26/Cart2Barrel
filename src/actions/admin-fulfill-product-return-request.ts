@@ -22,6 +22,7 @@ import {
   productReturnTrackingHumanNote,
 } from "@/lib/product-return-tracking-memo";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
+import { recordProductReturnFulfilledActivity } from "@/data/user-status-update-events";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 import { adminFulfillProductReturnRequestSchema } from "@/lib/validations/product-return-request";
 
@@ -174,6 +175,13 @@ export async function adminFulfillProductReturnRequestAction(
       /* phase enum may lag */
     }
   }
+
+  await recordProductReturnFulfilledActivity({
+    clerkUserId: row.order.clerkUserId,
+    orderId: row.order.id,
+    orderItemId: row.orderItem.id,
+    productName: req?.productName ?? null,
+  });
 
   revalidatePath("/admin/orders");
   revalidatePath("/admin/purchase-orders");

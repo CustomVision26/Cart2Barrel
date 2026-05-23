@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 
 import { listItemRequestsForBatchSession } from "@/data/batch-quote-sessions";
 import { appendBatchQuoteSessionStatusEvent } from "@/data/batch-quote-session-status-events";
+import { recordBatchEstimateAcceptedActivity } from "@/data/admin-user-activity-events";
 import { buildBatchQuoteHistorySnapshot } from "@/lib/batch-quote-history-snapshot";
 import {
   getLatestQuoteForItemRequest,
@@ -227,6 +228,14 @@ export async function approveBatchEstimateAction(
           }
         : undefined,
     });
+
+    if (approvedNow > 0 && sessionAfterAccept) {
+      await recordBatchEstimateAcceptedActivity({
+        customerClerkUserId: userId,
+        batchSessionId,
+        batchNumber: sessionAfterAccept.batchNumber,
+      });
+    }
   } catch (e) {
     if (isMissingBatchCartAcceptanceColumnsError(e)) {
       return {

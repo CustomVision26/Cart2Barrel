@@ -14,6 +14,10 @@ export type ProductVariantOffer = {
   /** Matches the URL or selection the shopper started from. */
   isCurrent: boolean;
   source: "walmart" | "amazon" | "immersive" | "page_ai";
+  /** SerpApi / retailer SKU used to refresh price and URL (Walmart `product_id`). */
+  retailerProductId?: string | null;
+  /** Parent listing title from SerpApi (Walmart/Amazon product API). */
+  productTitle?: string | null;
 };
 
 export type FetchProductVariantsResult =
@@ -22,5 +26,9 @@ export type FetchProductVariantsResult =
       retailer: string;
       variants: ProductVariantOffer[];
       method: string;
+      /** SerpApi listing title (Walmart/Amazon product API). */
+      listingTitle?: string | null;
+      /** SerpApi hero image for the listing. */
+      listingImageUrl?: string | null;
     }
   | { ok: false; message: string };

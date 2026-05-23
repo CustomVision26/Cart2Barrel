@@ -336,3 +336,29 @@ export function isMissingItemRequestOutOfStockStatusError(e: unknown): boolean {
   if (/failed query/i.test(low) && low.includes("item_requests")) return true;
   return false;
 }
+
+/** Admin notification feed tables until `npm run db:push` or `npm run db:ensure-admin-activity`. */
+export function isMissingAdminUserActivityTablesError(e: unknown): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  const mentions =
+    msg.includes("admin_user_activity_events") ||
+    msg.includes("admin_user_activity_event_reads") ||
+    msg.includes("admin_user_activity_event_kind");
+  if (!mentions) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}
+
+/** User status-update feed tables until `npm run db:push` or `npm run db:ensure-user-status-updates`. */
+export function isMissingUserStatusUpdateTablesError(e: unknown): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  const mentions =
+    msg.includes("user_status_update_events") ||
+    msg.includes("user_status_update_event_reads") ||
+    msg.includes("user_status_update_kind");
+  if (!mentions) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}

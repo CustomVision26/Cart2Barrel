@@ -526,7 +526,7 @@ export function AdminQuoteHistoryEditDialog({
                   ) : (
                     <>
                       <SparklesIcon className="size-4" />
-                      Run AI extraction
+                      Run SerpApi lookup
                     </>
                   )}
                 </Button>

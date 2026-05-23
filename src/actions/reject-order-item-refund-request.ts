@@ -4,7 +4,9 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
-import { orderItemRefundRequests } from "@/db/schema";
+import { orderItemRefundRequests, orderItems, orders } from "@/db/schema";
+import { getItemRequestById } from "@/data/item-requests";
+import { recordRefundRejectedActivity } from "@/data/user-status-update-events";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { rejectRefundRequestSchema } from "@/lib/validations/order-item-refund-request";
 import { safeCurrentUser } from "@/lib/safe-current-user";
@@ -28,13 +30,19 @@ export async function rejectOrderItemRefundRequestAction(
   }
 
   const db = getDb();
-  const [reqRow] = await db
-    .select()
+  const [row] = await db
+    .select({
+      req: orderItemRefundRequests,
+      orderItem: orderItems,
+      order: orders,
+    })
     .from(orderItemRefundRequests)
+    .innerJoin(orderItems, eq(orderItemRefundRequests.orderItemId, orderItems.id))
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .where(eq(orderItemRefundRequests.id, parsed.data.refundRequestId))
     .limit(1);
 
-  if (!reqRow || reqRow.status !== "pending_approval") {
+  if (!row || row.req.status !== "pending_approval") {
     return {
       ok: false,
       message: "Refund request not found or already processed.",
@@ -49,7 +57,15 @@ export async function rejectOrderItemRefundRequestAction(
       reviewedByClerkUserId: cu.user.id,
       rejectionNote: parsed.data.rejectionNote,
     })
-    .where(eq(orderItemRefundRequests.id, reqRow.id));
+    .where(eq(orderItemRefundRequests.id, row.req.id));
+
+  const reqLine = await getItemRequestById(row.orderItem.itemRequestId);
+  await recordRefundRejectedActivity({
+    clerkUserId: row.order.clerkUserId,
+    orderId: row.order.id,
+    orderItemId: row.orderItem.id,
+    productName: reqLine?.productName ?? null,
+  });
 
   revalidatePath("/admin/overview");
   revalidatePath("/admin/orders");

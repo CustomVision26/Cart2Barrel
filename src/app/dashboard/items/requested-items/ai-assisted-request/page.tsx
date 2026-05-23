@@ -20,14 +20,15 @@ type PageProps = {
 const WORKFLOW_STEPS = [
   {
     step: "01",
-    title: "Product preview",
-    description: "Enter the retailer URL and confirm the listing in the preview panel.",
+    title: "Product from store",
+    description:
+      "Paste the retailer URL and load variants (SerpAPI) to confirm size, color, and price.",
   },
   {
     step: "02",
     title: "Request details",
     description:
-      "Extract listing information with AI, load store variants, or compare prices across retailers.",
+      "Apply a store variant to fill the form, or edit fields manually. Use Compare prices tab to check other retailers.",
   },
   {
     step: "03",

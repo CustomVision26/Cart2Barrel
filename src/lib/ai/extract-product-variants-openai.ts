@@ -67,6 +67,7 @@ export async function extractProductVariantsWithOpenAI(
           "- List every distinct SKU you can find: sizes, colors, pack counts (2-pack, 6-pack), weights, etc.",
           "- unitPriceUsd: ONE unit price in USD for that SKU (number or null).",
           "- Match prices to the correct variant row from JSON in script tags (__NUXT__, __NEXT_DATA__, skuList, warehouseList, ld+json Offers).",
+          "- For Walmart color swatches: each color tile shows its own price (e.g. rollback/sale)—use that price for that color, not the main item price.",
           "- isCurrent: true only for the variant that matches the page's pre-selected options",
           context?.productSize || context?.productColor
             ? ` or the requested size "${context.productSize ?? ""}" / color "${context.productColor ?? ""}".`

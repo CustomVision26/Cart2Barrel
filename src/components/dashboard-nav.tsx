@@ -101,11 +101,13 @@ function NavLinkItem({
   label,
   icon: Icon,
   active,
+  badgeCount,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   active: boolean;
+  badgeCount?: number;
 }) {
   return (
     <Link
@@ -128,7 +130,12 @@ function NavLinkItem({
       >
         <Icon className="size-4" aria-hidden />
       </span>
-      <span className="min-w-0 truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {badgeCount != null && badgeCount > 0 ? (
+        <span className="inline-flex min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+          {badgeCount > 99 ? "99+" : badgeCount}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -140,11 +147,13 @@ function MobileNavLink({
   label,
   icon: Icon,
   active,
+  badgeCount,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   active: boolean;
+  badgeCount?: number;
 }) {
   return (
     <Link
@@ -159,16 +168,42 @@ function MobileNavLink({
     >
       <Icon className="size-3.5 shrink-0" aria-hidden />
       {label}
+      {badgeCount != null && badgeCount > 0 ? (
+        <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+          {badgeCount > 99 ? "99+" : badgeCount}
+        </span>
+      ) : null}
     </Link>
   );
+}
+
+export type DashboardNavBadges = {
+  requestedItems?: number;
+  orders?: number;
+};
+
+function navBadgeForHref(
+  href: string,
+  badges: DashboardNavBadges | undefined,
+): number | undefined {
+  if (!badges) return undefined;
+  if (href === DASHBOARD_REQUESTED_ITEMS_ROUTE) {
+    return badges.requestedItems;
+  }
+  if (href === "/dashboard/orders") {
+    return badges.orders;
+  }
+  return undefined;
 }
 
 export function DashboardNav({
   className,
   variant = "sidebar",
+  badges,
 }: {
   className?: string;
   variant?: "sidebar" | "mobile";
+  badges?: DashboardNavBadges;
 }) {
   const currentPath = usePathname() ?? "/dashboard";
 
@@ -185,6 +220,7 @@ export function DashboardNav({
             label={label}
             icon={icon}
             active={match(currentPath)}
+            badgeCount={navBadgeForHref(href, badges)}
           />
         ))}
       </nav>
@@ -209,6 +245,7 @@ export function DashboardNav({
                   label={label}
                   icon={icon}
                   active={match(currentPath)}
+                  badgeCount={navBadgeForHref(href, badges)}
                 />
               </li>
             ))}
