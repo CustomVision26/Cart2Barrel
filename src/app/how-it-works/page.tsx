@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 
+import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { ClerkUserButton } from "@/components/clerk-user-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,12 +19,7 @@ export default async function HowItWorksPage() {
     <div className="flex min-h-full flex-1 flex-col bg-background">
       <header className="border-b border-border/80 px-4 py-3">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
-          <Link
-            href="/"
-            className="text-base font-semibold tracking-tight text-foreground"
-          >
-            Cart2Barrel
-          </Link>
+          <BrandLogoLink />
           <nav className="flex items-center gap-3">
             {userId ? (
               <>

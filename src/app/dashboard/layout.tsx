@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { ClerkUserButton } from "@/components/clerk-user-button";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { UserNotificationsBell } from "@/components/dashboard/user-notifications-bell";
@@ -23,12 +24,7 @@ export default async function DashboardLayout({
     <div className="flex min-h-full flex-1 flex-col bg-background">
       <header className="border-b border-border/80 px-4 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <Link
-            href="/dashboard"
-            className="text-base font-semibold tracking-tight text-foreground"
-          >
-            Cart2Barrel
-          </Link>
+          <BrandLogoLink priority />
           <div className="flex items-center gap-3">
             <Link
               href="/"

@@ -115,6 +115,8 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --brand-logo-glow: oklch(0.488 0.243 264.376);
+  --brand-logo-halo: oklch(0.985 0 0);
 }
 
 @layer base {
@@ -129,6 +131,34 @@
   }
 }
 
+@keyframes brand-logo-watermark-enter {
+  0% {
+    opacity: 0;
+    filter: grayscale(0.85) brightness(1) contrast(1) blur(2px);
+    transform: perspective(900px) rotateX(18deg) rotateY(-16deg) scale(0.92)
+      translateY(12px);
+  }
+  100% {
+    opacity: var(--brand-watermark-opacity, 0.16);
+    filter: grayscale(0.75) brightness(1.15) contrast(1.2) blur(0);
+    transform: perspective(900px) rotateX(11deg) rotateY(-9deg) scale(1)
+      translateY(0);
+  }
+}
+
+@keyframes brand-logo-watermark-breathe {
+  0%,
+  100% {
+    opacity: var(--brand-watermark-opacity, 0.16);
+    transform: perspective(900px) rotateX(11deg) rotateY(-9deg) scale(1);
+  }
+  50% {
+    opacity: calc(var(--brand-watermark-opacity, 0.16) * 1.2);
+    transform: perspective(900px) rotateX(8deg) rotateY(9deg) scale(1.025)
+      translateZ(12px);
+  }
+}
+
 @keyframes order-slide-border-spin {
   to {
     transform: rotate(360deg);
@@ -136,6 +166,105 @@
 }
 
 @layer utilities {
+  .brand-logo-scene {
+    transform-style: preserve-3d;
+  }
+
+  .brand-logo-scene--header {
+    perspective: 520px;
+    perspective-origin: left center;
+  }
+
+  .dark .brand-logo-scene--header {
+    border-radius: var(--radius-md);
+    padding: 0.2rem 0.45rem;
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--brand-logo-halo) 10%, transparent),
+      color-mix(in oklch, var(--brand-logo-glow) 18%, transparent)
+    );
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--brand-logo-halo) 22%, transparent),
+      0 0 22px color-mix(in oklch, var(--brand-logo-glow) 38%, transparent),
+      inset 0 1px 0 color-mix(in oklch, var(--brand-logo-halo) 14%, transparent);
+  }
+
+  .brand-logo-scene--watermark {
+    perspective: 900px;
+    perspective-origin: center center;
+    filter: drop-shadow(0 24px 48px rgb(0 0 0 / 0.35))
+      drop-shadow(0 8px 20px rgb(0 0 0 / 0.25));
+  }
+
+  .dark .brand-logo-3d--header {
+    transform: perspective(520px) rotateY(-10deg) rotateX(5deg) translateZ(6px);
+    filter: brightness(1.22) contrast(1.28) saturate(1.18)
+      drop-shadow(0 0 1px color-mix(in oklch, var(--brand-logo-halo) 85%, transparent))
+      drop-shadow(0 0 10px color-mix(in oklch, var(--brand-logo-glow) 55%, transparent))
+      drop-shadow(0 0 22px color-mix(in oklch, var(--brand-logo-halo) 28%, transparent))
+      drop-shadow(0 3px 10px rgb(0 0 0 / 0.55));
+    transition:
+      transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      filter 0.4s ease;
+    will-change: transform;
+  }
+
+  .brand-logo-3d--header {
+    transform: perspective(520px) rotateY(-10deg) rotateX(5deg) translateZ(6px);
+    filter: brightness(1.12) contrast(1.15) saturate(1.1)
+      drop-shadow(0 2px 8px rgb(0 0 0 / 0.65))
+      drop-shadow(0 0 18px rgb(255 255 255 / 0.12));
+    transition:
+      transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      filter 0.4s ease;
+    will-change: transform;
+  }
+
+  .dark .group:hover .brand-logo-3d--header,
+  .dark .brand-logo-scene--header:hover .brand-logo-3d--header {
+    transform: perspective(520px) rotateY(-5deg) rotateX(3deg) translateZ(14px)
+      scale(1.05);
+    filter: brightness(1.28) contrast(1.32) saturate(1.22)
+      drop-shadow(0 0 1px color-mix(in oklch, var(--brand-logo-halo) 95%, transparent))
+      drop-shadow(0 0 14px color-mix(in oklch, var(--brand-logo-glow) 65%, transparent))
+      drop-shadow(0 0 30px color-mix(in oklch, var(--brand-logo-halo) 35%, transparent))
+      drop-shadow(0 4px 14px rgb(0 0 0 / 0.55));
+  }
+
+  .group:hover .brand-logo-3d--header,
+  .brand-logo-scene--header:hover .brand-logo-3d--header {
+    transform: perspective(520px) rotateY(-5deg) rotateX(3deg) translateZ(14px)
+      scale(1.05);
+    filter: brightness(1.18) contrast(1.18) saturate(1.15)
+      drop-shadow(0 4px 14px rgb(0 0 0 / 0.6))
+      drop-shadow(0 0 24px rgb(255 255 255 / 0.18));
+  }
+
+  .brand-logo-3d--watermark {
+    transform-style: preserve-3d;
+  }
+
+  .brand-logo-watermark {
+    --brand-watermark-opacity: 0.16;
+    opacity: 0;
+    mix-blend-mode: soft-light;
+    animation:
+      brand-logo-watermark-enter 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+      brand-logo-watermark-breathe 10s ease-in-out 1.4s infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .brand-logo-watermark {
+      animation: brand-logo-watermark-enter 0.01s ease-out forwards;
+    }
+
+    .brand-logo-3d--header,
+    .group:hover .brand-logo-3d--header {
+      transform: perspective(520px) rotateY(-10deg) rotateX(6deg);
+      transition: none;
+    }
+  }
+
   .order-slide-border-glow {
     animation: order-slide-border-spin 4s linear infinite;
   }

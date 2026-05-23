@@ -1,7 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { ClerkUserButton } from "@/components/clerk-user-button";
 import { ProfileForm } from "@/components/profile-form";
 import { ShippingAddressForm } from "@/components/shipping-address-form";
@@ -31,12 +31,7 @@ export default async function OnboardingPage() {
     <div className="flex min-h-full flex-1 flex-col bg-background">
       <header className="border-b border-border/80 px-4 py-3">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
-          <Link
-            href="/"
-            className="text-base font-semibold tracking-tight text-foreground"
-          >
-            Cart2Barrel
-          </Link>
+          <BrandLogoLink />
           <ClerkUserButton />
         </div>
       </header>

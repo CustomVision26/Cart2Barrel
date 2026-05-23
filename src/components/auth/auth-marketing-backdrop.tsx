@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { HomeStorefront } from "@/components/marketing/home-storefront";
 import { listActiveSpotlightProductsByCategory } from "@/data/spotlight-category-products";
 
@@ -20,13 +19,10 @@ export async function AuthMarketingBackdrop() {
     >
       <header className="border-b border-border/80 px-4 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <Link
-            href="/"
-            tabIndex={-1}
-            className="pointer-events-none text-base font-semibold tracking-tight text-foreground"
-          >
-            Cart2Barrel
-          </Link>
+          <BrandLogoLink
+            className="pointer-events-none"
+            showWordmark={false}
+          />
         </div>
       </header>
       <HomeStorefront isSignedIn={false} productsByCategory={productsByCategory} />

@@ -5,6 +5,7 @@ import {
   AdminCustomerFilterBar,
   AdminCustomerFilterShell,
 } from "@/components/admin/admin-customer-filter-shell";
+import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { ClerkUserButton } from "@/components/clerk-user-button";
 import { AdminNotificationsBell } from "@/components/admin/admin-notifications-bell";
 import { AdminNav } from "@/components/admin-nav";
@@ -43,13 +44,13 @@ export default async function AdminLayout({
         <header className="border-b border-border/80 px-4 py-3">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
             <div className="flex shrink-0 items-center gap-3">
+              <BrandLogoLink showWordmark={false} />
               <Link
                 href="/admin/overview?tab=summary"
                 className="text-base font-semibold tracking-tight text-foreground"
               >
                 Admin
               </Link>
-              <span className="text-xs text-muted-foreground">Cart2Barrel</span>
             </div>
             <AdminCustomerFilterBar users={adminPickerUsers} />
             <div className="flex shrink-0 items-center gap-2 lg:ml-auto">

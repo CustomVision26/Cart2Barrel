@@ -3,6 +3,8 @@ import { Poppins } from "next/font/google";
 
 import { Toaster } from "sonner";
 
+import { PageLogoWatermark } from "@/components/brand/page-logo-watermark";
+
 import { AppProviders } from "./providers";
 
 import "./globals.css";
@@ -32,7 +34,10 @@ export default function RootLayout({
         className={`${poppins.className} min-h-full flex flex-col bg-background text-foreground`}
       >
         <AppProviders>
-          {children}
+          <PageLogoWatermark />
+          <div className="relative z-[1] flex min-h-full flex-1 flex-col">
+            {children}
+          </div>
           <Toaster richColors closeButton theme="dark" />
         </AppProviders>
       </body>
