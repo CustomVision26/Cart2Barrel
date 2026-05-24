@@ -213,6 +213,16 @@ export function isMissingOrderItemWarehouseReceiptColumnsError(
   );
 }
 
+/** Admin updated-by columns on `order_items`; apply `0063_admin_recorded_by_clerk_user_id` or `npm run db:push`. */
+export function isMissingOrderItemAdminUpdatedByColumnsError(
+  e: unknown,
+): boolean {
+  return (
+    isUndefinedColumnError(e, "warehouse_received_by_clerk_user_id") ||
+    isUndefinedColumnError(e, "company_purchase_updated_by_clerk_user_id")
+  );
+}
+
 /** `batch_quote_sessions.cart_acceptance_*` — apply migration 0016_batch_cart_acceptance or run `npm run db:push`. */
 export function isMissingBatchCartAcceptanceColumnsError(e: unknown): boolean {
   return (

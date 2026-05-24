@@ -81,6 +81,7 @@ export async function saveBarrelOutboundShippingChargeAction(
       .update(barrelOutboundShippingCharges)
       .set({
         adminNote: adminNote.trim() || null,
+        recordedByClerkUserId: cu.user.id,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(barrelOutboundShippingCharges.id, chargeId));
@@ -95,6 +96,7 @@ export async function saveBarrelOutboundShippingChargeAction(
         barrelId,
         clerkUserId: barrel.clerkUserId,
         adminNote: adminNote.trim() || null,
+        recordedByClerkUserId: cu.user.id,
       })
       .returning({ id: barrelOutboundShippingCharges.id });
     chargeId = inserted?.id;

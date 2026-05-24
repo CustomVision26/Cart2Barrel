@@ -1,8 +1,14 @@
 import Link from "next/link";
 
+import { AdminPageTitleWithHelp } from "@/components/admin/admin-page-title-with-help";
 import { AdminPurchaseOrdersTable } from "@/components/admin/admin-purchase-orders-table";
 import { AdminPurchaseQueueListControls } from "@/components/admin/admin-purchase-queue-list-controls";
+import {
+  AdminNestedPanelFocusProvider,
+  AdminParentControlsShell,
+} from "@/components/admin/admin-nested-panel-focus-context";
 import { listAdminPurchaseQueuePage } from "@/data/admin-purchase-queue";
+import { loadAdminStaffProfilesByClerkUserIds, resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsByRequestIds,
@@ -60,17 +66,24 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
     groupItemRequestLineSnapshotsByRequestId(snapshotRows),
   );
 
+  const staffProfilesByClerkUserId =
+    admin && pagePack.rows.length > 0 ?
+      await loadAdminStaffProfilesByClerkUserIds(
+        pagePack.rows.map((row) => resolveOrderLineUpdatedByClerkUserId(row.orderItem)),
+      )
+    : {};
+
   const hasActiveSearch = query.q.trim().length > 0;
   const emptyQueue = admin && pagePack.totalLines === 0 && !hasActiveSearch;
   const noSearchHits = admin && pagePack.totalLines === 0 && hasActiveSearch;
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Purchase orders
-        </h1>
-        <p className="text-sm text-muted-foreground">
+      <AdminPageTitleWithHelp
+        title="Purchase orders"
+        tooltipClassName="w-[28rem]"
+        help={
+          <>
           Inbound coordination and receipt logging for lines on this queue: pending delivery, non-good
           receipts, problem receipts you are correcting, replacement returns in transit (
           <span className="font-medium text-foreground">returned:awaiting delivery</span>), and
@@ -109,8 +122,9 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
           Purchase
           approval still starts from <span className="font-medium text-foreground">Orders</span> →{" "}
           <span className="font-medium text-foreground">Review and approve</span>.
-        </p>
-      </div>
+          </>
+        }
+      />
 
       {!admin ?
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -118,14 +132,17 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
         </p>
       : (
         <>
-          <AdminPurchaseQueueListControls
-            key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
-            query={pagePack.query}
-            totalLines={pagePack.totalLines}
-            page={pagePack.page}
-            totalPages={pagePack.totalPages}
-            pageSize={pagePack.pageSize}
-          />
+          <AdminNestedPanelFocusProvider>
+            <AdminParentControlsShell>
+              <AdminPurchaseQueueListControls
+                key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
+                query={pagePack.query}
+                totalLines={pagePack.totalLines}
+                page={pagePack.page}
+                totalPages={pagePack.totalPages}
+                pageSize={pagePack.pageSize}
+              />
+            </AdminParentControlsShell>
           {emptyQueue ?
             <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
               Nothing is coordinating delivery or awaiting receipt correction after a recorded purchase yet.
@@ -141,8 +158,10 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
             <AdminPurchaseOrdersTable
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
+              staffProfilesByClerkUserId={staffProfilesByClerkUserId}
             />
           : null}
+          </AdminNestedPanelFocusProvider>
         </>
       )}
     </div>

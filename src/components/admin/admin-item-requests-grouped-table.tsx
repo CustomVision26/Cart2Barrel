@@ -29,8 +29,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
+import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import { displaySiteName } from "@/lib/site-name";
 import type { SortDir } from "@/lib/table-sort";
 import {
@@ -58,6 +62,8 @@ import type {
   AdminItemRequestWithUserRow,
   AdminRequestQueueKind,
 } from "@/data/admin-item-requests";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
+import { quoteRecordedByClerkUserId } from "@/lib/admin-staff-profiles";
 
 function submitterDisplayName(
   fullName: string | null,
@@ -92,7 +98,7 @@ const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
 const ACTIVE_QUEUE_GROUP_COL_SPAN = 7;
 
 /** Flat queue-line table columns (account + email + line cells). */
-const ACTIVE_QUEUE_FLAT_COL_SPAN = 12;
+const ACTIVE_QUEUE_FLAT_COL_SPAN = 13;
 
 const SELECT_CLASS =
   "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
@@ -250,6 +256,7 @@ function ActiveQueueLineTableRow({
   onEditQuote,
   showAccountColumns = false,
   merchantEstimateFees,
+  staffProfilesByClerkUserId = {},
 }: {
   group: AdminItemRequestGroup;
   row: AdminItemRequestWithUserRow;
@@ -261,6 +268,7 @@ function ActiveQueueLineTableRow({
   /** When true, prepend Account and Email cells (flat paginated-by-line table). */
   showAccountColumns?: boolean;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
   const { request: r, queueKind } = row;
   const isOutside = isOutsidePurchaseRequest(r);
@@ -400,6 +408,12 @@ function ActiveQueueLineTableRow({
           snapshots={snapshotsByRequestId[r.id] ?? []}
         />
       </td>
+      <td className="min-w-[9rem] max-w-[11rem] px-2 py-2 align-top">
+        <AdminUpdatedByCell
+          clerkUserId={quoteRecordedByClerkUserId(latestQuote)}
+          profilesByClerkUserId={staffProfilesByClerkUserId}
+        />
+      </td>
       <td className="whitespace-nowrap px-2 py-2 align-top text-muted-foreground">
         <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleString()}</time>
       </td>
@@ -412,6 +426,7 @@ type AdminItemRequestsGroupedTableProps = {
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   /** Latest operational quote per request (for Edit quote on quoted queue rows). */
   latestQuotesByRequestId?: Record<string, ItemQuote>;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
   returnRequestsByItemRequestId?: Record<string, OutsidePurchaseReturnRequest>;
   orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
@@ -421,11 +436,13 @@ export function AdminItemRequestsGroupedTable({
   groups,
   snapshotsByRequestId,
   latestQuotesByRequestId = {},
+  staffProfilesByClerkUserId = {},
   returnRequestsByItemRequestId = {},
   orderContextByRequestId = {},
   merchantEstimateFees,
 }: AdminItemRequestsGroupedTableProps) {
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
+  const [panelChoiceMade, setPanelChoiceMade] = useState(false);
   const [editQuoteOpen, setEditQuoteOpen] = useState(false);
   const [editQuoteLine, setEditQuoteLine] = useState<AdminQuoteHistoryLine | null>(
     null,
@@ -435,18 +452,20 @@ export function AdminItemRequestsGroupedTable({
   const [lineSortKey, setLineSortKey] = useState<LineSortKey>("submitted");
   const [lineSortDir, setLineSortDir] = useState<SortDir>("desc");
   const [search, setSearch] = useState("");
+  const [lineSearch, setLineSearch] = useState("");
   const [pageSize, setPageSize] =
     useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
   const [page, setPage] = useState(1);
+  const [linePageByCustomerId, setLinePageByCustomerId] = useState<
+    Record<string, number>
+  >({});
   const [paginationMode, setPaginationMode] =
     useState<ActiveQueuePaginationMode>("accounts");
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
   const baseId = useId();
   const findOrganizeSwitchId = `${baseId}-find-organize`;
-
-  const toggle = useCallback((clerkUserId: string) => {
-    setOpenClerkUserId((prev) => (prev === clerkUserId ? null : clerkUserId));
-  }, []);
+  const lineFindOrganizeSwitchId = `${baseId}-line-find-organize`;
 
   const cycleGroupSort = useCallback(
     (key: GroupSortKey) => {
@@ -535,6 +554,8 @@ export function AdminItemRequestsGroupedTable({
 
   useEffect(() => {
     setPage(1);
+    setLinePageByCustomerId({});
+    setLineSearch("");
   }, [search, groupSortKey, groupSortDir, pageSize, paginationMode]);
 
   useEffect(() => {
@@ -551,6 +572,40 @@ export function AdminItemRequestsGroupedTable({
     return sortedGroups.slice(start, start + pageSize);
   }, [sortedGroups, pageSafe, pageSize]);
 
+  const activeClerkUserId =
+    paginationMode === "accounts" ?
+      panelChoiceMade ? openClerkUserId
+      : (accountPageSlice[0]?.clerkUserId ?? null)
+    : null;
+
+  const customerExpanded =
+    paginationMode === "accounts" && activeClerkUserId !== null;
+
+  const toggle = useCallback(
+    (clerkUserId: string) => {
+      setPanelChoiceMade(true);
+      setOpenClerkUserId((prev) => {
+        const current =
+          panelChoiceMade ? prev : (accountPageSlice[0]?.clerkUserId ?? null);
+        const next = current === clerkUserId ? null : clerkUserId;
+        if (next !== current) {
+          setLineSearch("");
+          setLinePageByCustomerId({});
+        }
+        return next;
+      });
+    },
+    [accountPageSlice, panelChoiceMade],
+  );
+
+  useEffect(() => {
+    if (!activeClerkUserId) return;
+    setLinePageByCustomerId((prev) => ({
+      ...prev,
+      [activeClerkUserId]: 1,
+    }));
+  }, [lineSearch, pageSize, activeClerkUserId]);
+
   const linePageSlice = useMemo(() => {
     const start = (pageSafe - 1) * pageSize;
     return flatLineEntries.slice(start, start + pageSize);
@@ -566,7 +621,13 @@ export function AdminItemRequestsGroupedTable({
 
   return (
     <div className="space-y-3">
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+      <div
+        className={cn(
+          "space-y-3 rounded-lg border border-border bg-muted/10 p-4",
+          adminParentControlsDisabledClass(customerExpanded),
+        )}
+        aria-hidden={customerExpanded || undefined}
+      >
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -728,7 +789,13 @@ export function AdminItemRequestsGroupedTable({
         {paginationMode === "accounts" ? (
           <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead className="border-b border-border bg-muted/40">
+        <thead
+          className={cn(
+            "border-b border-border bg-muted/40",
+            adminParentControlsDisabledClass(customerExpanded),
+          )}
+          aria-hidden={customerExpanded || undefined}
+        >
           <tr>
             <th className="w-10 px-2 py-2.5" aria-hidden />
             <SortableTh
@@ -803,9 +870,28 @@ export function AdminItemRequestsGroupedTable({
           </tbody>
         ) : null}
         {accountPageSlice.map((g) => {
-          const expanded = openClerkUserId === g.clerkUserId;
+          const expanded = activeClerkUserId === g.clerkUserId;
           const panelId = `${baseId}-pending-${g.clerkUserId}`;
           const name = submitterDisplayName(g.userFullName, g.userEmail);
+          const lineFiltered = expanded
+            ? g.activeQueueRequests.filter((row) =>
+                activeQueueRowMatchesQuery(row, normalizeSearchQ(lineSearch)),
+              )
+            : [];
+          const sortedLineRows = expanded
+            ? sortActiveQueueRows(lineFiltered, lineSortKey, lineSortDir)
+            : [];
+          const lineCount = sortedLineRows.length;
+          const lineTotalPages = Math.max(1, Math.ceil(lineCount / pageSize));
+          const rawLinePage = linePageByCustomerId[g.clerkUserId] ?? 1;
+          const linePageSafe = Math.min(
+            Math.max(1, rawLinePage),
+            lineTotalPages,
+          );
+          const lineStart = (linePageSafe - 1) * pageSize;
+          const lineSlice = sortedLineRows.slice(lineStart, lineStart + pageSize);
+          const lineShowFrom = lineCount === 0 ? 0 : lineStart + 1;
+          const lineShowTo = Math.min(lineStart + pageSize, lineCount);
 
           return (
             <tbody key={g.clerkUserId} className="border-b border-border last:border-b-0">
@@ -834,7 +920,12 @@ export function AdminItemRequestsGroupedTable({
                   )}
                 </td>
                 <td className="px-3 py-2.5 align-middle">
-                  <div className="font-medium text-foreground">{name}</div>
+                  <AdminCustomerRecordLabel
+                    clerkUserId={g.clerkUserId}
+                    fullName={g.userFullName}
+                    email={g.userEmail}
+                    primaryClassName="text-sm font-medium"
+                  />
                 </td>
                 <td className="max-w-[14rem] px-3 py-2.5 align-middle">
                   <span className="truncate text-muted-foreground">
@@ -879,6 +970,30 @@ export function AdminItemRequestsGroupedTable({
                           customer for this account).
                         </p>
                       ) : (
+                        <>
+                          <AdminNestedFindOrganizePanel
+                            switchId={lineFindOrganizeSwitchId}
+                            searchInputId={`${baseId}-line-search`}
+                            pageSizeSelectId={`${baseId}-line-page-size`}
+                            visible={lineFindOrganizeVisible}
+                            onVisibleChange={setLineFindOrganizeVisible}
+                            search={lineSearch}
+                            onSearchChange={setLineSearch}
+                            searchLabel="Search queue lines"
+                            searchPlaceholder="Product, URL, request id, queue type…"
+                            searchDescription="Filters this account's queue lines only. Column headers below sort the filtered list."
+                            pageSize={pageSize}
+                            onPageSizeChange={setPageSize}
+                            pageSizeLabel="Lines per page"
+                            pageSizeDescription="Paginates queue lines in this panel."
+                            showFrom={lineShowFrom}
+                            showTo={lineShowTo}
+                            totalCount={lineCount}
+                            totalLoaded={g.activeQueueRequests.length}
+                            itemLabel="queue line"
+                            emptyMessage="No queue lines for this account."
+                            noMatchMessage="No queue lines match the current search."
+                          />
                         <FloatingHorizontalScroll viewportClassName="rounded-md border border-border bg-background">
                           <table className="w-full min-w-[52rem] text-left text-xs sm:text-sm">
                             <thead className="border-b border-border bg-muted/50">
@@ -926,6 +1041,9 @@ export function AdminItemRequestsGroupedTable({
                                 <th className="px-2 py-2 font-medium text-foreground">
                                   Audit
                                 </th>
+                                <th className="min-w-[9rem] px-2 py-2 font-medium text-foreground">
+                                  Updated by
+                                </th>
                                 <SortableThCompact
                                   columnId="line-submitted"
                                   label="Submitted"
@@ -936,11 +1054,19 @@ export function AdminItemRequestsGroupedTable({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
-                              {sortActiveQueueRows(
-                                g.activeQueueRequests,
-                                lineSortKey,
-                                lineSortDir
-                              ).map((row) => (
+                              {lineSlice.length === 0 ? (
+                                <tr>
+                                  <td
+                                    colSpan={11}
+                                    className="px-4 py-8 text-center text-sm text-muted-foreground"
+                                  >
+                                    {lineSearch.trim()
+                                      ? "No queue lines match the current search."
+                                      : "No queue lines for this account."}
+                                  </td>
+                                </tr>
+                              ) : null}
+                              {lineSlice.map((row) => (
                                 <ActiveQueueLineTableRow
                                   key={row.request.id}
                                   group={g}
@@ -953,11 +1079,62 @@ export function AdminItemRequestsGroupedTable({
                                   orderContextByRequestId={orderContextByRequestId}
                                   onEditQuote={openEditQuote}
                                   merchantEstimateFees={merchantEstimateFees}
+                                  staffProfilesByClerkUserId={staffProfilesByClerkUserId}
                                 />
                               ))}
                             </tbody>
                           </table>
                         </FloatingHorizontalScroll>
+                        {lineCount > pageSize ? (
+                          <div className="mt-3 flex flex-col items-stretch gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-xs text-muted-foreground">
+                              Queue lines{" "}
+                              <span className="font-medium tabular-nums text-foreground">
+                                {lineShowFrom}–{lineShowTo}
+                              </span>{" "}
+                              of{" "}
+                              <span className="font-medium tabular-nums text-foreground">
+                                {lineCount}
+                              </span>
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={linePageSafe <= 1}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLinePageByCustomerId((prev) => ({
+                                    ...prev,
+                                    [g.clerkUserId]: Math.max(1, linePageSafe - 1),
+                                  }));
+                                }}
+                              >
+                                Previous lines
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={linePageSafe >= lineTotalPages}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLinePageByCustomerId((prev) => ({
+                                    ...prev,
+                                    [g.clerkUserId]: Math.min(
+                                      lineTotalPages,
+                                      linePageSafe + 1,
+                                    ),
+                                  }));
+                                }}
+                              >
+                                Next lines
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                        </>
                       )}
                     </div>
                   </td>
@@ -1022,6 +1199,9 @@ export function AdminItemRequestsGroupedTable({
                   <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
                     Audit
                   </th>
+                  <th className="min-w-[9rem] px-2 py-2.5 text-left text-xs font-medium text-foreground">
+                    Updated by
+                  </th>
                   <SortableThCompact
                     columnId="flat-line-submitted"
                     label="Submitted"
@@ -1067,6 +1247,7 @@ export function AdminItemRequestsGroupedTable({
                       orderContextByRequestId={orderContextByRequestId}
                       onEditQuote={openEditQuote}
                       merchantEstimateFees={merchantEstimateFees}
+                      staffProfilesByClerkUserId={staffProfilesByClerkUserId}
                     />
                   ))}
                 </tbody>
@@ -1076,7 +1257,13 @@ export function AdminItemRequestsGroupedTable({
         )}
 
           {itemCount > 0 ? (
-            <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              className={cn(
+                "flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between",
+                adminParentControlsDisabledClass(customerExpanded),
+              )}
+              aria-hidden={customerExpanded || undefined}
+            >
               <p className="text-xs text-muted-foreground">
                 Page{" "}
                 <span className="font-medium tabular-nums text-foreground">
@@ -1086,13 +1273,19 @@ export function AdminItemRequestsGroupedTable({
                 <span className="font-medium tabular-nums text-foreground">
                   {totalPages}
                 </span>
+                {customerExpanded ? (
+                  <span className="text-muted-foreground/80">
+                    {" "}
+                    (collapse account to change)
+                  </span>
+                ) : null}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={pageSafe <= 1}
+                  disabled={customerExpanded || pageSafe <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
                   Previous
@@ -1101,7 +1294,7 @@ export function AdminItemRequestsGroupedTable({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={pageSafe >= totalPages}
+                  disabled={customerExpanded || pageSafe >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 >
                   Next

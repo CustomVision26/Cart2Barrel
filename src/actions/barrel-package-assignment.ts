@@ -110,7 +110,10 @@ export async function adminReassignPackageBarrelAction(
   const [ctx] = await db
     .select({
       pkg: packages,
-      oi: orderItems,
+      oi: {
+        id: orderItems.id,
+        fulfillmentStatus: orderItems.fulfillmentStatus,
+      },
       ord: orders,
       req: itemRequests,
     })
@@ -236,7 +239,10 @@ export async function adminRemovePackageFromBarrelAction(
   const [ctx] = await db
     .select({
       pkg: packages,
-      oi: orderItems,
+      oi: {
+        id: orderItems.id,
+        fulfillmentStatus: orderItems.fulfillmentStatus,
+      },
       ord: orders,
       req: itemRequests,
     })

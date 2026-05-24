@@ -1,10 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { ProductToBarrelFiltersToolbar } from "@/components/barrels/product-to-barrel-filters-toolbar";
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
+import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
 
 import {
   adminReassignPackageBarrelAction,
@@ -43,6 +48,10 @@ import {
   uniqueFulfillmentStatuses,
   type ProductToBarrelFilterState,
 } from "@/lib/product-to-barrel-filters";
+import {
+  adminCustomerSortKey,
+} from "@/lib/admin-customer-group";
+import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import { cn } from "@/lib/utils";
 
 const selectClassName = cn(
@@ -52,6 +61,11 @@ const selectClassName = cn(
 export type AdminBarrelAssignmentsClientProps = {
   rows: AdminBarrelPipelineRow[];
   barrelsByOwner: Record<string, UserBarrelOptionRow[]>;
+  ownerProfiles: Record<
+    string,
+    { fullName: string | null; email: string | null }
+  >;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 };
 
 function formatAssignedAt(iso: string | null): string {
@@ -69,12 +83,28 @@ function formatAssignedAtShort(iso: string | null): string | null {
 export function AdminBarrelAssignmentsClient({
   rows,
   barrelsByOwner,
+  ownerProfiles,
+  staffProfilesByClerkUserId = {},
 }: AdminBarrelAssignmentsClientProps) {
+  const baseId = useId();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [filters, setFilters] = useState<ProductToBarrelFilterState>(
     DEFAULT_PRODUCT_TO_BARREL_FILTERS,
   );
+  const [openOwnerId, setOpenOwnerId] = useState<string | null>(null);
+  const [panelChoiceMade, setPanelChoiceMade] = useState(false);
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
+  const [linePageSize, setLinePageSize] = useState<5 | 10 | 25 | 50>(10);
+  const [linePage, setLinePage] = useState(1);
+
+  useEffect(() => {
+    setPanelChoiceMade(false);
+    setOpenOwnerId(null);
+    setLineSearch("");
+    setLinePage(1);
+  }, [filters]);
 
   const allBarrels = useMemo(
     () => Object.values(barrelsByOwner).flat(),
@@ -107,8 +137,39 @@ export function AdminBarrelAssignmentsClient({
       list.push(row);
       map.set(row.ownerClerkUserId, list);
     }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredRows]);
+    return [...map.entries()].sort(([a], [b]) => {
+      const profileA = ownerProfiles[a];
+      const profileB = ownerProfiles[b];
+      return adminCustomerSortKey({
+        clerkUserId: a,
+        fullName: profileA?.fullName,
+        email: profileA?.email,
+      }).localeCompare(
+        adminCustomerSortKey({
+          clerkUserId: b,
+          fullName: profileB?.fullName,
+          email: profileB?.email,
+        }),
+      );
+    });
+  }, [filteredRows, ownerProfiles]);
+
+  const activeOwnerId =
+    panelChoiceMade ? openOwnerId : (grouped[0]?.[0] ?? null);
+  const ownerExpanded = activeOwnerId !== null;
+
+  const toggleOwner = useCallback(
+    (ownerId: string) => {
+      setPanelChoiceMade(true);
+      const next = activeOwnerId === ownerId ? null : ownerId;
+      if (next !== activeOwnerId) {
+        setLineSearch("");
+        setLinePage(1);
+      }
+      setOpenOwnerId(next);
+    },
+    [activeOwnerId],
+  );
 
   const ownersMissingBarrels = useMemo(() => {
     const missing: string[] = [];
@@ -150,20 +211,27 @@ export function AdminBarrelAssignmentsClient({
         </p>
       : null}
 
-      <ProductToBarrelFiltersToolbar
-        idPrefix="admin-atb"
-        totalCount={rows.length}
-        filteredCount={filteredRows.length}
-        awaitingCount={filteredAwaitingCount}
-        assignedCount={filteredAssignedCount}
-        filters={filters}
-        onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
-        onClear={() => setFilters(DEFAULT_PRODUCT_TO_BARREL_FILTERS)}
-        fulfillmentOptions={fulfillmentOptions}
-        containerOptions={containerOptions}
-        searchLabel="Search products & customers"
-        searchPlaceholder="Product, container, customer id, order, status…"
-      />
+      <div
+        className={cn(
+          adminParentControlsDisabledClass(ownerExpanded),
+        )}
+        aria-hidden={ownerExpanded || undefined}
+      >
+        <ProductToBarrelFiltersToolbar
+          idPrefix="admin-atb"
+          totalCount={rows.length}
+          filteredCount={filteredRows.length}
+          awaitingCount={filteredAwaitingCount}
+          assignedCount={filteredAssignedCount}
+          filters={filters}
+          onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
+          onClear={() => setFilters(DEFAULT_PRODUCT_TO_BARREL_FILTERS)}
+          fulfillmentOptions={fulfillmentOptions}
+          containerOptions={containerOptions}
+          searchLabel="Search products & customers"
+          searchPlaceholder="Product, container, customer id, order, status…"
+        />
+      </div>
 
       {rows.length === 0 ?
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -176,13 +244,40 @@ export function AdminBarrelAssignmentsClient({
         </p>
       : (
         grouped.map(([ownerId, ownerLines]) => (
-          <section key={ownerId} className="space-y-4">
+          <section
+            key={ownerId}
+            className="overflow-hidden rounded-lg border border-border"
+          >
             <OwnerAssignmentSection
               ownerId={ownerId}
+              ownerProfile={ownerProfiles[ownerId]}
               ownerLines={ownerLines}
               barrels={barrelsByOwner[ownerId] ?? []}
               pending={pending}
               onAction={runAction}
+              expanded={activeOwnerId === ownerId}
+              onToggle={() => toggleOwner(ownerId)}
+              panelIds={{
+                switchId: `${baseId}-line-find-organize-${ownerId}`,
+                searchId: `${baseId}-line-search-${ownerId}`,
+                pageSizeId: `${baseId}-line-page-size-${ownerId}`,
+              }}
+              lineSearch={lineSearch}
+              onLineSearchChange={(value) => {
+                setLineSearch(value);
+                setLinePage(1);
+              }}
+              lineFindOrganizeVisible={lineFindOrganizeVisible}
+              onLineFindOrganizeVisibleChange={setLineFindOrganizeVisible}
+              linePageSize={linePageSize}
+              onLinePageSizeChange={(size) => {
+                setLinePageSize(size);
+                setLinePage(1);
+              }}
+              linePage={linePage}
+              onLinePageChange={setLinePage}
+              ownerProfiles={ownerProfiles}
+              staffProfilesByClerkUserId={staffProfilesByClerkUserId}
             />
           </section>
         ))
@@ -193,12 +288,31 @@ export function AdminBarrelAssignmentsClient({
 
 function OwnerAssignmentSection({
   ownerId,
+  ownerProfile,
+  ownerProfiles,
   ownerLines,
   barrels,
   pending,
   onAction,
+  expanded,
+  onToggle,
+  panelIds,
+  lineSearch,
+  onLineSearchChange,
+  lineFindOrganizeVisible,
+  onLineFindOrganizeVisibleChange,
+  linePageSize,
+  onLinePageSizeChange,
+  linePage,
+  onLinePageChange,
+  staffProfilesByClerkUserId = {},
 }: {
   ownerId: string;
+  ownerProfile?: { fullName: string | null; email: string | null };
+  ownerProfiles: Record<
+    string,
+    { fullName: string | null; email: string | null }
+  >;
   ownerLines: AdminBarrelPipelineRow[];
   barrels: UserBarrelOptionRow[];
   pending: boolean;
@@ -206,72 +320,187 @@ function OwnerAssignmentSection({
     fn: () => Promise<{ ok: boolean; message: string }>,
     onSuccess?: () => void,
   ) => void;
+  expanded: boolean;
+  onToggle: () => void;
+  panelIds: { switchId: string; searchId: string; pageSizeId: string };
+  lineSearch: string;
+  onLineSearchChange: (value: string) => void;
+  lineFindOrganizeVisible: boolean;
+  onLineFindOrganizeVisibleChange: (visible: boolean) => void;
+  linePageSize: 5 | 10 | 25 | 50;
+  onLinePageSizeChange: (size: 5 | 10 | 25 | 50) => void;
+  linePage: number;
+  onLinePageChange: (page: number) => void;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
-  const unassigned = ownerLines.filter((row) => !isPipelineLineAssigned(row));
-  const assigned = ownerLines.filter((row) => isPipelineLineAssigned(row));
+  const nestedFilters = useMemo(
+    () => ({
+      ...DEFAULT_PRODUCT_TO_BARREL_FILTERS,
+      search: lineSearch,
+    }),
+    [lineSearch],
+  );
+  const ownerFiltered = useMemo(
+    () => filterAndSortPipelineLines(ownerLines, nestedFilters),
+    [ownerLines, nestedFilters],
+  );
+  const lineCount = ownerFiltered.length;
+  const lineTotalPages = Math.max(1, Math.ceil(lineCount / linePageSize));
+  const linePageSafe = Math.min(Math.max(1, linePage), lineTotalPages);
+  const lineStart = (linePageSafe - 1) * linePageSize;
+  const pageSlice = ownerFiltered.slice(lineStart, lineStart + linePageSize);
+  const lineShowFrom = lineCount === 0 ? 0 : lineStart + 1;
+  const lineShowTo = Math.min(lineStart + linePageSize, lineCount);
+
+  const unassigned = pageSlice.filter((row) => !isPipelineLineAssigned(row));
+  const assigned = pageSlice.filter((row) => isPipelineLineAssigned(row));
+  const totalUnassigned = ownerLines.filter(
+    (row) => !isPipelineLineAssigned(row),
+  ).length;
+  const totalAssigned = ownerLines.length - totalUnassigned;
 
   return (
     <>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="space-y-0.5">
-          <h2 className="text-base font-semibold text-foreground">Customer</h2>
-          <p className="font-mono text-[11px] text-muted-foreground">{ownerId}</p>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
+      <button
+        type="button"
+        className={cn(
+          "flex w-full flex-wrap items-baseline justify-between gap-2 border-b border-border bg-muted/25 px-4 py-3 text-left hover:bg-muted/40",
+          expanded && "bg-muted/35",
+        )}
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          {expanded ? (
+            <ChevronDownIcon className="size-4 shrink-0" aria-hidden />
+          ) : (
+            <ChevronRightIcon className="size-4 shrink-0" aria-hidden />
+          )}
+          <AdminCustomerRecordLabel
+            clerkUserId={ownerId}
+            fullName={ownerProfile?.fullName}
+            email={ownerProfile?.email}
+            primaryClassName="text-base"
+          />
+        </span>
+        <span className="flex flex-wrap gap-1.5">
           <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {unassigned.length} awaiting
+            {totalUnassigned} awaiting
           </span>
           <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-            {assigned.length} assigned
+            {totalAssigned} assigned
           </span>
-        </div>
-      </div>
+        </span>
+      </button>
 
-      <ContainerSlotsInventorySection
-        barrels={barrels}
-        embedded
-        showMarkFull
-        showLookupFilters
-        showCustomerColumn
-      />
+      {expanded ? (
+        <div className="space-y-4 p-4">
+          <AdminNestedFindOrganizePanel
+            switchId={panelIds.switchId}
+            searchInputId={panelIds.searchId}
+            pageSizeSelectId={panelIds.pageSizeId}
+            visible={lineFindOrganizeVisible}
+            onVisibleChange={onLineFindOrganizeVisibleChange}
+            search={lineSearch}
+            onSearchChange={onLineSearchChange}
+            searchLabel="Search products"
+            searchPlaceholder="Product, container, order, status…"
+            pageSize={linePageSize}
+            onPageSizeChange={onLinePageSizeChange}
+            pageSizeLabel="Products per page"
+            showFrom={lineShowFrom}
+            showTo={lineShowTo}
+            totalCount={lineCount}
+            totalLoaded={ownerLines.length}
+            itemLabel="product"
+            className="mb-0"
+          />
+          {lineCount > linePageSize ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={linePageSafe <= 1}
+                onClick={() => onLinePageChange(Math.max(1, linePageSafe - 1))}
+              >
+                Previous products
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={linePageSafe >= lineTotalPages}
+                onClick={() =>
+                  onLinePageChange(Math.min(lineTotalPages, linePageSafe + 1))
+                }
+              >
+                Next products
+              </Button>
+            </div>
+          ) : null}
 
-      {unassigned.length > 0 ?
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Awaiting assignment ({unassigned.length})
-          </h3>
-          <div className={barrelPipelineProductGridClassName}>
-            {unassigned.map((row) => (
-              <AdminPipelineProductCard
-                key={row.packageId}
-                row={row}
-                barrels={barrels}
-                pending={pending}
-                onAction={onAction}
-              />
-            ))}
-          </div>
-        </div>
-      : null}
+          <ContainerSlotsInventorySection
+            barrels={barrels}
+            embedded
+            showMarkFull
+            showLookupFilters
+            showCustomerColumn
+            ownerProfiles={ownerProfiles}
+            staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+          />
 
-      {assigned.length > 0 ?
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-            Assigned to container ({assigned.length})
-          </h3>
-          <div className={barrelPipelineProductGridClassName}>
-            {assigned.map((row) => (
-              <AdminPipelineProductCard
-                key={row.packageId}
-                row={row}
-                barrels={barrels}
-                pending={pending}
-                onAction={onAction}
-              />
-            ))}
-          </div>
+          {pageSlice.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {lineSearch.trim()
+                ? "No products match the current search."
+                : "No products for this customer."}
+            </p>
+          ) : null}
+
+          {unassigned.length > 0 ? (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Awaiting assignment ({unassigned.length}
+                {lineCount !== ownerLines.length ? " on page" : ""})
+              </h3>
+              <div className={barrelPipelineProductGridClassName}>
+                {unassigned.map((row) => (
+                  <AdminPipelineProductCard
+                    key={row.packageId}
+                    row={row}
+                    barrels={barrels}
+                    pending={pending}
+                    onAction={onAction}
+                    staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {assigned.length > 0 ? (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                Assigned to container ({assigned.length}
+                {lineCount !== ownerLines.length ? " on page" : ""})
+              </h3>
+              <div className={barrelPipelineProductGridClassName}>
+                {assigned.map((row) => (
+                  <AdminPipelineProductCard
+                    key={row.packageId}
+                    row={row}
+                    barrels={barrels}
+                    pending={pending}
+                    onAction={onAction}
+                    staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
-      : null}
+      ) : null}
     </>
   );
 }
@@ -281,6 +510,7 @@ function AdminPipelineProductCard({
   barrels,
   pending,
   onAction,
+  staffProfilesByClerkUserId = {},
 }: {
   row: AdminBarrelPipelineRow;
   barrels: UserBarrelOptionRow[];
@@ -289,6 +519,7 @@ function AdminPipelineProductCard({
     fn: () => Promise<{ ok: boolean; message: string }>,
     onSuccess?: () => void,
   ) => void;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
   const [assignOpen, setAssignOpen] = useState(false);
   const isAssigned = Boolean(row.assignedBarrelId);
@@ -341,6 +572,16 @@ function AdminPipelineProductCard({
               : null}
             </span>
           : <span className="text-muted-foreground">Awaiting assignment</span>}
+        </div>
+
+        <div className="text-[10px]">
+          <span className="text-muted-foreground">Updated by </span>
+          <AdminUpdatedByCell
+            clerkUserId={row.lastUpdatedByClerkUserId}
+            profilesByClerkUserId={staffProfilesByClerkUserId}
+            primaryClassName="inline text-[10px] font-medium"
+            secondaryClassName="text-[9px] text-muted-foreground"
+          />
         </div>
 
         <Button

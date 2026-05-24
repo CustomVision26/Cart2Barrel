@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment } from "react";
+import { Fragment, useId, useMemo, useState } from "react";
+
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 
 import { AdminOrderEstimateSummary } from "@/components/admin/admin-order-estimate-summary";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
+import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -47,11 +52,13 @@ function DetailLineRow({
   row,
   snapshotsByRequestId,
   latestQuotesByRequestId,
+  staffProfilesByClerkUserId,
   inBatchGroup,
 }: {
   row: AdminPaidOrderLineRow;
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   latestQuotesByRequestId: Record<string, ItemQuote>;
+  staffProfilesByClerkUserId: AdminStaffProfilesByClerkUserId;
   inBatchGroup?: boolean;
 }) {
   const r = row.request;
@@ -166,6 +173,12 @@ function DetailLineRow({
           />
         }
       </td>
+      <td className="min-w-[9rem] max-w-[11rem] px-3 py-2.5 align-top">
+        <AdminUpdatedByCell
+          clerkUserId={resolveOrderLineUpdatedByClerkUserId(row.orderItem)}
+          profilesByClerkUserId={staffProfilesByClerkUserId}
+        />
+      </td>
       <td className="px-3 py-2.5">
         <ItemRequestLineAuditDialog
           itemRequestId={r.id}
@@ -177,6 +190,27 @@ function DetailLineRow({
   );
 }
 
+function orderDetailLineMatchesQuery(
+  row: AdminPaidOrderLineRow,
+  q: string,
+): boolean {
+  if (!q) return true;
+  const r = row.request;
+  const chunks = [
+    r.id,
+    r.productName,
+    r.productUrl,
+    displaySiteName(r.siteName, r.productUrl),
+    row.order.id,
+    row.orderItem.id,
+    row.resolvedBatchNumber,
+    row.resolvedBatchSessionId,
+  ];
+  return chunks.some(
+    (chunk) => chunk != null && String(chunk).toLowerCase().includes(q),
+  );
+}
+
 export function AdminOrderLinesDetailDialog({
   open,
   onOpenChange,
@@ -185,6 +219,7 @@ export function AdminOrderLinesDetailDialog({
   latestQuotesByRequestId = {},
   batchEstimatesBySessionId = {},
   orderContainerLinesByOrderId = {},
+  staffProfilesByClerkUserId = {},
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -193,7 +228,30 @@ export function AdminOrderLinesDetailDialog({
   latestQuotesByRequestId?: Record<string, ItemQuote>;
   batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
+  const baseId = useId();
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
+  const [linePageSize, setLinePageSize] = useState<10 | 5 | 25 | 50>(10);
+  const [linePage, setLinePage] = useState(1);
+
+  const groupLines = group?.lines ?? [];
+  const searchNorm = lineSearch.trim().toLowerCase();
+  const filteredLines = useMemo(
+    () =>
+      groupLines.filter((row) => orderDetailLineMatchesQuery(row, searchNorm)),
+    [groupLines, searchNorm],
+  );
+  const lineCount = filteredLines.length;
+  const lineTotalPages = Math.max(1, Math.ceil(lineCount / linePageSize));
+  const linePageSafe = Math.min(Math.max(1, linePage), lineTotalPages);
+  const lineStart = (linePageSafe - 1) * linePageSize;
+  const pagedLines = filteredLines.slice(lineStart, lineStart + linePageSize);
+  const pagedBuckets = partitionPaidLinesIntoBatchBuckets(pagedLines);
+  const lineShowFrom = lineCount === 0 ? 0 : lineStart + 1;
+  const lineShowTo = Math.min(lineStart + linePageSize, lineCount);
+
   if (!group) return null;
 
   const first = group.lines[0]!;
@@ -202,7 +260,6 @@ export function AdminOrderLinesDetailDialog({
     email: first.customerEmail,
     clerkUserId: group.order.clerkUserId,
   });
-  const buckets = partitionPaidLinesIntoBatchBuckets(group.lines);
   const containerLines = orderContainerLinesByOrderId[group.order.id] ?? [];
 
   return (
@@ -259,6 +316,34 @@ export function AdminOrderLinesDetailDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+          <AdminNestedFindOrganizePanel
+            switchId={`${baseId}-line-find-organize`}
+            searchInputId={`${baseId}-line-search`}
+            pageSizeSelectId={`${baseId}-line-page-size`}
+            visible={lineFindOrganizeVisible}
+            onVisibleChange={setLineFindOrganizeVisible}
+            search={lineSearch}
+            onSearchChange={(value) => {
+              setLineSearch(value);
+              setLinePage(1);
+            }}
+            searchLabel="Search order lines"
+            searchPlaceholder="Product, URL, request id, line id, batch…"
+            pageSize={linePageSize}
+            onPageSizeChange={(size) => {
+              setLinePageSize(size);
+              setLinePage(1);
+            }}
+            pageSizeLabel="Lines per page"
+            showFrom={lineShowFrom}
+            showTo={lineShowTo}
+            totalCount={lineCount}
+            totalLoaded={group.lines.length}
+            itemLabel="product line"
+            emptyMessage="No product lines on this order."
+            noMatchMessage="No product lines match the current search."
+            className="mb-4"
+          />
           <p className="mb-2 text-xs text-muted-foreground">
             ← Scroll inside the box below to see Photo, Group, Product, and other columns →
           </p>
@@ -293,13 +378,16 @@ export function AdminOrderLinesDetailDialog({
                   <th className="min-w-[8rem] whitespace-nowrap px-3 py-2.5 font-medium text-foreground">
                     Ops
                   </th>
+                  <th className="min-w-[9rem] whitespace-nowrap px-3 py-2.5 font-medium text-foreground">
+                    Updated by
+                  </th>
                   <th className="whitespace-nowrap px-3 py-2.5 font-medium text-foreground">
                     Audit
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {buckets.map((bucket, bi) => {
+                {pagedBuckets.map((bucket, bi) => {
                   if (bucket.kind === "batch") {
                     const batchEstimate =
                       batchEstimatesBySessionId[bucket.batchSessionId] ?? null;
@@ -307,7 +395,7 @@ export function AdminOrderLinesDetailDialog({
                       <Fragment key={bucket.batchSessionId}>
                         <tr className="bg-muted/50">
                           <td
-                            colSpan={8}
+                            colSpan={9}
                             className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-foreground"
                           >
                             Batch{" "}
@@ -327,7 +415,7 @@ export function AdminOrderLinesDetailDialog({
                         </tr>
                         {batchEstimate ?
                           <tr>
-                            <td colSpan={8} className="bg-muted/30 px-3 py-2">
+                            <td colSpan={9} className="bg-muted/30 px-3 py-2">
                               <AdminOrderEstimateSummary
                                 rows={batchEstimateSummaryRows(batchEstimate)}
                               />
@@ -340,6 +428,7 @@ export function AdminOrderLinesDetailDialog({
                             row={row}
                             snapshotsByRequestId={snapshotsByRequestId}
                             latestQuotesByRequestId={latestQuotesByRequestId}
+                            staffProfilesByClerkUserId={staffProfilesByClerkUserId}
                             inBatchGroup
                           />
                         ))}
@@ -350,10 +439,10 @@ export function AdminOrderLinesDetailDialog({
                     <Fragment key={`single:${group.order.id}:${bi}`}>
                       <tr className="bg-muted/50">
                         <td
-                          colSpan={8}
+                          colSpan={9}
                           className={cn(
                             "px-3 py-2 text-xs font-semibold uppercase tracking-wide text-foreground",
-                            buckets.length > 1 && "text-muted-foreground",
+                            pagedBuckets.length > 1 && "text-muted-foreground",
                           )}
                         >
                           Single {bucket.lines.length === 1 ? "product" : "products"}
@@ -365,6 +454,7 @@ export function AdminOrderLinesDetailDialog({
                           row={row}
                           snapshotsByRequestId={snapshotsByRequestId}
                           latestQuotesByRequestId={latestQuotesByRequestId}
+                          staffProfilesByClerkUserId={staffProfilesByClerkUserId}
                         />
                       ))}
                     </Fragment>
@@ -374,7 +464,7 @@ export function AdminOrderLinesDetailDialog({
                   <>
                     <tr className="bg-muted/50">
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                       >
                         Shipping containers
@@ -389,9 +479,11 @@ export function AdminOrderLinesDetailDialog({
                         <td className="px-3 py-2.5 tabular-nums">
                           {formatUsd(c.lineTotalCents)}
                         </td>
-                        <td colSpan={3} className="px-3 py-2.5 text-xs text-muted-foreground">
+                        <td colSpan={2} className="px-3 py-2.5 text-xs text-muted-foreground">
                           Checkout merchandise
                         </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">—</td>
+                        <td className="px-3 py-2.5 text-muted-foreground">—</td>
                       </tr>
                     ))}
                   </>

@@ -96,6 +96,7 @@ export type ItemQuoteInsertRow = {
   /** Retailer-listed shipping/tax bundled into merchandise; line splits stay $0. */
   merchandiseIncludesSiteShippingTax?: boolean;
   staffNote?: string | null;
+  recordedByClerkUserId?: string | null;
 };
 
 export function itemRequestSnapshotForQuote(req: {
@@ -155,6 +156,10 @@ function rowRecordToItemQuote(
       r.staff_note != null && String(r.staff_note).trim() !== ""
         ? String(r.staff_note)
         : null,
+    recordedByClerkUserId:
+      r.recorded_by_clerk_user_id != null ?
+        String(r.recorded_by_clerk_user_id)
+      : null,
     checkoutSnapshotKind,
     createdAt: String(r.created_at),
   };
@@ -313,6 +318,7 @@ export async function insertItemQuoteForRequest(
         requestProductColor: row.requestProductColor,
         requestProductName: row.requestProductName,
         staffNote: row.staffNote?.trim() || null,
+        recordedByClerkUserId: row.recordedByClerkUserId?.trim() || null,
       })
       .returning();
     if (!created) {
@@ -461,6 +467,7 @@ export async function restoreLatestVoidedOperationalQuoteForItemRequest(
           isOperationalQuoteRow({
             ...q,
             checkoutSnapshotKind: null,
+            recordedByClerkUserId: null,
             merchandiseSavingsCents: null,
             merchandiseIncludesSiteShippingTax: false,
             staffNote: null,
@@ -481,6 +488,7 @@ export async function restoreLatestVoidedOperationalQuoteForItemRequest(
       merchandiseIncludesSiteShippingTax: false,
       staffNote: null,
       checkoutSnapshotKind: null,
+      recordedByClerkUserId: null,
       voidedAt: null,
       voidReason: null,
     };
@@ -563,6 +571,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
           isOperationalQuoteRow({
             ...r,
             checkoutSnapshotKind: null,
+            recordedByClerkUserId: null,
             merchandiseSavingsCents: null,
             merchandiseIncludesSiteShippingTax: false,
             staffNote: null,
@@ -604,6 +613,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       };
     }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
@@ -628,6 +638,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
           isOperationalQuoteRow({
             ...r,
             checkoutSnapshotKind: null,
+            recordedByClerkUserId: null,
           } as ItemQuote)
         )
       ) {
@@ -663,6 +674,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
         voidedAt: null,
         voidReason: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       };
     } catch (e2) {
       if (!isMissingMerchandiseSavingsColumnError(e2)) {
@@ -686,6 +698,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
           isOperationalQuoteRow({
             ...r,
             checkoutSnapshotKind: null,
+            recordedByClerkUserId: null,
             merchandiseSavingsCents: null,
             merchandiseIncludesSiteShippingTax: false,
             staffNote: null,
@@ -727,6 +740,7 @@ export async function restoreOrphanQuotedItemRequestQuote(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       };
     }
   }
@@ -792,6 +806,7 @@ export async function getLatestQuoteForItemRequest(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       };
     }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
@@ -811,7 +826,7 @@ export async function getLatestQuoteForItemRequest(
         .limit(1);
       const row = rows[0];
       if (!row) return undefined;
-      return { ...row, checkoutSnapshotKind: null };
+      return { ...row, checkoutSnapshotKind: null, recordedByClerkUserId: null };
     } catch (e2) {
       if (!isMissingMerchandiseSavingsColumnError(e2)) {
         throw e2;
@@ -835,6 +850,7 @@ export async function getLatestQuoteForItemRequest(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       };
     }
   }
@@ -866,6 +882,7 @@ export async function getItemQuoteById(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       };
     }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
@@ -879,7 +896,7 @@ export async function getItemQuoteById(
         .limit(1);
       const row = rows[0];
       if (!row) return undefined;
-      return { ...row, checkoutSnapshotKind: null };
+      return { ...row, checkoutSnapshotKind: null, recordedByClerkUserId: null };
     } catch (e2) {
       if (!isMissingMerchandiseSavingsColumnError(e2)) {
         throw e2;
@@ -897,6 +914,7 @@ export async function getItemQuoteById(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       };
     }
   }
@@ -958,6 +976,7 @@ export async function listItemQuotesForOwnerByRequestIds(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       }));
     }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
@@ -975,7 +994,11 @@ export async function listItemQuotesForOwnerByRequestIds(
           ),
         )
         .orderBy(desc(itemQuotes.createdAt));
-      return rows.map((row) => ({ ...row, checkoutSnapshotKind: null }));
+      return rows.map((row) => ({
+        ...row,
+        checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
+      }));
     } catch (e2) {
       if (!isMissingMerchandiseSavingsColumnError(e2)) {
         throw e2;
@@ -997,6 +1020,7 @@ export async function listItemQuotesForOwnerByRequestIds(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       }));
     }
   }

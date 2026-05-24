@@ -1,5 +1,6 @@
 import { AdminItemRequestsGroupedTable } from "@/components/admin/admin-item-requests-grouped-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import { loadAdminStaffProfilesByClerkUserIds, quoteRecordedByClerkUserId } from "@/lib/admin-staff-profiles";
 import { getOrderContextByItemRequestIds } from "@/data/item-request-order-context";
 import {
   groupReturnRequestsByItemRequestId,
@@ -52,11 +53,18 @@ export default async function AdminItemRequestsQueuePage({ searchParams }: PageP
       queueRequestIds,
     );
 
+    const staffProfilesByClerkUserId = await loadAdminStaffProfilesByClerkUserIds(
+      queueRequestIds.map(
+        (id) => quoteRecordedByClerkUserId(activeQueueLatestQuotesByRequestId[id]),
+      ),
+    );
+
     return (
       <AdminItemRequestsGroupedTable
         groups={queueGroups}
         snapshotsByRequestId={snapshotsByRequestId}
         latestQuotesByRequestId={activeQueueLatestQuotesByRequestId}
+        staffProfilesByClerkUserId={staffProfilesByClerkUserId}
         returnRequestsByItemRequestId={returnRequestsByItemRequestId}
         orderContextByRequestId={Object.fromEntries(orderContextByRequestId)}
         merchantEstimateFees={merchantEstimateFees}

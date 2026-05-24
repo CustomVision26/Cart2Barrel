@@ -143,6 +143,7 @@ function mapSingleAdminRow(
     paidAt: r.charge?.paidAt ?? null,
     paymentReferenceNumber: r.charge?.paymentReferenceNumber ?? null,
     shipmentTracking: trackingByBarrel.get(r.barrel.id) ?? null,
+    updatedByClerkUserId: r.charge?.recordedByClerkUserId ?? null,
   };
 }
 

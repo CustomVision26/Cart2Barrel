@@ -93,6 +93,7 @@ async function fetchQuotesForCartItemRequests(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       }));
     }
     if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
@@ -106,6 +107,7 @@ async function fetchQuotesForCartItemRequests(
       return rows.map((r) => ({
         ...r,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       }));
     } catch (e2) {
       if (!isMissingMerchandiseSavingsColumnError(e2)) {
@@ -121,6 +123,7 @@ async function fetchQuotesForCartItemRequests(
         merchandiseIncludesSiteShippingTax: false,
         staffNote: null,
         checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
       }));
     }
   }

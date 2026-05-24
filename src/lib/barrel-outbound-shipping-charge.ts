@@ -45,6 +45,8 @@ export type AdminBarrelOutboundShippingChargeRow = {
   paidAt: string | null;
   paymentReferenceNumber: string | null;
   shipmentTracking: BarrelOutboundShipmentTrackingView | null;
+  /** Staff who last published or edited the shipping charge. */
+  updatedByClerkUserId: string | null;
 };
 
 export function sumChargeLineCents(
@@ -78,6 +80,7 @@ export const ADMIN_SHIPPING_CHARGE_PREVIEW_ROW: AdminBarrelOutboundShippingCharg
     paidAt: null,
     paymentReferenceNumber: null,
     shipmentTracking: null,
+    updatedByClerkUserId: null,
   };
 
 export type AdminShipmentCustomerGroup = {

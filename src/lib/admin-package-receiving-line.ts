@@ -55,6 +55,8 @@ export function purchaseQueueRowToWarehouseReceivingLine(
     batchNumber: row.resolvedBatchNumber,
     batchSessionId: row.resolvedBatchSessionId,
     clerkUserId,
+    customerFullName: row.customerFullName,
+    customerEmail: row.customerEmail,
     customerGroupSortKey: adminCustomerSortKey({
       fullName: row.customerFullName,
       email: row.customerEmail,

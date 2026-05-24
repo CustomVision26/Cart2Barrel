@@ -1,8 +1,15 @@
 ﻿"use client";
 
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { ChevronDownIcon } from "lucide-react";
+
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
+import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
+import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 
 import {
   AdminPackageFileCard,
@@ -25,6 +32,8 @@ export type { WarehouseReceiveCondition } from "@/components/admin/receiving-row
 
 type CustomerLineGroup = {
   clerkUserId: string;
+  fullName: string | null;
+  email: string | null;
   displayLabel: string;
   totalQty: number;
   totalValue: number;
@@ -72,7 +81,13 @@ function PackageMeta({
 }
 
 
-function AwaitingBarrelPackagesTable({ lines }: { lines: WarehouseReceivingLine[] }) {
+function AwaitingBarrelPackagesTable({
+  lines,
+  staffProfilesByClerkUserId = {},
+}: {
+  lines: WarehouseReceivingLine[];
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
+}) {
   return (
     <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
       <table className="w-full min-w-[56rem] text-left text-sm">
@@ -89,6 +104,9 @@ function AwaitingBarrelPackagesTable({ lines }: { lines: WarehouseReceivingLine[
             <th className="px-3 py-2.5 font-medium text-foreground">Order</th>
             <th className="px-3 py-2.5 font-medium text-foreground">Order item</th>
             <th className="px-3 py-2.5 font-medium text-foreground">Batch</th>
+            <th className="min-w-[9rem] px-3 py-2.5 font-medium text-foreground">
+              Updated by
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -139,6 +157,12 @@ function AwaitingBarrelPackagesTable({ lines }: { lines: WarehouseReceivingLine[
                 <td className="max-w-[10rem] px-3 py-2 align-top text-xs text-foreground">
                   <span className="line-clamp-2">{packageLineBatchLabel(line)}</span>
                 </td>
+                <td className="min-w-[9rem] max-w-[11rem] px-3 py-2 align-top">
+                  <AdminUpdatedByCell
+                    clerkUserId={resolveOrderLineUpdatedByClerkUserId(line.orderItem)}
+                    profilesByClerkUserId={staffProfilesByClerkUserId}
+                  />
+                </td>
               </tr>
             );
           })}
@@ -148,29 +172,70 @@ function AwaitingBarrelPackagesTable({ lines }: { lines: WarehouseReceivingLine[
   );
 }
 
+function packageLineMatchesQuery(line: WarehouseReceivingLine, q: string): boolean {
+  if (!q) return true;
+  const chunks = [
+    line.productName,
+    line.customerDisplayLabel,
+    line.orderNumber,
+    line.id,
+    line.batchNumber,
+    line.batchSessionId,
+  ];
+  return chunks.some(
+    (chunk) => chunk != null && String(chunk).toLowerCase().includes(q),
+  );
+}
+
 function CustomerPackageGroup({
   group,
   rows,
   onUpdate,
+  expanded,
+  onExpandedChange,
+  lineSearch,
+  onLineSearchChange,
+  lineFindOrganizeVisible,
+  onLineFindOrganizeVisibleChange,
+  linePageSize,
+  onLinePageSizeChange,
+  panelIds,
+  staffProfilesByClerkUserId = {},
 }: {
   group: CustomerLineGroup;
   rows: Record<string, PackageIntakeRowState>;
   onUpdate: (id: string, patch: Partial<PackageIntakeRowState>) => void;
+  expanded: boolean;
+  onExpandedChange: (next: boolean) => void;
+  lineSearch: string;
+  onLineSearchChange: (value: string) => void;
+  lineFindOrganizeVisible: boolean;
+  onLineFindOrganizeVisibleChange: (visible: boolean) => void;
+  linePageSize: 5 | 10 | 25 | 50;
+  onLinePageSizeChange: (size: 5 | 10 | 25 | 50) => void;
+  panelIds: { switchId: string; searchId: string; pageSizeId: string };
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
-  const [open, setOpen] = useState(true);
+  const searchNorm = lineSearch.trim().toLowerCase();
+  const filteredLines = group.lines.filter((line) =>
+    packageLineMatchesQuery(line, searchNorm),
+  );
+  const lineCount = filteredLines.length;
+  const lineShowFrom = lineCount === 0 ? 0 : 1;
+  const lineShowTo = lineCount;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-background">
       <button
         type="button"
         className="flex w-full flex-col gap-3 border-b border-border bg-muted/20 p-3 text-left transition-colors hover:bg-muted/35 lg:flex-row lg:items-center lg:justify-between"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
+        onClick={() => onExpandedChange(!expanded)}
+        aria-expanded={expanded}
       >
         <span className="flex min-w-0 items-start gap-3">
           <ChevronDownIcon
             className={`mt-1 size-4 shrink-0 transition-transform ${
-              open ? "rotate-180" : "rotate-0"
+              expanded ? "rotate-180" : "rotate-0"
             }`}
             aria-hidden
           />
@@ -179,10 +244,15 @@ function CustomerPackageGroup({
               Customer package group
             </span>
             <span className="mt-1 block text-base font-semibold text-foreground">
-              {group.displayLabel}
+              <AdminCustomerRecordLabel
+                clerkUserId={group.clerkUserId}
+                fullName={group.fullName}
+                email={group.email}
+                primaryClassName="text-base font-semibold"
+              />
             </span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              {open ? "Hide package files" : "Show package files"}
+              {expanded ? "Hide package files" : "Show package files"}
             </span>
           </span>
         </span>
@@ -194,9 +264,32 @@ function CustomerPackageGroup({
         </span>
       </button>
 
-      {open ?
-        <div className="grid grid-cols-1 gap-2 p-3 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {group.lines.map((line) => {
+      {expanded ?
+        <div className="space-y-4 p-3">
+          <AdminNestedFindOrganizePanel
+            switchId={panelIds.switchId}
+            searchInputId={panelIds.searchId}
+            pageSizeSelectId={panelIds.pageSizeId}
+            visible={lineFindOrganizeVisible}
+            onVisibleChange={onLineFindOrganizeVisibleChange}
+            search={lineSearch}
+            onSearchChange={onLineSearchChange}
+            searchLabel="Search packages"
+            searchPlaceholder="Product, order, request, batch…"
+            pageSize={linePageSize}
+            onPageSizeChange={onLinePageSizeChange}
+            pageSizeLabel="Packages per page"
+            showFrom={lineShowFrom}
+            showTo={lineShowTo}
+            totalCount={lineCount}
+            totalLoaded={group.lines.length}
+            itemLabel="package"
+            emptyMessage="No packages for this customer."
+            noMatchMessage="No packages match the current search."
+            className="mb-0"
+          />
+          <div className="grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          {filteredLines.slice(0, linePageSize).map((line) => {
             const row = rows[line.id];
             if (!row) return null;
             return (
@@ -205,9 +298,11 @@ function CustomerPackageGroup({
                 line={line}
                 row={row}
                 onUpdate={(patch) => onUpdate(line.id, patch)}
+                staffProfilesByClerkUserId={staffProfilesByClerkUserId}
               />
             );
           })}
+          </div>
         </div>
       : null}
     </section>
@@ -216,10 +311,19 @@ function CustomerPackageGroup({
 
 export function AdminWarehouseReceivingSection({
   lines,
+  staffProfilesByClerkUserId = {},
 }: {
   lines: WarehouseReceivingLine[];
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
+  const baseId = useId();
+  const { setNestedPanelActive } = useAdminNestedPanelFocus();
   const [tableView, setTableView] = useState(false);
+  const [openCustomerId, setOpenCustomerId] = useState<string | null>(null);
+  const [panelChoiceMade, setPanelChoiceMade] = useState(false);
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
+  const [linePageSize, setLinePageSize] = useState<5 | 10 | 25 | 50>(10);
   const [rows, setRows] = useState<Record<string, PackageIntakeRowState>>(() => {
     const map: Record<string, PackageIntakeRowState> = {};
     for (const line of lines) {
@@ -263,6 +367,8 @@ export function AdminWarehouseReceivingSection({
     }
     const groups: (CustomerLineGroup & { sortKey: string })[] = [...byClerk.entries()].map(([clerkUserId, ls]) => ({
       clerkUserId,
+      fullName: ls[0]?.customerFullName ?? null,
+      email: ls[0]?.customerEmail ?? null,
       sortKey:
         ls[0]?.customerGroupSortKey ??
         adminCustomerSortKey({
@@ -279,6 +385,13 @@ export function AdminWarehouseReceivingSection({
     groups.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     return groups;
   }, [lines]);
+
+  const activeCustomerId =
+    panelChoiceMade ? openCustomerId : (customerLineGroups[0]?.clerkUserId ?? null);
+
+  useEffect(() => {
+    setNestedPanelActive(activeCustomerId != null && !tableView);
+  }, [activeCustomerId, tableView, setNestedPanelActive]);
 
   const summaryLines = lines;
 
@@ -357,13 +470,38 @@ export function AdminWarehouseReceivingSection({
               <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
                 No package lines match the current filters.
               </p>
-            : <AwaitingBarrelPackagesTable lines={lines} />
+            : <AwaitingBarrelPackagesTable
+                lines={lines}
+                staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+              />
           : customerLineGroups.map((group) => (
               <CustomerPackageGroup
                 key={group.clerkUserId}
                 group={group}
                 rows={rows}
                 onUpdate={updateRow}
+                expanded={activeCustomerId === group.clerkUserId}
+                onExpandedChange={(next) => {
+                  setPanelChoiceMade(true);
+                  if (next) {
+                    setOpenCustomerId(group.clerkUserId);
+                    setLineSearch("");
+                  } else if (activeCustomerId === group.clerkUserId) {
+                    setOpenCustomerId(null);
+                  }
+                }}
+                lineSearch={lineSearch}
+                onLineSearchChange={setLineSearch}
+                lineFindOrganizeVisible={lineFindOrganizeVisible}
+                onLineFindOrganizeVisibleChange={setLineFindOrganizeVisible}
+                linePageSize={linePageSize}
+                onLinePageSizeChange={setLinePageSize}
+                panelIds={{
+                  switchId: `${baseId}-line-find-organize-${group.clerkUserId}`,
+                  searchId: `${baseId}-line-search-${group.clerkUserId}`,
+                  pageSizeId: `${baseId}-line-page-size-${group.clerkUserId}`,
+                }}
+                staffProfilesByClerkUserId={staffProfilesByClerkUserId}
               />
             ))}
         </div>

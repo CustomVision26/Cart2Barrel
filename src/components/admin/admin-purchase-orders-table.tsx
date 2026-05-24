@@ -3,14 +3,18 @@
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
 
-import { PackageCheck, TruckIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, PackageCheck, TruckIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveWarehouseReceiptSnapshotsAction } from "@/actions/save-warehouse-receipt-snapshots";
 
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
+import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
+import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
 import {
   CONDITION_OPTIONS,
@@ -52,6 +56,34 @@ import {
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
 import { cn } from "@/lib/utils";
+import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
+import {
+  resolveOrderLineUpdatedByClerkUserId,
+  type AdminStaffProfilesByClerkUserId,
+} from "@/lib/admin-staff-profiles";
+
+const LINE_PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
+
+function purchaseLineMatchesQuery(row: PurchaseQueueLineRow, q: string): boolean {
+  if (!q) return true;
+  const r = row.request;
+  const chunks = [
+    r.id,
+    r.productName,
+    r.productUrl,
+    displaySiteName(r.siteName, r.productUrl),
+    row.order.id,
+    row.orderItem.id,
+    row.resolvedBatchNumber,
+    row.resolvedBatchSessionId,
+    row.customerFullName,
+    row.customerEmail,
+    customerLabel(row),
+  ];
+  return chunks.some(
+    (chunk) => chunk != null && String(chunk).toLowerCase().includes(q),
+  );
+}
 
 function customerLabel(row: PurchaseQueueLineRow): string {
   return adminCustomerDisplayLabel({
@@ -163,10 +195,23 @@ type ReceiveDraft = {
 export function AdminPurchaseOrdersTable({
   rows,
   snapshotsByRequestId = {},
+  staffProfilesByClerkUserId = {},
 }: {
   rows: PurchaseQueueLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
+  const baseId = useId();
+  const { setNestedPanelActive } = useAdminNestedPanelFocus();
+  const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
+  const [panelChoiceMade, setPanelChoiceMade] = useState(false);
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
+  const [linePageSize, setLinePageSize] =
+    useState<(typeof LINE_PAGE_SIZE_OPTIONS)[number]>(10);
+  const [linePageByCustomerId, setLinePageByCustomerId] = useState<
+    Record<string, number>
+  >({});
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, ReceiveDraft>>({});
@@ -229,7 +274,7 @@ export function AdminPurchaseOrdersTable({
     [rows, selected, selectableIds],
   );
 
-  const PURCHASE_ORDERS_TABLE_COL_SPAN = 15;
+  const PURCHASE_ORDERS_TABLE_COL_SPAN = 16;
 
   const customerRowGroups = useMemo(() => {
     const byClerk = new Map<string, PurchaseQueueLineRow[]>();
@@ -259,6 +304,31 @@ export function AdminPurchaseOrdersTable({
     groups.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     return groups;
   }, [rows]);
+
+  const activeClerkUserId =
+    panelChoiceMade ? openClerkUserId : (customerRowGroups[0]?.clerkUserId ?? null);
+  const customerExpanded = activeClerkUserId !== null;
+
+  useEffect(() => {
+    setNestedPanelActive(customerExpanded);
+  }, [customerExpanded, setNestedPanelActive]);
+
+  useEffect(() => {
+    if (!activeClerkUserId) return;
+    setLinePageByCustomerId((prev) => ({
+      ...prev,
+      [activeClerkUserId]: 1,
+    }));
+  }, [lineSearch, linePageSize, activeClerkUserId]);
+
+  const toggleCustomer = useCallback((clerkUserId: string) => {
+    setPanelChoiceMade(true);
+    setOpenClerkUserId(activeClerkUserId === clerkUserId ? null : clerkUserId);
+    if (activeClerkUserId !== clerkUserId) {
+      setLineSearch("");
+      setLinePageByCustomerId({});
+    }
+  }, [activeClerkUserId]);
 
   const openReceiveDialog = () => {
     const nextDrafts: Record<string, ReceiveDraft> = {};
@@ -331,7 +401,13 @@ export function AdminPurchaseOrdersTable({
 
       <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
         <table className="w-full min-w-[76rem] text-left text-sm">
-          <thead className="border-b border-border bg-muted/40">
+          <thead
+            className={cn(
+              "border-b border-border bg-muted/40",
+              adminParentControlsDisabledClass(customerExpanded),
+            )}
+            aria-hidden={customerExpanded || undefined}
+          >
             <tr>
               <th className="w-10 px-2 py-2.5">
                 <span className="sr-only">Select for receiving</span>
@@ -357,31 +433,173 @@ export function AdminPurchaseOrdersTable({
               <th className="px-3 py-2.5 font-medium text-foreground">Line total</th>
               <th className="px-3 py-2.5 font-medium text-foreground">Status</th>
               <th className="px-3 py-2.5 font-medium text-foreground">Ops</th>
+              <th className="min-w-[9rem] px-3 py-2.5 font-medium text-foreground">
+                Updated by
+              </th>
               <th className="px-3 py-2.5 font-medium text-foreground">Audit</th>
             </tr>
           </thead>
-          {customerRowGroups.map(({ clerkUserId, displayLabel, rows: custRows }) => (
+          {customerRowGroups.map(({ clerkUserId, displayLabel, rows: custRows }) => {
+            const first = custRows[0]!;
+            const expanded = activeClerkUserId === clerkUserId;
+            const searchNorm = lineSearch.trim().toLowerCase();
+            const lineFiltered = custRows.filter((row) =>
+              purchaseLineMatchesQuery(row, searchNorm),
+            );
+            const lineCount = lineFiltered.length;
+            const lineTotalPages = Math.max(
+              1,
+              Math.ceil(lineCount / linePageSize),
+            );
+            const rawLinePage = linePageByCustomerId[clerkUserId] ?? 1;
+            const linePageSafe = Math.min(
+              Math.max(1, rawLinePage),
+              lineTotalPages,
+            );
+            const lineStart = (linePageSafe - 1) * linePageSize;
+            const lineSlice = lineFiltered.slice(
+              lineStart,
+              lineStart + linePageSize,
+            );
+            const lineShowFrom = lineCount === 0 ? 0 : lineStart + 1;
+            const lineShowTo = Math.min(lineStart + linePageSize, lineCount);
+
+            return (
             <tbody key={clerkUserId}>
-              <tr className="border-b border-border bg-muted/50">
+              <tr
+                className={cn(
+                  "border-b border-border bg-muted/50 transition-colors hover:bg-muted/60",
+                  expanded && "bg-muted/40",
+                )}
+                role="button"
+                tabIndex={0}
+                aria-expanded={expanded}
+                onClick={() => toggleCustomer(clerkUserId)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    toggleCustomer(clerkUserId);
+                  }
+                }}
+              >
                 <td
                   className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-foreground"
                   colSpan={PURCHASE_ORDERS_TABLE_COL_SPAN}
                 >
-                  Customer · {displayLabel}
+                  <span className="inline-flex items-center gap-2">
+                    {expanded ? (
+                      <ChevronDownIcon className="size-4 shrink-0" aria-hidden />
+                    ) : (
+                      <ChevronRightIcon className="size-4 shrink-0" aria-hidden />
+                    )}
+                    <AdminCustomerRecordLabel
+                      clerkUserId={clerkUserId}
+                      fullName={first.customerFullName}
+                      email={first.customerEmail}
+                      className="inline-block align-middle"
+                      primaryClassName="text-xs font-semibold"
+                    />
+                    <span className="font-normal normal-case text-muted-foreground">
+                      ({custRows.length} line{custRows.length === 1 ? "" : "s"})
+                    </span>
+                  </span>
                 </td>
               </tr>
-              {custRows.map((row) => (
-                <PurchaseQueueRow
-                  key={row.orderItem.id}
-                  row={row}
-                  snapshotsByRequestId={snapshotsByRequestId}
-                  selected={selected.has(row.orderItem.id)}
-                  receiveSelectable={receiptSelectableRow(row)}
-                  onToggleSelect={() => toggleRow(row.orderItem.id)}
-                />
-              ))}
+              {expanded ? (
+                <>
+                  <tr className="bg-muted/15">
+                    <td colSpan={PURCHASE_ORDERS_TABLE_COL_SPAN} className="p-0">
+                      <div className="border-b border-border px-3 py-4">
+                        <AdminNestedFindOrganizePanel
+                          switchId={`${baseId}-line-find-organize-${clerkUserId}`}
+                          searchInputId={`${baseId}-line-search-${clerkUserId}`}
+                          pageSizeSelectId={`${baseId}-line-page-size-${clerkUserId}`}
+                          visible={lineFindOrganizeVisible}
+                          onVisibleChange={setLineFindOrganizeVisible}
+                          search={lineSearch}
+                          onSearchChange={setLineSearch}
+                          searchLabel="Search purchase lines"
+                          searchPlaceholder="Product, URL, order id, request id, batch…"
+                          pageSize={linePageSize}
+                          onPageSizeChange={setLinePageSize}
+                          pageSizeLabel="Lines per page"
+                          showFrom={lineShowFrom}
+                          showTo={lineShowTo}
+                          totalCount={lineCount}
+                          totalLoaded={custRows.length}
+                          itemLabel="line"
+                          emptyMessage="No purchase lines for this customer."
+                          noMatchMessage="No lines match the current search."
+                          className="mb-0"
+                        />
+                        {lineCount > linePageSize ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={linePageSafe <= 1}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLinePageByCustomerId((prev) => ({
+                                  ...prev,
+                                  [clerkUserId]: Math.max(1, linePageSafe - 1),
+                                }));
+                              }}
+                            >
+                              Previous lines
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={linePageSafe >= lineTotalPages}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLinePageByCustomerId((prev) => ({
+                                  ...prev,
+                                  [clerkUserId]: Math.min(
+                                    lineTotalPages,
+                                    linePageSafe + 1,
+                                  ),
+                                }));
+                              }}
+                            >
+                              Next lines
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                  {lineSlice.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={PURCHASE_ORDERS_TABLE_COL_SPAN}
+                        className="px-4 py-8 text-center text-sm text-muted-foreground"
+                      >
+                        {lineSearch.trim()
+                          ? "No lines match the current search."
+                          : "No purchase lines for this customer."}
+                      </td>
+                    </tr>
+                  ) : null}
+                  {lineSlice.map((row) => (
+                    <PurchaseQueueRow
+                      key={row.orderItem.id}
+                      row={row}
+                      snapshotsByRequestId={snapshotsByRequestId}
+                      staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+                      selected={selected.has(row.orderItem.id)}
+                      receiveSelectable={receiptSelectableRow(row)}
+                      onToggleSelect={() => toggleRow(row.orderItem.id)}
+                    />
+                  ))}
+                </>
+              ) : null}
             </tbody>
-          ))}
+            );
+          })}
         </table>
       </FloatingHorizontalScroll>
 
@@ -597,11 +815,19 @@ export function AdminPurchaseOrdersTable({
 function PurchaseQueueRow(props: {
   row: PurchaseQueueLineRow;
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  staffProfilesByClerkUserId: AdminStaffProfilesByClerkUserId;
   selected: boolean;
   receiveSelectable: boolean;
   onToggleSelect: () => void;
 }) {
-  const { row, snapshotsByRequestId, selected, receiveSelectable, onToggleSelect } = props;
+  const {
+    row,
+    snapshotsByRequestId,
+    staffProfilesByClerkUserId,
+    selected,
+    receiveSelectable,
+    onToggleSelect,
+  } = props;
   const r = row.request;
   const fulfillment = effectiveOrderItemFulfillmentStatus(row.orderItem, row.order);
   const awaitingInbound =
@@ -822,6 +1048,12 @@ function PurchaseQueueRow(props: {
           pendingRefundRequest={row.pendingRefundRequest}
           pendingProductReturnRequest={row.pendingProductReturnRequest}
           fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
+        />
+      </td>
+      <td className="min-w-[9rem] max-w-[11rem] px-3 py-3 align-top">
+        <AdminUpdatedByCell
+          clerkUserId={resolveOrderLineUpdatedByClerkUserId(row.orderItem)}
+          profilesByClerkUserId={staffProfilesByClerkUserId}
         />
       </td>
       <td className="px-3 py-3 align-top">

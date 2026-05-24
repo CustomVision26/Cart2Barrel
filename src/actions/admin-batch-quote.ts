@@ -149,6 +149,7 @@ export async function saveAdminBatchQuoteEstimateAction(
 
   const { batchSessionId, siteMerchandiseCents, siteShippingCents, siteSaleTaxCents } =
     parsed.data;
+  const adminClerkUserId = user!.id;
 
   const db = getDb();
   const [session] = await db
@@ -206,6 +207,7 @@ export async function saveAdminBatchQuoteEstimateAction(
       siteSaleTaxTotalCents: siteSaleTaxCents,
       saleTaxDiscountCents,
       subtotalCents,
+      recordedByClerkUserId: adminClerkUserId,
     });
 
     const sharedMemoParams = {
@@ -247,6 +249,7 @@ export async function saveAdminBatchQuoteEstimateAction(
         phase: "batch_estimate_admin_copy",
         batchQuoteSessionId: session.id,
         auditMemo: adminMemo,
+        recordedByClerkUserId: adminClerkUserId,
         line,
       });
     }

@@ -76,6 +76,7 @@ async function querySnapshotsRowsForRequestIdsOrdered(
         ...r,
         batchQuoteSessionId: null,
         auditMemo: null,
+        recordedByClerkUserId: null,
       }));
     } catch (e2) {
       if (!isUndefinedColumnError(e2, "site_name")) throw e2;
@@ -89,6 +90,7 @@ async function querySnapshotsRowsForRequestIdsOrdered(
         siteName: null,
         batchQuoteSessionId: null,
         auditMemo: null,
+        recordedByClerkUserId: null,
       }));
     }
   }
@@ -127,6 +129,7 @@ export async function insertItemRequestLineSnapshot(params: {
   itemQuoteId?: string | null;
   batchQuoteSessionId?: string | null;
   auditMemo?: string | null;
+  recordedByClerkUserId?: string | null;
   line: ItemRequestLineSnapshotPayload;
 }): Promise<void> {
   const db = getDb();
@@ -137,6 +140,7 @@ export async function insertItemRequestLineSnapshot(params: {
     itemQuoteId: params.itemQuoteId ?? null,
     batchQuoteSessionId: params.batchQuoteSessionId ?? null,
     auditMemo: params.auditMemo ?? null,
+    recordedByClerkUserId: params.recordedByClerkUserId?.trim() || null,
     productUrl: line.productUrl,
     productName: line.productName,
     productSize: line.productSize,

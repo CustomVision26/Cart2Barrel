@@ -4,6 +4,10 @@ import { AdminBatchItemsTable } from "@/components/admin/admin-batch-items-table
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
 import { listSubmittedBatchSessionsForAdminPage } from "@/data/batch-quote-sessions";
 import {
+  batchEstimateRecordedByClerkUserId,
+  loadAdminStaffProfilesByClerkUserIds,
+} from "@/lib/admin-staff-profiles";
+import {
   filterAdminSubmittedBatchBundles,
   parseAdminCustomerFilter,
   withAdminCustomerFilter,
@@ -53,12 +57,19 @@ export default async function AdminBatchItemsSubmittedPage({
     redirect(hrefFor({ page: maxPage }));
   }
 
+  const staffProfilesByClerkUserId = await loadAdminStaffProfilesByClerkUserIds(
+    bundles.map((bundle) =>
+      batchEstimateRecordedByClerkUserId(bundle.latestEstimate),
+    ),
+  );
+
   return (
     <AdminBatchItemsTable
       bundles={bundles}
       listQuery={query}
       totalCount={totalCount}
       queueTotalCount={queueTotalCount}
+      staffProfilesByClerkUserId={staffProfilesByClerkUserId}
     />
   );
 }

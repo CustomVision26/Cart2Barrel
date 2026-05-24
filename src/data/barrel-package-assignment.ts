@@ -41,6 +41,10 @@ import {
 } from "@/lib/validations/container-offering";
 import { ensureInboundPackageForOrderItem } from "@/data/ensure-inbound-package-for-order-item";
 import { ensureBarrelsProvisionedForUser } from "@/data/ensure-paid-order-barrels";
+import {
+  orderItemBarrelPipelineSelect,
+  orderItemBarrelPipelineSelectWithoutWarehouse,
+} from "@/data/order-list-select";
 
 export type {
   AdminBarrelPipelineRow,
@@ -82,13 +86,73 @@ async function loadLatestAssignmentAtByPackage(
   return map;
 }
 
+async function loadLatestActorByBarrel(
+  barrelIds: string[],
+): Promise<Map<string, string>> {
+  if (barrelIds.length === 0) {
+    return new Map();
+  }
+  const db = getDb();
+  const events = await db
+    .select({
+      fromBarrelId: barrelPackageAssignmentEvents.fromBarrelId,
+      toBarrelId: barrelPackageAssignmentEvents.toBarrelId,
+      actorClerkUserId: barrelPackageAssignmentEvents.actorClerkUserId,
+      createdAt: barrelPackageAssignmentEvents.createdAt,
+    })
+    .from(barrelPackageAssignmentEvents)
+    .where(
+      or(
+        inArray(barrelPackageAssignmentEvents.fromBarrelId, barrelIds),
+        inArray(barrelPackageAssignmentEvents.toBarrelId, barrelIds),
+      )!,
+    )
+    .orderBy(desc(barrelPackageAssignmentEvents.createdAt));
+
+  const map = new Map<string, string>();
+  for (const ev of events) {
+    for (const barrelId of [ev.fromBarrelId, ev.toBarrelId]) {
+      if (barrelId && !map.has(barrelId)) {
+        map.set(barrelId, ev.actorClerkUserId);
+      }
+    }
+  }
+  return map;
+}
+
+async function loadLatestActorByPackage(
+  packageIds: string[],
+): Promise<Map<string, string>> {
+  if (packageIds.length === 0) {
+    return new Map();
+  }
+  const db = getDb();
+  const events = await db
+    .select({
+      packageId: barrelPackageAssignmentEvents.packageId,
+      actorClerkUserId: barrelPackageAssignmentEvents.actorClerkUserId,
+      createdAt: barrelPackageAssignmentEvents.createdAt,
+    })
+    .from(barrelPackageAssignmentEvents)
+    .where(inArray(barrelPackageAssignmentEvents.packageId, packageIds))
+    .orderBy(desc(barrelPackageAssignmentEvents.createdAt));
+
+  const map = new Map<string, string>();
+  for (const ev of events) {
+    if (!map.has(ev.packageId)) {
+      map.set(ev.packageId, ev.actorClerkUserId);
+    }
+  }
+  return map;
+}
+
 export async function ensurePackagesForOutsidePurchasePaidOwner(
   clerkUserId: string,
 ): Promise<void> {
   await ensurePaidOutsidePurchaseFulfillmentEnums();
   const db = getDb();
   const orphans = await db
-    .select({ oi: orderItems })
+    .select({ orderItemId: orderItems.id })
     .from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .leftJoin(packages, eq(packages.orderItemId, orderItems.id))
@@ -105,7 +169,10 @@ export async function ensurePackagesForOutsidePurchasePaidOwner(
     );
 
   for (const row of orphans) {
-    await ensureInboundPackageForOrderItem(row.oi.id, new Date().toISOString());
+    await ensureInboundPackageForOrderItem(
+      row.orderItemId,
+      new Date().toISOString(),
+    );
   }
 }
 
@@ -113,26 +180,58 @@ export async function ensurePackagesForAwaitingBarrelOwner(
   clerkUserId: string,
 ): Promise<void> {
   const db = getDb();
-  const orphans = await db
-    .select({ oi: orderItems })
-    .from(orderItems)
-    .innerJoin(orders, eq(orderItems.orderId, orders.id))
-    .leftJoin(packages, eq(packages.orderItemId, orderItems.id))
-    .where(
-      and(
-        eq(orders.clerkUserId, clerkUserId),
-        eq(orders.status, "paid"),
-        eq(
-          orderItems.fulfillmentStatus,
-          "delivery_received_good_awaiting_barrel",
-        ),
-        isNull(packages.id),
-      )!,
-    );
+  type AwaitingBarrelOrphan = {
+    orderItemId: string;
+    warehouseReceivedAt: string | null;
+  };
+
+  let orphans: AwaitingBarrelOrphan[];
+  try {
+    orphans = await db
+      .select({
+        orderItemId: orderItems.id,
+        warehouseReceivedAt: orderItems.warehouseReceivedAt,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .leftJoin(packages, eq(packages.orderItemId, orderItems.id))
+      .where(
+        and(
+          eq(orders.clerkUserId, clerkUserId),
+          eq(orders.status, "paid"),
+          eq(
+            orderItems.fulfillmentStatus,
+            "delivery_received_good_awaiting_barrel",
+          ),
+          isNull(packages.id),
+        )!,
+      );
+  } catch {
+    const ids = await db
+      .select({ orderItemId: orderItems.id })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .leftJoin(packages, eq(packages.orderItemId, orderItems.id))
+      .where(
+        and(
+          eq(orders.clerkUserId, clerkUserId),
+          eq(orders.status, "paid"),
+          eq(
+            orderItems.fulfillmentStatus,
+            "delivery_received_good_awaiting_barrel",
+          ),
+          isNull(packages.id),
+        )!,
+      );
+    orphans = ids.map((row) => ({
+      orderItemId: row.orderItemId,
+      warehouseReceivedAt: null,
+    }));
+  }
 
   for (const row of orphans) {
-    const at = row.oi.warehouseReceivedAt ?? new Date().toISOString();
-    await ensureInboundPackageForOrderItem(row.oi.id, at);
+    const at = row.warehouseReceivedAt ?? new Date().toISOString();
+    await ensureInboundPackageForOrderItem(row.orderItemId, at);
   }
 }
 
@@ -145,6 +244,7 @@ function mapBarrelRowsToOptions(
   rows: BarrelWithOciRow[],
   countByBarrel: Map<string, number>,
   ownerClerkUserId?: string,
+  actorByBarrel?: Map<string, string>,
 ): UserBarrelOptionRow[] {
   const aliasMap = buildContainerAliasMap(
     rows.map((r) => ({
@@ -178,6 +278,7 @@ function mapBarrelRowsToOptions(
       itemCount,
       capacityPercentage: r.barrel.capacityPercentage,
       ...(ownerClerkUserId ? { ownerClerkUserId } : {}),
+      lastUpdatedByClerkUserId: actorByBarrel?.get(r.barrel.id) ?? null,
     };
   });
 }
@@ -220,9 +321,11 @@ export async function listUserBarrelOptionsForAssignment(
     .where(eq(barrels.clerkUserId, clerkUserId))
     .orderBy(asc(barrels.createdAt));
 
-  const countByBarrel = await loadItemCountsByBarrel(rows.map((r) => r.barrel.id));
+  const barrelIds = rows.map((r) => r.barrel.id);
+  const countByBarrel = await loadItemCountsByBarrel(barrelIds);
+  const actorByBarrel = await loadLatestActorByBarrel(barrelIds);
 
-  return mapBarrelRowsToOptions(rows, countByBarrel);
+  return mapBarrelRowsToOptions(rows, countByBarrel, clerkUserId, actorByBarrel);
 }
 
 export async function getBarrelDisplayLabelById(
@@ -261,6 +364,53 @@ export async function getBarrelDisplayLabelById(
   );
 }
 
+type BarrelPipelineQueryRow = {
+  orderItem: {
+    id: string;
+    quantity: number;
+    fulfillmentStatus: string;
+    warehouseReceivedCondition?: string | null;
+  };
+};
+
+async function selectBarrelPipelineOrderItems<
+  T extends BarrelPipelineQueryRow,
+>(
+  buildQuery: (
+    orderItemSelect:
+      | typeof orderItemBarrelPipelineSelect
+      | typeof orderItemBarrelPipelineSelectWithoutWarehouse,
+  ) => Promise<T[]>,
+): Promise<
+  Array<
+    T & {
+      orderItem: BarrelPipelineQueryRow["orderItem"] & {
+        warehouseReceivedCondition: string | null;
+      };
+    }
+  >
+> {
+  try {
+    const rows = await buildQuery(orderItemBarrelPipelineSelect);
+    return rows.map((row) => ({
+      ...row,
+      orderItem: {
+        ...row.orderItem,
+        warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition ?? null,
+      },
+    }));
+  } catch {
+    const rows = await buildQuery(orderItemBarrelPipelineSelectWithoutWarehouse);
+    return rows.map((row) => ({
+      ...row,
+      orderItem: {
+        ...row.orderItem,
+        warehouseReceivedCondition: null,
+      },
+    }));
+  }
+}
+
 export async function listProductToBarrelLinesForUser(
   clerkUserId: string,
 ): Promise<ProductToBarrelLineRow[]> {
@@ -276,25 +426,27 @@ export async function listProductToBarrelLinesForUser(
     [...PRODUCT_TO_BARREL_FULFILLMENT_STATUSES]
   : [BARREL_PIPELINE_AWAITING_ASSIGNMENT, BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID];
 
-  const base = await db
-    .select({
-      orderItem: orderItems,
-      order: orders,
-      request: itemRequests,
-      pkg: packages,
-    })
-    .from(orderItems)
-    .innerJoin(orders, eq(orderItems.orderId, orders.id))
-    .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
-    .innerJoin(packages, eq(packages.orderItemId, orderItems.id))
-    .where(
-      and(
-        eq(orders.clerkUserId, clerkUserId),
-        eq(orders.status, "paid"),
-        inArray(orderItems.fulfillmentStatus, pipelineStatuses),
-      )!,
-    )
-    .orderBy(desc(orders.createdAt));
+  const base = await selectBarrelPipelineOrderItems(async (orderItemSelect) =>
+    db
+      .select({
+        orderItem: orderItemSelect,
+        order: orders,
+        request: itemRequests,
+        pkg: packages,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
+      .innerJoin(packages, eq(packages.orderItemId, orderItems.id))
+      .where(
+        and(
+          eq(orders.clerkUserId, clerkUserId),
+          eq(orders.status, "paid"),
+          inArray(orderItems.fulfillmentStatus, pipelineStatuses),
+        )!,
+      )
+      .orderBy(desc(orders.createdAt)),
+  );
 
   if (base.length === 0) {
     return [];
@@ -382,29 +534,31 @@ export async function listAdminBarrelPipelineLines(): Promise<
 
   const db = getDb();
 
-  const base = await db
-    .select({
-      orderItem: orderItems,
-      order: orders,
-      request: itemRequests,
-      pkg: packages,
-      biBarrelId: barrelItems.barrelId,
-    })
-    .from(orderItems)
-    .innerJoin(orders, eq(orderItems.orderId, orders.id))
-    .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
-    .innerJoin(packages, eq(packages.orderItemId, orderItems.id))
-    .leftJoin(barrelItems, eq(barrelItems.packageId, packages.id))
-    .where(
-      and(
-        eq(orders.status, "paid"),
-        or(
-          inArray(orderItems.fulfillmentStatus, pipelineStatuses),
-          isNotNull(barrelItems.barrelId),
-        ),
-      )!,
-    )
-    .orderBy(desc(orders.createdAt));
+  const base = await selectBarrelPipelineOrderItems(async (orderItemSelect) =>
+    db
+      .select({
+        orderItem: orderItemSelect,
+        order: orders,
+        request: itemRequests,
+        pkg: packages,
+        biBarrelId: barrelItems.barrelId,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
+      .innerJoin(packages, eq(packages.orderItemId, orderItems.id))
+      .leftJoin(barrelItems, eq(barrelItems.packageId, packages.id))
+      .where(
+        and(
+          eq(orders.status, "paid"),
+          or(
+            inArray(orderItems.fulfillmentStatus, pipelineStatuses),
+            isNotNull(barrelItems.barrelId),
+          ),
+        )!,
+      )
+      .orderBy(desc(orders.createdAt)),
+  );
 
   if (base.length === 0) {
     return [];
@@ -432,6 +586,7 @@ export async function listAdminBarrelPipelineLines(): Promise<
 
   const pkgIds = base.map((r) => r.pkg.id);
   const assignedAtByPackage = await loadLatestAssignmentAtByPackage(pkgIds);
+  const actorByPackage = await loadLatestActorByPackage(pkgIds);
 
   const aliasByBarrelId = new Map<string, string>();
   for (const ownerId of ownerIds) {
@@ -460,6 +615,7 @@ export async function listAdminBarrelPipelineLines(): Promise<
       assignedBarrelId: bid,
       assignedContainerAlias: bid ? (aliasByBarrelId.get(bid) ?? null) : null,
       assignedAt: bid ? (assignedAtByPackage.get(r.pkg.id) ?? null) : null,
+      lastUpdatedByClerkUserId: actorByPackage.get(r.pkg.id) ?? null,
     };
   });
 }
@@ -594,7 +750,7 @@ export async function getPackageAssignmentContextForAdmin(packageId: string): Pr
   const [row] = await db
     .select({
       pkg: packages,
-      oi: orderItems,
+      orderItemId: orderItems.id,
       ord: orders,
       req: itemRequests,
       biBarrelId: barrelItems.barrelId,
@@ -610,7 +766,7 @@ export async function getPackageAssignmentContextForAdmin(packageId: string): Pr
   if (!row) return null;
   return {
     ownerClerkUserId: row.ord.clerkUserId,
-    orderItemId: row.oi.id,
+    orderItemId: row.orderItemId,
     currentBarrelId: row.biBarrelId ?? null,
     productName: row.req.productName?.trim() || "Unnamed product",
   };

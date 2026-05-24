@@ -24,6 +24,9 @@ import {
 } from "@/lib/product-to-barrel-filters";
 import type { UserBarrelOptionRow } from "@/lib/barrel-container-types";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
+import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
 import { cn } from "@/lib/utils";
 
 type SortKey =
@@ -46,6 +49,11 @@ type ContainerSlotsInventorySectionProps = {
   showMarkFull?: boolean;
   /** Search + type filter above the inventory table (dashboard product-to-barrel). */
   showLookupFilters?: boolean;
+  ownerProfiles?: Record<
+    string,
+    { fullName: string | null; email: string | null }
+  >;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 };
 
 function compareRows(
@@ -94,6 +102,7 @@ function SortableHeader({
   direction,
   onSort,
   className,
+  compact = false,
 }: {
   label: string;
   sortKey: SortKey;
@@ -101,17 +110,23 @@ function SortableHeader({
   direction: "asc" | "desc";
   onSort: (key: SortKey) => void;
   className?: string;
+  compact?: boolean;
 }) {
   const active = activeKey === sortKey;
   return (
-    <th className={cn("px-3 py-2 font-medium", className)}>
+    <th
+      className={cn(
+        compact ? "px-2 py-1.5 text-[11px] font-medium" : "px-3 py-2 font-medium",
+        className,
+      )}
+    >
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className="inline-flex items-center gap-1 text-left hover:text-foreground"
+        className="inline-flex items-center gap-0.5 text-left hover:text-foreground"
       >
         {label}
-        <span className="text-[10px] text-muted-foreground" aria-hidden>
+        <span className="text-[9px] text-muted-foreground" aria-hidden>
           {active ? (direction === "asc" ? "▲" : "▼") : "↕"}
         </span>
       </button>
@@ -123,11 +138,24 @@ const capacitySelectClassName = cn(
   "h-8 w-full min-w-[5.5rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50",
 );
 
-function LoadProgressBar({ percent }: { percent: number }) {
+const capacitySelectCompactClassName = cn(
+  "h-7 w-full min-w-[4.25rem] rounded-md border border-input bg-background px-1.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50",
+);
+
+function LoadProgressBar({
+  percent,
+  compact = false,
+}: {
+  percent: number;
+  compact?: boolean;
+}) {
   const clamped = Math.min(100, Math.max(0, percent));
   return (
     <div
-      className="h-2 w-full overflow-hidden rounded-full bg-muted"
+      className={cn(
+        "w-full overflow-hidden rounded-full bg-muted",
+        compact ? "h-1.5" : "h-2",
+      )}
       role="progressbar"
       aria-valuenow={clamped}
       aria-valuemin={0}
@@ -152,12 +180,14 @@ function LoadProgressCell({
   status,
   editable,
   disabled,
+  compact = false,
 }: {
   barrelId: string;
   percent: number;
   status: UserBarrelOptionRow["status"];
   editable: boolean;
   disabled: boolean;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -165,17 +195,34 @@ function LoadProgressCell({
 
   if (!editable || !canAdminEditBarrelCapacity(status)) {
     return (
-      <div className="flex min-w-[7rem] flex-col gap-1">
-        <span className="text-xs tabular-nums text-foreground">{clamped}%</span>
-        <LoadProgressBar percent={clamped} />
+      <div
+        className={cn(
+          compact ?
+            "flex min-w-[5.5rem] max-w-[7rem] items-center gap-1.5"
+          : "flex min-w-[7rem] flex-col gap-1",
+        )}
+      >
+        <span
+          className={cn(
+            "shrink-0 tabular-nums text-foreground",
+            compact ? "text-[11px]" : "text-xs",
+          )}
+        >
+          {clamped}%
+        </span>
+        <LoadProgressBar percent={clamped} compact={compact} />
       </div>
     );
   }
 
   return (
-    <div className="flex min-w-[8rem] flex-col gap-1.5">
+    <div
+      className={cn(
+        compact ? "flex min-w-[5.5rem] max-w-[7rem] flex-col gap-1" : "flex min-w-[8rem] flex-col gap-1.5",
+      )}
+    >
       <select
-        className={capacitySelectClassName}
+        className={compact ? capacitySelectCompactClassName : capacitySelectClassName}
         value={String(clamped)}
         disabled={disabled || pending}
         aria-label="Container load progress"
@@ -210,7 +257,7 @@ function LoadProgressCell({
           </option>
         ))}
       </select>
-      <LoadProgressBar percent={clamped} />
+      {!compact ? <LoadProgressBar percent={clamped} /> : null}
     </div>
   );
 }
@@ -222,6 +269,8 @@ export function ContainerSlotsInventorySection({
   embedded = false,
   showMarkFull = false,
   showLookupFilters = false,
+  ownerProfiles,
+  staffProfilesByClerkUserId = {},
 }: ContainerSlotsInventorySectionProps) {
   const router = useRouter();
   const [tableOpen, setTableOpen] = useState(embedded);
@@ -324,6 +373,9 @@ export function ContainerSlotsInventorySection({
   }
 
   const tableVisible = tableOpen;
+  const compact = embedded;
+
+  const cellClass = compact ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm";
 
   const countNumber =
     showLookupFilters &&
@@ -337,7 +389,10 @@ export function ContainerSlotsInventorySection({
       className={cn(
         "rounded-lg border border-border bg-muted/20",
         embedded && "bg-muted/10",
-        tableOpen ? "space-y-3 px-4 py-3" : "px-4 py-2.5",
+        tableOpen ?
+          compact ? "space-y-2 px-3 py-2"
+          : "space-y-3 px-4 py-3"
+        : compact ? "px-3 py-2" : "px-4 py-2.5",
       )}
     >
       <button
@@ -346,7 +401,8 @@ export function ContainerSlotsInventorySection({
         aria-expanded={tableOpen}
         aria-label={`${tableOpen ? "Hide" : "Show"} container inventory`}
         className={cn(
-          "flex w-full items-center justify-between gap-3 text-left text-sm text-muted-foreground",
+          "flex w-full items-center justify-between gap-2 text-left text-muted-foreground",
+          compact ? "text-xs" : "text-sm",
           "rounded-md outline-none transition-colors hover:text-foreground",
           "focus-visible:ring-2 focus-visible:ring-ring/50",
         )}
@@ -368,13 +424,21 @@ export function ContainerSlotsInventorySection({
       </button>
 
       {showLookupFilters && tableVisible ?
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="min-w-[12rem] flex-1 space-y-1.5">
-            <Label htmlFor="container-inventory-search">Search containers</Label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className={cn("min-w-[10rem] flex-1", compact ? "space-y-1" : "space-y-1.5")}>
+            <Label
+              htmlFor="container-inventory-search"
+              className={compact ? "text-xs" : undefined}
+            >
+              Search containers
+            </Label>
             <div className="relative">
               <Search
                 aria-hidden
-                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                className={cn(
+                  "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground",
+                  compact ? "left-2 size-3.5" : "left-2.5 size-4",
+                )}
               />
               <Input
                 id="container-inventory-search"
@@ -382,21 +446,27 @@ export function ContainerSlotsInventorySection({
                 placeholder="Alias, slot, type, status…"
                 value={lookupSearch}
                 onChange={(e) => setLookupSearch(e.target.value)}
-                className="pl-8"
+                className={cn(compact ? "h-8 pl-7 text-xs" : "pl-8")}
                 autoComplete="off"
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="container-inventory-kind">Container type</Label>
+          <div className={compact ? "space-y-1" : "space-y-1.5"}>
+            <Label
+              htmlFor="container-inventory-kind"
+              className={compact ? "text-xs" : undefined}
+            >
+              Container type
+            </Label>
             <select
               id="container-inventory-kind"
               value={kindFilter}
               onChange={(e) => setKindFilter(e.target.value as ContainerKindFilter)}
               className={cn(
-                "h-8 min-w-[9rem] rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm",
-                "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-                "dark:bg-input/30",
+                "min-w-[8rem] rounded-lg border border-input bg-transparent outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30",
+                compact ?
+                  "h-8 px-2 py-0.5 text-xs"
+                : "h-8 px-2.5 py-1 text-sm",
               )}
             >
               <option value="all">All types</option>
@@ -427,8 +497,13 @@ export function ContainerSlotsInventorySection({
 
       {tableVisible && sortedRows.length > 0 ?
         <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border bg-background">
-          <table className="w-full min-w-[40rem] text-left text-sm">
-            <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
+          <table
+            className={cn(
+              "w-full text-left",
+              compact ? "min-w-[36rem] text-xs" : "min-w-[40rem] text-sm",
+            )}
+          >
+            <thead className="border-b border-border bg-muted/40 text-muted-foreground">
               <tr>
                 {showCustomerColumn ?
                   <SortableHeader
@@ -437,6 +512,8 @@ export function ContainerSlotsInventorySection({
                     activeKey={sortKey}
                     direction={sortDir}
                     onSort={onSort}
+                    compact={compact}
+                    className={compact ? "max-w-[5.5rem]" : undefined}
                   />
                 : null}
                 <SortableHeader
@@ -445,6 +522,7 @@ export function ContainerSlotsInventorySection({
                   activeKey={sortKey}
                   direction={sortDir}
                   onSort={onSort}
+                  compact={compact}
                 />
                 <SortableHeader
                   label="Type"
@@ -452,6 +530,8 @@ export function ContainerSlotsInventorySection({
                   activeKey={sortKey}
                   direction={sortDir}
                   onSort={onSort}
+                  compact={compact}
+                  className="whitespace-nowrap"
                 />
                 <SortableHeader
                   label="Container"
@@ -459,6 +539,8 @@ export function ContainerSlotsInventorySection({
                   activeKey={sortKey}
                   direction={sortDir}
                   onSort={onSort}
+                  compact={compact}
+                  className={compact ? "min-w-[9rem] max-w-[11rem]" : undefined}
                 />
                 <SortableHeader
                   label="Status"
@@ -466,6 +548,8 @@ export function ContainerSlotsInventorySection({
                   activeKey={sortKey}
                   direction={sortDir}
                   onSort={onSort}
+                  compact={compact}
+                  className="whitespace-nowrap"
                 />
                 <SortableHeader
                   label="Items"
@@ -473,6 +557,7 @@ export function ContainerSlotsInventorySection({
                   activeKey={sortKey}
                   direction={sortDir}
                   onSort={onSort}
+                  compact={compact}
                   className="text-right"
                 />
                 <SortableHeader
@@ -481,9 +566,25 @@ export function ContainerSlotsInventorySection({
                   activeKey={sortKey}
                   direction={sortDir}
                   onSort={onSort}
+                  compact={compact}
+                  className={compact ? "w-[5.5rem]" : undefined}
                 />
+                <th
+                  className={cn(
+                    compact ? "px-2 py-1.5 text-[11px] font-medium" : "px-3 py-2 font-medium",
+                    "min-w-[9rem]",
+                  )}
+                >
+                  Updated by
+                </th>
                 {showMarkFull ?
-                  <th className="px-3 py-2 font-medium">Actions</th>
+                  <th
+                    className={cn(
+                      compact ? "px-2 py-1.5 text-[11px] font-medium" : "px-3 py-2 font-medium",
+                    )}
+                  >
+                    Actions
+                  </th>
                 : null}
               </tr>
             </thead>
@@ -494,37 +595,74 @@ export function ContainerSlotsInventorySection({
                 return (
                   <tr key={row.barrelId} className="hover:bg-muted/20">
                     {showCustomerColumn ?
-                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                        {row.ownerClerkUserId?.slice(0, 12) ?? "—"}…
+                      <td className={cellClass}>
+                        {row.ownerClerkUserId ? (
+                          <AdminCustomerRecordLabel
+                            clerkUserId={row.ownerClerkUserId}
+                            fullName={
+                              ownerProfiles?.[row.ownerClerkUserId]?.fullName
+                            }
+                            email={ownerProfiles?.[row.ownerClerkUserId]?.email}
+                            primaryClassName="text-xs font-medium"
+                            secondaryClassName="text-[10px]"
+                          />
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     : null}
-                    <td className="px-3 py-2 font-medium text-foreground">{row.alias}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
+                    <td className={cn(cellClass, "whitespace-nowrap font-medium text-foreground")}>
+                      {row.alias}
+                    </td>
+                    <td className={cn(cellClass, "whitespace-nowrap text-muted-foreground")}>
                       {containerOfferingKindLabel(row.kind)}
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">{row.slotLabel}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        cellClass,
+                        "max-w-[11rem] truncate text-muted-foreground",
+                      )}
+                      title={row.slotLabel}
+                    >
+                      {row.slotLabel}
+                    </td>
+                    <td className={cn(cellClass, "whitespace-nowrap text-muted-foreground")}>
                       {barrelStatusLabel(row.status)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                    <td
+                      className={cn(
+                        cellClass,
+                        "text-right tabular-nums text-muted-foreground",
+                      )}
+                    >
                       {row.itemCount}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className={cellClass}>
                       <LoadProgressCell
                         barrelId={row.barrelId}
                         percent={row.capacityPercentage}
                         status={row.status}
                         editable={showMarkFull}
                         disabled={markPending}
+                        compact={compact}
+                      />
+                    </td>
+                    <td className={cn(cellClass, "min-w-[9rem] max-w-[11rem] align-top")}>
+                      <AdminUpdatedByCell
+                        clerkUserId={row.lastUpdatedByClerkUserId}
+                        profilesByClerkUserId={staffProfilesByClerkUserId}
+                        primaryClassName={compact ? "text-[11px] font-medium" : "text-xs font-medium"}
+                        secondaryClassName="text-[10px] text-muted-foreground"
                       />
                     </td>
                     {showMarkFull ?
-                      <td className="px-3 py-2">
+                      <td className={cellClass}>
                         {row.status === "filling" && row.capacityPercentage < 100 ?
                           <Button
                             type="button"
                             size="sm"
                             variant="secondary"
+                            className={compact ? "h-7 px-2 text-xs" : undefined}
                             disabled={markPending}
                             onClick={() => markFull(row.barrelId, row.alias)}
                           >
@@ -535,6 +673,7 @@ export function ContainerSlotsInventorySection({
                             type="button"
                             size="sm"
                             variant="secondary"
+                            className={compact ? "h-7 px-2 text-xs" : undefined}
                             disabled={markPending}
                             onClick={() => markFull(row.barrelId, row.alias)}
                           >
@@ -545,13 +684,14 @@ export function ContainerSlotsInventorySection({
                             type="button"
                             size="sm"
                             variant="outline"
+                            className={compact ? "h-7 px-2 text-xs" : undefined}
                             disabled={markPending}
                             onClick={() => unmarkFull(row.barrelId, row.alias)}
                           >
                             {isMarking ? "Saving…" : "Remove mark full"}
                           </Button>
                         : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </td>
                     : null}

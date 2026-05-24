@@ -4,12 +4,23 @@ import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-sc
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useState,
 } from "react";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import type { AdminBatchHistoryBundle } from "@/data/batch-quote-sessions";
 import type { BatchQuoteEstimate, ItemRequestLineSnapshot } from "@/db/schema";
+import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
+import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
+import {
+  batchEstimateRecordedByClerkUserId,
+  snapshotRecordedByClerkUserId,
+} from "@/lib/admin-staff-profiles";
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -18,14 +29,13 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
 import { displaySiteName } from "@/lib/site-name";
 import { compareLocale, compareNum, type SortDir } from "@/lib/table-sort";
+import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
@@ -42,11 +52,17 @@ type SortKey =
 const SELECT_CLASS =
   "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
-function EstimateRevisionBrief({ est }: { est: BatchQuoteEstimate }) {
+function EstimateRevisionBrief({
+  est,
+  staffProfilesByClerkUserId,
+}: {
+  est: BatchQuoteEstimate;
+  staffProfilesByClerkUserId: AdminStaffProfilesByClerkUserId;
+}) {
   const voided = est.voidedAt != null && String(est.voidedAt).trim() !== "";
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-md border border-border bg-background/80 px-2.5 py-2 tabular-nums text-xs">
-      <span className="text-muted-foreground">
+      <span className="min-w-0 flex-1 text-muted-foreground">
         <span className="font-semibold uppercase tracking-wide text-foreground/80">
           {voided ? "Superseded" : "Active"}
         </span>
@@ -72,6 +88,14 @@ function EstimateRevisionBrief({ est }: { est: BatchQuoteEstimate }) {
             </time>
           </>
         )}
+      </span>
+      <span className="min-w-[9rem] max-w-[11rem] shrink-0">
+        <AdminUpdatedByCell
+          clerkUserId={batchEstimateRecordedByClerkUserId(est)}
+          profilesByClerkUserId={staffProfilesByClerkUserId}
+          primaryClassName="text-[11px] font-medium"
+          secondaryClassName="text-[10px] text-muted-foreground"
+        />
       </span>
       <span className="font-medium text-foreground">{formatUsd(est.subtotalCents)}</span>
     </li>
@@ -151,7 +175,13 @@ function bundleSubtotalCents(bundle: AdminBatchHistoryBundle): number {
   return bundle.latestEstimate?.subtotalCents ?? -1;
 }
 
-function BatchHistoryArticle({ bundle }: { bundle: AdminBatchHistoryBundle }) {
+function BatchHistoryArticle({
+  bundle,
+  staffProfilesByClerkUserId,
+}: {
+  bundle: AdminBatchHistoryBundle;
+  staffProfilesByClerkUserId: AdminStaffProfilesByClerkUserId;
+}) {
   const estimate = bundle.latestEstimate;
   const session = bundle.session;
 
@@ -244,7 +274,11 @@ function BatchHistoryArticle({ bundle }: { bundle: AdminBatchHistoryBundle }) {
           </p>
           <ol className="mt-2 list-none space-y-2 p-0">
             {bundle.estimateRevisions.map((est) => (
-              <EstimateRevisionBrief key={est.id} est={est} />
+              <EstimateRevisionBrief
+                key={est.id}
+                est={est}
+                staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+              />
             ))}
           </ol>
         </div>
@@ -261,11 +295,14 @@ function BatchHistoryArticle({ bundle }: { bundle: AdminBatchHistoryBundle }) {
           <table className="w-full min-w-[56rem] text-left text-sm">
             <thead className="border-b border-border bg-muted/20">
               <tr>
-                <th className="w-[42%] px-3 py-2.5 text-xs font-medium">
+                <th className="w-[34%] px-3 py-2.5 text-xs font-medium">
                   Sent to staff (frozen line)
                 </th>
-                <th className="w-[42%] px-3 py-2.5 text-xs font-medium">
+                <th className="w-[34%] px-3 py-2.5 text-xs font-medium">
                   After batch estimate (admin copy)
+                </th>
+                <th className="min-w-[9rem] px-3 py-2.5 text-xs font-medium">
+                  Updated by
                 </th>
               </tr>
             </thead>
@@ -278,6 +315,14 @@ function BatchHistoryArticle({ bundle }: { bundle: AdminBatchHistoryBundle }) {
                   <td className="align-top px-3 py-3 text-xs">
                     <SnapshotBrief snap={line.estimateAdminSnapshot} />
                   </td>
+                  <td className="min-w-[9rem] max-w-[11rem] align-top px-3 py-3 text-xs">
+                    <AdminUpdatedByCell
+                      clerkUserId={snapshotRecordedByClerkUserId(
+                        line.estimateAdminSnapshot,
+                      )}
+                      profilesByClerkUserId={staffProfilesByClerkUserId}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -288,12 +333,41 @@ function BatchHistoryArticle({ bundle }: { bundle: AdminBatchHistoryBundle }) {
   );
 }
 
+function batchHistoryBundleMatchesSearch(
+  bundle: AdminBatchHistoryBundle,
+  q: string,
+): boolean {
+  if (!q) return true;
+  const parts = [
+    bundle.session.batchNumber,
+    bundle.session.siteKey,
+    bundle.userFullName ?? "",
+    bundle.userEmail ?? "",
+  ];
+  return parts.some((p) => p.toLowerCase().includes(q));
+}
+
 type AdminBatchHistoryTableProps = {
   bundles: AdminBatchHistoryBundle[];
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 };
 
-export function AdminBatchHistoryTable({ bundles }: AdminBatchHistoryTableProps) {
+export function AdminBatchHistoryTable({
+  bundles,
+  staffProfilesByClerkUserId = {},
+}: AdminBatchHistoryTableProps) {
+  const baseId = useId();
+  const findOrganizeSwitchId = `${baseId}-find-organize`;
   const [search, setSearch] = useState("");
+  const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
+  const [panelChoiceMade, setPanelChoiceMade] = useState(false);
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
+  const [linePageSize, setLinePageSize] =
+    useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
+  const [linePageByCustomerId, setLinePageByCustomerId] = useState<
+    Record<string, number>
+  >({});
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [estimateFilter, setEstimateFilter] = useState<EstimateFilter>("all");
   const [siteFilter, setSiteFilter] = useState("");
@@ -307,6 +381,9 @@ export function AdminBatchHistoryTable({ bundles }: AdminBatchHistoryTableProps)
 
   useEffect(() => {
     setPage(1);
+    setPanelChoiceMade(false);
+    setOpenClerkUserId(null);
+    setLineSearch("");
   }, [
     search,
     statusFilter,
@@ -413,6 +490,24 @@ export function AdminBatchHistoryTable({ bundles }: AdminBatchHistoryTableProps)
     return groups;
   }, [pageSlice]);
 
+  const activeClerkUserId =
+    panelChoiceMade ? openClerkUserId : (groupedPageSlice[0]?.clerkUserId ?? null);
+  const customerExpanded = activeClerkUserId !== null;
+
+  useEffect(() => {
+    if (!activeClerkUserId) return;
+    setLinePageByCustomerId((prev) => ({
+      ...prev,
+      [activeClerkUserId]: 1,
+    }));
+  }, [lineSearch, linePageSize, activeClerkUserId]);
+
+  const toggleCustomer = useCallback((clerkUserId: string) => {
+    setPanelChoiceMade(true);
+    setOpenClerkUserId(activeClerkUserId === clerkUserId ? null : clerkUserId);
+    if (activeClerkUserId !== clerkUserId) setLineSearch("");
+  }, [activeClerkUserId]);
+
   const showFrom =
     filteredSorted.length === 0 ? 0 : (pageSafe - 1) * pageSize + 1;
   const showTo = Math.min(pageSafe * pageSize, filteredSorted.length);
@@ -443,23 +538,18 @@ export function AdminBatchHistoryTable({ bundles }: AdminBatchHistoryTableProps)
         append rows below; superseded totals stay listed for audit.
       </p>
 
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-medium text-foreground">Find & organize</p>
-          <div className="flex items-center gap-2">
-            <Label
-              htmlFor="admin-batch-history-find-organize"
-              className="cursor-pointer text-xs font-normal text-muted-foreground"
-            >
-              Show filters and sort
-            </Label>
-            <Switch
-              id="admin-batch-history-find-organize"
-              checked={findOrganizeVisible}
-              onCheckedChange={setFindOrganizeVisible}
-            />
-          </div>
-        </div>
+      <div
+        className={cn(
+          "space-y-3 rounded-lg border border-border bg-muted/10 p-4",
+          adminParentControlsDisabledClass(customerExpanded),
+        )}
+        aria-hidden={customerExpanded || undefined}
+      >
+        <AdminFindOrganizeVisibilityToggle
+          id={findOrganizeSwitchId}
+          visible={findOrganizeVisible}
+          onVisibleChange={setFindOrganizeVisible}
+        />
 
         {findOrganizeVisible ? (
           <>
@@ -634,33 +724,150 @@ export function AdminBatchHistoryTable({ bundles }: AdminBatchHistoryTableProps)
       </div>
 
       <div className="space-y-8">
-        {groupedPageSlice.map(({ clerkUserId, displayLabel, bundles }) => (
-          <div key={clerkUserId} className="space-y-4">
-            <h3 className="border-l-2 border-primary px-1 pl-2 text-sm font-semibold text-foreground">
-              Customer · {displayLabel}
-            </h3>
-            <div className="space-y-8">
-              {bundles.map((bundle) => (
-                <BatchHistoryArticle key={bundle.session.id} bundle={bundle} />
-              ))}
-            </div>
+        {groupedPageSlice.map(({ clerkUserId, displayLabel, bundles: customerBundles }) => {
+          const first = customerBundles[0]!;
+          const expanded = activeClerkUserId === clerkUserId;
+          const lineNorm = lineSearch.trim().toLowerCase();
+          const lineFiltered = customerBundles.filter((b) =>
+            batchHistoryBundleMatchesSearch(b, lineNorm),
+          );
+          const lineCount = lineFiltered.length;
+          const lineTotalPages = Math.max(1, Math.ceil(lineCount / linePageSize));
+          const rawLinePage = linePageByCustomerId[clerkUserId] ?? 1;
+          const linePageSafe = Math.min(Math.max(1, rawLinePage), lineTotalPages);
+          const lineStart = (linePageSafe - 1) * linePageSize;
+          const bundleSlice = lineFiltered.slice(lineStart, lineStart + linePageSize);
+          const lineShowFrom = lineCount === 0 ? 0 : lineStart + 1;
+          const lineShowTo = Math.min(lineStart + linePageSize, lineCount);
+
+          return (
+          <div key={clerkUserId} className="overflow-hidden rounded-lg border border-border">
+            <button
+              type="button"
+              className={cn(
+                "flex w-full items-center gap-2 border-b border-border bg-muted/25 px-3 py-3 text-left hover:bg-muted/40",
+                expanded && "bg-muted/35",
+              )}
+              aria-expanded={expanded}
+              onClick={() => toggleCustomer(clerkUserId)}
+            >
+              {expanded ? (
+                <ChevronDownIcon className="size-4 shrink-0" aria-hidden />
+              ) : (
+                <ChevronRightIcon className="size-4 shrink-0" aria-hidden />
+              )}
+              <AdminCustomerRecordLabel
+                clerkUserId={clerkUserId}
+                fullName={first.userFullName}
+                email={first.userEmail}
+                primaryClassName="text-sm font-semibold"
+              />
+              <span className="text-xs text-muted-foreground">
+                ({customerBundles.length} batch{customerBundles.length === 1 ? "" : "es"})
+              </span>
+            </button>
+            {expanded ? (
+              <div className="space-y-4 p-4">
+                <AdminNestedFindOrganizePanel
+                  switchId={`${baseId}-line-find-organize-${clerkUserId}`}
+                  searchInputId={`${baseId}-line-search-${clerkUserId}`}
+                  pageSizeSelectId={`${baseId}-line-page-size-${clerkUserId}`}
+                  visible={lineFindOrganizeVisible}
+                  onVisibleChange={setLineFindOrganizeVisible}
+                  search={lineSearch}
+                  onSearchChange={setLineSearch}
+                  searchLabel="Search batches"
+                  searchPlaceholder="Batch number, site, customer…"
+                  pageSize={linePageSize}
+                  onPageSizeChange={setLinePageSize}
+                  pageSizeLabel="Batches per page"
+                  showFrom={lineShowFrom}
+                  showTo={lineShowTo}
+                  totalCount={lineCount}
+                  totalLoaded={customerBundles.length}
+                  itemLabel="batch"
+                  className="mb-0"
+                />
+                {lineCount > linePageSize ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={linePageSafe <= 1}
+                      onClick={() =>
+                        setLinePageByCustomerId((prev) => ({
+                          ...prev,
+                          [clerkUserId]: Math.max(1, linePageSafe - 1),
+                        }))
+                      }
+                    >
+                      Previous batches
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={linePageSafe >= lineTotalPages}
+                      onClick={() =>
+                        setLinePageByCustomerId((prev) => ({
+                          ...prev,
+                          [clerkUserId]: Math.min(lineTotalPages, linePageSafe + 1),
+                        }))
+                      }
+                    >
+                      Next batches
+                    </Button>
+                  </div>
+                ) : null}
+                <div className="space-y-8">
+                  {bundleSlice.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {lineSearch.trim()
+                        ? "No batches match the current search."
+                        : "No batches for this customer."}
+                    </p>
+                  ) : null}
+                  {bundleSlice.map((bundle) => (
+                    <BatchHistoryArticle
+                      key={bundle.session.id}
+                      bundle={bundle}
+                      staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {filteredSorted.length > 0 ? (
-        <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={cn(
+            "flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between",
+            adminParentControlsDisabledClass(customerExpanded),
+          )}
+          aria-hidden={customerExpanded || undefined}
+        >
           <p className="text-xs text-muted-foreground">
             Page{" "}
             <span className="font-medium tabular-nums text-foreground">{pageSafe}</span> of{" "}
             <span className="font-medium tabular-nums text-foreground">{totalPages}</span>
+            {customerExpanded ? (
+              <span className="text-muted-foreground/80">
+                {" "}
+                (collapse customer to change)
+              </span>
+            ) : null}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={pageSafe <= 1}
+              disabled={customerExpanded || pageSafe <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
               Previous
@@ -669,7 +876,7 @@ export function AdminBatchHistoryTable({ bundles }: AdminBatchHistoryTableProps)
               type="button"
               variant="outline"
               size="sm"
-              disabled={pageSafe >= totalPages}
+              disabled={customerExpanded || pageSafe >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
               Next

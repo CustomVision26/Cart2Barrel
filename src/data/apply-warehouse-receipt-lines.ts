@@ -29,7 +29,7 @@ import { isMoneyBackProductReturn } from "@/lib/order-line-product-return-displa
 import { canSubmitWarehouseReceiptForFulfillment } from "@/lib/warehouse-receipt-queue";
 
 export type ApplyWarehouseReceiptAuthz =
-  | { kind: "admin" }
+  | { kind: "admin"; clerkUserId: string }
   | { kind: "customer"; clerkUserId: string };
 
 export type ApplyWarehouseReceiptResult =
@@ -264,6 +264,8 @@ export async function applyWarehouseReceiptLines(
         itemQuoteId: null,
         batchQuoteSessionId: null,
         auditMemo: buildWarehouseReceiptAuditMemoV2(activeMemoPayload),
+        recordedByClerkUserId:
+          authz.kind === "admin" ? authz.clerkUserId : null,
         productUrl: payload.productUrl,
         productName: payload.productName,
         productSize: payload.productSize,
@@ -287,6 +289,9 @@ export async function applyWarehouseReceiptLines(
           warehouseReceivedBarcode:
             barcodeTrim === undefined || barcodeTrim === "" ? null : barcodeTrim,
           warehouseReceivedProofPhotoCount: proofCount,
+          ...(authz.kind === "admin" ?
+            { warehouseReceivedByClerkUserId: authz.clerkUserId }
+          : {}),
           ...(proofUrls !== undefined ?
             {
               warehouseReceivedProofPhotoUrls:

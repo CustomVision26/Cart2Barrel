@@ -24,7 +24,10 @@ export async function saveWarehouseReceiptSnapshotsAction(
     return { ok: false, message: "Invalid receipt data." };
   }
 
-  const res = await applyWarehouseReceiptLines(parsed.data, { kind: "admin" });
+  const res = await applyWarehouseReceiptLines(parsed.data, {
+    kind: "admin",
+    clerkUserId: cu.user.id,
+  });
 
   if (res.ok) {
     revalidatePath("/admin/purchase-orders");

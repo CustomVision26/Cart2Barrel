@@ -151,6 +151,7 @@ export async function updateOrderItemPurchaseTrackingAction(
       companyPurchaseTrackingUrl: url,
       companyPurchaseRetailerTrackingCompany: company,
       companyPurchaseRetailerTrackingNumber: number,
+      companyPurchaseUpdatedByClerkUserId: cu.user.id,
       ...(nextFulfillment ? { fulfillmentStatus: nextFulfillment } : {}),
     })
     .where(eq(orderItems.id, row.orderItem.id));
@@ -178,6 +179,7 @@ export async function updateOrderItemPurchaseTrackingAction(
       itemQuoteId: null,
       batchQuoteSessionId: null,
       auditMemo,
+      recordedByClerkUserId: cu.user.id,
       productUrl: payload.productUrl,
       productName: payload.productName,
       productSize: payload.productSize,

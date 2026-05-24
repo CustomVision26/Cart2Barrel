@@ -1,6 +1,11 @@
 import { AdminBatchHistoryTable } from "@/components/admin/admin-batch-history-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
 import {
+  batchEstimateRecordedByClerkUserId,
+  loadAdminStaffProfilesByClerkUserIds,
+  snapshotRecordedByClerkUserId,
+} from "@/lib/admin-staff-profiles";
+import {
   filterAdminBatchHistoryBundles,
   parseAdminCustomerFilter,
 } from "@/lib/admin-customer-filter";
@@ -20,10 +25,28 @@ export default async function AdminBatchItemsBatchHistoryPage({
   }
 
   const { batchHistoryBundles } = result.payload;
+  const filteredBundles = filterAdminBatchHistoryBundles(
+    batchHistoryBundles,
+    clerkUserId,
+  );
+
+  const staffProfilesByClerkUserId = await loadAdminStaffProfilesByClerkUserIds([
+    ...filteredBundles.flatMap((bundle) =>
+      bundle.estimateRevisions.map((est) =>
+        batchEstimateRecordedByClerkUserId(est),
+      ),
+    ),
+    ...filteredBundles.flatMap((bundle) =>
+      bundle.lines.map((line) =>
+        snapshotRecordedByClerkUserId(line.estimateAdminSnapshot),
+      ),
+    ),
+  ]);
 
   return (
     <AdminBatchHistoryTable
-      bundles={filterAdminBatchHistoryBundles(batchHistoryBundles, clerkUserId)}
+      bundles={filteredBundles}
+      staffProfilesByClerkUserId={staffProfilesByClerkUserId}
     />
   );
 }

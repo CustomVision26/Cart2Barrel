@@ -7,6 +7,8 @@ import { toast } from "sonner";
 
 import { saveBarrelOutboundShippingChargeAction } from "@/actions/admin-barrel-outbound-shipping-charge";
 import { AdminShipmentCustomsPanel } from "@/components/admin/admin-shipment-customs-panel";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,12 +54,14 @@ type AdminShippingChargeIntakeCardProps = {
   /** When false, form is visible but publish is disabled (preview or awaiting customer). */
   publishEnabled?: boolean;
   lockMessage?: string;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 };
 
 export function AdminShippingChargeIntakeCard({
   row,
   publishEnabled = true,
   lockMessage,
+  staffProfilesByClerkUserId = {},
 }: AdminShippingChargeIntakeCardProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -157,6 +161,15 @@ export function AdminShippingChargeIntakeCard({
             : (
               <p className="text-xs text-muted-foreground">{statusDetail}</p>
             )}
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Updated by{" "}
+              <AdminUpdatedByCell
+                clerkUserId={row.updatedByClerkUserId}
+                profilesByClerkUserId={staffProfilesByClerkUserId}
+                primaryClassName="inline text-[10px] font-medium"
+                secondaryClassName="inline text-[9px] text-muted-foreground"
+              />
+            </p>
           </div>
           <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
             {isPaid ?
@@ -232,6 +245,15 @@ export function AdminShippingChargeIntakeCard({
                   <dd className="text-foreground">{statusDetail}</dd>
                 </div>
               )}
+              <div className="sm:col-span-2">
+                <dt className="text-muted-foreground">Updated by</dt>
+                <dd>
+                  <AdminUpdatedByCell
+                    clerkUserId={row.updatedByClerkUserId}
+                    profilesByClerkUserId={staffProfilesByClerkUserId}
+                  />
+                </dd>
+              </div>
             </dl>
 
             {lockMessage ?

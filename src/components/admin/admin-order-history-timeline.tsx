@@ -2,7 +2,14 @@
 
 import { ChevronDown, Package } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
+import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
+import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
+import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
 
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -76,6 +83,7 @@ function groupRowsByCustomer(rows: AdminPaidOrderLineRow[]) {
     return {
       key,
       label: customerLabel(first),
+      fullName: first.customerFullName,
       email: first.customerEmail?.trim() || null,
       orderGroups: groupPaidRowsStableByOrder(customerRows),
       lineCount: customerRows.length,
@@ -137,6 +145,8 @@ function ToggleSection({
   summary,
   children,
   defaultOpen = true,
+  open: openProp,
+  onOpenChange,
   className,
   bodyClassName,
   ariaLabel,
@@ -145,17 +155,24 @@ function ToggleSection({
   summary?: ReactNode;
   children: ReactNode;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   className?: string;
   bodyClassName?: string;
   ariaLabel: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    onOpenChange?.(next);
+    if (openProp === undefined) setUncontrolledOpen(next);
+  };
   return (
     <section className={cn("overflow-hidden rounded-xl border border-border", className)}>
       <div className="flex flex-wrap items-center gap-3 bg-muted/25 px-3 py-3">
         <button
           type="button"
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={() => setOpen(!open)}
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-expanded={open}
           aria-label={ariaLabel}
@@ -181,9 +198,11 @@ function ToggleSection({
 function ProductHistoryCard({
   row,
   snapshots,
+  staffProfilesByClerkUserId,
 }: {
   row: AdminPaidOrderLineRow;
   snapshots: ItemRequestLineSnapshot[];
+  staffProfilesByClerkUserId: AdminStaffProfilesByClerkUserId;
 }) {
   const [open, setOpen] = useState(true);
   const request = row.request;
@@ -320,6 +339,15 @@ function ProductHistoryCard({
                 </dd>
               </div>
             ) : null}
+            <div>
+              <dt className="text-xs text-muted-foreground">Updated by</dt>
+              <dd>
+                <AdminUpdatedByCell
+                  clerkUserId={resolveOrderLineUpdatedByClerkUserId(row.orderItem)}
+                  profilesByClerkUserId={staffProfilesByClerkUserId}
+                />
+              </dd>
+            </div>
           </dl>
         </div>
       </div>
@@ -373,15 +401,72 @@ function ProductHistoryCard({
   );
 }
 
+function historyLineMatchesQuery(
+  row: AdminPaidOrderLineRow,
+  q: string,
+): boolean {
+  if (!q) return true;
+  const r = row.request;
+  const chunks = [
+    r.id,
+    r.productName,
+    r.productUrl,
+    displaySiteName(r.siteName, r.productUrl),
+    row.order.id,
+    row.orderItem.id,
+    row.resolvedBatchNumber,
+    row.resolvedBatchSessionId,
+  ];
+  return chunks.some(
+    (chunk) => chunk != null && String(chunk).toLowerCase().includes(q),
+  );
+}
+
 export function AdminOrderHistoryTimeline({
   rows,
   snapshotsByRequestId = {},
   orderContainerLinesByOrderId = {},
+  staffProfilesByClerkUserId = {},
 }: {
   rows: AdminPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
+  const baseId = useId();
+  const { setNestedPanelActive } = useAdminNestedPanelFocus();
+  const [openCustomerKey, setOpenCustomerKey] = useState<string | null>(null);
+  const [panelChoiceMade, setPanelChoiceMade] = useState(false);
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
+  const [linePageSize, setLinePageSize] = useState<10 | 5 | 25 | 50>(10);
+  const [linePage, setLinePage] = useState(1);
+
+  const customerGroups = groupRowsByCustomer(rows);
+  const activeCustomerKey =
+    panelChoiceMade ? openCustomerKey : (customerGroups[0]?.key ?? null);
+
+  useEffect(() => {
+    setNestedPanelActive(activeCustomerKey != null);
+  }, [activeCustomerKey, setNestedPanelActive]);
+
+  const openCustomer = customerGroups.find((g) => g.key === activeCustomerKey);
+  const openCustomerRows = openCustomer
+    ? openCustomer.orderGroups.flatMap(({ lines }) => lines)
+    : [];
+  const searchNorm = lineSearch.trim().toLowerCase();
+  const filteredOpenRows = openCustomerRows.filter((row) =>
+    historyLineMatchesQuery(row, searchNorm),
+  );
+  const lineCount = filteredOpenRows.length;
+  const lineTotalPages = Math.max(1, Math.ceil(lineCount / linePageSize));
+  const linePageSafe = Math.min(Math.max(1, linePage), lineTotalPages);
+  const lineStart = (linePageSafe - 1) * linePageSize;
+  const pagedOpenRows = filteredOpenRows.slice(lineStart, lineStart + linePageSize);
+  const pagedOpenRowIds = new Set(pagedOpenRows.map((row) => row.orderItem.id));
+  const lineShowFrom = lineCount === 0 ? 0 : lineStart + 1;
+  const lineShowTo = Math.min(lineStart + linePageSize, lineCount);
+
   if (rows.length === 0) {
     return (
       <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -390,25 +475,35 @@ export function AdminOrderHistoryTimeline({
     );
   }
 
-  const customerGroups = groupRowsByCustomer(rows);
-
   return (
     <div className="space-y-5">
-      {customerGroups.map((customerGroup) => (
+      {customerGroups.map((customerGroup) => {
+        const expanded = activeCustomerKey === customerGroup.key;
+        return (
         <ToggleSection
           key={customerGroup.key}
           ariaLabel="Toggle products for this customer"
+          open={expanded}
+          onOpenChange={(next) => {
+            setPanelChoiceMade(true);
+            if (next) {
+              setOpenCustomerKey(customerGroup.key);
+              setLineSearch("");
+              setLinePage(1);
+            } else if (activeCustomerKey === customerGroup.key) {
+              setOpenCustomerKey(null);
+            }
+          }}
+          defaultOpen={false}
           title={
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground">Customer</span>
-              <span className="text-sm font-medium text-primary">
-                {customerGroup.label}
-              </span>
-              {customerGroup.email && customerGroup.email !== customerGroup.label ? (
-                <span className="text-xs text-muted-foreground">
-                  {customerGroup.email}
-                </span>
-              ) : null}
+              <AdminCustomerRecordLabel
+                clerkUserId={customerGroup.key}
+                fullName={customerGroup.fullName}
+                email={customerGroup.email}
+                primaryClassName="text-sm font-medium text-primary"
+              />
             </div>
           }
           summary={`${customerGroup.orderGroups.length} order${
@@ -419,7 +514,47 @@ export function AdminOrderHistoryTimeline({
           className="bg-background"
           bodyClassName="space-y-4"
         >
-          {customerGroup.orderGroups.map(({ order, lines }) => {
+          {expanded ? (
+            <AdminNestedFindOrganizePanel
+              switchId={`${baseId}-line-find-organize-${customerGroup.key}`}
+              searchInputId={`${baseId}-line-search-${customerGroup.key}`}
+              pageSizeSelectId={`${baseId}-line-page-size-${customerGroup.key}`}
+              visible={lineFindOrganizeVisible}
+              onVisibleChange={setLineFindOrganizeVisible}
+              search={lineSearch}
+              onSearchChange={(value) => {
+                setLineSearch(value);
+                setLinePage(1);
+              }}
+              searchLabel="Search product history"
+              searchPlaceholder="Product, URL, order id, line id, batch…"
+              pageSize={linePageSize}
+              onPageSizeChange={(size) => {
+                setLinePageSize(size);
+                setLinePage(1);
+              }}
+              pageSizeLabel="Products per page"
+              showFrom={lineShowFrom}
+              showTo={lineShowTo}
+              totalCount={lineCount}
+              totalLoaded={customerGroup.lineCount}
+              itemLabel="product"
+              emptyMessage="No product history for this customer."
+              noMatchMessage="No products match the current search."
+              className="mb-0"
+            />
+          ) : null}
+          {(expanded
+            ? customerGroup.orderGroups
+                .map(({ order, lines }) => ({
+                  order,
+                  lines: lines.filter((line) =>
+                    pagedOpenRowIds.has(line.orderItem.id),
+                  ),
+                }))
+                .filter(({ lines }) => lines.length > 0)
+            : customerGroup.orderGroups
+          ).map(({ order, lines }) => {
             const buckets = partitionPaidLinesIntoBatchBuckets(lines);
             const containerLines = orderContainerLinesByOrderId[order.id] ?? [];
             return (
@@ -497,6 +632,7 @@ export function AdminOrderHistoryTimeline({
                           key={row.orderItem.id}
                           row={row}
                           snapshots={snapshotsByRequestId[row.request.id] ?? []}
+                          staffProfilesByClerkUserId={staffProfilesByClerkUserId}
                         />
                       ))}
                     </ToggleSection>
@@ -542,7 +678,8 @@ export function AdminOrderHistoryTimeline({
             );
           })}
         </ToggleSection>
-      ))}
+        );
+      })}
     </div>
   );
 }

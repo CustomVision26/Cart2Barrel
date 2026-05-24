@@ -18,6 +18,8 @@ export type WarehouseReceivingLine = {
   batchNumber: string | null;
   batchSessionId: string | null;
   clerkUserId: string;
+  customerFullName: string | null;
+  customerEmail: string | null;
   customerGroupSortKey: string;
   customerDisplayLabel: string;
   refundedCents: number;

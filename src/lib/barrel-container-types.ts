@@ -15,6 +15,8 @@ export type UserBarrelOptionRow = {
   itemCount: number;
   capacityPercentage: number;
   ownerClerkUserId?: string;
+  /** Staff who last changed assignment for a product in this container. */
+  lastUpdatedByClerkUserId?: string | null;
 };
 
 export type ProductToBarrelLineRow = BarrelPipelineProductDisplayRow & {
@@ -25,6 +27,8 @@ export type AdminBarrelPipelineRow = BarrelPipelineProductDisplayRow & {
   ownerClerkUserId: string;
   fulfillmentStatus: string;
   assignedBarrelId: string | null;
+  /** Staff who last changed barrel assignment for this package. */
+  lastUpdatedByClerkUserId: string | null;
 };
 
 /** @deprecated Use AdminBarrelPipelineRow */

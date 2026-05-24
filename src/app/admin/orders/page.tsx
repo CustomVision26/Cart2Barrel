@@ -1,5 +1,10 @@
 import { AdminOrdersCarouselView } from "@/components/admin/admin-orders-carousel-view";
 import { AdminOrdersListControls } from "@/components/admin/admin-orders-list-controls";
+import { AdminPageTitleWithHelp } from "@/components/admin/admin-page-title-with-help";
+import {
+  AdminNestedPanelFocusProvider,
+  AdminParentControlsShell,
+} from "@/components/admin/admin-nested-panel-focus-context";
 import { AdminOrdersTabNav } from "@/components/admin/admin-orders-tab-nav";
 import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { listAdminPaidOrderLinesPage } from "@/data/admin-order-lines";
@@ -12,6 +17,10 @@ import {
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
+import {
+  loadAdminStaffProfilesByClerkUserIds,
+  resolveOrderLineUpdatedByClerkUserId,
+} from "@/lib/admin-staff-profiles";
 import {
   orderSlideLaneNamesList,
   ORDER_SLIDE_LANE_AUDIENCE,
@@ -101,26 +110,35 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       Object.fromEntries(await listOrderContainerItemsByOrderIds(orderIdsOnPage))
     : {};
 
+  const staffProfilesByClerkUserId =
+    admin && pagePack.rows.length > 0 ?
+      await loadAdminStaffProfilesByClerkUserIds(
+        pagePack.rows.map((row) => resolveOrderLineUpdatedByClerkUserId(row.orderItem)),
+      )
+    : {};
+
   const hasActiveSearch = query.q.trim().length > 0;
   const noOrdersAtAll = admin && pagePack.totalOrders === 0 && !hasActiveSearch;
   const noSearchHits = admin && pagePack.totalOrders === 0 && hasActiveSearch;
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Orders</h1>
-        <p className="text-sm text-muted-foreground">
-          Browse paid checkouts in horizontal lanes —{" "}
-          <span className="font-medium text-foreground">
-            {orderSlideLaneNamesList(ORDER_SLIDE_LANE_AUDIENCE)}
-          </span>{" "}
-          — with a product
-          preview on each card. Double-click a card to open the full table grouped by batch and
-          single
-          items. Replacement returns in transit and money-back returns appear under{" "}
-          <span className="font-medium text-foreground">Purchase orders</span>.
-        </p>
-      </div>
+      <AdminPageTitleWithHelp
+        title="Orders"
+        tooltipClassName="w-80"
+        help={
+          <>
+            Browse paid checkouts in horizontal lanes —{" "}
+            <span className="font-medium text-foreground">
+              {orderSlideLaneNamesList(ORDER_SLIDE_LANE_AUDIENCE)}
+            </span>{" "}
+            — with a product preview on each card. Double-click a card to open the full table
+            grouped by batch and single items. Replacement returns in transit and money-back
+            returns appear under{" "}
+            <span className="font-medium text-foreground">Purchase orders</span>.
+          </>
+        }
+      />
 
       <AdminOrdersTabNav activeTab="orders" />
 
@@ -130,15 +148,18 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         </p>
       : (
         <>
-          <AdminOrdersListControls
-            key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
-            query={pagePack.query}
-            totalOrders={pagePack.totalOrders}
-            page={pagePack.page}
-            totalPages={pagePack.totalPages}
-            pageSize={pagePack.pageSize}
-          />
-          {noOrdersAtAll ?
+          <AdminNestedPanelFocusProvider>
+            <AdminParentControlsShell>
+              <AdminOrdersListControls
+                key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
+                query={pagePack.query}
+                totalOrders={pagePack.totalOrders}
+                page={pagePack.page}
+                totalPages={pagePack.totalPages}
+                pageSize={pagePack.pageSize}
+              />
+            </AdminParentControlsShell>
+            {noOrdersAtAll ?
             <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
               No paid orders yet.
             </p>
@@ -156,8 +177,10 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
               latestQuotesByRequestId={latestQuotesByRequestId}
               batchEstimatesBySessionId={batchEstimatesBySessionId}
               orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+              staffProfilesByClerkUserId={staffProfilesByClerkUserId}
             />
           : null}
+          </AdminNestedPanelFocusProvider>
         </>
       )}
     </div>

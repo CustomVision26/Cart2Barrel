@@ -1,5 +1,10 @@
 import { AdminOrderHistoryTimeline } from "@/components/admin/admin-order-history-timeline";
 import { AdminOrdersListControls } from "@/components/admin/admin-orders-list-controls";
+import { AdminPageTitleWithHelp } from "@/components/admin/admin-page-title-with-help";
+import {
+  AdminNestedPanelFocusProvider,
+  AdminParentControlsShell,
+} from "@/components/admin/admin-nested-panel-focus-context";
 import { AdminOrdersTabNav } from "@/components/admin/admin-orders-tab-nav";
 import { listAdminPaidOrderHistoryLinesPage } from "@/data/admin-order-lines";
 import {
@@ -7,6 +12,10 @@ import {
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
+import {
+  loadAdminStaffProfilesByClerkUserIds,
+  resolveOrderLineUpdatedByClerkUserId,
+} from "@/lib/admin-staff-profiles";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { safeCurrentUser } from "@/lib/safe-current-user";
@@ -67,23 +76,33 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
       ? Object.fromEntries(await listOrderContainerItemsByOrderIds(orderIdsOnPage))
       : {};
 
+  const staffProfilesByClerkUserId =
+    admin && pagePack.rows.length > 0
+      ? await loadAdminStaffProfilesByClerkUserIds(
+          pagePack.rows.map((row) =>
+            resolveOrderLineUpdatedByClerkUserId(row.orderItem),
+          ),
+        )
+      : {};
+
   const hasActiveSearch = query.q.trim().length > 0;
   const noHistoryAtAll = admin && pagePack.totalOrders === 0 && !hasActiveSearch;
   const noSearchHits = admin && pagePack.totalOrders === 0 && hasActiveSearch;
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Order History
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Product-level inventory history for every paid checkout. Batch and single
-          products are grouped by customer, order, and batch so staff can track each
-          fulfillment update after cart checkout through purchase, receiving, returns,
-          refunds, barrel staging, and shipment handoff.
-        </p>
-      </div>
+      <AdminPageTitleWithHelp
+        title="Order History"
+        tooltipClassName="w-80"
+        help={
+          <>
+            Product-level inventory history for every paid checkout. Batch and single
+            products are grouped by customer, order, and batch so staff can track each
+            fulfillment update after cart checkout through purchase, receiving, returns,
+            refunds, barrel staging, and shipment handoff.
+          </>
+        }
+      />
 
       <AdminOrdersTabNav activeTab="history" />
 
@@ -93,15 +112,18 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
         </p>
       ) : (
         <>
-          <AdminOrdersListControls
-            key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
-            query={pagePack.query}
-            totalOrders={pagePack.totalOrders}
-            page={pagePack.page}
-            totalPages={pagePack.totalPages}
-            pageSize={pagePack.pageSize}
-            basePath="/admin/orders-history"
-          />
+          <AdminNestedPanelFocusProvider>
+            <AdminParentControlsShell>
+              <AdminOrdersListControls
+                key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
+                query={pagePack.query}
+                totalOrders={pagePack.totalOrders}
+                page={pagePack.page}
+                totalPages={pagePack.totalPages}
+                pageSize={pagePack.pageSize}
+                basePath="/admin/orders-history"
+              />
+            </AdminParentControlsShell>
           {noHistoryAtAll ? (
             <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
               No paid checkout history has been recorded yet.
@@ -119,8 +141,10 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
               orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+              staffProfilesByClerkUserId={staffProfilesByClerkUserId}
             />
           ) : null}
+          </AdminNestedPanelFocusProvider>
         </>
       )}
     </div>

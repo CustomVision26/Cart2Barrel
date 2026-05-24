@@ -74,9 +74,43 @@ export const orderItemWarehouseReceiptSelect = {
   warehouseReceivedProofPhotoUrls: orderItems.warehouseReceivedProofPhotoUrls,
 } as const;
 
+/**
+ * Optional columns from `0063_admin_recorded_by_clerk_user_id`. Use with try/catch fallback.
+ */
+export const orderItemAdminUpdatedBySelect = {
+  warehouseReceivedByClerkUserId: orderItems.warehouseReceivedByClerkUserId,
+  companyPurchaseUpdatedByClerkUserId:
+    orderItems.companyPurchaseUpdatedByClerkUserId,
+} as const;
+
+/** Merge when migration 0063 is not applied yet. */
+export const orderItemAdminUpdatedByNulls = {
+  warehouseReceivedByClerkUserId: null,
+  companyPurchaseUpdatedByClerkUserId: null,
+} as const;
+
 export const orderItemFulfillmentCoreSelectWithWarehouse = {
   ...orderItemFulfillmentCoreSelect,
   ...orderItemWarehouseReceiptSelect,
+} as const;
+
+export const orderItemFulfillmentCoreSelectWithWarehouseAndAdminUpdatedBy = {
+  ...orderItemFulfillmentCoreSelectWithWarehouse,
+  ...orderItemAdminUpdatedBySelect,
+} as const;
+
+/** Minimal order line fields for barrel pipeline list queries (avoids selecting full `order_items`). */
+export const orderItemBarrelPipelineSelect = {
+  id: orderItems.id,
+  quantity: orderItems.quantity,
+  fulfillmentStatus: orderItems.fulfillmentStatus,
+  warehouseReceivedCondition: orderItems.warehouseReceivedCondition,
+} as const;
+
+export const orderItemBarrelPipelineSelectWithoutWarehouse = {
+  id: orderItems.id,
+  quantity: orderItems.quantity,
+  fulfillmentStatus: orderItems.fulfillmentStatus,
 } as const;
 
 export type OrderItemFulfillmentCore = Pick<
@@ -103,5 +137,7 @@ export type OrderItemFulfillmentCore = Pick<
       | "warehouseReceivedBarcodeImageUrl"
       | "warehouseReceivedProofPhotoCount"
       | "warehouseReceivedProofPhotoUrls"
+      | "warehouseReceivedByClerkUserId"
+      | "companyPurchaseUpdatedByClerkUserId"
     >
   >;

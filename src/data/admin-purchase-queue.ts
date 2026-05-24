@@ -26,8 +26,10 @@ import {
   type OrderItem,
 } from "@/db/schema";
 import {
+  orderItemAdminUpdatedByNulls,
   orderItemFulfillmentCoreSelect,
   orderItemFulfillmentCoreSelectWithWarehouse,
+  orderItemFulfillmentCoreSelectWithWarehouseAndAdminUpdatedBy,
   orderItemWarehouseReceiptNulls,
   orderListSelect,
 } from "@/data/order-list-select";
@@ -39,6 +41,7 @@ import {
 } from "@/data/paid-orders-queries";
 import { mapLatestOperationalQuoteItemCostByRequestIds } from "@/data/item-quotes";
 import {
+  isMissingOrderItemAdminUpdatedByColumnsError,
   isMissingOrderItemWarehouseReceiptColumnsError,
   isUndefinedColumnError,
   isInvalidOrderItemFulfillmentStatusEnumError,
@@ -229,7 +232,7 @@ async function fetchLineRowsForIds(
     const rows = await db
       .select({
         ...baseSelect,
-        orderItem: orderItemFulfillmentCoreSelectWithWarehouse,
+        orderItem: orderItemFulfillmentCoreSelectWithWarehouseAndAdminUpdatedBy,
       })
       .from(orderItems)
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
@@ -256,7 +259,44 @@ async function fetchLineRowsForIds(
       resolvedBatchNumber: r.resolvedBatchNumber,
     }));
   } catch (e) {
-    if (!isMissingOrderItemWarehouseReceiptColumnsError(e)) throw e;
+    if (isMissingOrderItemAdminUpdatedByColumnsError(e)) {
+      try {
+        const rows = await db
+          .select({
+            ...baseSelect,
+            orderItem: orderItemFulfillmentCoreSelectWithWarehouse,
+          })
+          .from(orderItems)
+          .innerJoin(orders, eq(orderItems.orderId, orders.id))
+          .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
+          .leftJoin(profiles, eq(orders.clerkUserId, profiles.clerkUserId))
+          .leftJoin(batchDirect, eq(itemRequests.batchQuoteSessionId, batchDirect.id))
+          .leftJoin(
+            batchQuoteSessionLines,
+            eq(batchQuoteSessionLines.itemRequestId, itemRequests.id),
+          )
+          .leftJoin(
+            batchViaLine,
+            eq(batchQuoteSessionLines.batchQuoteSessionId, batchViaLine.id),
+          )
+          .where(inArray(orderItems.id, ids));
+
+        return rows.map((r) => ({
+          orderItem: { ...r.orderItem, ...orderItemAdminUpdatedByNulls },
+          order: r.order,
+          request: r.request,
+          customerEmail: r.customerEmail,
+          customerFullName: r.customerFullName,
+          resolvedBatchSessionId: r.resolvedBatchSessionId,
+          resolvedBatchNumber: r.resolvedBatchNumber,
+        }));
+      } catch (inner) {
+        if (!isMissingOrderItemWarehouseReceiptColumnsError(inner)) throw inner;
+      }
+    } else if (!isMissingOrderItemWarehouseReceiptColumnsError(e)) {
+      throw e;
+    }
+
     const rows = await db
       .select({
         ...baseSelect,
@@ -278,7 +318,11 @@ async function fetchLineRowsForIds(
       .where(inArray(orderItems.id, ids));
 
     return rows.map((r) => ({
-      orderItem: { ...r.orderItem, ...orderItemWarehouseReceiptNulls },
+      orderItem: {
+        ...r.orderItem,
+        ...orderItemWarehouseReceiptNulls,
+        ...orderItemAdminUpdatedByNulls,
+      },
       order: r.order,
       request: r.request,
       customerEmail: r.customerEmail,

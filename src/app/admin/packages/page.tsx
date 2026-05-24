@@ -1,5 +1,10 @@
+import { AdminPageTitleWithHelp } from "@/components/admin/admin-page-title-with-help";
 import { AdminWarehouseReceivingSection } from "@/components/admin/admin-warehouse-receiving-section";
 import { AdminPackagesListControls } from "@/components/admin/admin-packages-list-controls";
+import {
+  AdminNestedPanelFocusProvider,
+  AdminParentControlsShell,
+} from "@/components/admin/admin-nested-panel-focus-context";
 import {
   listAdminPackagesQueuePage,
   type PurchaseQueueLineRow,
@@ -9,6 +14,10 @@ import {
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
 import { purchaseQueueRowToWarehouseReceivingLine } from "@/lib/admin-package-receiving-line";
+import {
+  loadAdminStaffProfilesByClerkUserIds,
+  resolveOrderLineUpdatedByClerkUserId,
+} from "@/lib/admin-staff-profiles";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { safeCurrentUser } from "@/lib/safe-current-user";
@@ -67,39 +76,54 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
       snapshotsByRequestId.get(row.request.id),
     ),
   );
+  const staffProfilesByClerkUserId =
+    admin && lines.length > 0 ?
+      await loadAdminStaffProfilesByClerkUserIds(
+        lines.map((line) => resolveOrderLineUpdatedByClerkUserId(line.orderItem)),
+      )
+    : {};
   const hasActiveSearch = query.q.trim().length > 0;
   const emptyQueue = admin && pagePack.totalLines === 0 && !hasActiveSearch;
   const noSearchHits = admin && pagePack.totalLines === 0 && hasActiveSearch;
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Packages
-        </h1>
+      <AdminPageTitleWithHelp
+        title="Packages"
+        tooltipClassName="w-80"
+        help={
+          <>
+            All paid package lines on the barrel pipeline: awaiting barrel (good, damaged
+            accepted, or wrong item accepted) and already assigned in-container (
+            <span className="font-medium text-foreground">In barrel: awaiting shipping</span>
+            ). Use the control center to filter by customer, product, order, request, or batch.
+            Expand a customer group to search and paginate package files inside the nested panel.
+          </>
+        }
+      />
+      {admin && !emptyQueue && !noSearchHits ? (
         <p className="text-sm text-muted-foreground">
-          All paid package lines on the barrel pipeline: awaiting barrel (good, damaged accepted,
-          or wrong item accepted) and already assigned in-container (
-          <span className="font-medium text-foreground">In barrel: awaiting shipping</span>
-          ). {pagePack.totalLines} matching package line
-          {pagePack.totalLines === 1 ? "" : "s"}. Use the control center to filter by customer,
-          product, order, request, or batch.
+          {pagePack.totalLines} matching package line
+          {pagePack.totalLines === 1 ? "" : "s"}.
         </p>
-      </div>
+      ) : null}
       {!admin ?
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
           You do not have admin access.
         </p>
       : (
         <>
-          <AdminPackagesListControls
-            key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
-            query={pagePack.query}
-            totalLines={pagePack.totalLines}
-            page={pagePack.page}
-            totalPages={pagePack.totalPages}
-            pageSize={pagePack.pageSize}
-          />
+          <AdminNestedPanelFocusProvider>
+            <AdminParentControlsShell>
+              <AdminPackagesListControls
+                key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
+                query={pagePack.query}
+                totalLines={pagePack.totalLines}
+                page={pagePack.page}
+                totalPages={pagePack.totalPages}
+                pageSize={pagePack.pageSize}
+              />
+            </AdminParentControlsShell>
           {emptyQueue ?
             <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
               No packages are awaiting barrel or consolidation yet. Lines appear here after
@@ -117,8 +141,10 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
             <AdminWarehouseReceivingSection
               key={`${query.page}-${query.ps}-${query.sort}-${query.q}`}
               lines={lines}
+              staffProfilesByClerkUserId={staffProfilesByClerkUserId}
             />
           : null}
+          </AdminNestedPanelFocusProvider>
         </>
       )}
     </div>

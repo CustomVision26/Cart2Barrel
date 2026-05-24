@@ -482,6 +482,8 @@ export const batchQuoteEstimates = pgTable(
     saleTaxDiscountCents: integer("sale_tax_discount_cents").notNull(),
     subtotalCents: integer("subtotal_cents").notNull(),
     voidedAt: timestamp("voided_at", { withTimezone: true, mode: "string" }),
+    /** Clerk user id of staff who saved this estimate revision. */
+    recordedByClerkUserId: text("recorded_by_clerk_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -542,6 +544,8 @@ export const itemQuotes = pgTable(
      * Values: `paid` (customer paid), `company_purchase` (admin confirmed purchase).
      */
     checkoutSnapshotKind: text("checkout_snapshot_kind"),
+    /** Clerk user id of staff who saved this quote (admin estimates only). */
+    recordedByClerkUserId: text("recorded_by_clerk_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -577,6 +581,8 @@ export const itemRequestLineSnapshots = pgTable(
     note: text("note"),
     productImageUrl: text("product_image_url"),
     siteName: text("site_name"),
+    /** Actor who triggered this snapshot (staff on admin phases; optional elsewhere). */
+    recordedByClerkUserId: text("recorded_by_clerk_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -684,6 +690,12 @@ export const orderItems = pgTable(
     warehouseReceivedProofPhotoUrls: jsonb(
       "warehouse_received_proof_photo_urls",
     ).$type<string[] | null>(),
+    /** Staff who logged warehouse receipt on this line. */
+    warehouseReceivedByClerkUserId: text("warehouse_received_by_clerk_user_id"),
+    /** Staff who last saved company purchase / return tracking on this line. */
+    companyPurchaseUpdatedByClerkUserId: text(
+      "company_purchase_updated_by_clerk_user_id",
+    ),
   },
   (t) => [
     index("order_items_order_id_idx").on(t.orderId),
@@ -1280,6 +1292,8 @@ export const barrelOutboundShippingCharges = pgTable(
       onDelete: "set null",
     }),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
+    /** Staff who last published or edited this shipping charge. */
+    recordedByClerkUserId: text("recorded_by_clerk_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),

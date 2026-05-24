@@ -11,6 +11,7 @@ import {
 } from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
+import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
 import { AdminProductUrlDialog } from "@/components/admin/admin-product-url-dialog";
 import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-history-edit-dialog";
 import { AdminQuoteHistoryProductTimelineTable } from "@/components/admin/admin-quote-history-product-timeline-table";
@@ -26,8 +27,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import type { AdminQuoteHistoryGroup, AdminQuoteHistoryLine } from "@/data/admin-quote-history";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
@@ -228,6 +227,7 @@ export function AdminQuoteHistoryGroupedTable({
   const [lineSortKey, setLineSortKey] = useState<QhLineSortKey>("quoted");
   const [lineSortDir, setLineSortDir] = useState<SortDir>("desc");
   const [search, setSearch] = useState("");
+  const [lineSearch, setLineSearch] = useState("");
   const [pageSize, setPageSize] =
     useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
   const [page, setPage] = useState(1);
@@ -237,7 +237,12 @@ export function AdminQuoteHistoryGroupedTable({
   >({});
   const [expandedProductKey, setExpandedProductKey] = useState<string | null>(null);
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
   const baseId = useId();
+  const findOrganizeSwitchId = `${baseId}-find-organize`;
+  const lineFindOrganizeSwitchId = `${baseId}-line-find-organize`;
+
+  const customerExpanded = openClerkUserId !== null;
 
   const filteredGroups = useMemo(
     () => filterQuoteHistoryGroups(groups, search, orderContextByRequestId),
@@ -281,12 +286,22 @@ export function AdminQuoteHistoryGroupedTable({
     setPage(1);
     setQuoteLinePageByCustomerId({});
     setExpandedProductKey(null);
+    setLineSearch("");
   }, [search, groupSortKey, groupSortDir, pageSize]);
 
   useEffect(() => {
     setQuoteLinePageByCustomerId({});
     setExpandedProductKey(null);
   }, [lineSortKey, lineSortDir]);
+
+  useEffect(() => {
+    if (!openClerkUserId) return;
+    setQuoteLinePageByCustomerId((prev) => ({
+      ...prev,
+      [openClerkUserId]: 1,
+    }));
+    setExpandedProductKey(null);
+  }, [lineSearch, pageSize, openClerkUserId]);
 
   useEffect(() => {
     if (page !== pageSafe) setPage(pageSafe);
@@ -323,7 +338,14 @@ export function AdminQuoteHistoryGroupedTable({
   }, [groups, selectedQuoteId]);
 
   const toggle = useCallback((clerkUserId: string) => {
-    setOpenClerkUserId((prev) => (prev === clerkUserId ? null : clerkUserId));
+    setOpenClerkUserId((prev) => {
+      const next = prev === clerkUserId ? null : clerkUserId;
+      if (next !== prev) {
+        setLineSearch("");
+        setQuoteLinePageByCustomerId({});
+      }
+      return next;
+    });
     setSelectedQuoteId(null);
     setExpandedProductKey(null);
   }, []);
@@ -345,23 +367,18 @@ export function AdminQuoteHistoryGroupedTable({
         lines.
       </p>
 
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-medium text-foreground">Find & organize</p>
-          <div className="flex items-center gap-2">
-            <Label
-              htmlFor="admin-quote-history-find-organize"
-              className="cursor-pointer text-xs font-normal text-muted-foreground"
-            >
-              Show filters and sort
-            </Label>
-            <Switch
-              id="admin-quote-history-find-organize"
-              checked={findOrganizeVisible}
-              onCheckedChange={setFindOrganizeVisible}
-            />
-          </div>
-        </div>
+      <div
+        className={cn(
+          "space-y-3 rounded-lg border border-border bg-muted/10 p-4 transition-opacity",
+          customerExpanded && "pointer-events-none opacity-50",
+        )}
+        aria-hidden={customerExpanded}
+      >
+        <AdminFindOrganizeVisibilityToggle
+          id={findOrganizeSwitchId}
+          visible={findOrganizeVisible}
+          onVisibleChange={setFindOrganizeVisible}
+        />
 
         {findOrganizeVisible ? (
           <>
@@ -447,7 +464,13 @@ export function AdminQuoteHistoryGroupedTable({
         <>
           <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[56rem] text-left text-sm">
-              <thead className="border-b border-border bg-muted/40">
+              <thead
+                className={cn(
+                  "border-b border-border bg-muted/40 transition-opacity",
+                  customerExpanded && "pointer-events-none opacity-50",
+                )}
+                aria-hidden={customerExpanded}
+              >
                 <tr>
                   <th className="w-10 px-2 py-2.5" aria-hidden />
                   <SortableTh
@@ -479,9 +502,18 @@ export function AdminQuoteHistoryGroupedTable({
                 const panelId = `${baseId}-quotes-${g.clerkUserId}`;
                 const name = submitterDisplayName(g.userFullName, g.userEmail);
 
+                const lineFiltered = expanded
+                  ? g.lines.filter((line) =>
+                      quoteHistoryLineMatchesQuery(
+                        line,
+                        lineSearch,
+                        orderContextByRequestId,
+                      ),
+                    )
+                  : [];
                 const sortedLinesForGroup = expanded
                   ? sortQuoteHistoryLines(
-                      g.lines,
+                      lineFiltered,
                       lineSortKey,
                       lineSortDir,
                       orderContextByRequestId,
@@ -569,6 +601,109 @@ export function AdminQuoteHistoryGroupedTable({
                               <span className="font-medium text-foreground">Edit quote</span> when
                               status is still Quoted.
                             </p>
+
+                            <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+                              <AdminFindOrganizeVisibilityToggle
+                                id={lineFindOrganizeSwitchId}
+                                visible={lineFindOrganizeVisible}
+                                onVisibleChange={setLineFindOrganizeVisible}
+                              />
+
+                              {lineFindOrganizeVisible ? (
+                                <>
+                                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                    <Field className="gap-1.5 sm:col-span-2 lg:col-span-2">
+                                      <FieldLabel
+                                        htmlFor={`${baseId}-line-search`}
+                                        className="text-xs"
+                                      >
+                                        Search products
+                                      </FieldLabel>
+                                      <FieldContent>
+                                        <Input
+                                          id={`${baseId}-line-search`}
+                                          placeholder="Product, URL, site, status, request or quote id…"
+                                          value={lineSearch}
+                                          onChange={(e) => setLineSearch(e.target.value)}
+                                          autoComplete="off"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </FieldContent>
+                                      <FieldDescription>
+                                        Filters this customer&apos;s products only.
+                                        Column headers below sort the filtered list.
+                                      </FieldDescription>
+                                    </Field>
+
+                                    <Field className="gap-1.5">
+                                      <FieldLabel
+                                        htmlFor={`${baseId}-line-page-size`}
+                                        className="text-xs"
+                                      >
+                                        Products per page
+                                      </FieldLabel>
+                                      <FieldContent>
+                                        <select
+                                          id={`${baseId}-line-page-size`}
+                                          className={SELECT_CLASS}
+                                          value={pageSize}
+                                          onChange={(e) =>
+                                            setPageSize(
+                                              Number(
+                                                e.target.value,
+                                              ) as (typeof PAGE_SIZE_OPTIONS)[number],
+                                            )
+                                          }
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {PAGE_SIZE_OPTIONS.map((n) => (
+                                            <option key={n} value={n}>
+                                              {n}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </FieldContent>
+                                      <FieldDescription>
+                                        Paginates the product rows in this panel.
+                                      </FieldDescription>
+                                    </Field>
+                                  </div>
+
+                                  <p className="text-xs text-muted-foreground">
+                                    {quoteLineCount === 0 ? (
+                                      lineSearch.trim() ? (
+                                        <>No products match the current search.</>
+                                      ) : (
+                                        <>No products for this customer.</>
+                                      )
+                                    ) : (
+                                      <>
+                                        Showing{" "}
+                                        <span className="font-medium tabular-nums text-foreground">
+                                          {qlShowFrom}–{qlShowTo}
+                                        </span>{" "}
+                                        of{" "}
+                                        <span className="font-medium tabular-nums text-foreground">
+                                          {quoteLineCount}
+                                        </span>{" "}
+                                        product{quoteLineCount === 1 ? "" : "s"}
+                                        {lineFiltered.length < g.lines.length ? (
+                                          <>
+                                            {" "}
+                                            (
+                                            <span className="tabular-nums">
+                                              {g.lines.length}
+                                            </span>{" "}
+                                            total for customer)
+                                          </>
+                                        ) : null}
+                                      </>
+                                    )}
+                                  </p>
+                                </>
+                              ) : null}
+                            </div>
+
                             <FloatingHorizontalScroll viewportClassName="rounded-md border border-border bg-background">
                               <table className="w-full min-w-[44rem] text-left text-xs sm:text-sm">
                                 <thead className="border-b border-border bg-muted/50">
@@ -625,6 +760,18 @@ export function AdminQuoteHistoryGroupedTable({
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
+                                  {quoteLineSlice.length === 0 ? (
+                                    <tr>
+                                      <td
+                                        colSpan={8}
+                                        className="px-4 py-8 text-center text-sm text-muted-foreground"
+                                      >
+                                        {lineSearch.trim() ?
+                                          "No products match the current search."
+                                        : "No products for this customer."}
+                                      </td>
+                                    </tr>
+                                  ) : null}
                                   {quoteLineSlice.map((line) => {
                                     const { quote: q, request: r } = line;
                                     const canEditQuote =
@@ -809,7 +956,13 @@ export function AdminQuoteHistoryGroupedTable({
             </table>
           </FloatingHorizontalScroll>
 
-          <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className={cn(
+              "flex flex-col items-stretch gap-3 border-t border-border pt-4 transition-opacity sm:flex-row sm:items-center sm:justify-between",
+              customerExpanded && "pointer-events-none opacity-50",
+            )}
+            aria-hidden={customerExpanded}
+          >
             <p className="text-xs text-muted-foreground">
               Customer groups — page{" "}
               <span className="font-medium tabular-nums text-foreground">
@@ -819,13 +972,19 @@ export function AdminQuoteHistoryGroupedTable({
               <span className="font-medium tabular-nums text-foreground">
                 {totalPages}
               </span>
+              {customerExpanded ?
+                <span className="text-muted-foreground/80">
+                  {" "}
+                  (collapse customer to change)
+                </span>
+              : null}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={pageSafe <= 1}
+                disabled={customerExpanded || pageSafe <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 Previous
@@ -834,7 +993,7 @@ export function AdminQuoteHistoryGroupedTable({
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={pageSafe >= totalPages}
+                disabled={customerExpanded || pageSafe >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
                 Next

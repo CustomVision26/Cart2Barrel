@@ -1037,6 +1037,7 @@ export async function insertBatchEstimateRow(params: {
   siteSaleTaxTotalCents: number;
   saleTaxDiscountCents: number;
   subtotalCents: number;
+  recordedByClerkUserId?: string | null;
 }): Promise<BatchQuoteEstimate> {
   const db = getDb();
   const [row] = await db
@@ -1054,6 +1055,7 @@ export async function insertBatchEstimateRow(params: {
       siteSaleTaxTotalCents: params.siteSaleTaxTotalCents,
       saleTaxDiscountCents: params.saleTaxDiscountCents,
       subtotalCents: params.subtotalCents,
+      recordedByClerkUserId: params.recordedByClerkUserId?.trim() || null,
     })
     .returning();
   if (!row) throw new Error("Batch estimate insert failed.");

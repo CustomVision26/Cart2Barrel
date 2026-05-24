@@ -106,6 +106,7 @@ export async function confirmCompanyPurchaseAction(
         parsed.data.retailerTrackingCompany ?? null,
       companyPurchaseRetailerTrackingNumber:
         parsed.data.retailerTrackingNumber ?? null,
+      companyPurchaseUpdatedByClerkUserId: cu.user.id,
     })
     .where(eq(orderItems.id, row.orderItem.id));
 
@@ -122,6 +123,7 @@ export async function confirmCompanyPurchaseAction(
         itemRequestId: row.orderItem.itemRequestId,
         phase: "company_purchase_pending_delivery",
         itemQuoteId: timelineQuote.id,
+        recordedByClerkUserId: cu.user.id,
         line: lineSnapshotPayloadFromItemRequest(req),
       });
     }

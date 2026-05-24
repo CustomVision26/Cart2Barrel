@@ -51,6 +51,7 @@ export async function saveAdminItemQuoteAction(
   }
 
   const d = parsed.data;
+  const adminClerkUserId = user!.id;
 
   try {
     const reqBefore = await getItemRequestById(d.itemRequestId);
@@ -65,6 +66,7 @@ export async function saveAdminItemQuoteAction(
     await insertItemRequestLineSnapshot({
       itemRequestId: d.itemRequestId,
       phase: "pre_admin_estimate_edit",
+      recordedByClerkUserId: adminClerkUserId,
       line: lineSnapshotPayloadFromItemRequest(reqBefore),
     });
 
@@ -98,6 +100,7 @@ export async function saveAdminItemQuoteAction(
       totalPrice,
       merchandiseIncludesSiteShippingTax: d.merchandiseIncludesSiteShippingTax,
       staffNote: d.staffNote ?? null,
+      recordedByClerkUserId: adminClerkUserId,
       ...snap,
     });
     await getDb()
@@ -108,6 +111,7 @@ export async function saveAdminItemQuoteAction(
       itemRequestId: d.itemRequestId,
       phase: "post_admin_estimate_edit",
       itemQuoteId: newQuote.id,
+      recordedByClerkUserId: adminClerkUserId,
       line: lineSnapshotPayloadFromItemRequest(req),
     });
   } catch (e) {

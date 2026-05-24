@@ -30,6 +30,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
+import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import { formatUsd } from "@/lib/admin-markup";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
@@ -189,9 +192,11 @@ function PreviewProductUrl({
 function IntakePreviewBody({
   line,
   row,
+  staffProfilesByClerkUserId = {},
 }: {
   line: WarehouseReceivingLine;
   row: PackageIntakeRowState;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
   const images = collectIntakePreviewImagesFromRow(line, row);
   const intakeQty =
@@ -257,6 +262,12 @@ function IntakePreviewBody({
             <span className="break-all font-mono text-xs">
               {row.barcodeValue.trim() || "—"}
             </span>
+          </PreviewField>
+          <PreviewField label="Updated by" className="col-span-2">
+            <AdminUpdatedByCell
+              clerkUserId={resolveOrderLineUpdatedByClerkUserId(line.orderItem)}
+              profilesByClerkUserId={staffProfilesByClerkUserId}
+            />
           </PreviewField>
         </dl>
       </section>
@@ -407,10 +418,12 @@ export function AdminPackageFileCard({
   line,
   row,
   onUpdate,
+  staffProfilesByClerkUserId = {},
 }: {
   line: WarehouseReceivingLine;
   row: PackageIntakeRowState;
   onUpdate: (patch: Partial<PackageIntakeRowState>) => void;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
   const router = useRouter();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -475,6 +488,15 @@ export function AdminPackageFileCard({
         <p className="font-mono text-[10px] text-muted-foreground">
           Order {shortId(line.orderNumber)}
         </p>
+        <div className="text-[10px]">
+          <span className="text-muted-foreground">Updated by </span>
+          <AdminUpdatedByCell
+            clerkUserId={resolveOrderLineUpdatedByClerkUserId(line.orderItem)}
+            profilesByClerkUserId={staffProfilesByClerkUserId}
+            primaryClassName="inline text-[10px] font-medium"
+            secondaryClassName="text-[9px] text-muted-foreground"
+          />
+        </div>
 
         <div className="mt-0.5 flex flex-wrap gap-1">
           <Button
@@ -523,7 +545,11 @@ export function AdminPackageFileCard({
               : null}
             </div>
           </div>
-          <IntakePreviewBody line={line} row={row} />
+          <IntakePreviewBody
+            line={line}
+            row={row}
+            staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+          />
           <DialogFooter showCloseButton />
         </DialogContent>
       </Dialog>

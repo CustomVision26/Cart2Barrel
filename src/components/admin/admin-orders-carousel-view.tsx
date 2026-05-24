@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AdminOrderLinesDetailDialog } from "@/components/admin/admin-order-lines-detail-dialog";
+import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
 import { AdminOrderSlideCard } from "@/components/admin/admin-order-slide-card";
 import {
   Carousel,
@@ -18,6 +19,7 @@ import type {
   ItemQuote,
   ItemRequestLineSnapshot,
 } from "@/db/schema";
+import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
 import {
   groupOrdersForSlideLane,
   laneDescription,
@@ -43,16 +45,23 @@ export function AdminOrdersCarouselView({
   latestQuotesByRequestId = {},
   batchEstimatesBySessionId = {},
   orderContainerLinesByOrderId = {},
+  staffProfilesByClerkUserId = {},
 }: {
   rows: AdminPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
   latestQuotesByRequestId?: Record<string, ItemQuote>;
   batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
   const [detailGroup, setDetailGroup] = useState<AdminOrderSlideGroup | null>(
     null,
   );
+  const { setNestedPanelActive } = useAdminNestedPanelFocus();
+
+  useEffect(() => {
+    setNestedPanelActive(detailGroup != null);
+  }, [detailGroup, setNestedPanelActive]);
 
   const lanes = useMemo(
     () =>
@@ -149,6 +158,7 @@ export function AdminOrdersCarouselView({
         latestQuotesByRequestId={latestQuotesByRequestId}
         batchEstimatesBySessionId={batchEstimatesBySessionId}
         orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+        staffProfilesByClerkUserId={staffProfilesByClerkUserId}
       />
     </>
   );

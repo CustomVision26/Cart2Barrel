@@ -1,6 +1,10 @@
 import { AdminBatchQuoteHistoryPanel } from "@/components/admin/admin-batch-quote-history-panel";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
 import {
+  batchEstimateRecordedByClerkUserId,
+  loadAdminStaffProfilesByClerkUserIds,
+} from "@/lib/admin-staff-profiles";
+import {
   filterAdminSubmittedBatchBundles,
   parseAdminCustomerFilter,
 } from "@/lib/admin-customer-filter";
@@ -34,10 +38,17 @@ export default async function AdminBatchItemsBatchEstimatesPage({
     );
   }
 
+  const staffProfilesByClerkUserId = await loadAdminStaffProfilesByClerkUserIds(
+    batchQuoteHistoryBundles.map((bundle) =>
+      batchEstimateRecordedByClerkUserId(bundle.latestEstimate),
+    ),
+  );
+
   return (
     <AdminBatchQuoteHistoryPanel
       bundles={batchQuoteHistoryBundles}
       latestQuotesByRequestId={batchQuoteHistoryLatestQuotesByRequestId}
+      staffProfilesByClerkUserId={staffProfilesByClerkUserId}
     />
   );
 }

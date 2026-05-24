@@ -21,6 +21,8 @@ export type OrderItemReadCore = Pick<
   warehouseReceivedBarcodeImageUrl?: OrderItem["warehouseReceivedBarcodeImageUrl"];
   warehouseReceivedProofPhotoCount?: OrderItem["warehouseReceivedProofPhotoCount"];
   warehouseReceivedProofPhotoUrls?: OrderItem["warehouseReceivedProofPhotoUrls"];
+  warehouseReceivedByClerkUserId?: OrderItem["warehouseReceivedByClerkUserId"];
+  companyPurchaseUpdatedByClerkUserId?: OrderItem["companyPurchaseUpdatedByClerkUserId"];
 };
 
 export function effectiveOrderItemFulfillmentStatus(
