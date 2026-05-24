@@ -2,26 +2,35 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
-import { ClerkUserButton } from "@/components/clerk-user-button";
+import { HowItWorksPageMain } from "@/components/marketing/how-it-works-page-main";
+import { UserHeaderControls } from "@/components/user-header-controls";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
+import { DEFAULT_MERCHANT_SERVICE_TIERS } from "@/lib/admin-markup";
+import { buildServiceHandlingFeeChartRows } from "@/lib/service-handling-fee-chart";
 
 export default async function HowItWorksPage() {
   const { userId } = await auth();
 
+  let serviceFeeChartRows = buildServiceHandlingFeeChartRows(
+    DEFAULT_MERCHANT_SERVICE_TIERS,
+  );
+  try {
+    const pricing = await getMerchantPricingForEstimates(userId);
+    serviceFeeChartRows = buildServiceHandlingFeeChartRows(pricing.serviceTiers);
+  } catch {
+    serviceFeeChartRows = buildServiceHandlingFeeChartRows(
+      DEFAULT_MERCHANT_SERVICE_TIERS,
+    );
+  }
+
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background">
-      <header className="border-b border-border/80 px-4 py-3">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
+      <header className="border-b border-border/80 px-4 py-4 md:py-5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <BrandLogoLink />
-          <nav className="flex items-center gap-3">
-            {userId ? (
+          <nav className="flex items-center gap-2 sm:gap-3">
+            {userId ?
               <>
                 <span
                   className="px-3 py-2 text-sm font-medium text-foreground"
@@ -31,15 +40,15 @@ export default async function HowItWorksPage() {
                 </span>
                 <Button
                   variant="ghost"
+                  size="lg"
                   nativeButton={false}
                   render={<Link href="/dashboard" />}
                 >
                   Dashboard
                 </Button>
-                <ClerkUserButton />
+                <UserHeaderControls />
               </>
-            ) : (
-              <>
+            : <>
                 <span
                   className="px-3 py-2 text-sm font-medium text-foreground"
                   aria-current="page"
@@ -48,69 +57,25 @@ export default async function HowItWorksPage() {
                 </span>
                 <Button
                   variant="ghost"
+                  size="lg"
                   nativeButton={false}
                   render={<Link href="/login" />}
                 >
                   Sign in
                 </Button>
-                <Button nativeButton={false} render={<Link href="/signup" />}>
+                <Button size="lg" nativeButton={false} render={<Link href="/signup" />}>
                   Sign up
                 </Button>
               </>
-            )}
+            }
           </nav>
         </div>
       </header>
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12">
-        <div className="space-y-3">
-          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            How it works
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Ship more home for less
-          </h1>
-          <p className="max-w-2xl text-base leading-relaxed text-muted-foreground">
-            Browse and request items with agreed estimates, pay at checkout, and
-            we purchase on your behalf. Your goods arrive for barrel packing and
-            delivery to your address in Jamaica.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quotes &amp; cart</CardTitle>
-              <CardDescription>
-                Add vetted items once you accept an estimate; checkout when you are
-                ready.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Catalog, pricing, and cart flows come next on top of this account
-                profile.
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Barrel consolidation</CardTitle>
-              <CardDescription>
-                We receive at our hub, pack, and ship to the Jamaican address on
-                your saved shipping label.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Your shipping address (separate from account contact) is used for
-                every order after you complete onboarding.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-        <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
-          Back home
-        </Button>
-      </main>
+
+      <HowItWorksPageMain
+        isSignedIn={Boolean(userId)}
+        serviceFeeChartRows={serviceFeeChartRows}
+      />
     </div>
   );
 }

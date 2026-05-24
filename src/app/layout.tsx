@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 
-import { Toaster } from "sonner";
-
 import { PageLogoWatermark } from "@/components/brand/page-logo-watermark";
+import { ThemedToaster } from "@/components/theme/themed-toaster";
 
 import { AppProviders } from "./providers";
 
@@ -28,8 +27,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${poppins.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${poppins.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var c=localStorage.getItem("cart2barrel-interface-color");if(c&&c!=="default")document.documentElement.setAttribute("data-interface-color",c);}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
         className={`${poppins.className} min-h-full flex flex-col bg-background text-foreground`}
       >
@@ -38,7 +45,7 @@ export default function RootLayout({
           <div className="relative z-[1] flex min-h-full flex-1 flex-col">
             {children}
           </div>
-          <Toaster richColors closeButton theme="dark" />
+          <ThemedToaster />
         </AppProviders>
       </body>
     </html>

@@ -81,6 +81,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --brand-logo-glow: oklch(0.58 0.22 264);
+  --brand-logo-halo: oklch(0.98 0.02 264);
+  --brand-watermark-opacity: 0.28;
+  --brand-watermark-grayscale-start: 0.18;
+  --brand-watermark-grayscale-end: 0;
+  --brand-watermark-saturate: 1.45;
+  --brand-watermark-brightness: 1.06;
+  --brand-watermark-contrast: 1.1;
+  --brand-watermark-blend: multiply;
 }
 
 .dark {
@@ -117,6 +126,141 @@
   --sidebar-ring: oklch(0.556 0 0);
   --brand-logo-glow: oklch(0.488 0.243 264.376);
   --brand-logo-halo: oklch(0.985 0 0);
+  --brand-watermark-opacity: 0.16;
+  --brand-watermark-grayscale-start: 0.85;
+  --brand-watermark-grayscale-end: 0.75;
+  --brand-watermark-saturate: 1;
+  --brand-watermark-brightness: 1.15;
+  --brand-watermark-contrast: 1.2;
+  --brand-watermark-blend: soft-light;
+}
+
+:root[data-interface-color="blue"] {
+  --primary: oklch(0.45 0.2 264);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.55 0.18 264);
+  --sidebar-primary: oklch(0.45 0.2 264);
+  --brand-logo-glow: oklch(0.55 0.22 264);
+}
+
+.dark[data-interface-color="blue"] {
+  --primary: oklch(0.62 0.19 264);
+  --primary-foreground: oklch(0.15 0.02 264);
+  --ring: oklch(0.55 0.16 264);
+  --sidebar-primary: oklch(0.55 0.2 264);
+  --brand-logo-glow: oklch(0.62 0.22 264);
+}
+
+:root[data-interface-color="violet"] {
+  --primary: oklch(0.45 0.2 293);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.55 0.18 293);
+  --sidebar-primary: oklch(0.45 0.2 293);
+  --brand-logo-glow: oklch(0.55 0.22 293);
+}
+
+.dark[data-interface-color="violet"] {
+  --primary: oklch(0.65 0.18 293);
+  --primary-foreground: oklch(0.15 0.02 293);
+  --ring: oklch(0.55 0.16 293);
+  --sidebar-primary: oklch(0.55 0.2 293);
+  --brand-logo-glow: oklch(0.65 0.22 293);
+}
+
+:root[data-interface-color="emerald"] {
+  --primary: oklch(0.42 0.14 155);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.52 0.12 155);
+  --sidebar-primary: oklch(0.42 0.14 155);
+  --brand-logo-glow: oklch(0.55 0.16 155);
+}
+
+.dark[data-interface-color="emerald"] {
+  --primary: oklch(0.68 0.14 155);
+  --primary-foreground: oklch(0.15 0.02 155);
+  --ring: oklch(0.52 0.12 155);
+  --sidebar-primary: oklch(0.55 0.14 155);
+  --brand-logo-glow: oklch(0.68 0.16 155);
+}
+
+:root[data-interface-color="amber"] {
+  --primary: oklch(0.55 0.15 75);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.65 0.14 75);
+  --sidebar-primary: oklch(0.55 0.15 75);
+  --brand-logo-glow: oklch(0.72 0.17 75);
+}
+
+.dark[data-interface-color="amber"] {
+  --primary: oklch(0.78 0.14 75);
+  --primary-foreground: oklch(0.2 0.03 75);
+  --ring: oklch(0.65 0.12 75);
+  --sidebar-primary: oklch(0.72 0.15 75);
+  --brand-logo-glow: oklch(0.78 0.16 75);
+}
+
+:root[data-interface-color="rose"] {
+  --primary: oklch(0.5 0.18 12);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.58 0.16 12);
+  --sidebar-primary: oklch(0.5 0.18 12);
+  --brand-logo-glow: oklch(0.58 0.2 12);
+}
+
+.dark[data-interface-color="rose"] {
+  --primary: oklch(0.65 0.17 12);
+  --primary-foreground: oklch(0.15 0.02 12);
+  --ring: oklch(0.55 0.14 12);
+  --sidebar-primary: oklch(0.58 0.18 12);
+  --brand-logo-glow: oklch(0.65 0.2 12);
+}
+
+:root[data-interface-color="orange"] {
+  --primary: oklch(0.52 0.16 45);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.62 0.14 45);
+  --sidebar-primary: oklch(0.52 0.16 45);
+  --brand-logo-glow: oklch(0.65 0.18 45);
+}
+
+.dark[data-interface-color="orange"] {
+  --primary: oklch(0.72 0.15 45);
+  --primary-foreground: oklch(0.18 0.03 45);
+  --ring: oklch(0.6 0.13 45);
+  --sidebar-primary: oklch(0.65 0.16 45);
+  --brand-logo-glow: oklch(0.72 0.17 45);
+}
+
+:root[data-interface-color="teal"] {
+  --primary: oklch(0.42 0.1 180);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.52 0.09 180);
+  --sidebar-primary: oklch(0.42 0.1 180);
+  --brand-logo-glow: oklch(0.55 0.12 180);
+}
+
+.dark[data-interface-color="teal"] {
+  --primary: oklch(0.68 0.11 180);
+  --primary-foreground: oklch(0.15 0.02 180);
+  --ring: oklch(0.52 0.09 180);
+  --sidebar-primary: oklch(0.55 0.11 180);
+  --brand-logo-glow: oklch(0.68 0.13 180);
+}
+
+:root[data-interface-color="fuchsia"] {
+  --primary: oklch(0.48 0.22 320);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.58 0.18 320);
+  --sidebar-primary: oklch(0.48 0.22 320);
+  --brand-logo-glow: oklch(0.58 0.24 320);
+}
+
+.dark[data-interface-color="fuchsia"] {
+  --primary: oklch(0.65 0.2 320);
+  --primary-foreground: oklch(0.15 0.02 320);
+  --ring: oklch(0.55 0.16 320);
+  --sidebar-primary: oklch(0.58 0.22 320);
+  --brand-logo-glow: oklch(0.65 0.24 320);
 }
 
 @layer base {
@@ -134,13 +278,21 @@
 @keyframes brand-logo-watermark-enter {
   0% {
     opacity: 0;
-    filter: grayscale(0.85) brightness(1) contrast(1) blur(2px);
+    filter: grayscale(var(--brand-watermark-grayscale-start, 0.85))
+      brightness(1)
+      contrast(1)
+      saturate(var(--brand-watermark-saturate, 1))
+      blur(2px);
     transform: perspective(900px) rotateX(18deg) rotateY(-16deg) scale(0.92)
       translateY(12px);
   }
   100% {
     opacity: var(--brand-watermark-opacity, 0.16);
-    filter: grayscale(0.75) brightness(1.15) contrast(1.2) blur(0);
+    filter: grayscale(var(--brand-watermark-grayscale-end, 0.75))
+      brightness(var(--brand-watermark-brightness, 1.15))
+      contrast(var(--brand-watermark-contrast, 1.2))
+      saturate(var(--brand-watermark-saturate, 1))
+      blur(0);
     transform: perspective(900px) rotateX(11deg) rotateY(-9deg) scale(1)
       translateY(0);
   }
@@ -196,6 +348,19 @@
       drop-shadow(0 8px 20px rgb(0 0 0 / 0.25));
   }
 
+  :root:not(.dark) .brand-logo-scene--watermark {
+    filter:
+      drop-shadow(
+        0 24px 56px color-mix(in oklch, var(--brand-logo-glow) 32%, transparent)
+      )
+      drop-shadow(
+        0 10px 28px color-mix(in oklch, var(--brand-logo-glow) 22%, transparent)
+      )
+      drop-shadow(
+        0 0 48px color-mix(in oklch, var(--brand-logo-halo) 18%, transparent)
+      );
+  }
+
   .dark .brand-logo-3d--header {
     transform: perspective(520px) rotateY(-10deg) rotateX(5deg) translateZ(6px);
     filter: brightness(1.22) contrast(1.28) saturate(1.18)
@@ -245,9 +410,8 @@
   }
 
   .brand-logo-watermark {
-    --brand-watermark-opacity: 0.16;
     opacity: 0;
-    mix-blend-mode: soft-light;
+    mix-blend-mode: var(--brand-watermark-blend, soft-light);
     animation:
       brand-logo-watermark-enter 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards,
       brand-logo-watermark-breathe 10s ease-in-out 1.4s infinite;
@@ -303,5 +467,176 @@
       rgb(139 92 246 / 0.2),
       rgb(139 92 246)
     );
+  }
+}
+
+/* Marketing pages — scroll / load reveals */
+.marketing-reveal {
+  opacity: 0;
+  transform: translateY(1.25rem);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.marketing-reveal--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.marketing-reveal-left {
+  transform: translateX(-1rem);
+}
+
+.marketing-reveal-left.marketing-reveal--visible {
+  transform: translateX(0);
+}
+
+.marketing-reveal-right {
+  transform: translateX(1rem);
+}
+
+.marketing-reveal-right.marketing-reveal--visible {
+  transform: translateX(0);
+}
+
+.marketing-reveal-static {
+  transform: none;
+}
+
+.marketing-reveal-static.marketing-reveal--visible {
+  transform: none;
+}
+
+.marketing-highlight-card {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+.marketing-highlight-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklch, var(--primary) 35%, var(--border));
+  box-shadow:
+    0 12px 28px rgb(0 0 0 / 0.18),
+    0 0 0 1px color-mix(in oklch, var(--primary) 18%, transparent);
+}
+
+.marketing-step-column {
+  opacity: 0;
+  transform: translateX(-0.75rem);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--reveal-delay, 0ms) + 60ms);
+}
+
+.marketing-reveal--visible .marketing-step-column {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.marketing-step-card {
+  opacity: 0;
+  transform: translateX(0.75rem);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--reveal-delay, 0ms) + 120ms);
+}
+
+.marketing-reveal--visible .marketing-step-card {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.marketing-step-icon {
+  transform: scale(0.88);
+  transition:
+    transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.45s ease;
+  transition-delay: calc(var(--reveal-delay, 0ms) + 80ms);
+}
+
+.marketing-reveal--visible .marketing-step-icon {
+  transform: scale(1);
+}
+
+.marketing-step-icon:hover {
+  box-shadow:
+    0 0 0 4px color-mix(in oklch, var(--primary) 22%, transparent),
+    0 8px 20px rgb(0 0 0 / 0.22);
+}
+
+.marketing-timeline-line {
+  transform-origin: top center;
+  transform: scaleY(0);
+  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--reveal-delay, 0ms) + 120ms);
+}
+
+.marketing-reveal--visible .marketing-timeline-line {
+  transform: scaleY(1);
+}
+
+.marketing-live-note {
+  transform: translateY(0.35rem);
+  opacity: 0;
+  transition:
+    opacity 0.55s ease,
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--reveal-delay, 0ms) + 180ms);
+}
+
+.marketing-reveal--visible .marketing-live-note {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-reveal,
+  .marketing-reveal-left,
+  .marketing-reveal-right {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .marketing-highlight-card,
+  .marketing-highlight-card:hover {
+    transform: none;
+    transition: none;
+  }
+
+  .marketing-step-column,
+  .marketing-reveal--visible .marketing-step-column,
+  .marketing-step-card,
+  .marketing-reveal--visible .marketing-step-card {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .marketing-step-icon,
+  .marketing-reveal--visible .marketing-step-icon,
+  .marketing-step-icon:hover {
+    transform: none;
+    transition: none;
+  }
+
+  .marketing-timeline-line,
+  .marketing-reveal--visible .marketing-timeline-line {
+    transform: none;
+    transition: none;
+  }
+
+  .marketing-live-note,
+  .marketing-reveal--visible .marketing-live-note {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }

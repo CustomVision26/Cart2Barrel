@@ -16,7 +16,7 @@ type BrandLogoLinkProps = {
 export function BrandLogoLink({
   href = "/",
   className,
-  showWordmark = true,
+  showWordmark = false,
   priority = false,
 }: BrandLogoLinkProps) {
   return (

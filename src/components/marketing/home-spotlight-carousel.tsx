@@ -16,9 +16,11 @@ import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
 } from "@/components/ui/carousel";
+import {
+  SpotlightCategoryCarouselNext,
+  SpotlightCategoryCarouselPrevious,
+} from "@/components/marketing/spotlight-carousel-nav";
 import { SpotlightAllCategoriesCatalogDialog } from "@/components/marketing/spotlight-all-categories-catalog-dialog";
 import { SpotlightCategoryProductsDialog } from "@/components/marketing/spotlight-category-products-dialog";
 import { SpotlightProductOffersCarousel } from "@/components/marketing/spotlight-product-offers-carousel";
@@ -99,8 +101,8 @@ export function HomeSpotlightCarousel({
         </div>
         <Button
           variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground"
+          size="default"
+          className="text-base text-muted-foreground hover:text-foreground"
           onClick={() => setCatalogOpen(true)}
         >
           View all categories
@@ -108,7 +110,7 @@ export function HomeSpotlightCarousel({
       </div>
 
       <Carousel opts={{ align: "start", loop: true }} className="w-full">
-        <div className="relative">
+        <div className="relative px-2 sm:px-4">
           <CarouselContent className="-ml-3 md:-ml-4">
             {SPOTLIGHT_CATEGORIES.map((slide) => {
               const Icon = slide.icon;
@@ -157,11 +159,11 @@ export function HomeSpotlightCarousel({
                       }
                     </CardContent>
 
-                    <CardFooter className="shrink-0 border-t border-border/60 bg-muted/30">
+                    <CardFooter className="shrink-0 border-t border-border/60 bg-muted/30 px-4 py-4">
                       <Button
                         variant="secondary"
-                        size="sm"
-                        className="w-full"
+                        size="lg"
+                        className="h-11 w-full text-base"
                         onClick={() => openCategory(slide)}
                       >
                         View all in {slide.title}
@@ -172,14 +174,8 @@ export function HomeSpotlightCarousel({
               );
             })}
           </CarouselContent>
-          <CarouselPrevious
-            variant="outline"
-            className="left-0 border-border bg-background/90 shadow-sm backdrop-blur sm:-left-1"
-          />
-          <CarouselNext
-            variant="outline"
-            className="right-0 border-border bg-background/90 shadow-sm backdrop-blur sm:-right-1"
-          />
+          <SpotlightCategoryCarouselPrevious />
+          <SpotlightCategoryCarouselNext />
         </div>
       </Carousel>
 

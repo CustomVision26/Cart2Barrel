@@ -19,10 +19,7 @@ export async function AuthMarketingBackdrop() {
     >
       <header className="border-b border-border/80 px-4 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <BrandLogoLink
-            className="pointer-events-none"
-            showWordmark={false}
-          />
+          <BrandLogoLink className="pointer-events-none" />
         </div>
       </header>
       <HomeStorefront isSignedIn={false} productsByCategory={productsByCategory} />

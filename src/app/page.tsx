@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
-import { ClerkUserButton } from "@/components/clerk-user-button";
+import { UserHeaderControls } from "@/components/user-header-controls";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { HomeStorefront } from "@/components/marketing/home-storefront";
 import { Button } from "@/components/ui/button";
@@ -29,30 +29,30 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background">
-      <header className="border-b border-border/80 px-4 py-3">
+      <header className="border-b border-border/80 px-4 py-4 md:py-5">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <BrandLogoLink priority />
-          <nav className="flex items-center gap-3">
+          <nav className="flex items-center gap-2 sm:gap-3">
             {userId ? (
               <>
-                <Button variant="ghost" nativeButton={false} render={<Link href="/how-it-works" />}>
+                <Button variant="ghost" size="lg" nativeButton={false} render={<Link href="/how-it-works" />}>
                   How it works
                 </Button>
-                <Button variant="ghost" nativeButton={false} render={<Link href="/dashboard" />}>
+                <Button variant="ghost" size="lg" nativeButton={false} render={<Link href="/dashboard" />}>
                   Dashboard
                 </Button>
                 <CartHeaderLink />
-                <ClerkUserButton />
+                <UserHeaderControls />
               </>
             ) : (
               <>
-                <Button variant="ghost" nativeButton={false} render={<Link href="/how-it-works" />}>
+                <Button variant="ghost" size="lg" nativeButton={false} render={<Link href="/how-it-works" />}>
                   How it works
                 </Button>
-                <Button variant="ghost" nativeButton={false} render={<Link href="/login" />}>
+                <Button variant="ghost" size="lg" nativeButton={false} render={<Link href="/login" />}>
                   Sign in
                 </Button>
-                <Button nativeButton={false} render={<Link href="/signup" />}>
+                <Button size="lg" nativeButton={false} render={<Link href="/signup" />}>
                   Sign up
                 </Button>
               </>

@@ -8,9 +8,11 @@ import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
 } from "@/components/ui/carousel";
+import {
+  SpotlightProductCarouselNext,
+  SpotlightProductCarouselPrevious,
+} from "@/components/marketing/spotlight-carousel-nav";
 import { formatUsd } from "@/lib/admin-markup";
 import { cn } from "@/lib/utils";
 
@@ -126,7 +128,7 @@ export function SpotlightProductOffersCarousel({
       opts={{ align: "start", loop: enableLoop, dragFree: true }}
       className={cn("w-full", className)}
     >
-      <div className="relative">
+      <div className="relative px-0.5 sm:px-1">
         <CarouselContent className="-ml-3">
           {offers.map((offer) => (
             <CarouselItem key={offer.id} className={SLIDE_BASIS}>
@@ -136,14 +138,8 @@ export function SpotlightProductOffersCarousel({
         </CarouselContent>
         {showControls && offers.length > 1 ?
           <>
-            <CarouselPrevious
-              variant="outline"
-              className="left-0 border-border bg-background/95 shadow-sm backdrop-blur sm:-left-1"
-            />
-            <CarouselNext
-              variant="outline"
-              className="right-0 border-border bg-background/95 shadow-sm backdrop-blur sm:-right-1"
-            />
+            <SpotlightProductCarouselPrevious />
+            <SpotlightProductCarouselNext />
           </>
         : null}
       </div>

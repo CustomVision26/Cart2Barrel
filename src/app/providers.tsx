@@ -1,18 +1,10 @@
 "use client";
 
-import { ClerkProvider } from "@clerk/nextjs";
 import type { ReactNode } from "react";
 
-/** Wraps Clerk on the client so Clerk UI (e.g. `<UserButton />`) always sees React context under Next.js App Router + Turbopack. */
+import { ThemeProvider } from "@/components/theme/theme-provider";
+
+/** Client providers: theme, appearance, and Clerk (themed). */
 export function AppProviders({ children }: { children: ReactNode }) {
-  return (
-    <ClerkProvider
-      dynamic
-      appearance={{
-        baseTheme: "dark",
-      }}
-    >
-      {children}
-    </ClerkProvider>
-  );
+  return <ThemeProvider>{children}</ThemeProvider>;
 }

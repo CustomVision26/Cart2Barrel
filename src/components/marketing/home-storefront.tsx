@@ -34,7 +34,7 @@ export function HomeStorefront({
         <div className="space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
             <Sparkles className="size-3.5 text-amber-500" aria-hidden />
-            Shop US stores · Delivered to Jamaica
+            Shop & Ship From US stores · Delivered to Caribbean and The World
           </div>
           <div className="space-y-3">
             <h1 className="font-heading text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
@@ -76,13 +76,13 @@ export function HomeStorefront({
               How it works
             </Button>
           </div>
-          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-2">
-              <Truck className="size-4 text-foreground/80" aria-hidden />
+          <div className="flex flex-wrap gap-8 rounded-xl border border-border/60 bg-muted/25 px-4 py-3.5 text-base text-muted-foreground">
+            <span className="inline-flex items-center gap-2.5 font-medium">
+              <Truck className="size-5 text-foreground/80" aria-hidden />
               Hub consolidation
             </span>
-            <span className="inline-flex items-center gap-2">
-              <Package className="size-4 text-foreground/80" aria-hidden />
+            <span className="inline-flex items-center gap-2.5 font-medium">
+              <Package className="size-5 text-foreground/80" aria-hidden />
               Barrel-ready packing
             </span>
           </div>
