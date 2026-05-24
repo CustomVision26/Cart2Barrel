@@ -20,6 +20,7 @@ import {
   groupReturnRequestsByItemRequestId,
   listOutsidePurchaseReturnRequestsByItemRequestIds,
 } from "@/data/outside-purchase-return-requests";
+import { getOrderContextByItemRequestIds } from "@/data/item-request-order-context";
 import { fulfillmentProductHistoryLabelFromSnapshots } from "@/lib/product-history-fulfillment";
 
 export default async function DashboardAddItemLayout({
@@ -54,11 +55,13 @@ export default async function DashboardAddItemLayout({
     ]),
   ];
 
-  const [snapshotRows, quoteRows, returnRequestRows] = await Promise.all([
-    listItemRequestLineSnapshotsForOwnerByRequestIds(userId, snapshotRequestIds),
-    listItemQuotesForOwnerByRequestIds(userId, snapshotRequestIds),
-    listOutsidePurchaseReturnRequestsByItemRequestIds(snapshotRequestIds),
-  ]);
+  const [snapshotRows, quoteRows, returnRequestRows, orderContextMap] =
+    await Promise.all([
+      listItemRequestLineSnapshotsForOwnerByRequestIds(userId, snapshotRequestIds),
+      listItemQuotesForOwnerByRequestIds(userId, snapshotRequestIds),
+      listOutsidePurchaseReturnRequestsByItemRequestIds(snapshotRequestIds),
+      getOrderContextByItemRequestIds(snapshotRequestIds),
+    ]);
 
   const snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]> =
     Object.fromEntries(groupItemRequestLineSnapshotsByRequestId(snapshotRows));
@@ -72,6 +75,8 @@ export default async function DashboardAddItemLayout({
   const returnRequestsByItemRequestId = groupReturnRequestsByItemRequestId(
     returnRequestRows,
   );
+
+  const orderContextByRequestId = Object.fromEntries(orderContextMap);
 
   const fulfillmentLabelByRequestId: Record<string, string> = {};
   const allLabelRequests = [
@@ -119,6 +124,7 @@ export default async function DashboardAddItemLayout({
           quotesByRequestId,
           fulfillmentLabelByRequestId,
           returnRequestsByItemRequestId,
+          orderContextByRequestId,
         }}
       >
         {children}

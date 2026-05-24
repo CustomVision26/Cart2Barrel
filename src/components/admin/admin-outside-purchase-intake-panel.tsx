@@ -20,6 +20,7 @@ import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-secti
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import type { OutsidePurchaseIntakeAdminRow } from "@/data/outside-purchase-intake";
 import type { AdminProfilePickerRow } from "@/data/customer-pricing-packages";
 import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
@@ -32,11 +33,11 @@ import {
   formatOutsidePurchaseReference,
   outsidePurchaseReferenceDisplay,
 } from "@/lib/outside-purchase";
-import {
-  outsidePurchaseWorkflowBadgeKind,
-} from "@/lib/outside-purchase-display";
 import { OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX } from "@/lib/outside-purchase-staff-note";
-import { itemRequestStatusLabelForDisplay } from "@/lib/item-request-status-label";
+import {
+  itemRequestStatusBadgeKindForDisplay,
+  itemRequestStatusLabelForDisplay,
+} from "@/lib/item-request-status-label";
 import type { OutsidePurchaseReturnRequest } from "@/db/schema";
 import { displayProductSiteName } from "@/lib/site-name";
 import {
@@ -80,6 +81,7 @@ type AdminOutsidePurchaseIntakePanelProps = {
   latestQuotesByRequestId: Record<string, ItemQuote>;
   returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>;
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
+  orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
   serviceTiers: MerchantServiceTierRow[];
 };
 
@@ -89,6 +91,7 @@ export function AdminOutsidePurchaseIntakePanel({
   latestQuotesByRequestId,
   returnRequestsByItemRequestId,
   snapshotsByRequestId = {},
+  orderContextByRequestId = {},
   serviceTiers,
 }: AdminOutsidePurchaseIntakePanelProps) {
   const router = useRouter();
@@ -683,10 +686,29 @@ export function AdminOutsidePurchaseIntakePanel({
                       </td>
                       <td className="px-3 py-3">
                         <StatusBadge
-                          kind={outsidePurchaseWorkflowBadgeKind(r, returnReq)}
-                          title={r.status}
+                          kind={itemRequestStatusBadgeKindForDisplay(
+                            r,
+                            returnReq,
+                            orderContextByRequestId[r.id],
+                            "admin",
+                          )}
+                          title={
+                            orderContextByRequestId[r.id] ?
+                              itemRequestStatusLabelForDisplay(
+                                r,
+                                returnReq,
+                                orderContextByRequestId[r.id],
+                                "admin",
+                              )
+                            : r.status
+                          }
                         >
-                          {itemRequestStatusLabelForDisplay(r, returnReq)}
+                          {itemRequestStatusLabelForDisplay(
+                            r,
+                            returnReq,
+                            orderContextByRequestId[r.id],
+                            "admin",
+                          )}
                         </StatusBadge>
                         {prompted ?
                           <p className="mt-1 text-[10px] text-muted-foreground">

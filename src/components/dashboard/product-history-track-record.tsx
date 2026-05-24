@@ -13,6 +13,7 @@ import type {
   ItemRequestLineSnapshot,
   OutsidePurchaseReturnRequest,
 } from "@/db/schema";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { outsidePurchaseReferenceLabel } from "@/lib/outside-purchase-lifecycle";
 import {
@@ -75,12 +76,14 @@ function eventPreview(
   event: ProductHistoryTimelineEvent,
   request: ItemRequest,
   statusLabel: string,
+  warehouseProofPhotoUrls?: string[] | null,
 ): ProductHistoryTimelinePreview {
   if (event.kind === "snapshot" && event.snapshot) {
     return {
       kind: "snapshot",
       snapshot: event.snapshot,
       prevSnapshot: event.prevSnapshot ?? null,
+      warehouseProofPhotoUrls,
     };
   }
   return { kind: "current", request, statusLabel };
@@ -92,6 +95,7 @@ export function ProductHistoryTrackRecord({
   quotes,
   fulfillmentLabelOverride,
   returnRequest,
+  orderContext,
   statusLabel,
   defaultOpen = true,
 }: {
@@ -100,6 +104,7 @@ export function ProductHistoryTrackRecord({
   quotes: ItemQuote[];
   fulfillmentLabelOverride?: string | null;
   returnRequest?: OutsidePurchaseReturnRequest | null;
+  orderContext?: ItemRequestOrderContext | null;
   statusLabel: string;
   defaultOpen?: boolean;
 }) {
@@ -108,14 +113,22 @@ export function ProductHistoryTrackRecord({
     [quotes],
   );
   const outsidePurchase = isOutsidePurchaseRequest(request);
-  const events = useMemo(
-    () =>
-      buildProductHistoryTimelineEvents(request, snapshots, quotesById, {
-        fulfillmentLabelOverride,
-        returnRequest,
-      }),
-    [request, snapshots, quotesById, fulfillmentLabelOverride, returnRequest],
-  );
+  const events = useMemo(() => {
+    const built = buildProductHistoryTimelineEvents(request, snapshots, quotesById, {
+      fulfillmentLabelOverride,
+      returnRequest,
+      orderContext,
+      audience: "customer",
+    });
+    return [...built].reverse();
+  }, [
+      request,
+      snapshots,
+      quotesById,
+      fulfillmentLabelOverride,
+      returnRequest,
+      orderContext,
+  ]);
   const opRef = outsidePurchase ? outsidePurchaseReferenceLabel(request) : null;
 
   if (events.length === 0) {
@@ -190,7 +203,14 @@ export function ProductHistoryTrackRecord({
                   <ProductHistoryEventPreviewDialog
                     eventLabel={event.label}
                     eventHeadline={event.headline}
-                    preview={eventPreview(event, request, statusLabel)}
+                    preview={eventPreview(
+                      event,
+                      request,
+                      statusLabel,
+                      event.snapshot?.phase === "warehouse_delivery_received" ?
+                        orderContext?.orderItem.warehouseReceivedProofPhotoUrls ?? null
+                      : null,
+                    )}
                   />
                 </div>
               </div>

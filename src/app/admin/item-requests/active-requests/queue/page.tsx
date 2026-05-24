@@ -1,5 +1,6 @@
 import { AdminItemRequestsGroupedTable } from "@/components/admin/admin-item-requests-grouped-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import { getOrderContextByItemRequestIds } from "@/data/item-request-order-context";
 import {
   groupReturnRequestsByItemRequestId,
   listOutsidePurchaseReturnRequestsByItemRequestIds,
@@ -47,12 +48,17 @@ export default async function AdminItemRequestsQueuePage({ searchParams }: PageP
     const returnRequestsByItemRequestId =
       groupReturnRequestsByItemRequestId(returnRows);
 
+    const orderContextByRequestId = await getOrderContextByItemRequestIds(
+      queueRequestIds,
+    );
+
     return (
       <AdminItemRequestsGroupedTable
         groups={queueGroups}
         snapshotsByRequestId={snapshotsByRequestId}
         latestQuotesByRequestId={activeQueueLatestQuotesByRequestId}
         returnRequestsByItemRequestId={returnRequestsByItemRequestId}
+        orderContextByRequestId={Object.fromEntries(orderContextByRequestId)}
         merchantEstimateFees={merchantEstimateFees}
       />
     );

@@ -422,6 +422,10 @@ export function AdminPackageFileCard({
   const orderSlice = { status: line.orderStatus };
   const fulfillment = effectiveOrderItemFulfillmentStatus(line.orderItem, orderSlice);
   const pendingRefund = line.pendingRefundRequest != null;
+  const statusLabel = adminOrderLineStatusLabel(fulfillment, {
+    pendingRefundRequest: pendingRefund,
+    warehouseReceivedCondition: line.orderItem.warehouseReceivedCondition,
+  });
 
   const openEdit = () => {
     setEditDraft(row);
@@ -453,15 +457,10 @@ export function AdminPackageFileCard({
             kind={orderItemFulfillmentBadgeKind(line.orderItem, orderSlice, {
               pendingRefundRequest: pendingRefund,
             })}
-            title={fulfillment}
-            className="max-w-full truncate text-[10px]"
+            title={statusLabel}
+            className="whitespace-normal text-[10px] leading-snug"
           >
-            <span className="line-clamp-1">
-              {adminOrderLineStatusLabel(fulfillment, {
-                pendingRefundRequest: pendingRefund,
-                warehouseReceivedCondition: line.orderItem.warehouseReceivedCondition,
-              })}
-            </span>
+            {statusLabel}
           </StatusBadge>
         </div>
         <h3

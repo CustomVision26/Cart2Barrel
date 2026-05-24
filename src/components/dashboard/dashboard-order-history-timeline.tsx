@@ -73,7 +73,15 @@ function orderLineTimelineEvents(
       detail: auditSnapshotChangeSummary(snap, prev),
       at: snap.createdAt,
       kind: "snapshot" as const,
-      preview: { kind: "snapshot", snapshot: snap, prevSnapshot: prev },
+      preview: {
+        kind: "snapshot" as const,
+        snapshot: snap,
+        prevSnapshot: prev,
+        warehouseProofPhotoUrls:
+          snap.phase === "warehouse_delivery_received" ?
+            row.orderItem.warehouseReceivedProofPhotoUrls ?? null
+          : null,
+      },
     };
   });
 
@@ -115,7 +123,7 @@ function orderLineTimelineEvents(
     preview: { kind: "current", row },
   });
 
-  return events;
+  return [...events].reverse();
 }
 
 function shortId(id: string): string {

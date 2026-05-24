@@ -64,6 +64,21 @@ export function parseWarehouseReceiptMemo(
   }
 }
 
+/** Memo URLs win; v1 / legacy memos fall back to live order-line proof URLs for active intake. */
+export function warehouseReceiptIntakePhotoUrls(
+  wr: ParsedWarehouseReceiptMemo,
+  fallbackUrls?: string[] | null,
+): string[] {
+  const fromMemo = wr.proofPhotoUrls?.filter((url) => url.trim().length > 0) ?? [];
+  if (fromMemo.length > 0) {
+    return fromMemo;
+  }
+  if (wr.intakeRole === "prior") {
+    return [];
+  }
+  return (fallbackUrls ?? []).filter((url) => url.trim().length > 0);
+}
+
 export function buildWarehouseReceiptAuditMemo(
   input: WarehouseReceiptMemoV1,
 ): string {

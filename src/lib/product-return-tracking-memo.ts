@@ -1,3 +1,5 @@
+import type { ProductReturnDesiredOutcome } from "@/lib/product-return-desired-outcome";
+import { PRODUCT_RETURN_AWAITING_REFUND_LABEL } from "@/lib/product-return-request-labels";
 import { z } from "zod";
 
 export const PRODUCT_RETURN_STATUS_HEADLINE = "Product return: awaiting delivery";
@@ -35,11 +37,16 @@ export function parseProductReturnTrackingMemo(
 }
 
 export function productReturnTrackingHumanNote(input: {
+  desiredOutcome?: ProductReturnDesiredOutcome | null;
   trackingUrl?: string | null;
   retailerTrackingCompany?: string | null;
   retailerTrackingNumber?: string | null;
 }): string {
-  const lines: string[] = [PRODUCT_RETURN_STATUS_HEADLINE];
+  const headline =
+    input.desiredOutcome === "money_back" ?
+      PRODUCT_RETURN_AWAITING_REFUND_LABEL
+    : PRODUCT_RETURN_STATUS_HEADLINE;
+  const lines: string[] = [headline];
   const u = input.trackingUrl?.trim();
   const co = input.retailerTrackingCompany?.trim();
   const num = input.retailerTrackingNumber?.trim();

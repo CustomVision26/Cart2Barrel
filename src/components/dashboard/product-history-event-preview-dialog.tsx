@@ -20,6 +20,7 @@ export type ProductHistoryTimelinePreview =
       kind: "snapshot";
       snapshot: ItemRequestLineSnapshot;
       prevSnapshot: ItemRequestLineSnapshot | null;
+      warehouseProofPhotoUrls?: string[] | null;
     }
   | { kind: "current"; request: ItemRequest; statusLabel: string };
 
@@ -69,10 +70,12 @@ export function ProductHistoryEventPreviewDialog({
   eventLabel,
   eventHeadline,
   preview,
+  triggerLabel = "View record",
 }: {
   eventLabel: string;
   eventHeadline: string;
   preview: ProductHistoryTimelinePreview;
+  triggerLabel?: string;
 }) {
   return (
     <Dialog>
@@ -80,7 +83,7 @@ export function ProductHistoryEventPreviewDialog({
         type="button"
         className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-7 px-2 text-xs")}
       >
-        View record
+        {triggerLabel}
       </DialogTrigger>
       <DialogContent className="max-h-[min(90vh,46rem)] w-[min(96vw,56rem)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
@@ -91,6 +94,7 @@ export function ProductHistoryEventPreviewDialog({
           <ItemRequestLineSnapshotPreviewPanel
             row={preview.snapshot}
             prevRow={preview.prevSnapshot}
+            warehouseProofPhotoUrls={preview.warehouseProofPhotoUrls}
           />
         : <CurrentProductStatusPreviewPanel
             request={preview.request}

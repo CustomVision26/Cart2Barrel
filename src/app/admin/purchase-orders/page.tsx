@@ -9,6 +9,7 @@ import {
 } from "@/data/item-request-line-snapshots";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminListQuery } from "@/lib/admin-customer-filter";
+import { PRODUCT_RETURN_AWAITING_REFUND_LABEL } from "@/lib/product-return-request-labels";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 type PageProps = {
@@ -74,7 +75,7 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
           receipts, problem receipts you are correcting, replacement returns in transit (
           <span className="font-medium text-foreground">returned:awaiting delivery</span>), and
           money-back returns (
-          <span className="font-medium text-foreground">Product Returned: awaiting refund</span>
+          <span className="font-medium text-foreground">{PRODUCT_RETURN_AWAITING_REFUND_LABEL}</span>
           ) after staff save return tracking. When{" "}
           <span className="font-medium text-foreground">Received delivery</span> records condition{" "}
           <span className="font-medium text-foreground">Good</span>, fulfillment becomes{" "}

@@ -24,6 +24,7 @@ export type OrderHistoryTimelinePreview =
       kind: "snapshot";
       snapshot: ItemRequestLineSnapshot;
       prevSnapshot: ItemRequestLineSnapshot | null;
+      warehouseProofPhotoUrls?: string[] | null;
     }
   | { kind: "checkout_fallback"; row: DashboardPaidOrderLineRow }
   | { kind: "current"; row: DashboardPaidOrderLineRow };
@@ -201,6 +202,7 @@ export function DashboardOrderHistoryEventPreviewDialog({
           <ItemRequestLineSnapshotPreviewPanel
             row={preview.snapshot}
             prevRow={preview.prevSnapshot}
+            warehouseProofPhotoUrls={preview.warehouseProofPhotoUrls}
           />
         : preview.kind === "checkout_fallback" ?
           <CheckoutFallbackPreviewPanel row={preview.row} />

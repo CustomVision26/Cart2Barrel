@@ -40,12 +40,14 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ItemRequest } from "@/db/schema";
+import type { ItemRequest, OutsidePurchaseReturnRequest } from "@/db/schema";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import { validateQuotedFullSiteSelection } from "@/lib/batch-quote-validation";
 import { canonicalBatchSiteKey } from "@/lib/batch-site-key";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
 import {
+  itemRequestStatusBadgeKindForDisplay,
   itemRequestStatusLabel,
   itemRequestStatusLabelForDisplay,
 } from "@/lib/item-request-status-label";
@@ -57,7 +59,6 @@ import {
   outsidePurchaseShowsPreviewEstimateInTable,
   outsidePurchaseShowsReturnPreviewAction,
   outsidePurchaseShowsReturnToRetailerAction,
-  outsidePurchaseWorkflowBadgeKind,
 } from "@/lib/outside-purchase-display";
 import { isOutsidePurchaseRequest, outsidePurchaseReferenceDisplay } from "@/lib/outside-purchase";
 import { displayProductSiteName, displaySiteName } from "@/lib/site-name";
@@ -80,9 +81,20 @@ type SiteGroupMeta = {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
-function rowMatchesProductsSearch(r: ItemRequest, query: string): boolean {
+function rowMatchesProductsSearch(
+  r: ItemRequest,
+  query: string,
+  returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>,
+  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
+): boolean {
   if (!query) return true;
-  const statusLabel = itemRequestStatusLabelForDisplay(r);
+  const returnReq = returnRequestsByItemRequestId[r.id] ?? null;
+  const statusLabel = itemRequestStatusLabelForDisplay(
+    r,
+    returnReq,
+    orderContextByRequestId[r.id],
+    "customer",
+  );
   const site = displayProductSiteName(r);
   const outsideRef = outsidePurchaseReferenceDisplay(r);
   const haystack = [
@@ -166,8 +178,12 @@ type ItemsNewProductsPanelProps = {
 export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelProps) {
   const router = useRouter();
 
-  const { activeRequests, batchBundles, returnRequestsByItemRequestId } =
-    useAddItemPayload();
+  const {
+    activeRequests,
+    batchBundles,
+    returnRequestsByItemRequestId,
+    orderContextByRequestId,
+  } = useAddItemPayload();
   const { batchSelectedIds, setBatchSelectedIds } = useBatchQuoteSelection();
 
   const requestIdsInBatchQuotes = useMemo(() => {
@@ -220,7 +236,12 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
     let rows = activeRequests;
     if (normalizedProductsQuery) {
       rows = rows.filter((r) =>
-        rowMatchesProductsSearch(r, normalizedProductsQuery)
+        rowMatchesProductsSearch(
+          r,
+          normalizedProductsQuery,
+          returnRequestsByItemRequestId,
+          orderContextByRequestId,
+        ),
       );
     }
     if (productsAvailabilityFilter === "active") {
@@ -234,6 +255,8 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
     normalizedProductsQuery,
     productsAvailabilityFilter,
     isInBatchQuote,
+    returnRequestsByItemRequestId,
+    orderContextByRequestId,
   ]);
 
   const sortedActive = useMemo(
@@ -943,13 +966,23 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                             {(() => {
                               const returnReq =
                                 returnRequestsByItemRequestId[r.id] ?? null;
-                              const badgeKind =
-                                isOutsidePurchaseRequest(r) ?
-                                  outsidePurchaseWorkflowBadgeKind(r, returnReq)
-                                : itemRequestWorkflowBadgeKind(r.status);
+                              const orderContext = orderContextByRequestId[r.id];
+                              const badgeKind = isOutsidePurchaseRequest(r) ?
+                                itemRequestStatusBadgeKindForDisplay(
+                                  r,
+                                  returnReq,
+                                  orderContext,
+                                  "customer",
+                                )
+                              : itemRequestWorkflowBadgeKind(r.status);
                               return (
                                 <StatusBadge kind={badgeKind} title={r.status}>
-                                  {itemRequestStatusLabelForDisplay(r, returnReq)}
+                                  {itemRequestStatusLabelForDisplay(
+                                    r,
+                                    returnReq,
+                                    orderContext,
+                                    "customer",
+                                  )}
                                 </StatusBadge>
                               );
                             })()}

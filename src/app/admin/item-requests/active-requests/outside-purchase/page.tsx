@@ -6,6 +6,7 @@ import {
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
+import { getOrderContextByItemRequestIds } from "@/data/item-request-order-context";
 import { listOutsidePurchaseIntakesForAdmin } from "@/data/outside-purchase-intake";
 import {
   groupReturnRequestsByItemRequestId,
@@ -57,6 +58,9 @@ export default async function AdminOutsidePurchaseIntakePage({
     groupItemRequestLineSnapshotsByRequestId(snapshotRows),
   );
 
+  const orderContextByRequestId = await getOrderContextByItemRequestIds(requestIds);
+  const orderContextRecord = Object.fromEntries(orderContextByRequestId);
+
   return (
     <AdminOutsidePurchaseIntakePanel
       customers={customers}
@@ -64,6 +68,7 @@ export default async function AdminOutsidePurchaseIntakePage({
       latestQuotesByRequestId={latestQuotesByRequestId}
       returnRequestsByItemRequestId={returnRequestsByItemRequestId}
       snapshotsByRequestId={snapshotsByRequestId}
+      orderContextByRequestId={orderContextRecord}
       serviceTiers={merchantEstimateFees.serviceTiers}
     />
   );

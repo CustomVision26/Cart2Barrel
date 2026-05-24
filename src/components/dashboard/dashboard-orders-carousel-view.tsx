@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { DashboardOrderLinesDetailDialog } from "@/components/dashboard/dashboard-order-lines-detail-dialog";
 import { DashboardOrderSlideCard } from "@/components/dashboard/dashboard-order-slide-card";
@@ -46,6 +46,22 @@ export function DashboardOrdersCarouselView({
   const [detailGroup, setDetailGroup] = useState<DashboardOrderSlideGroup | null>(
     null,
   );
+
+  useEffect(() => {
+    if (!detailGroup) return;
+
+    const orderId = detailGroup.order.id;
+    const freshLines = rows.filter((row) => row.order.id === orderId);
+    if (freshLines.length === 0) {
+      setDetailGroup(null);
+      return;
+    }
+
+    setDetailGroup({
+      order: freshLines[0]?.order ?? detailGroup.order,
+      lines: freshLines,
+    });
+  }, [rows, detailGroup?.order.id]);
 
   const lanes = useMemo(
     () =>

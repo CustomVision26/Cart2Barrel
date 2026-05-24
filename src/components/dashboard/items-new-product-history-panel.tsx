@@ -15,6 +15,7 @@ import type {
   ItemRequestLineSnapshot,
   OutsidePurchaseReturnRequest,
 } from "@/db/schema";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import { formatUsd } from "@/lib/admin-markup";
 import { auditSnapshotStatusHeadline } from "@/lib/item-request-line-audit-status";
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
@@ -30,10 +31,13 @@ function productHistoryStatusLabel(
   snapshots: ItemRequestLineSnapshot[],
   fulfillmentLabelByRequestId: Record<string, string>,
   returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>,
+  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
 ): string {
   return resolveProductHistoryStatusDisplay(request, snapshots, {
     fulfillmentLabelOverride: fulfillmentLabelByRequestId[request.id],
     returnRequest: returnRequestsByItemRequestId[request.id] ?? null,
+    orderContext: orderContextByRequestId[request.id] ?? null,
+    audience: "customer",
   }).label;
 }
 
@@ -313,6 +317,7 @@ export function ItemsNewProductHistoryPanel() {
     quotesByRequestId,
     fulfillmentLabelByRequestId,
     returnRequestsByItemRequestId,
+    orderContextByRequestId,
   } = useAddItemPayload();
 
   const [search, setSearch] = useState("");
@@ -380,6 +385,7 @@ export function ItemsNewProductHistoryPanel() {
           snapshotsByRequestId[request.id] ?? [],
           fulfillmentLabelByRequestId,
           returnRequestsByItemRequestId,
+          orderContextByRequestId,
         ),
       );
     }
@@ -388,6 +394,7 @@ export function ItemsNewProductHistoryPanel() {
     allRequests,
     fulfillmentLabelByRequestId,
     returnRequestsByItemRequestId,
+    orderContextByRequestId,
     snapshotsByRequestId,
   ]);
 
@@ -409,6 +416,7 @@ export function ItemsNewProductHistoryPanel() {
         snapshots,
         fulfillmentLabelByRequestId,
         returnRequestsByItemRequestId,
+        orderContextByRequestId,
       );
       if (statusFilter !== "all" && statusLabel !== statusFilter) return false;
 
@@ -462,6 +470,7 @@ export function ItemsNewProductHistoryPanel() {
     normalizedQuery,
     quotesByRequestId,
     returnRequestsByItemRequestId,
+    orderContextByRequestId,
     sort,
     statusFilter,
     snapshotsByRequestId,
@@ -860,6 +869,9 @@ export function ItemsNewProductHistoryPanel() {
                           }
                           returnRequest={
                             returnRequestsByItemRequestId[request.id] ?? null
+                          }
+                          orderContext={
+                            orderContextByRequestId[request.id] ?? null
                           }
                         />
                       ))}

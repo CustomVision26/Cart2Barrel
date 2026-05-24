@@ -1,5 +1,6 @@
 import { AdminQuoteHistoryGroupedTable } from "@/components/admin/admin-quote-history-grouped-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import { getOrderContextByItemRequestIds } from "@/data/item-request-order-context";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import {
   filterAdminQuoteHistoryGroups,
@@ -23,10 +24,18 @@ export default async function AdminActiveRequestsQuoteHistoryPage({
 
   const { quoteHistoryGroups, snapshotsByRequestId } = result.payload;
 
+  const quoteHistoryRequestIds = quoteHistoryGroups.flatMap((g) =>
+    g.lines.map((line) => line.request.id),
+  );
+  const orderContextByRequestId = await getOrderContextByItemRequestIds(
+    quoteHistoryRequestIds,
+  );
+
   return (
     <AdminQuoteHistoryGroupedTable
       groups={filterAdminQuoteHistoryGroups(quoteHistoryGroups, clerkUserId)}
       snapshotsByRequestId={snapshotsByRequestId}
+      orderContextByRequestId={Object.fromEntries(orderContextByRequestId)}
       merchantEstimateFees={merchantEstimateFees}
     />
   );

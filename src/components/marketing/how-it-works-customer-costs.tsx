@@ -31,10 +31,10 @@ const COST_PHASES: CostPhase[] = [
     step: 1,
     title: "Product cost + service & handling",
     description:
-      "Each product line includes the retailer merchandise price plus a tiered service & handling fee per unit (see chart). Outside purchases you ship to our hub are merchandise-free — you pay service & handling when adding to cart.",
+      "Each product line includes the retailer price plus a tiered service and handling fee per unit (see Pricing overview). If you ship your own purchase to our hub, you pay service and handling when it is added to your account—without merchandise on that line.",
     items: [
       "Merchandise subtotal from your approved quote",
-      "Service & handling fee per unit × quantity",
+      "Service and handling fee per unit × quantity",
       "Sales tax on merchandise when applicable",
     ],
     when: "Due at checkout when you pay for cart items",
@@ -44,12 +44,12 @@ const COST_PHASES: CostPhase[] = [
     step: 2,
     title: "Container / barrel cost",
     description:
-      "Reserve or purchase the barrel or bin that staff pack your goods into. Price depends on container type, size label, and catalog listing.",
+      "Choose a barrel or bin from the in-app catalog and add it to your cart. Container list prices and packing fees are shown in Pricing overview before you pay.",
     items: [
-      "Container offering price from the in-app catalog",
-      "Optional packing fees when items are assigned to your container",
+      "Container price from the catalog (Dashboard → Barrels)",
+      "Packing fee based on how many barrels and bins are in your cart",
     ],
-    when: "When you order a container or when packing fees apply",
+    when: "When you add containers to your cart or at checkout",
     icon: Box,
   },
   {
@@ -62,7 +62,7 @@ const COST_PHASES: CostPhase[] = [
       "Customs clearance charges (where quoted upfront)",
       "Local pickup or courier handoff fees (where quoted upfront)",
     ],
-    when: "Published on Dashboard → Shipping → Pricing; pay before courier release",
+    when: "Quoted in your dashboard under Shipping before we release to the courier",
     icon: Ship,
   },
   {

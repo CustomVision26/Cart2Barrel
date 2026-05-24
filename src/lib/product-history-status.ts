@@ -7,11 +7,12 @@ import {
   auditSnapshotStatusHeadline,
 } from "@/lib/item-request-line-audit-status";
 import {
+  itemRequestStatusBadgeKindForDisplay,
   itemRequestStatusLabel,
   itemRequestStatusLabelForDisplay,
 } from "@/lib/item-request-status-label";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
-import { outsidePurchaseWorkflowBadgeKind } from "@/lib/outside-purchase-display";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import {
   fulfillmentProductHistoryBadgeKindFromSnapshots,
   fulfillmentProductHistoryLabelFromSnapshots,
@@ -51,16 +52,32 @@ export function resolveProductHistoryStatusDisplay(
   options?: {
     returnRequest?: OutsidePurchaseReturnRequest | null;
     fulfillmentLabelOverride?: string | null;
+    orderContext?: ItemRequestOrderContext | null;
+    audience?: "admin" | "customer";
   },
 ): { label: string; badgeKind: StatusBadgeKind; title?: string } {
   const returnRequest = options?.returnRequest ?? null;
+  const orderContext = options?.orderContext ?? null;
+  const audience = options?.audience ?? "customer";
 
   if (isOutsidePurchaseRequest(request)) {
-    const label = itemRequestStatusLabelForDisplay(request, returnRequest);
+    const label = itemRequestStatusLabelForDisplay(
+      request,
+      returnRequest,
+      orderContext,
+      audience,
+    );
     return {
       label,
-      badgeKind: outsidePurchaseWorkflowBadgeKind(request, returnRequest),
-      title: request.status,
+      badgeKind: itemRequestStatusBadgeKindForDisplay(
+        request,
+        returnRequest,
+        orderContext,
+        audience,
+      ),
+      title: orderContext ?
+        label
+      : request.status,
     };
   }
 

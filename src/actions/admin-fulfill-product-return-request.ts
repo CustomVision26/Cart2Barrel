@@ -21,6 +21,7 @@ import {
   buildProductReturnTrackingAuditMemo,
   productReturnTrackingHumanNote,
 } from "@/lib/product-return-tracking-memo";
+import { PRODUCT_RETURN_AWAITING_REFUND_LABEL } from "@/lib/product-return-request-labels";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { recordProductReturnFulfilledActivity } from "@/data/user-status-update-events";
 import { safeCurrentUser } from "@/lib/safe-current-user";
@@ -145,6 +146,7 @@ export async function adminFulfillProductReturnRequestAction(
   if (req) {
     const payload = lineSnapshotPayloadFromItemRequest(req);
     const note = productReturnTrackingHumanNote({
+      desiredOutcome: returnRequest.desiredOutcome,
       trackingUrl: url,
       retailerTrackingCompany: company,
       retailerTrackingNumber: number,
@@ -192,7 +194,7 @@ export async function adminFulfillProductReturnRequestAction(
     ok: true,
     message:
       returnRequest.desiredOutcome === "money_back" ?
-        "Return tracking saved. Status updated to Product Returned: awaiting refund."
+        `Return tracking saved. Status updated to ${PRODUCT_RETURN_AWAITING_REFUND_LABEL}.`
       : "Return tracking saved. Customer status updated to returned: awaiting delivery.",
   };
 }

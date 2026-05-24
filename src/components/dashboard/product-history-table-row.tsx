@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { OwnerBatchQuoteSessionBundle } from "@/data/batch-quote-sessions";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import type {
   BatchQuoteEstimate,
   ItemQuote,
@@ -140,6 +141,7 @@ export function ProductHistoryTableRow({
   bundle,
   fulfillmentLabelOverride,
   returnRequest,
+  orderContext,
 }: {
   request: ItemRequest;
   snapshots: ItemRequestLineSnapshot[];
@@ -147,6 +149,7 @@ export function ProductHistoryTableRow({
   bundle?: OwnerBatchQuoteSessionBundle;
   fulfillmentLabelOverride?: string | null;
   returnRequest?: OutsidePurchaseReturnRequest | null;
+  orderContext?: ItemRequestOrderContext | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const outsidePurchase = isOutsidePurchaseRequest(request);
@@ -154,6 +157,8 @@ export function ProductHistoryTableRow({
   const status = resolveProductHistoryStatusDisplay(request, snapshots, {
     returnRequest,
     fulfillmentLabelOverride,
+    orderContext,
+    audience: "customer",
   });
   const activityMs = latestActivityMs(request, snapshots, quotes);
   const productName = request.productName?.trim() || "Unnamed product";
@@ -317,6 +322,7 @@ export function ProductHistoryTableRow({
               quotes={quotes}
               fulfillmentLabelOverride={fulfillmentLabelOverride}
               returnRequest={returnRequest}
+              orderContext={orderContext}
               statusLabel={status.label}
               defaultOpen
             />

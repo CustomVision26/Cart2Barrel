@@ -2,6 +2,7 @@
 
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -12,9 +13,9 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import { AdminProductUrlDialog } from "@/components/admin/admin-product-url-dialog";
 import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-history-edit-dialog";
+import { AdminQuoteHistoryProductTimelineTable } from "@/components/admin/admin-quote-history-product-timeline-table";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
-import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { SortableTh, SortableThCompact } from "@/components/sortable-th";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -28,17 +29,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { AdminQuoteHistoryGroup, AdminQuoteHistoryLine } from "@/data/admin-quote-history";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
-import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
+import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
-  ITEM_QUOTE_CHECKOUT_SNAPSHOT_COMPANY_PURCHASE,
-  ITEM_QUOTE_CHECKOUT_SNAPSHOT_PAID,
-  isOperationalQuoteRow,
-} from "@/lib/checkout-snapshot-kind";
-import { adminItemRequestStatusDisplay } from "@/lib/item-request-status-label";
-import { ITEM_QUOTE_VOID_REASON_STAFF_OUT_OF_STOCK } from "@/lib/item-quote-void-reason";
-import { adminItemRequestOrderBadgeKind } from "@/lib/status-badge-map";
+  collapseQuoteHistoryToCurrentProducts,
+  countQuoteHistoryProducts,
+} from "@/lib/admin-quote-history-display";
+import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
+import {
+  itemRequestStatusBadgeKindForDisplay,
+  itemRequestStatusLabelForDisplay,
+} from "@/lib/item-request-status-label";
 import { displaySiteName } from "@/lib/site-name";
 import type { SortDir } from "@/lib/table-sort";
 import {
@@ -52,22 +55,6 @@ const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
 
 const SELECT_CLASS =
   "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
-
-function quoteRevisionLabel(q: ItemQuote): string {
-  if (q.checkoutSnapshotKind === ITEM_QUOTE_CHECKOUT_SNAPSHOT_PAID) {
-    return "Paid";
-  }
-  if (q.checkoutSnapshotKind === ITEM_QUOTE_CHECKOUT_SNAPSHOT_COMPANY_PURCHASE) {
-    return "Company Purchase";
-  }
-  if (q.voidedAt) {
-    if (q.voidReason === ITEM_QUOTE_VOID_REASON_STAFF_OUT_OF_STOCK) {
-      return "Out of stock";
-    }
-    return "Superseded";
-  }
-  return "Current";
-}
 
 function submitterDisplayName(
   fullName: string | null,
@@ -87,19 +74,19 @@ type QhLineSortKey =
   | "site"
   | "url"
   | "status"
-  | "revision"
   | "total"
   | "quoted";
 
-function requestStatusOrder(s: string): number {
-  const o: Record<string, number> = {
-    pending: 0,
-    quoted: 1,
-    approved: 2,
-    rejected: 3,
-    withdrawn: 4,
-  };
-  return o[s] ?? 99;
+function quoteHistoryLineStatusLabel(
+  line: AdminQuoteHistoryLine,
+  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
+): string {
+  return itemRequestStatusLabelForDisplay(
+    line.request,
+    null,
+    orderContextByRequestId[line.request.id],
+    "admin",
+  );
 }
 
 function normalizeSearchQ(raw: string): string {
@@ -108,7 +95,8 @@ function normalizeSearchQ(raw: string): string {
 
 function quoteHistoryLineMatchesQuery(
   line: AdminQuoteHistoryLine,
-  q: string
+  q: string,
+  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
 ): boolean {
   if (!q) return true;
   const { request: r, quote: quoteRow } = line;
@@ -119,7 +107,7 @@ function quoteHistoryLineMatchesQuery(
     r.productUrl,
     displaySiteName(r.siteName, r.productUrl),
     r.status,
-    adminItemRequestStatusDisplay(r.status, line.orderStatus),
+    quoteHistoryLineStatusLabel(line, orderContextByRequestId),
   ];
   return chunks.some(
     (chunk) =>
@@ -134,10 +122,16 @@ function quoteHistoryLineMatchesQuery(
  */
 function filterQuoteHistoryGroups(
   source: AdminQuoteHistoryGroup[],
-  qRaw: string
+  qRaw: string,
+  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
 ): AdminQuoteHistoryGroup[] {
   const q = normalizeSearchQ(qRaw);
-  if (!q) return source;
+  if (!q) {
+    return source.map((group) => ({
+      ...group,
+      lines: collapseQuoteHistoryToCurrentProducts(group.lines),
+    }));
+  }
 
   const next: AdminQuoteHistoryGroup[] = [];
   for (const g of source) {
@@ -146,12 +140,20 @@ function filterQuoteHistoryGroups(
     const uid = g.clerkUserId.toLowerCase();
     const headerMatch =
       name.includes(q) || email.includes(q) || uid.includes(q);
-    const lineHits = g.lines.filter((l) => quoteHistoryLineMatchesQuery(l, q));
+    const lineHits = g.lines.filter((l) =>
+      quoteHistoryLineMatchesQuery(l, q, orderContextByRequestId),
+    );
 
     if (headerMatch) {
-      next.push(g);
+      next.push({ ...g, lines: collapseQuoteHistoryToCurrentProducts(g.lines) });
     } else if (lineHits.length > 0) {
-      next.push({ ...g, lines: lineHits });
+      const requestIds = new Set(lineHits.map((line) => line.request.id));
+      next.push({
+        ...g,
+        lines: collapseQuoteHistoryToCurrentProducts(
+          g.lines.filter((line) => requestIds.has(line.request.id)),
+        ),
+      });
     }
   }
   return next;
@@ -160,7 +162,8 @@ function filterQuoteHistoryGroups(
 function sortQuoteHistoryLines(
   lines: AdminQuoteHistoryLine[],
   key: QhLineSortKey,
-  dir: SortDir
+  dir: SortDir,
+  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
 ): AdminQuoteHistoryLine[] {
   const copy = [...lines];
   copy.sort((a, b) => {
@@ -184,13 +187,11 @@ function sortQuoteHistoryLines(
       case "url":
         return compareLocale(ra.productUrl, rb.productUrl, dir);
       case "status":
-        return compareNum(
-          requestStatusOrder(ra.status),
-          requestStatusOrder(rb.status),
-          dir
+        return compareLocale(
+          quoteHistoryLineStatusLabel(a, orderContextByRequestId),
+          quoteHistoryLineStatusLabel(b, orderContextByRequestId),
+          dir,
         );
-      case "revision":
-        return compareNum(qa.voidedAt ? 1 : 0, qb.voidedAt ? 1 : 0, dir);
       case "total":
         return compareNum(qa.totalPrice, qb.totalPrice, dir);
       case "quoted":
@@ -209,12 +210,14 @@ function sortQuoteHistoryLines(
 type AdminQuoteHistoryGroupedTableProps = {
   groups: AdminQuoteHistoryGroup[];
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
 export function AdminQuoteHistoryGroupedTable({
   groups,
   snapshotsByRequestId,
+  orderContextByRequestId = {},
   merchantEstimateFees,
 }: AdminQuoteHistoryGroupedTableProps) {
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
@@ -232,12 +235,13 @@ export function AdminQuoteHistoryGroupedTable({
   const [quoteLinePageByCustomerId, setQuoteLinePageByCustomerId] = useState<
     Record<string, number>
   >({});
+  const [expandedProductKey, setExpandedProductKey] = useState<string | null>(null);
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
   const baseId = useId();
 
   const filteredGroups = useMemo(
-    () => filterQuoteHistoryGroups(groups, search),
-    [groups, search]
+    () => filterQuoteHistoryGroups(groups, search, orderContextByRequestId),
+    [groups, search, orderContextByRequestId],
   );
 
   const sortedGroups = useMemo(() => {
@@ -258,7 +262,11 @@ export function AdminQuoteHistoryGroupedTable({
             dir
           );
         case "quotes":
-          return compareNum(a.lines.length, b.lines.length, dir);
+          return compareNum(
+            countQuoteHistoryProducts(a.lines),
+            countQuoteHistoryProducts(b.lines),
+            dir,
+          );
         default:
           return 0;
       }
@@ -272,10 +280,12 @@ export function AdminQuoteHistoryGroupedTable({
   useEffect(() => {
     setPage(1);
     setQuoteLinePageByCustomerId({});
+    setExpandedProductKey(null);
   }, [search, groupSortKey, groupSortDir, pageSize]);
 
   useEffect(() => {
     setQuoteLinePageByCustomerId({});
+    setExpandedProductKey(null);
   }, [lineSortKey, lineSortDir]);
 
   useEffect(() => {
@@ -315,6 +325,7 @@ export function AdminQuoteHistoryGroupedTable({
   const toggle = useCallback((clerkUserId: string) => {
     setOpenClerkUserId((prev) => (prev === clerkUserId ? null : clerkUserId));
     setSelectedQuoteId(null);
+    setExpandedProductKey(null);
   }, []);
 
   if (groups.length === 0) {
@@ -328,7 +339,8 @@ export function AdminQuoteHistoryGroupedTable({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Superseded estimates voided when a customer requests a new quote are omitted here; open{" "}
+        One row per product with its current fulfillment status. Superseded estimates voided
+        when a customer requests a new quote are omitted here; open{" "}
         <span className="font-medium text-foreground">Active requests</span> to see those
         lines.
       </p>
@@ -397,7 +409,7 @@ export function AdminQuoteHistoryGroupedTable({
                 </FieldContent>
                 <FieldDescription>
                   Limits customer groups in the table above. When you expand a customer, the
-                  same number limits how many quote rows show at once (with its own
+                  same number limits how many products show at once (with its own
                   prev/next).
                 </FieldDescription>
               </Field>
@@ -454,7 +466,7 @@ export function AdminQuoteHistoryGroupedTable({
                   />
                   <SortableTh
                     columnId="qh-quotes"
-                    label="Quotes"
+                    label="Products"
                     numeric
                     active={groupSortKey === "quotes"}
                     dir={groupSortDir}
@@ -468,7 +480,12 @@ export function AdminQuoteHistoryGroupedTable({
                 const name = submitterDisplayName(g.userFullName, g.userEmail);
 
                 const sortedLinesForGroup = expanded
-                  ? sortQuoteHistoryLines(g.lines, lineSortKey, lineSortDir)
+                  ? sortQuoteHistoryLines(
+                      g.lines,
+                      lineSortKey,
+                      lineSortDir,
+                      orderContextByRequestId,
+                    )
                   : [];
                 const quoteLineCount = sortedLinesForGroup.length;
                 const qlTotalPages = Math.max(
@@ -488,6 +505,9 @@ export function AdminQuoteHistoryGroupedTable({
                 const qlShowFrom =
                   quoteLineCount === 0 ? 0 : qlStart + 1;
                 const qlShowTo = Math.min(qlStart + pageSize, quoteLineCount);
+                const fullGroupLines =
+                  groups.find((group) => group.clerkUserId === g.clerkUserId)?.lines ??
+                  g.lines;
 
                 return (
                   <tbody
@@ -540,21 +560,17 @@ export function AdminQuoteHistoryGroupedTable({
                             aria-label={`Quote history for ${name}`}
                           >
                             <p className="mb-3 text-xs text-muted-foreground">
-                              On rows with{" "}
-                              <span className="font-medium text-foreground">
-                                request status Quoted
-                              </span>
-                              , use{" "}
-                              <span className="font-medium text-foreground">Edit</span> under
-                              Audit to change amounts or run AI assist.{" "}
-                              <span className="font-medium text-foreground">In cart</span> means
-                              the customer can see the line on their cart;{" "}
-                              <span className="font-medium text-foreground">In order …</span>{" "}
-                              means checkout created an order (cart hides it until the order is
-                              removed).
+                              One row per product with its{" "}
+                              <span className="font-medium text-foreground">current status</span>.
+                              Double-click a row to open the full status history (first event
+                              through now).{" "}
+                              <span className="font-medium text-foreground">Audit trail</span> is
+                              only on the current row. Use{" "}
+                              <span className="font-medium text-foreground">Edit quote</span> when
+                              status is still Quoted.
                             </p>
                             <FloatingHorizontalScroll viewportClassName="rounded-md border border-border bg-background">
-                              <table className="w-full min-w-[50rem] text-left text-xs sm:text-sm">
+                              <table className="w-full min-w-[44rem] text-left text-xs sm:text-sm">
                                 <thead className="border-b border-border bg-muted/50">
                                   <tr>
                                     <th className="px-2 py-2 font-medium text-foreground">
@@ -583,21 +599,11 @@ export function AdminQuoteHistoryGroupedTable({
                                     />
                                     <SortableThCompact
                                       columnId="qh-line-status"
-                                      label="Request status"
+                                      label="Status"
                                       active={lineSortKey === "status"}
                                       dir={lineSortDir}
                                       onSort={() => cycleLineSort("status")}
                                     />
-                                    <SortableThCompact
-                                      columnId="qh-line-revision"
-                                      label="Revision"
-                                      active={lineSortKey === "revision"}
-                                      dir={lineSortDir}
-                                      onSort={() => cycleLineSort("revision")}
-                                    />
-                                    <th className="px-2 py-2 font-medium text-foreground">
-                                      Preview
-                                    </th>
                                     <SortableThCompact
                                       columnId="qh-line-total"
                                       label="Total"
@@ -623,8 +629,24 @@ export function AdminQuoteHistoryGroupedTable({
                                     const { quote: q, request: r } = line;
                                     const canEditQuote =
                                       r.status === "quoted" && isOperationalQuoteRow(q);
+                                    const productKey = `${g.clerkUserId}:${r.id}`;
+                                    const historyOpen = expandedProductKey === productKey;
                                     return (
-                                      <tr key={q.id} className="align-top hover:bg-muted/30">
+                                      <Fragment key={q.id}>
+                                        <tr
+                                          className={cn(
+                                            "cursor-pointer align-top hover:bg-muted/30",
+                                            historyOpen &&
+                                              "bg-sky-500/[0.06] shadow-[inset_3px_0_0_rgb(56_189_248_/_0.65)]",
+                                          )}
+                                          title="Double-click to view full status history"
+                                          onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            setExpandedProductKey((prev) =>
+                                              prev === productKey ? null : productKey,
+                                            );
+                                          }}
+                                        >
                                         <td className="px-2 py-2 align-top">
                                           <ProductRequestThumbnail
                                             variant="admin"
@@ -645,46 +667,25 @@ export function AdminQuoteHistoryGroupedTable({
                                         <td className="px-2 py-2">
                                           <AdminProductUrlDialog productUrl={r.productUrl} />
                                         </td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-muted-foreground">
+                                        <td className="max-w-[14rem] px-2 py-2 text-muted-foreground">
                                           <StatusBadge
-                                            kind={adminItemRequestOrderBadgeKind(
-                                              r.status,
-                                              line.orderStatus
+                                            kind={itemRequestStatusBadgeKindForDisplay(
+                                              r,
+                                              null,
+                                              orderContextByRequestId[r.id],
+                                              "admin",
                                             )}
+                                            title={quoteHistoryLineStatusLabel(
+                                              line,
+                                              orderContextByRequestId,
+                                            )}
+                                            className="whitespace-normal leading-snug"
                                           >
-                                            {adminItemRequestStatusDisplay(
-                                              r.status,
-                                              line.orderStatus
+                                            {quoteHistoryLineStatusLabel(
+                                              line,
+                                              orderContextByRequestId,
                                             )}
                                           </StatusBadge>
-                                        </td>
-                                        <td className="whitespace-nowrap px-2 py-2">
-                                          <span
-                                            className={cn(
-                                              "rounded-md px-1.5 py-0.5 text-xs font-medium",
-                                              q.checkoutSnapshotKind ===
-                                                ITEM_QUOTE_CHECKOUT_SNAPSHOT_PAID &&
-                                                "bg-sky-500/15 text-sky-900 dark:text-sky-300",
-                                              q.checkoutSnapshotKind ===
-                                                ITEM_QUOTE_CHECKOUT_SNAPSHOT_COMPANY_PURCHASE &&
-                                                "bg-violet-500/15 text-violet-900 dark:text-violet-300",
-                                              !q.checkoutSnapshotKind &&
-                                                q.voidedAt &&
-                                                "bg-muted text-muted-foreground",
-                                              !q.checkoutSnapshotKind &&
-                                                !q.voidedAt &&
-                                                "bg-primary/15 text-foreground"
-                                            )}
-                                            title={quoteRevisionLabel(q)}
-                                          >
-                                            {quoteRevisionLabel(q)}
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2">
-                                          <QuoteEstimatePreviewDialog
-                                            itemRequestId={r.id}
-                                            label="Preview"
-                                          />
                                         </td>
                                         <td className="px-2 py-2 font-medium tabular-nums text-foreground">
                                           {formatUsd(q.totalPrice)}
@@ -718,7 +719,23 @@ export function AdminQuoteHistoryGroupedTable({
                                             ) : null}
                                           </div>
                                         </td>
-                                      </tr>
+                                        </tr>
+                                        {historyOpen ?
+                                          <tr className="bg-sky-500/[0.04]">
+                                            <td
+                                              colSpan={8}
+                                              className="border-t border-sky-500/25 px-4 py-4 shadow-[inset_3px_0_0_rgb(56_189_248_/_0.65)]"
+                                            >
+                                              <AdminQuoteHistoryProductTimelineTable
+                                                request={r}
+                                                allGroupLines={fullGroupLines}
+                                                snapshots={snapshotsByRequestId[r.id] ?? []}
+                                                orderContext={orderContextByRequestId[r.id]}
+                                              />
+                                            </td>
+                                          </tr>
+                                        : null}
+                                      </Fragment>
                                     );
                                   })}
                                 </tbody>
@@ -727,7 +744,7 @@ export function AdminQuoteHistoryGroupedTable({
                             {quoteLineCount > pageSize ? (
                               <div className="mt-3 flex flex-col items-stretch gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                                 <p className="text-xs text-muted-foreground">
-                                  Quotes{" "}
+                                  Products{" "}
                                   <span className="font-medium tabular-nums text-foreground">
                                     {qlShowFrom}–{qlShowTo}
                                   </span>{" "}
@@ -759,7 +776,7 @@ export function AdminQuoteHistoryGroupedTable({
                                       }));
                                     }}
                                   >
-                                    Previous quotes
+                                    Previous products
                                   </Button>
                                   <Button
                                     type="button"
@@ -777,7 +794,7 @@ export function AdminQuoteHistoryGroupedTable({
                                       }));
                                     }}
                                   >
-                                    Next quotes
+                                    Next products
                                   </Button>
                                 </div>
                               </div>

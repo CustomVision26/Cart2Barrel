@@ -43,11 +43,12 @@ import type {
   ItemRequestLineSnapshot,
   OutsidePurchaseReturnRequest,
 } from "@/db/schema";
-import {
-  outsidePurchaseWorkflowBadgeKind,
-} from "@/lib/outside-purchase-display";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
-import { itemRequestStatusLabelForDisplay } from "@/lib/item-request-status-label";
+import {
+  itemRequestStatusBadgeKindForDisplay,
+  itemRequestStatusLabelForDisplay,
+} from "@/lib/item-request-status-label";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import type { AdminQuoteHistoryLine } from "@/data/admin-quote-history";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
@@ -245,6 +246,7 @@ function ActiveQueueLineTableRow({
   snapshotsByRequestId,
   latestQuotesByRequestId,
   returnRequestsByItemRequestId = {},
+  orderContextByRequestId = {},
   onEditQuote,
   showAccountColumns = false,
   merchantEstimateFees,
@@ -254,6 +256,7 @@ function ActiveQueueLineTableRow({
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   latestQuotesByRequestId: Record<string, ItemQuote>;
   returnRequestsByItemRequestId?: Record<string, OutsidePurchaseReturnRequest>;
+  orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
   onEditQuote: (line: AdminQuoteHistoryLine) => void;
   /** When true, prepend Account and Email cells (flat paginated-by-line table). */
   showAccountColumns?: boolean;
@@ -293,10 +296,20 @@ function ActiveQueueLineTableRow({
       <td className="whitespace-nowrap px-2 py-2 align-top">
         {isOutside ?
           <StatusBadge
-            kind={outsidePurchaseWorkflowBadgeKind(r, returnReq)}
+            kind={itemRequestStatusBadgeKindForDisplay(
+              r,
+              returnReq,
+              orderContextByRequestId[r.id],
+              "admin",
+            )}
             title={r.status}
           >
-            {itemRequestStatusLabelForDisplay(r, returnReq)}
+            {itemRequestStatusLabelForDisplay(
+              r,
+              returnReq,
+              orderContextByRequestId[r.id],
+              "admin",
+            )}
           </StatusBadge>
         : <StatusBadge kind={adminRequestQueueKindBadgeKind(queueKind)}>
             {queueKind === "new" ?
@@ -400,6 +413,7 @@ type AdminItemRequestsGroupedTableProps = {
   /** Latest operational quote per request (for Edit quote on quoted queue rows). */
   latestQuotesByRequestId?: Record<string, ItemQuote>;
   returnRequestsByItemRequestId?: Record<string, OutsidePurchaseReturnRequest>;
+  orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
@@ -408,6 +422,7 @@ export function AdminItemRequestsGroupedTable({
   snapshotsByRequestId,
   latestQuotesByRequestId = {},
   returnRequestsByItemRequestId = {},
+  orderContextByRequestId = {},
   merchantEstimateFees,
 }: AdminItemRequestsGroupedTableProps) {
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
@@ -935,6 +950,7 @@ export function AdminItemRequestsGroupedTable({
                                   returnRequestsByItemRequestId={
                                     returnRequestsByItemRequestId
                                   }
+                                  orderContextByRequestId={orderContextByRequestId}
                                   onEditQuote={openEditQuote}
                                   merchantEstimateFees={merchantEstimateFees}
                                 />
@@ -1048,6 +1064,7 @@ export function AdminItemRequestsGroupedTable({
                       snapshotsByRequestId={snapshotsByRequestId}
                       latestQuotesByRequestId={latestQuotesByRequestId}
                       returnRequestsByItemRequestId={returnRequestsByItemRequestId}
+                      orderContextByRequestId={orderContextByRequestId}
                       onEditQuote={openEditQuote}
                       merchantEstimateFees={merchantEstimateFees}
                     />

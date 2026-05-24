@@ -4,6 +4,8 @@ import type {
   ItemRequestLineSnapshot,
   OutsidePurchaseReturnRequest,
 } from "@/db/schema";
+import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
+import type { ItemRequestProductStatusAudience } from "@/lib/outside-purchase-product-status";
 import {
   auditSnapshotChangeSummary,
   auditSnapshotStatusHeadline,
@@ -39,6 +41,8 @@ export function buildProductHistoryTimelineEvents(
   options?: {
     fulfillmentLabelOverride?: string | null;
     returnRequest?: OutsidePurchaseReturnRequest | null;
+    orderContext?: ItemRequestOrderContext | null;
+    audience?: ItemRequestProductStatusAudience;
   },
 ): ProductHistoryTimelineEvent[] {
   const outsidePurchase = isOutsidePurchaseRequest(request);
@@ -85,6 +89,8 @@ export function buildProductHistoryTimelineEvents(
   const statusDisplay = resolveProductHistoryStatusDisplay(request, snapshots, {
     fulfillmentLabelOverride: options?.fulfillmentLabelOverride,
     returnRequest: options?.returnRequest,
+    orderContext: options?.orderContext,
+    audience: options?.audience,
   });
   const latestAt =
     latestTrackedFulfillmentSnapshot(snapshots)?.createdAt ??

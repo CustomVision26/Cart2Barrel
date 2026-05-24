@@ -38,7 +38,7 @@ import {
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Input, inputFieldClassName } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -1353,7 +1353,10 @@ export function ItemRequestWorkspace({
                   placeholder="Variant preferences, seller requirements, budget limit, etc."
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  className={cn(
+                    inputFieldClassName,
+                    "flex min-h-20 resize-y py-2 text-sm",
+                  )}
                   aria-invalid={Boolean(fieldError("note")?.length)}
                 />
                 <FieldError errors={fieldError("note")?.map((m) => ({ message: m }))} />

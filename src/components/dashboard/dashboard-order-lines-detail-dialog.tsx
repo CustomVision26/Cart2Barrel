@@ -1,9 +1,12 @@
 "use client";
 
-import { Fragment } from "react";
+import { Loader2, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Fragment, useTransition } from "react";
 
 import { DashboardCheckoutChargesPreviewDialog } from "@/components/dashboard/dashboard-checkout-charges-preview-dialog";
 import { DashboardOrderDataRow } from "@/components/dashboard/dashboard-paid-orders-table";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -29,9 +32,18 @@ export function DashboardOrderLinesDetailDialog({
   group: (OrderSlideGroup & { lines: DashboardPaidOrderLineRow[] }) | null;
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
 }) {
+  const router = useRouter();
+  const [refreshPending, startRefresh] = useTransition();
+
   if (!group) return null;
 
   const buckets = partitionPaidLinesIntoBatchBuckets(group.lines);
+
+  function handleRefresh() {
+    startRefresh(() => {
+      router.refresh();
+    });
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -199,12 +211,27 @@ export function DashboardOrderLinesDetailDialog({
             </table>
           </div>
 
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <DashboardCheckoutChargesPreviewDialog
               scope="order"
               orderId={group.order.id}
               triggerLabel="Preview checkout charges"
             />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshPending}
+              aria-label="Refresh order products"
+            >
+              {refreshPending ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw className="size-3.5" aria-hidden />
+              )}
+              Refresh
+            </Button>
           </div>
         </div>
       </DialogContent>

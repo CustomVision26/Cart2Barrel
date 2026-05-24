@@ -28,15 +28,8 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${poppins.variable} h-full antialiased`}
+      className={`${poppins.variable} dark h-full antialiased`}
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var c=localStorage.getItem("cart2barrel-interface-color");if(c&&c!=="default")document.documentElement.setAttribute("data-interface-color",c);}catch(e){}})();`,
-          }}
-        />
-      </head>
       <body
         className={`${poppins.className} min-h-full flex flex-col bg-background text-foreground`}
       >

@@ -5,8 +5,11 @@ import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { HowItWorksPageMain } from "@/components/marketing/how-it-works-page-main";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { Button } from "@/components/ui/button";
+import { listActiveContainerOfferingsWithImages } from "@/data/container-offerings";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { DEFAULT_MERCHANT_SERVICE_TIERS } from "@/lib/admin-markup";
+import { buildContainerCatalogChartRows, buildContainerPackingFeeChartRows } from "@/lib/container-packing-fee-chart";
+import { DEFAULT_CONTAINER_PACKING_RATES } from "@/lib/container-packing-fee";
 import { buildServiceHandlingFeeChartRows } from "@/lib/service-handling-fee-chart";
 
 export default async function HowItWorksPage() {
@@ -15,12 +18,30 @@ export default async function HowItWorksPage() {
   let serviceFeeChartRows = buildServiceHandlingFeeChartRows(
     DEFAULT_MERCHANT_SERVICE_TIERS,
   );
+  let containerCatalogChartRows: ReturnType<typeof buildContainerCatalogChartRows> =
+    [];
+  let containerPackingChartRows = buildContainerPackingFeeChartRows(
+    DEFAULT_CONTAINER_PACKING_RATES,
+  );
+  try {
+    const catalog = await listActiveContainerOfferingsWithImages();
+    containerCatalogChartRows = buildContainerCatalogChartRows(catalog);
+  } catch {
+    containerCatalogChartRows = [];
+  }
+
   try {
     const pricing = await getMerchantPricingForEstimates(userId);
     serviceFeeChartRows = buildServiceHandlingFeeChartRows(pricing.serviceTiers);
+    containerPackingChartRows = buildContainerPackingFeeChartRows(
+      pricing.containerPackingRates,
+    );
   } catch {
     serviceFeeChartRows = buildServiceHandlingFeeChartRows(
       DEFAULT_MERCHANT_SERVICE_TIERS,
+    );
+    containerPackingChartRows = buildContainerPackingFeeChartRows(
+      DEFAULT_CONTAINER_PACKING_RATES,
     );
   }
 
@@ -75,6 +96,8 @@ export default async function HowItWorksPage() {
       <HowItWorksPageMain
         isSignedIn={Boolean(userId)}
         serviceFeeChartRows={serviceFeeChartRows}
+        containerCatalogChartRows={containerCatalogChartRows}
+        containerPackingChartRows={containerPackingChartRows}
       />
     </div>
   );
