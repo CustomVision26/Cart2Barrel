@@ -15,7 +15,10 @@ import { buildServiceHandlingFeeChartRows } from "@/lib/service-handling-fee-cha
 export default async function HowItWorksPage() {
   const { userId } = await auth();
 
-  let serviceFeeChartRows = buildServiceHandlingFeeChartRows(
+  let inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(
+    DEFAULT_MERCHANT_SERVICE_TIERS,
+  );
+  let outsidePurchaseServiceFeeChartRows = buildServiceHandlingFeeChartRows(
     DEFAULT_MERCHANT_SERVICE_TIERS,
   );
   let containerCatalogChartRows: ReturnType<typeof buildContainerCatalogChartRows> =
@@ -32,12 +35,18 @@ export default async function HowItWorksPage() {
 
   try {
     const pricing = await getMerchantPricingForEstimates(userId);
-    serviceFeeChartRows = buildServiceHandlingFeeChartRows(pricing.serviceTiers);
+    inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(pricing.serviceTiers);
+    outsidePurchaseServiceFeeChartRows = buildServiceHandlingFeeChartRows(
+      pricing.outsidePurchaseServiceTiers,
+    );
     containerPackingChartRows = buildContainerPackingFeeChartRows(
       pricing.containerPackingRates,
     );
   } catch {
-    serviceFeeChartRows = buildServiceHandlingFeeChartRows(
+    inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(
+      DEFAULT_MERCHANT_SERVICE_TIERS,
+    );
+    outsidePurchaseServiceFeeChartRows = buildServiceHandlingFeeChartRows(
       DEFAULT_MERCHANT_SERVICE_TIERS,
     );
     containerPackingChartRows = buildContainerPackingFeeChartRows(
@@ -95,7 +104,8 @@ export default async function HowItWorksPage() {
 
       <HowItWorksPageMain
         isSignedIn={Boolean(userId)}
-        serviceFeeChartRows={serviceFeeChartRows}
+        inAppServiceFeeChartRows={inAppServiceFeeChartRows}
+        outsidePurchaseServiceFeeChartRows={outsidePurchaseServiceFeeChartRows}
         containerCatalogChartRows={containerCatalogChartRows}
         containerPackingChartRows={containerPackingChartRows}
       />

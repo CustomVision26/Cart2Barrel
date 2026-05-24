@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -24,10 +23,7 @@ import {
 import { SpotlightAllCategoriesCatalogDialog } from "@/components/marketing/spotlight-all-categories-catalog-dialog";
 import { SpotlightCategoryProductsDialog } from "@/components/marketing/spotlight-category-products-dialog";
 import { SpotlightProductOffersCarousel } from "@/components/marketing/spotlight-product-offers-carousel";
-import {
-  aiAssistedRequestUrlWithSpotlightProduct,
-} from "@/lib/ai-assisted-request-url";
-import { displaySiteName } from "@/lib/site-name";
+import { buildOffersForProduct } from "@/components/marketing/spotlight-category-offers-panel";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
 import {
   SPOTLIGHT_CATEGORIES,
@@ -47,26 +43,9 @@ function categorySlideOffers(
   products: PublicSpotlightProduct[],
   isSignedIn: boolean,
 ) {
-  return products.map((product) => {
-    const title =
-      product.label?.trim() || displaySiteName(null, product.productUrl);
-    const addHref =
-      isSignedIn ?
-        aiAssistedRequestUrlWithSpotlightProduct(product)
-      : `/signup?redirect_url=${encodeURIComponent(aiAssistedRequestUrlWithSpotlightProduct(product))}`;
-
-    return {
-      id: product.id,
-      title,
-      imageUrl: product.imageUrl?.trim() || null,
-      priceUsdCents: product.priceUsdCents,
-      attributes: [product.productSize, product.productColor]
-        .map((p) => p?.trim())
-        .filter(Boolean)
-        .join(" · ") || null,
-      storeUrl: product.productUrl,
-      addHref,
-    };
+  return products.flatMap((product) => {
+    const offers = buildOffersForProduct(product, isSignedIn);
+    return offers.length > 0 ? [offers[0]] : [];
   });
 }
 

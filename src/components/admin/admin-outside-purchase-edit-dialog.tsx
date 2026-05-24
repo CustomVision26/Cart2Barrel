@@ -48,14 +48,14 @@ function centsToDollarsInput(cents: number): string {
 type AdminOutsidePurchaseEditDialogProps = {
   request: ItemRequest;
   quote: ItemQuote | null;
-  serviceTiers: MerchantServiceTierRow[];
+  outsidePurchaseServiceTiers: MerchantServiceTierRow[];
   returnRequest: OutsidePurchaseReturnRequest | null;
 };
 
 export function AdminOutsidePurchaseEditDialog({
   request,
   quote,
-  serviceTiers,
+  outsidePurchaseServiceTiers,
   returnRequest,
 }: AdminOutsidePurchaseEditDialogProps) {
   const router = useRouter();
@@ -108,9 +108,9 @@ export function AdminOutsidePurchaseEditDialog({
       unitPriceCents: parseDollarsToCents(unitPriceDollars),
       quantity: Math.max(1, Number.parseInt(quantity, 10) || 1),
       unitsPerPack: 1,
-      serviceTiers,
+      serviceTiers: outsidePurchaseServiceTiers,
     });
-  }, [unitPriceDollars, quantity, serviceTiers]);
+  }, [unitPriceDollars, quantity, outsidePurchaseServiceTiers]);
 
   const onSave = () => {
     const fd = new FormData();

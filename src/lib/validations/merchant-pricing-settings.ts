@@ -21,31 +21,45 @@ const tierRowSchema = z.object({
   feePerUnitCents: z.number().int().min(0).max(500_000),
 });
 
+function refineAscendingTiers(
+  val: { tiers: z.infer<typeof tierRowSchema>[] },
+  ctx: z.RefinementCtx,
+) {
+  const sorted = [...val.tiers].sort(
+    (a, b) => a.maxUnitPriceInclusiveCents - b.maxUnitPriceInclusiveCents,
+  );
+  for (let i = 1; i < sorted.length; i++) {
+    if (
+      sorted[i]!.maxUnitPriceInclusiveCents <=
+      sorted[i - 1]!.maxUnitPriceInclusiveCents
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Each tier max unit price (¢) must be greater than the previous tier (strictly ascending).",
+        path: ["tiers"],
+      });
+      return;
+    }
+  }
+}
+
+export const serviceHandlingTiersOnlySchema = z
+  .object({
+    tiers: z.array(tierRowSchema).min(1).max(32),
+  })
+  .superRefine(refineAscendingTiers);
+
+export const updateOutsidePurchaseServiceHandlingTiersSchema =
+  serviceHandlingTiersOnlySchema;
+
 export const updateMerchantPricingSettingsSchema = z
   .object({
     packingFeePerLineCents: z.number().int().min(0).max(5_000_000),
     containerPackingRates: containerPackingRatesSchema,
     tiers: z.array(tierRowSchema).min(1).max(32),
   })
-  .superRefine((val, ctx) => {
-    const sorted = [...val.tiers].sort(
-      (a, b) => a.maxUnitPriceInclusiveCents - b.maxUnitPriceInclusiveCents,
-    );
-    for (let i = 1; i < sorted.length; i++) {
-      if (
-        sorted[i]!.maxUnitPriceInclusiveCents <=
-        sorted[i - 1]!.maxUnitPriceInclusiveCents
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          message:
-            "Each tier max unit price (¢) must be greater than the previous tier (strictly ascending).",
-          path: ["tiers"],
-        });
-        return;
-      }
-    }
-  });
+  .superRefine(refineAscendingTiers);
 
 export type UpdateMerchantPricingSettingsInput = z.infer<
   typeof updateMerchantPricingSettingsSchema

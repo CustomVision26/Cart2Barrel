@@ -20,14 +20,16 @@ import type { ServiceHandlingFeeChartRow } from "@/lib/service-handling-fee-char
 
 type HowItWorksPageMainProps = {
   isSignedIn: boolean;
-  serviceFeeChartRows: ServiceHandlingFeeChartRow[];
+  inAppServiceFeeChartRows: ServiceHandlingFeeChartRow[];
+  outsidePurchaseServiceFeeChartRows: ServiceHandlingFeeChartRow[];
   containerCatalogChartRows: ContainerCatalogChartRow[];
   containerPackingChartRows: ContainerPackingFeeChartRow[];
 };
 
 export function HowItWorksPageMain({
   isSignedIn,
-  serviceFeeChartRows,
+  inAppServiceFeeChartRows,
+  outsidePurchaseServiceFeeChartRows,
   containerCatalogChartRows,
   containerPackingChartRows,
 }: HowItWorksPageMainProps) {
@@ -65,7 +67,14 @@ export function HowItWorksPageMain({
                 </p>
               </div>
               <div className="space-y-6">
-                <ServiceHandlingFeeChart rows={serviceFeeChartRows} />
+                <ServiceHandlingFeeChart
+                  kind="in-app"
+                  rows={inAppServiceFeeChartRows}
+                />
+                <ServiceHandlingFeeChart
+                  kind="outside"
+                  rows={outsidePurchaseServiceFeeChartRows}
+                />
                 <ContainerCatalogChart rows={containerCatalogChartRows} />
                 <ContainerPackingFeeChart rows={containerPackingChartRows} />
               </div>

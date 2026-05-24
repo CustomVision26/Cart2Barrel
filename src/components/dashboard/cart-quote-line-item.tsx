@@ -10,7 +10,8 @@ import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-secti
 import { formatUsd } from "@/lib/admin-markup";
 import { isOutsidePurchaseProductUrl } from "@/lib/outside-purchase";
 import { outsidePurchaseQuoteSummaryRows } from "@/lib/outside-purchase-service-quote";
-import { formatStaffNoteParagraphsForDisplay } from "@/lib/staff-note-display";
+import { StaffNotesList } from "@/components/admin-staff-notes-block";
+import { formatStaffNoteItemsForDisplay } from "@/lib/staff-note-display";
 
 export type CartQuoteLineItemProps = {
   itemRequestId: string;
@@ -69,7 +70,7 @@ export function CartQuoteLineItem({
         { label: "Line estimate", amountCents: lineTotalCents, emphasis: true },
       ];
 
-  const staffNoteParagraphs = formatStaffNoteParagraphsForDisplay(staffNote);
+  const staffNoteItems = formatStaffNoteItemsForDisplay(staffNote);
 
   return (
     <li className="p-4 sm:p-5">
@@ -115,7 +116,7 @@ export function CartQuoteLineItem({
             title={outsidePurchase ? "Outside purchase price breakdown" : "Price breakdown"}
             description={
               outsidePurchase ?
-                "Service & handling and amount due"
+                "Outside purchase service & handling and amount due (in-app fees not included)"
               : "Item cost, fees, shipping, and tax"
             }
             defaultOpen={false}
@@ -124,7 +125,7 @@ export function CartQuoteLineItem({
             <CartLinePriceBreakdown rows={priceRows} className="border-0 bg-transparent" />
           </CollapsibleFieldSection>
 
-          {staffNoteParagraphs.length > 0 ?
+          {staffNoteItems.length > 0 ?
             <CollapsibleFieldSection
               compact
               title="Notes from Cart2Barrel"
@@ -132,13 +133,7 @@ export function CartQuoteLineItem({
               defaultOpen={false}
               className="border-border/70 bg-muted/10"
             >
-              <div className="space-y-2 text-sm text-foreground">
-                {staffNoteParagraphs.map((paragraph, i) => (
-                  <p key={i} className="whitespace-pre-wrap leading-relaxed">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
+              <StaffNotesList items={staffNoteItems} compact />
             </CollapsibleFieldSection>
           : null}
         </div>

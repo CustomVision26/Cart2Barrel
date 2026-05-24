@@ -3,6 +3,7 @@ import {
   isOutsidePurchaseRequest,
   outsidePurchaseReferenceDisplay,
 } from "@/lib/outside-purchase";
+import { parseProductUrl } from "@/lib/product-url/retailer-id";
 
 /** Hostname from a product page URL (lowercase, no leading www.). */
 export function hostnameFromProductUrl(productUrl: string): string | null {
@@ -38,4 +39,35 @@ export function displayProductSiteName(
     return ref ? `Outside purchase · ${ref}` : "Outside purchase";
   }
   return displaySiteName(request.siteName, request.productUrl);
+}
+
+/** Human-friendly retailer label for storefront / spotlight cards. */
+export function retailerLabelFromProductUrl(productUrl: string): string {
+  const parsed = parseProductUrl(productUrl);
+  if (parsed) {
+    switch (parsed.kind) {
+      case "walmart":
+        return "Walmart";
+      case "amazon":
+        return "Amazon";
+      case "target":
+        return "Target";
+      case "ebay":
+        return "eBay";
+      default:
+        break;
+    }
+  }
+
+  const host = hostnameFromProductUrl(productUrl);
+  if (!host) return "Retailer";
+
+  const lower = host.toLowerCase();
+  if (lower.includes("temu")) return "Temu";
+  if (lower.includes("shein")) return "SHEIN";
+
+  const stem = host.split(".")[0];
+  if (!stem) return host;
+  if (stem.toLowerCase() === "ebay") return "eBay";
+  return stem.charAt(0).toUpperCase() + stem.slice(1);
 }

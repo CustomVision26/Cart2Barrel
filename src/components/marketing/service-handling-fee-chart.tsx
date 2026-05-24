@@ -11,18 +11,39 @@ import {
 
 type ServiceHandlingFeeChartProps = {
   rows: ServiceHandlingFeeChartRow[];
+  /** Which fee schedule this table represents. */
+  kind?: "in-app" | "outside";
 };
 
-export function ServiceHandlingFeeChart({ rows }: ServiceHandlingFeeChartProps) {
+const CHART_COPY = {
+  "in-app": {
+    title: "In-app service & handling",
+    description:
+      "Our fee for items you request through Cart2Barrel (we purchase on your behalf). Based on each product's unit price—multiply by quantity on the line.",
+    footer:
+      "Published rates may change over time. After you sign in, your account may show in-app tiers tailored to your customer package.",
+  },
+  outside: {
+    title: "Outside purchase service & handling",
+    description:
+      "When you buy from a retailer yourself and ship to our hub, you pay this fee only—not in-app merchandise, shipping, or in-app service fees. Based on the listed unit price on your receipt × consumer units.",
+    footer:
+      "Outside-purchase tiers are published globally and are not replaced by in-app or customer-package rates.",
+  },
+} as const;
+
+export function ServiceHandlingFeeChart({
+  rows,
+  kind = "in-app",
+}: ServiceHandlingFeeChartProps) {
+  const copy = CHART_COPY[kind];
+
   return (
     <Card className="border-primary/25 bg-card/80 shadow-md ring-1 ring-primary/10 backdrop-blur-sm">
       <CardHeader className="space-y-1 pb-3">
-        <CardTitle className="font-heading text-base">
-          Service &amp; handling
-        </CardTitle>
+        <CardTitle className="font-heading text-base">{copy.title}</CardTitle>
         <CardDescription className="text-xs leading-relaxed">
-          Our fee for purchasing, receiving, and preparing each item. Based on
-          the product&apos;s unit price—multiply by quantity on each line.
+          {copy.description}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
@@ -51,8 +72,7 @@ export function ServiceHandlingFeeChart({ rows }: ServiceHandlingFeeChartProps) 
         </div>
         <p className="inline-flex items-start gap-2 rounded-lg border border-border/70 bg-muted/40 px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
-          Published rates may change over time. After you sign in, your account
-          may show pricing tailored to your customer package.
+          {copy.footer}
         </p>
       </CardContent>
     </Card>

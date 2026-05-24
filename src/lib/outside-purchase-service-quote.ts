@@ -122,7 +122,7 @@ export function outsidePurchaseQuoteSummaryRows(
 
   return [
     {
-      label: "Service & handling (per unit)",
+      label: "Outside purchase service & handling (per unit)",
       amountCents: perUnitResolved,
       detail: packDetail,
     },

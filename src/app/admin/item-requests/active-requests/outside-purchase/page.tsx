@@ -5,7 +5,7 @@ import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
-import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
+import { getOutsidePurchaseServiceTiersForEstimates } from "@/data/merchant-pricing-settings";
 import { getOrderContextByItemRequestIds } from "@/data/item-request-order-context";
 import { listOutsidePurchaseIntakesForAdmin } from "@/data/outside-purchase-intake";
 import {
@@ -28,13 +28,13 @@ export default async function AdminOutsidePurchaseIntakePage({
   }
 
   const { clerkUserId } = parseAdminCustomerFilter((await searchParams) ?? {});
-  const [customers, recentRows, merchantEstimateFees] = await Promise.all([
+  const [customers, recentRows, outsidePurchaseServiceTiers] = await Promise.all([
     listProfilesForAdminPicker(),
     listOutsidePurchaseIntakesForAdmin({
       clerkUserId: clerkUserId ?? undefined,
       limit: 80,
     }),
-    getMerchantPricingForEstimates(),
+    getOutsidePurchaseServiceTiersForEstimates(),
   ]);
 
   const requestIds = recentRows.map((r) => r.request.id);
@@ -69,7 +69,7 @@ export default async function AdminOutsidePurchaseIntakePage({
       returnRequestsByItemRequestId={returnRequestsByItemRequestId}
       snapshotsByRequestId={snapshotsByRequestId}
       orderContextByRequestId={orderContextRecord}
-      serviceTiers={merchantEstimateFees.serviceTiers}
+      outsidePurchaseServiceTiers={outsidePurchaseServiceTiers}
     />
   );
 }

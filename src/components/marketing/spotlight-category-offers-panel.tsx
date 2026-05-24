@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   SpotlightProductOffersCarousel,
+  type SpotlightGalleryImage,
   type SpotlightOfferSlide,
 } from "@/components/marketing/spotlight-product-offers-carousel";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
@@ -13,7 +14,7 @@ import {
   aiAssistedRequestUrlWithSpotlightVariant,
 } from "@/lib/ai-assisted-request-url";
 import type { SpotlightCategoryDefinition } from "@/lib/spotlight-categories";
-import { displaySiteName } from "@/lib/site-name";
+import { displaySiteName, retailerLabelFromProductUrl } from "@/lib/site-name";
 
 function offerImageUrl(
   primary: string | null | undefined,
@@ -29,6 +30,41 @@ function formatAttributes(parts: Array<string | null | undefined>): string | nul
   return text || null;
 }
 
+function buildProductGallery(
+  product: PublicSpotlightProduct,
+  parentTitle: string,
+): SpotlightGalleryImage[] {
+  const seen = new Set<string>();
+  const images: SpotlightGalleryImage[] = [];
+
+  function add(
+    id: string,
+    url: string | null | undefined,
+    label: string | null,
+  ) {
+    const trimmed = url?.trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    images.push({ id, imageUrl: trimmed, label });
+  }
+
+  add(product.id, product.imageUrl, parentTitle);
+  for (const variant of product.variants ?? []) {
+    add(
+      variant.id,
+      offerImageUrl(variant.imageUrl, product.imageUrl),
+      variant.label?.trim() ||
+        formatAttributes([
+          variant.productColor,
+          variant.productSize,
+          variant.packLabel,
+        ]),
+    );
+  }
+
+  return images;
+}
+
 export function buildOffersForProduct(
   product: PublicSpotlightProduct,
   isSignedIn: boolean,
@@ -36,6 +72,7 @@ export function buildOffersForProduct(
   const title =
     product.label?.trim() || displaySiteName(null, product.productUrl);
   const variants = product.variants ?? [];
+  const galleryImages = buildProductGallery(product, title);
   const parentAddHref =
     isSignedIn ?
       aiAssistedRequestUrlWithSpotlightProduct(product)
@@ -50,6 +87,8 @@ export function buildOffersForProduct(
       attributes: formatAttributes([product.productSize, product.productColor]),
       storeUrl: product.productUrl,
       addHref: parentAddHref,
+      retailerName: retailerLabelFromProductUrl(product.productUrl),
+      galleryImages,
       badge: variants.length > 0 ? "Featured" : undefined,
     },
   ];
@@ -72,6 +111,8 @@ export function buildOffersForProduct(
       ]),
       storeUrl: variant.productUrl,
       addHref: variantHref,
+      retailerName: retailerLabelFromProductUrl(variant.productUrl),
+      galleryImages,
     });
   }
 

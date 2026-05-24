@@ -1100,6 +1100,25 @@ export const serviceHandlingFeeTiers = pgTable(
   ],
 );
 
+/**
+ * Tiered service & handling for outside purchases (customer-bought items shipped to hub).
+ * Separate from in-app purchase tiers in `service_handling_fee_tiers`.
+ */
+export const outsidePurchaseServiceHandlingFeeTiers = pgTable(
+  "outside_purchase_service_handling_fee_tiers",
+  {
+    id: serial("id").primaryKey(),
+    maxUnitPriceInclusiveCents: integer("max_unit_price_inclusive_cents").notNull(),
+    feePerUnitCents: integer("fee_per_unit_cents").notNull(),
+    sortIndex: integer("sort_index").notNull(),
+  },
+  (t) => [
+    uniqueIndex("outside_purchase_service_handling_fee_tiers_sort_idx").on(
+      t.sortIndex,
+    ),
+  ],
+);
+
 /** Inbound package to ops (linked to a paid line item). */
 export const packages = pgTable(
   "packages",
@@ -2069,6 +2088,11 @@ export type NewMerchantPackingComboFee = typeof merchantPackingComboFees.$inferI
 
 export type ServiceHandlingFeeTier = typeof serviceHandlingFeeTiers.$inferSelect;
 export type NewServiceHandlingFeeTier = typeof serviceHandlingFeeTiers.$inferInsert;
+
+export type OutsidePurchaseServiceHandlingFeeTier =
+  typeof outsidePurchaseServiceHandlingFeeTiers.$inferSelect;
+export type NewOutsidePurchaseServiceHandlingFeeTier =
+  typeof outsidePurchaseServiceHandlingFeeTiers.$inferInsert;
 
 export type Package = typeof packages.$inferSelect;
 export type NewPackage = typeof packages.$inferInsert;

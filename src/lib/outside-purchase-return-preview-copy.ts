@@ -13,8 +13,8 @@ export const OUTSIDE_PURCHASE_RETURN_ESTIMATE_DEFAULT_STAFF_NOTE =
 export const OUTSIDE_PURCHASE_RETURN_POLICY_NOTES: readonly string[] = [
   "Return service and handling charges must be paid before the product can be dropped off at the shipping company.",
   "You will receive a staff estimate for the return workflow. Accept the estimate and pay before scheduling drop-off date to shipping company.",
-  "The original service and handling fee must be paid before product(s) can be added into your barrel.",
-  "Unpaid outside purchases marked Damaged/Missing/Wrong item may be discarded if no action is taken to pay service and handling fee or return to retailer or return to you the customer.",
+  "The original outside purchase service and handling fee must be paid before product(s) can be added into your barrel.",
+  "Unpaid outside purchases marked Damaged/Missing/Wrong item may be discarded if no action is taken to pay the outside purchase service and handling fee or return to retailer or return to you the customer.",
 ] as const;
 
 /** @deprecated Use {@link OUTSIDE_PURCHASE_RETURN_POLICY_NOTES}. */

@@ -13,7 +13,7 @@ import {
 import { getItemRequestById } from "@/data/item-requests";
 import { getOutsidePurchaseReturnRequestByItemRequestId } from "@/data/outside-purchase-return-requests";
 import { getLatestQuoteForItemRequest } from "@/data/item-quotes";
-import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
+import { getOutsidePurchaseServiceTiersForEstimates } from "@/data/merchant-pricing-settings";
 import { formatUsd } from "@/lib/admin-markup";
 import { isMissingOutsidePurchaseReturnRequestsTableError } from "@/lib/db-column-missing";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
@@ -75,12 +75,12 @@ export async function cancelOutsidePurchaseReturnRequestAction(
     parseListedUnitPriceCentsFromOutsidePurchaseStaffNote(quote.staffNote) ?? 0;
   const unitsPerPack =
     parseOutsidePurchaseUnitsPerPackFromStaffNote(quote.staffNote) ?? 1;
-  const pricing = await getMerchantPricingForEstimates(req.clerkUserId).then((fees) =>
+  const pricing = await getOutsidePurchaseServiceTiersForEstimates().then((tiers) =>
     computeOutsidePurchaseCustomerQuoteCents({
       unitPriceCents,
       quantity: req.quantity,
       unitsPerPack,
-      serviceTiers: fees.serviceTiers,
+      serviceTiers: tiers,
     }),
   );
 

@@ -13,7 +13,7 @@ import {
 } from "@/data/item-request-line-snapshots";
 import { getItemRequestById } from "@/data/item-requests";
 import { getOutsidePurchaseReturnRequestByItemRequestId } from "@/data/outside-purchase-return-requests";
-import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
+import { getOutsidePurchaseServiceTiersForEstimates } from "@/data/merchant-pricing-settings";
 import {
   insertItemQuoteForRequest,
   itemRequestSnapshotForQuote,
@@ -145,7 +145,7 @@ export async function saveAdminOutsidePurchaseIntakeAction(
   const productUrl = outsidePurchaseProductUrl(reference);
   const siteName = "Outside purchase";
 
-  const { serviceTiers } = await getMerchantPricingForEstimates(d.clerkUserId);
+  const serviceTiers = await getOutsidePurchaseServiceTiersForEstimates();
   const pricing = computeOutsidePurchaseCustomerQuoteCents({
     unitPriceCents: d.unitPriceCents,
     quantity: d.quantity,
@@ -243,8 +243,8 @@ export async function saveAdminOutsidePurchaseIntakeAction(
     const snap = itemRequestSnapshotForQuote(created);
     const serviceLine =
       pricing.isPackLine ?
-        `Service & handling: ${formatUsd(pricing.perUnitServiceCents)}/unit × ${pricing.unitsPerPack} units/pack × ${pricing.quantity} pack${pricing.quantity === 1 ? "" : "s"} (${pricing.consumerUnits} units) = ${formatUsd(pricing.serviceFeeCents)} (customer pays).`
-      : `Service & handling: ${formatUsd(pricing.perUnitServiceCents)}/unit × ${pricing.quantity} = ${formatUsd(pricing.serviceFeeCents)} (customer pays).`;
+        `Outside purchase service & handling: ${formatUsd(pricing.perUnitServiceCents)}/unit × ${pricing.unitsPerPack} units/pack × ${pricing.quantity} pack${pricing.quantity === 1 ? "" : "s"} (${pricing.consumerUnits} units) = ${formatUsd(pricing.serviceFeeCents)} (customer pays).`
+      : `Outside purchase service & handling: ${formatUsd(pricing.perUnitServiceCents)}/unit × ${pricing.quantity} = ${formatUsd(pricing.serviceFeeCents)} (customer pays).`;
     const shelfTrim = d.receivedShelfLocation.trim();
     const staffNoteParts = [
       withOutsidePurchaseStaffNotePrefix(d.staffNote),
@@ -340,7 +340,7 @@ export async function updateAdminOutsidePurchaseIntakeAction(
   const reference =
     d.outsidePurchaseReference ?? existing.outsidePurchaseReference ?? formatOutsidePurchaseReference();
   const productUrl = outsidePurchaseProductUrl(reference);
-  const { serviceTiers } = await getMerchantPricingForEstimates(d.clerkUserId);
+  const serviceTiers = await getOutsidePurchaseServiceTiersForEstimates();
   const pricing = computeOutsidePurchaseCustomerQuoteCents({
     unitPriceCents: d.unitPriceCents,
     quantity: d.quantity,
@@ -410,8 +410,8 @@ export async function updateAdminOutsidePurchaseIntakeAction(
     const snap = itemRequestSnapshotForQuote(row);
     const serviceLine =
       pricing.isPackLine ?
-        `Service & handling: ${formatUsd(pricing.perUnitServiceCents)}/unit × ${pricing.unitsPerPack} units/pack × ${pricing.quantity} pack${pricing.quantity === 1 ? "" : "s"} (${pricing.consumerUnits} units) = ${formatUsd(pricing.serviceFeeCents)} (customer pays).`
-      : `Service & handling: ${formatUsd(pricing.perUnitServiceCents)}/unit × ${pricing.quantity} = ${formatUsd(pricing.serviceFeeCents)} (customer pays).`;
+        `Outside purchase service & handling: ${formatUsd(pricing.perUnitServiceCents)}/unit × ${pricing.unitsPerPack} units/pack × ${pricing.quantity} pack${pricing.quantity === 1 ? "" : "s"} (${pricing.consumerUnits} units) = ${formatUsd(pricing.serviceFeeCents)} (customer pays).`
+      : `Outside purchase service & handling: ${formatUsd(pricing.perUnitServiceCents)}/unit × ${pricing.quantity} = ${formatUsd(pricing.serviceFeeCents)} (customer pays).`;
     const shelfTrim = d.receivedShelfLocation.trim();
     const staffNote = appendOutsidePurchasePackMetaToStaffNote(
       [

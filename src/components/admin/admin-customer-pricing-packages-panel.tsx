@@ -1,5 +1,6 @@
 "use client";
 
+import { UsdDecimalInput } from "@/components/admin/usd-decimal-input";
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -26,14 +27,18 @@ import {
   centsToUsdInput,
   containerRatesToFormState,
   formStateToContainerRates,
-  isOpenEndedMax,
   parseUsdToCents,
-  patchMaxAndSyncNextMin,
-  serverTiersToFormRows,
-  sortTierRows,
-  validateTiers,
-  type FeeTierFormRow,
 } from "@/lib/admin-pricing-form-utils";
+import {
+  formRowsToServerPayload,
+  prepareEditableRowsForSave,
+  removeEditableTierRow,
+  serverTiersToEditableRows,
+  syncNextMinAfterMaxBlur,
+  validateTiers,
+  type FeeTierEditableRow,
+  type FeeTierServerPayload,
+} from "@/lib/service-handling-tier-form";
 import { cn } from "@/lib/utils";
 
 const fieldClassName = cn(
@@ -70,7 +75,7 @@ function buildInitialForm(
       pkg?.containerPackingRates ?? global.containerPackingRates,
     ),
     overrideServiceTiers: overrideTiers,
-    tierRows: sortTierRows(serverTiersToFormRows(tierSource)),
+    tierRows: serverTiersToEditableRows(tierSource),
   };
 }
 
@@ -89,7 +94,7 @@ export function AdminCustomerPricingPackagesPanel({
   const [overrideServiceTiers, setOverrideServiceTiers] = useState(
     initial.overrideServiceTiers,
   );
-  const [tierRows, setTierRows] = useState<FeeTierFormRow[]>(initial.tierRows);
+  const [tierRows, setTierRows] = useState<FeeTierEditableRow[]>(initial.tierRows);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -105,7 +110,6 @@ export function AdminCustomerPricingPackagesPanel({
     );
   }, [users, userFilter]);
 
-  const sortedTiers = useMemo(() => sortTierRows(tierRows), [tierRows]);
   const containerRatesPreview = useMemo(
     () => formStateToContainerRates(containerForm),
     [containerForm],
@@ -124,7 +128,16 @@ export function AdminCustomerPricingPackagesPanel({
     setPackingDollars(centsToUsdInput(g.packingFeePerLineCents));
     setContainerForm(containerRatesToFormState(g.containerPackingRates));
     setOverrideServiceTiers(false);
-    setTierRows(sortTierRows(serverTiersToFormRows(g.serviceTiers)));
+    setTierRows(serverTiersToEditableRows(g.serviceTiers));
+  }
+
+  function updateTierRow(
+    rowId: string,
+    patch: Partial<FeeTierEditableRow>,
+  ) {
+    setTierRows((rows) =>
+      rows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    );
   }
 
   return (
@@ -363,60 +376,37 @@ export function AdminCustomerPricingPackagesPanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedTiers.map((row, idx) => (
-                        <tr key={idx} className="border-b border-border/80 last:border-0">
+                      {tierRows.map((row, idx) => (
+                        <tr key={row.id} className="border-b border-border/80 last:border-0">
                           <td className="px-3 py-2">
-                            <Input
-                              inputMode="decimal"
-                              value={centsToUsdInput(row.minUnitPriceInclusiveCents)}
-                              onChange={(e) => {
-                                const c = parseUsdToCents(e.target.value);
-                                setTierRows((rows) =>
-                                  sortTierRows(
-                                    rows.map((r) =>
-                                      r === row ?
-                                        { ...r, minUnitPriceInclusiveCents: c }
-                                      : r,
-                                    ),
-                                  ),
-                                );
-                              }}
-                              className={fieldClassName}
+                            <UsdDecimalInput
+                              aria-label={`From USD row ${idx + 1}`}
+                              value={row.minUsd}
+                              onChange={(minUsd) => updateTierRow(row.id, { minUsd })}
                             />
                           </td>
                           <td className="px-3 py-2">
-                            {isOpenEndedMax(row.maxUnitPriceInclusiveCents) ?
+                            {row.openEndedMax ?
                               <p className="rounded-md border border-border bg-muted/30 px-2.5 py-2 text-sm text-muted-foreground">
                                 Open-ended
                               </p>
-                            : <Input
-                                inputMode="decimal"
-                                value={centsToUsdInput(row.maxUnitPriceInclusiveCents)}
-                                onChange={(e) => {
-                                  const c = parseUsdToCents(e.target.value);
-                                  setTierRows((prev) =>
-                                    patchMaxAndSyncNextMin(prev, row, c),
-                                  );
-                                }}
-                                className={fieldClassName}
+                            : <UsdDecimalInput
+                                aria-label={`Through USD row ${idx + 1}`}
+                                value={row.maxUsd}
+                                onChange={(maxUsd) => updateTierRow(row.id, { maxUsd })}
+                                onBlur={() =>
+                                  setTierRows((rows) =>
+                                    syncNextMinAfterMaxBlur(rows, row.id),
+                                  )
+                                }
                               />
                             }
                           </td>
                           <td className="px-3 py-2">
-                            <Input
-                              inputMode="decimal"
-                              value={centsToUsdInput(row.feePerUnitCents)}
-                              onChange={(e) => {
-                                const c = parseUsdToCents(e.target.value);
-                                setTierRows((rows) =>
-                                  sortTierRows(
-                                    rows.map((r) =>
-                                      r === row ? { ...r, feePerUnitCents: c } : r,
-                                    ),
-                                  ),
-                                );
-                              }}
-                              className={fieldClassName}
+                            <UsdDecimalInput
+                              aria-label={`Fee per unit USD row ${idx + 1}`}
+                              value={row.feeUsd}
+                              onChange={(feeUsd) => updateTierRow(row.id, { feeUsd })}
                             />
                           </td>
                           <td className="px-3 py-2">
@@ -427,7 +417,7 @@ export function AdminCustomerPricingPackagesPanel({
                               disabled={tierRows.length <= 1}
                               onClick={() =>
                                 setTierRows((rows) =>
-                                  sortTierRows(rows.filter((r) => r !== row)),
+                                  removeEditableTierRow(rows, row.id),
                                 )
                               }
                             >
@@ -448,23 +438,24 @@ export function AdminCustomerPricingPackagesPanel({
                   setMsg(null);
                   setErr(null);
                   if (overrideServiceTiers) {
-                    const tierErr = validateTiers(sortedTiers);
+                    const centsRows = prepareEditableRowsForSave(tierRows);
+                    const tierErr = validateTiers(centsRows);
                     if (tierErr) {
                       setErr(tierErr);
                       return;
                     }
                   }
                   startTransition(async () => {
+                    const tierPayload: FeeTierServerPayload[] = overrideServiceTiers
+                      ? formRowsToServerPayload(prepareEditableRowsForSave(tierRows))
+                      : [];
                     const res = await saveCustomerPricingPackageAction({
                       clerkUserId: selectedClerkUserId,
                       label: label.trim() || null,
                       packingFeePerLineCents: parseUsdToCents(packingDollars),
                       containerPackingRates: containerRatesPreview,
                       overrideServiceTiers,
-                      tiers: sortedTiers.map((t) => ({
-                        maxUnitPriceInclusiveCents: t.maxUnitPriceInclusiveCents,
-                        feePerUnitCents: t.feePerUnitCents,
-                      })),
+                      tiers: tierPayload,
                     });
                     if (!res.ok) {
                       setErr(res.message);

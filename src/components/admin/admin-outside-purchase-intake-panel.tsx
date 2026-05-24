@@ -18,6 +18,7 @@ import { CartLinePriceBreakdown } from "@/components/dashboard/cart-line-price-b
 import { Button } from "@/components/ui/button";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
+import { ImageFileInput } from "@/components/ui/image-file-input";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
@@ -82,7 +83,7 @@ type AdminOutsidePurchaseIntakePanelProps = {
   returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>;
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
   orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
-  serviceTiers: MerchantServiceTierRow[];
+  outsidePurchaseServiceTiers: MerchantServiceTierRow[];
 };
 
 export function AdminOutsidePurchaseIntakePanel({
@@ -92,7 +93,7 @@ export function AdminOutsidePurchaseIntakePanel({
   returnRequestsByItemRequestId,
   snapshotsByRequestId = {},
   orderContextByRequestId = {},
-  serviceTiers,
+  outsidePurchaseServiceTiers,
 }: AdminOutsidePurchaseIntakePanelProps) {
   const router = useRouter();
   const [saving, startSave] = useTransition();
@@ -124,9 +125,9 @@ export function AdminOutsidePurchaseIntakePanel({
       unitPriceCents: parseDollarsToCents(unitPriceDollars),
       quantity: parseQuantityInput(quantity),
       unitsPerPack: isPackLine ? parseUnitsPerPackInput(unitsPerPack) : 1,
-      serviceTiers,
+      serviceTiers: outsidePurchaseServiceTiers,
     });
-  }, [unitPriceDollars, quantity, isPackLine, unitsPerPack, serviceTiers]);
+  }, [unitPriceDollars, quantity, isPackLine, unitsPerPack, outsidePurchaseServiceTiers]);
 
   const previewRows = useMemo(
     () =>
@@ -262,9 +263,12 @@ export function AdminOutsidePurchaseIntakePanel({
             address. Each line gets a unique{" "}
             <span className="font-mono text-xs">OP-YYYYMMDD-XXXX</span> reference.
             The customer pays{" "}
-            <span className="font-medium text-foreground">service &amp; handling only</span>
-            , calculated from your fee tiers and the listed unit price × quantity.
-            Merchandise, shipping, and tax from their receipt are not billed here.
+            <span className="font-medium text-foreground">
+              outside purchase service &amp; handling only
+            </span>
+            , calculated from your outside-purchase fee tiers and the listed unit price ×
+            quantity. In-app service &amp; handling fees do not apply. Merchandise,
+            shipping, and tax from their receipt are not billed here.
           </p>
         </div>
 
@@ -296,8 +300,8 @@ export function AdminOutsidePurchaseIntakePanel({
 
             {clerkUserId.trim() ?
               <p className="text-xs text-muted-foreground">
-                Saved charges use this customer&apos;s pricing package tiers when one
-                is assigned; the preview below uses default tiers until save.
+                Charges use the global outside-purchase service &amp; handling tiers from
+                Fees &amp; rates (not in-app tiers or customer package overrides).
               </p>
             : null}
 
@@ -356,8 +360,8 @@ export function AdminOutsidePurchaseIntakePanel({
                   Pack / bundle / case
                 </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
-                  Charge service &amp; handling per consumer unit: units in each
-                  pack × per-unit fee × number of packs.
+                  Charge outside-purchase service &amp; handling per consumer unit: units
+                  in each pack × per-unit fee × number of packs.
                 </span>
               </span>
             </label>
@@ -407,7 +411,8 @@ export function AdminOutsidePurchaseIntakePanel({
                 </FieldLabel>
                 <FieldContent>
                   <p className="mb-1 text-xs text-muted-foreground">
-                    Single-item price used to pick the service &amp; handling tier
+                    Single-item price used to pick the outside-purchase service &amp;
+                    handling tier
                     {isPackLine ? " (not pack price)." : "."}
                   </p>
                   <Input
@@ -552,6 +557,10 @@ export function AdminOutsidePurchaseIntakePanel({
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Customer charge preview
               </p>
+              <p className="text-xs text-muted-foreground">
+                Outside purchase service &amp; handling only — in-app merchandise, shipping,
+                tax, and in-app service fees are not included.
+              </p>
               <CartLinePriceBreakdown rows={previewRows} />
             </div>
 
@@ -576,11 +585,14 @@ export function AdminOutsidePurchaseIntakePanel({
             <Field>
               <FieldLabel htmlFor="op-image">Product photo</FieldLabel>
               <FieldContent>
-                <Input
+                <p className="mb-2 text-xs text-muted-foreground">
+                  JPEG, PNG, WebP, or GIF — choose from your device or take a photo with the
+                  camera.
+                </p>
+                <ImageFileInput
                   id="op-image"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={(e) => onPickProductImage(e.target.files)}
+                  onFiles={onPickProductImage}
+                  selectedFileName={imageFile?.name ?? null}
                 />
               </FieldContent>
             </Field>
@@ -722,7 +734,7 @@ export function AdminOutsidePurchaseIntakePanel({
                             <AdminOutsidePurchaseEditDialog
                               request={r}
                               quote={quote ?? null}
-                              serviceTiers={serviceTiers}
+                              outsidePurchaseServiceTiers={outsidePurchaseServiceTiers}
                               returnRequest={returnReq}
                             />
                           : null}

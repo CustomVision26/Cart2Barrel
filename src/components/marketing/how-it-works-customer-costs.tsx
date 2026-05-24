@@ -31,7 +31,7 @@ const COST_PHASES: CostPhase[] = [
     step: 1,
     title: "Product cost + service & handling",
     description:
-      "Each product line includes the retailer price plus a tiered service and handling fee per unit (see Pricing overview). If you ship your own purchase to our hub, you pay service and handling when it is added to your account—without merchandise on that line.",
+      "In-app requests include retailer price plus our in-app service and handling fee per unit. Outside purchases you ship to us use a separate outside-purchase fee schedule (see Pricing overview)—merchandise is not billed on those lines.",
     items: [
       "Merchandise subtotal from your approved quote",
       "Service and handling fee per unit × quantity",

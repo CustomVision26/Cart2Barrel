@@ -375,7 +375,7 @@ function ActiveQueueLineTableRow({
             request={r}
             quote={latestQuote}
             returnRequest={returnReq}
-            serviceTiers={merchantEstimateFees?.serviceTiers ?? []}
+            serviceTiers={merchantEstimateFees?.outsidePurchaseServiceTiers ?? []}
           />
         : queueKind === "quoted" ?
           <span className="text-xs text-muted-foreground">No quote</span>
