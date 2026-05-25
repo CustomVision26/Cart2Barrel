@@ -24,7 +24,7 @@ export function BarrelPipelineProductSections({
 
   if (lines.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         {emptyMessage}
       </p>
     );

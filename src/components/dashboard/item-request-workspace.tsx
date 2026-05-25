@@ -58,6 +58,11 @@ import {
   validateItemRequestRetailerUrl,
 } from "@/lib/product-url/item-request-retailer-url";
 import { findVariantMatchingColor } from "@/lib/product-variants/merge-walmart-variants";
+import {
+  dashItemsTableCardHeader,
+  dashItemsTableStatusPanel,
+  dashItemsTableToolbar,
+} from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
 
 function normalizeUrlInput(value: string): string {
@@ -908,7 +913,7 @@ export function ItemRequestWorkspace({
 
   const browseCard = (
     <Card className="overflow-hidden border-border/80 shadow-none">
-      <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
+      <CardHeader className={dashItemsTableCardHeader}>
         <CardTitle className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
           Product from store
           <HelpBalloon label="About Product from store" tooltipClassName="w-80">
@@ -988,7 +993,7 @@ export function ItemRequestWorkspace({
 
   const requestCard = (
     <Card className="overflow-hidden border-border/80 shadow-none">
-      <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
+      <CardHeader className={dashItemsTableCardHeader}>
         <CardTitle className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
           Request details
           <HelpBalloon label="About Request details" tooltipClassName="w-80">
@@ -1000,10 +1005,10 @@ export function ItemRequestWorkspace({
       </CardHeader>
         <CardContent className="px-6 py-5">
           <FieldSet key={formResetKey} className="gap-6">
-            <div className="space-y-4 rounded-md border border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
+            <div className={cn(dashItemsTableStatusPanel, "space-y-4 px-4 py-4 text-sm text-muted-foreground")}>
                 <div
                   role="note"
-                  className="flex gap-3 rounded-md border border-border bg-background/80 px-3 py-3 text-xs leading-relaxed"
+                  className="flex gap-3 rounded-md border border-border bg-card px-3 py-3 text-xs leading-relaxed"
                 >
                   <Info
                     className="mt-0.5 size-4 shrink-0 text-muted-foreground"
@@ -1236,7 +1241,7 @@ export function ItemRequestWorkspace({
             {needsManualProductName ?
               <p
                 role="status"
-                className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm leading-relaxed text-muted-foreground"
+                className={cn(dashItemsTableStatusPanel, "text-sm leading-relaxed text-muted-foreground")}
               >
                 <span className="font-medium text-foreground">
                   Product name required.
@@ -1315,7 +1320,7 @@ export function ItemRequestWorkspace({
               />
               <FieldContent className="space-y-2">
                 {draftProductImageUrl?.trim() ?
-                  <div className="flex flex-wrap items-start gap-3 rounded-md border border-border bg-muted/20 p-2">
+                  <div className={cn(dashItemsTableStatusPanel, "flex flex-wrap items-start gap-3 p-2")}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={draftProductImageUrl.trim()}
@@ -1380,7 +1385,7 @@ export function ItemRequestWorkspace({
             !fieldErrors?.productUrl?.length ? (
               <p
                 role="status"
-                className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground"
+                className={cn(dashItemsTableStatusPanel, "text-sm text-muted-foreground")}
               >
                 Store product URL and product link must match. Select{" "}
                 <span className="font-medium text-foreground">
@@ -1465,7 +1470,7 @@ export function ItemRequestWorkspace({
       {showSpotlightPrefillNotice ?
         <div
           role="status"
-          className="flex flex-col gap-3 rounded-md border border-border bg-muted/25 px-4 py-3.5 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between"
+          className={cn(dashItemsTableStatusPanel, "flex flex-col gap-3 px-4 py-3.5 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between")}
         >
           <p className="text-pretty leading-relaxed text-muted-foreground">
             <span className="font-medium text-foreground">Spotlight prefill applied.</span>{" "}
@@ -1488,7 +1493,7 @@ export function ItemRequestWorkspace({
       <div
         role="tablist"
         aria-label="Request workflow"
-        className="inline-flex max-w-full gap-1 overflow-x-auto rounded-lg border border-border bg-muted/30 p-1"
+        className={cn(dashItemsTableToolbar, "inline-flex max-w-full gap-1 overflow-x-auto p-1")}
       >
         <button
           type="button"

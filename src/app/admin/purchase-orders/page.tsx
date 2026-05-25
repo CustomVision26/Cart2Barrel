@@ -128,7 +128,7 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
       />
 
       {!admin ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           You do not have admin access.
         </p>
       : (
@@ -145,12 +145,12 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
               />
             </AdminParentControlsShell>
           {emptyQueue ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               Nothing is coordinating delivery or awaiting receipt correction after a recorded purchase yet.
             </p>
           : null}
           {noSearchHits ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No lines match your search. Try batch number or session UUID, order or request id,
               customer email or name, or product wording — same rules as Orders.
             </p>

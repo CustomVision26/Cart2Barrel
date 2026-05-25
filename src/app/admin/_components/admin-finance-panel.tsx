@@ -35,7 +35,7 @@ export async function AdminFinancePanel({
       <form
         method="GET"
         action="/admin/overview"
-        className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <input type="hidden" name="tab" value="finance" />
         {clerkUserId ?

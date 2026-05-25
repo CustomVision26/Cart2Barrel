@@ -153,7 +153,7 @@ function PreviewField({
 }) {
   return (
     <div
-      className={`min-w-0 rounded-lg border border-border/80 bg-muted/40 p-3 ${className ?? ""}`}
+      className={`min-w-0 rounded-lg border border-border/80 bg-muted p-3 ${className ?? ""}`}
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
@@ -284,7 +284,7 @@ function IntakePreviewBody({
                   href={img.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex min-h-[8rem] items-center justify-center overflow-hidden rounded-lg border border-border/80 bg-muted/50 p-2"
+                  className="flex min-h-[8rem] items-center justify-center overflow-hidden rounded-lg border border-border/80 bg-muted p-2"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- external retailer CDN URLs */}
                   <img
@@ -527,7 +527,7 @@ export function AdminPackageFileCard({
             <DialogTitle>Preview intake</DialogTitle>
             <DialogDescription>{line.productName}</DialogDescription>
           </DialogHeader>
-          <div className="flex gap-3 rounded-lg border border-border/80 bg-muted/30 p-3">
+          <div className="flex gap-3 rounded-lg border border-border/80 bg-muted p-3">
             <ProductRequestThumbnail
               variant="dialog"
               imageUrl={line.productImageUrl}

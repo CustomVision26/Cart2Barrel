@@ -17,7 +17,7 @@ export function CartOutboundShippingLineItem({
 }: CartOutboundShippingLineItemProps) {
   return (
     <li className="flex gap-4 px-4 py-4 sm:px-5">
-      <span className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-border/80 bg-muted/30 text-primary">
+      <span className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-border/80 bg-muted text-primary">
         <Package className="size-5" aria-hidden />
       </span>
       <div className="min-w-0 flex-1 space-y-2">

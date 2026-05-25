@@ -185,7 +185,7 @@ export function AdminNotificationsBell({ initial }: AdminNotificationsBellProps)
                   key={group.clerkUserId}
                   className="overflow-hidden rounded-lg border border-border/80 bg-card/40"
                 >
-                  <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/30 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted px-3 py-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-foreground">
                         {group.displayName}

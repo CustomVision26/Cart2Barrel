@@ -84,7 +84,7 @@ export function CartQuoteLineItem({
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 space-y-2">
-              <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/80 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-card px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
                 <Tag className="size-3 opacity-70" aria-hidden />
                 {outsidePurchase ? "Outside purchase" : "Quoted item"}
               </span>
@@ -120,7 +120,7 @@ export function CartQuoteLineItem({
               : "Item cost, fees, shipping, and tax"
             }
             defaultOpen={false}
-            className="border-border/70 bg-muted/10"
+            className="border-border/70 bg-muted"
           >
             <CartLinePriceBreakdown rows={priceRows} className="border-0 bg-transparent" />
           </CollapsibleFieldSection>
@@ -131,7 +131,7 @@ export function CartQuoteLineItem({
               title="Notes from Cart2Barrel"
               description="Staff notes for this estimate"
               defaultOpen={false}
-              className="border-border/70 bg-muted/10"
+              className="border-border/70 bg-muted"
             >
               <StaffNotesList items={staffNoteItems} compact />
             </CollapsibleFieldSection>

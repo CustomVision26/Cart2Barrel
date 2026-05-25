@@ -20,7 +20,7 @@ export function HomeStorefront({
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-12 px-4 py-10 md:py-14">
       <section className="space-y-6">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
           <Sparkles className="size-3.5 text-amber-500" aria-hidden />
           Shop & Ship From US stores · Delivered to Caribbean and The World
         </div>

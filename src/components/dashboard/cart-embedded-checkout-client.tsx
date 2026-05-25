@@ -67,9 +67,9 @@ function EmbeddedCheckoutPaymentForm({
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Loading payment form">
         <div className="space-y-3">
-          <div className="h-12 animate-pulse rounded-lg bg-muted/40" />
-          <div className="h-12 animate-pulse rounded-lg bg-muted/40" />
-          <div className="h-24 animate-pulse rounded-lg bg-muted/30" />
+          <div className="h-12 animate-pulse rounded-lg bg-muted" />
+          <div className="h-12 animate-pulse rounded-lg bg-muted" />
+          <div className="h-24 animate-pulse rounded-lg bg-muted" />
         </div>
         <p className="text-center text-xs text-muted-foreground">
           Establishing a secure payment connection…
@@ -281,9 +281,9 @@ export function CartEmbeddedCheckoutClient({
         "ring-1 ring-border/30"
       )}
     >
-      <div className="border-b border-border/50 bg-muted/15 px-5 py-4">
+      <div className="border-b border-border/50 bg-secondary px-5 py-4">
         <div className="flex items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-background/80 text-primary">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-card text-primary">
             <CreditCard className="size-5" aria-hidden />
           </span>
           <div className="min-w-0 flex-1 space-y-1">
@@ -313,7 +313,7 @@ export function CartEmbeddedCheckoutClient({
           <EmbeddedCheckoutPaymentForm checkoutSessionId={checkoutSessionId} />
         </CheckoutElementsProvider>
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 bg-muted/10 px-5 py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 bg-muted px-5 py-3">
         <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Shield className="size-3.5 shrink-0 text-primary/80" aria-hidden />
           <span>Payments processed by Stripe, Inc.</span>

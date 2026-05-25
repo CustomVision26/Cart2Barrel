@@ -85,7 +85,7 @@ export function CartCheckoutSummaryCard({
         "h-fit overflow-hidden rounded-lg border-border bg-card shadow-sm",
       )}
     >
-      <CardHeader className="space-y-4 border-b border-border/60 bg-muted/20 pb-5">
+      <CardHeader className="space-y-4 border-b border-border/60 bg-muted pb-5">
         <div className="flex items-start gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-background text-muted-foreground">
             <Receipt className="size-5" aria-hidden />
@@ -142,7 +142,7 @@ export function CartCheckoutSummaryCard({
               ))}
               {dbSummary.standaloneLines.map((line) => (
                 <li key={line.itemRequestId}>
-                  <div className="rounded-lg border border-border bg-background/80 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
                       <div className="min-w-0 flex-1 space-y-2">
                         <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
@@ -188,7 +188,7 @@ export function CartCheckoutSummaryCard({
             <ul className="space-y-3" role="list">
               {stripeLinesForDisplay.map((row, idx) => (
                 <li key={`${row.description}-${idx}`}>
-                  <div className="rounded-lg border border-border bg-background/80 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
                       <div className="min-w-0 flex-1 space-y-2">
                         <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
@@ -217,7 +217,7 @@ export function CartCheckoutSummaryCard({
               ))}
             </ul>
           : (
-            <p className="rounded-lg border border-dashed border-border bg-muted/15 px-4 py-8 text-center text-[13px] leading-relaxed text-muted-foreground">
+            <p className="rounded-lg border border-dashed border-border bg-secondary px-4 py-8 text-center text-[13px] leading-relaxed text-muted-foreground">
               Item descriptions will synchronize from your Stripe session shortly. Totals shown
               below remain authoritative until lines load.
             </p>
@@ -226,7 +226,7 @@ export function CartCheckoutSummaryCard({
           dbLineTotal > 0 &&
           processingFeeCents != null &&
           processingFeeCents > 0 ?
-            <div className="mt-4 rounded-lg border border-border/60 bg-muted/10 p-4">
+            <div className="mt-4 rounded-lg border border-border/60 bg-muted p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="min-w-0 space-y-1">
                   <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
@@ -251,7 +251,7 @@ export function CartCheckoutSummaryCard({
           : null}
         </div>
 
-        <div className="mt-4 border-t border-border bg-muted/15 px-5 py-5">
+        <div className="mt-4 border-t border-border bg-secondary px-5 py-5">
           <div className="flex items-baseline justify-between gap-4 border-b border-border/40 pb-3">
             <span className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Order total (USD)

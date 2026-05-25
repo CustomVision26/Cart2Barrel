@@ -164,7 +164,7 @@ export function AdminBatchQuoteEstimateDialog({
             <p className="text-sm text-destructive">{loadError}</p>
           ) : (
             <div className="space-y-4 text-sm">
-              <div className="grid gap-2 rounded-md border border-border bg-muted/15 p-3 tabular-nums">
+              <div className="grid gap-2 rounded-md border border-border/80 bg-muted p-3 tabular-nums">
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Batch Total (merchandise)</span>
                   <span className="text-foreground">{formatUsd(batchMerch)}</span>
@@ -194,7 +194,7 @@ export function AdminBatchQuoteEstimateDialog({
 
               <Separator />
 
-              <div className="grid gap-2 rounded-md border border-border bg-muted/15 p-3 tabular-nums">
+              <div className="grid gap-2 rounded-md border border-border/80 bg-muted p-3 tabular-nums">
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Batch Shipping Total</span>
                   <span className="text-foreground">{formatUsd(batchShip)}</span>
@@ -220,7 +220,7 @@ export function AdminBatchQuoteEstimateDialog({
 
               <Separator />
 
-              <div className="grid gap-2 rounded-md border border-border bg-muted/15 p-3 tabular-nums">
+              <div className="grid gap-2 rounded-md border border-border/80 bg-muted p-3 tabular-nums">
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Batch Sale tax</span>
                   <span className="text-foreground">{formatUsd(batchTax)}</span>

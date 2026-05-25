@@ -54,7 +54,7 @@ export function OutOfStockProductPreviewDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         type="button"
-        className="inline-flex w-full items-center justify-center gap-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60"
+        className="inline-flex w-full items-center justify-center gap-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
       >
         <EyeIcon className="size-4" />
         Preview
@@ -68,7 +68,7 @@ export function OutOfStockProductPreviewDialog({
             different product or link.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex gap-3 rounded-md border border-border bg-muted/20 p-3">
+        <div className="flex gap-3 rounded-md border border-border bg-muted p-3">
           <ProductRequestThumbnail
             variant="list"
             imageUrl={request.productImageUrl}

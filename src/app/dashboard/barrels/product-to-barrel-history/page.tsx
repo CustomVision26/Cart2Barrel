@@ -56,13 +56,13 @@ export default async function DashboardProductToBarrelHistoryPage() {
       </div>
 
       {rows.length === 0 ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           No assignment history yet.
         </p>
       : (
-        <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+        <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
           <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-            <thead className="border-b border-border bg-muted/40">
+            <thead className="border-b border-border bg-muted">
               <tr>
                 <th className="px-3 py-2 font-medium">When</th>
                 <th className="px-3 py-2 font-medium">Action</th>

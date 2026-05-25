@@ -179,7 +179,7 @@ export default async function CartEmbeddedCheckoutPage({ searchParams }: PagePro
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-2 rounded-none border border-border/60 bg-muted/25 px-3 py-1.5 tabular-nums text-foreground/90">
+          <span className="inline-flex items-center gap-2 rounded-none border border-border/60 bg-muted px-3 py-1.5 tabular-nums text-foreground/90">
             <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
             SSL encrypted
           </span>
@@ -191,7 +191,7 @@ export default async function CartEmbeddedCheckoutPage({ searchParams }: PagePro
         </div>
 
         <nav aria-label="Checkout progress">
-          <ol className="flex flex-wrap gap-0 divide-x divide-border border border-border/60 bg-muted/20 text-xs md:text-[13px]">
+          <ol className="flex flex-wrap gap-0 divide-x divide-border border border-border/60 bg-muted text-xs md:text-[13px]">
             <li className="flex min-w-[10rem] flex-1 items-center gap-3 px-4 py-3">
               <span
                 className="flex size-7 shrink-0 items-center justify-center border border-primary/40 bg-primary/15 text-[11px] font-semibold text-foreground tabular-nums"

@@ -46,7 +46,7 @@ export function AdminProductUrlDialog({ productUrl }: AdminProductUrlDialogProps
             Customer-submitted product page link for this request.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
+        <div className="rounded-md border border-border bg-muted px-3 py-2">
           <p className="break-all font-mono text-xs leading-relaxed text-foreground">
             {productUrl}
           </p>

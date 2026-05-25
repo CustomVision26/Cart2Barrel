@@ -31,14 +31,14 @@ export function CollapsibleOrderBatchBucket({
 
   return (
     <>
-      <tr className={muted ? "bg-background/60" : "bg-primary/[0.06]"}>
+      <tr className={muted ? "bg-card" : "bg-primary/[0.06]"}>
         <td className="px-3 py-1.5" colSpan={colSpan}>
           <div className="space-y-0">
             <div className="flex flex-wrap items-start gap-x-2 gap-y-2">
               <button
                 type="button"
                 onClick={() => setOpen((prev) => !prev)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-expanded={open}
                 aria-label={open ? "Hide section lines" : "Show section lines"}
               >

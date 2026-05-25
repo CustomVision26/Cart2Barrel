@@ -5,12 +5,12 @@ import { cn } from "@/lib/utils";
 export type ProductRequestThumbnailVariant = "list" | "cart" | "dialog" | "admin";
 
 const frameByVariant: Record<ProductRequestThumbnailVariant, string> = {
-  list: "w-14 max-w-[3.5rem] shrink-0 overflow-hidden rounded-lg border border-border bg-muted/30 sm:w-16 sm:max-w-[4rem]",
-  cart: "shrink-0 overflow-hidden rounded-lg border border-border bg-muted/30 sm:w-28 w-full max-w-[11rem]",
+  list: "w-14 max-w-[3.5rem] shrink-0 overflow-hidden rounded-lg border border-border bg-muted sm:w-16 sm:max-w-[4rem]",
+  cart: "shrink-0 overflow-hidden rounded-lg border border-border bg-muted sm:w-28 w-full max-w-[11rem]",
   dialog:
-    "w-[4.5rem] shrink-0 overflow-hidden rounded-lg border border-border bg-muted/30 sm:w-20",
+    "w-[4.5rem] shrink-0 overflow-hidden rounded-lg border border-border bg-muted sm:w-20",
   admin:
-    "w-11 shrink-0 overflow-hidden rounded-md border border-border bg-muted/30 sm:w-12",
+    "w-11 shrink-0 overflow-hidden rounded-md border border-border bg-muted sm:w-12",
 };
 
 const imgByVariant: Record<ProductRequestThumbnailVariant, string> = {
@@ -55,7 +55,7 @@ export function ProductRequestThumbnail({
     <div
       className={cn(
         frameByVariant[variant],
-        "flex items-center justify-center border-dashed bg-muted/20 text-center text-[10px] leading-tight text-muted-foreground",
+        "flex items-center justify-center border-dashed bg-muted text-center text-[10px] leading-tight text-muted-foreground",
         className
       )}
       aria-hidden

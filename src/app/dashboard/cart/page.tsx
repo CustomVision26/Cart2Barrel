@@ -158,7 +158,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
             {checkoutSync.openCheckouts.map(({ sessionId }) => (
               <div
                 key={sessionId}
-                className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background/80 p-3 sm:flex-row sm:items-center sm:gap-3"
+                className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card p-3 sm:flex-row sm:items-center sm:gap-3"
               >
                 <Link
                   href={`/dashboard/cart/checkout?session_id=${encodeURIComponent(sessionId)}`}
@@ -181,7 +181,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-xl border border-border bg-muted/30 text-primary">
+            <span className="flex size-11 items-center justify-center rounded-xl border border-border bg-muted text-primary">
               <ShoppingCart className="size-5" aria-hidden />
             </span>
             <div>
@@ -221,7 +221,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
       {!hasAny ?
         <Card className="overflow-hidden rounded-xl border-dashed shadow-sm">
           <CardContent className="flex flex-col items-center gap-4 px-6 py-14 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full border border-border bg-muted/20 text-muted-foreground">
+            <span className="flex size-14 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
               <ShoppingCart className="size-7" aria-hidden />
             </span>
             <div className="space-y-1">

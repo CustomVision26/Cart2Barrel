@@ -232,7 +232,7 @@ export function AdminBarrelAssignmentHistoryTable({
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No assignment events recorded yet.
       </p>
     );
@@ -243,7 +243,7 @@ export function AdminBarrelAssignmentHistoryTable({
   return (
     <div className="space-y-4">
       {!customerExpanded ? (
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+      <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -275,7 +275,7 @@ export function AdminBarrelAssignmentHistoryTable({
       ) : null}
 
       {grouped.length === 0 ? (
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           No assignment events match the current search.
         </p>
       ) : (
@@ -303,8 +303,8 @@ export function AdminBarrelAssignmentHistoryTable({
               <button
                 type="button"
                 className={cn(
-                  "flex w-full flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-3 py-2.5 text-left hover:bg-muted/45",
-                  expanded && "bg-muted/40",
+                  "flex w-full flex-wrap items-center gap-2 border-b border-border bg-muted px-3 py-2.5 text-left hover:bg-accent",
+                  expanded && "bg-muted",
                 )}
                 aria-expanded={expanded}
                 onClick={() => {
@@ -366,7 +366,7 @@ export function AdminBarrelAssignmentHistoryTable({
 
                   <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border bg-background">
                     <table className="w-full min-w-[52rem] border-collapse text-left text-xs">
-                      <thead className="border-b border-border bg-muted/40 text-[11px] text-muted-foreground">
+                      <thead className="border-b border-border bg-muted text-[11px] text-muted-foreground">
                         <tr>
                           <th className="min-w-[10rem] px-2 py-1.5 font-medium">
                             Product
@@ -412,8 +412,8 @@ export function AdminBarrelAssignmentHistoryTable({
                             <Fragment key={track.packageId}>
                               <tr
                                 className={cn(
-                                  "cursor-pointer transition-colors hover:bg-muted/25",
-                                  trackExpanded && "bg-muted/20",
+                                  "cursor-pointer transition-colors hover:bg-muted",
+                                  trackExpanded && "bg-muted",
                                 )}
                                 title="Double-click to show full action history"
                                 onDoubleClick={() => toggleTrack(trackKey)}
@@ -464,7 +464,7 @@ export function AdminBarrelAssignmentHistoryTable({
                                 </td>
                               </tr>
                               {trackExpanded ? (
-                                <tr className="bg-muted/10">
+                                <tr className="bg-secondary">
                                   <td colSpan={TABLE_COL_SPAN} className="p-0">
                                     <div className="border-t border-border px-3 py-2">
                                       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

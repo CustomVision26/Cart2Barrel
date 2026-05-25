@@ -254,7 +254,7 @@ function ProductContextSection({ row }: { row: ItemRequestLineSnapshot }) {
   );
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-muted/20">
+    <div className="overflow-hidden rounded-lg border border-border bg-muted">
       <div className="flex gap-3 p-3">
         {row.productImageUrl?.trim() ?
           <a
@@ -290,7 +290,7 @@ function ProductContextSection({ row }: { row: ItemRequestLineSnapshot }) {
           </dl>
         </div>
       </div>
-      <div className="border-t border-border/60 bg-muted/10 px-3 py-2">
+      <div className="border-t border-border/60 bg-muted px-3 py-2">
         <a
           href={row.productUrl}
           target="_blank"
@@ -390,7 +390,7 @@ export function ItemRequestLineSnapshotPreviewPanel({
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Record details
           </p>
-          <p className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-muted/25 px-3 py-3 font-mono text-xs leading-relaxed text-muted-foreground">
+          <p className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-muted px-3 py-3 font-mono text-xs leading-relaxed text-muted-foreground">
             {row.auditMemo?.trim()}
           </p>
         </div>

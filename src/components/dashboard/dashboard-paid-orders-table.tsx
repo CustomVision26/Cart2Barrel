@@ -87,7 +87,7 @@ export function DashboardPaidOrdersTable({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No orders on this page.
       </p>
     );
@@ -97,9 +97,9 @@ export function DashboardPaidOrdersTable({
 
   return (
     <div className="space-y-3">
-      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
         <table className="w-full min-w-[60rem] text-left text-sm">
-          <thead className="border-b border-border bg-muted/40">
+          <thead className="border-b border-border bg-muted">
             <tr>
               <th className="px-3 py-2.5 font-medium text-foreground">Photo</th>
               <th className="px-3 py-2.5 font-medium text-foreground">Product</th>
@@ -283,7 +283,7 @@ function DashboardRefundPreviewDialog({ row }: { row: DashboardPaidOrderLineRow 
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+          <div className="rounded-lg border border-border bg-muted p-3 text-sm">
             <dl className="grid gap-3 text-foreground">
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -390,7 +390,7 @@ function DashboardRefundPreviewDialog({ row }: { row: DashboardPaidOrderLineRow 
                 ))}
               </div>
             : (
-              <p className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+              <p className="rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">
                 Refund total is recorded, but detailed refund rows were not available.
               </p>
             )}

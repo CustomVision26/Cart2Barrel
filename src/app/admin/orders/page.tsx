@@ -139,7 +139,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       <AdminOrdersTabNav activeTab="orders" />
 
       {!admin ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           You do not have admin access.
         </p>
       : (
@@ -156,12 +156,12 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
               />
             </AdminParentControlsShell>
             {noOrdersAtAll ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No paid orders yet.
             </p>
           : null}
           {noSearchHits ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No orders match your search. Try batch number or session UUID, order or line UUID,
               Stripe payment-intent reference, customer email or name, buyer note text, or product wording.
             </p>

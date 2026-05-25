@@ -85,7 +85,7 @@ export function DashboardBarrelOfferingCard({
       <CardHeader className="space-y-1 pb-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <CardTitle className="text-lg">{offering.name}</CardTitle>
-          <span className="shrink-0 rounded-full border border-border/80 bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-foreground">
+          <span className="shrink-0 rounded-full border border-border/80 bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
             {containerOfferingKindLabel(offering.kind)}
           </span>
         </div>
@@ -102,7 +102,7 @@ export function DashboardBarrelOfferingCard({
                   <CarouselItem key={im.id}>
                     <div
                       className={cn(
-                        "relative aspect-[4/3] overflow-hidden rounded-md border border-border/60 bg-muted/20",
+                        "relative aspect-[4/3] overflow-hidden rounded-md border border-border/60 bg-muted",
                       )}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -125,7 +125,7 @@ export function DashboardBarrelOfferingCard({
             </Carousel>
           </div>
         : (
-          <div className="flex aspect-[4/3] items-center justify-center rounded-md border border-dashed border-border/60 bg-muted/15 text-sm text-muted-foreground">
+          <div className="flex aspect-[4/3] items-center justify-center rounded-md border border-dashed border-border/60 bg-secondary text-sm text-muted-foreground">
             Photos coming soon
           </div>
         )}
@@ -171,7 +171,7 @@ export function DashboardBarrelOfferingCard({
           <p className="text-sm text-destructive">{error}</p>
         : null}
       </CardContent>
-      <CardFooter className="border-t border-border/50 bg-muted/10 py-3 text-xs text-muted-foreground">
+      <CardFooter className="border-t border-border/50 bg-muted py-3 text-xs text-muted-foreground">
         Charged at checkout with your other cart items.
       </CardFooter>
     </Card>

@@ -39,7 +39,7 @@ export function AdminProductImagePreview({
   return (
     <div
       className={cn(
-        "overflow-hidden border border-border bg-muted/30",
+        "overflow-hidden border border-border bg-muted",
         frameClassName ?? "rounded-xl",
         className,
       )}

@@ -113,7 +113,7 @@ export function AdminSpotlightPreviewImageField({
       : null}
       <div className={compact ? "flex flex-wrap items-start gap-2" : "flex flex-wrap items-start gap-3"}>
         <div
-          className={`relative ${thumbSize} shrink-0 overflow-hidden rounded-md border border-border bg-muted/50`}
+          className={`relative ${thumbSize} shrink-0 overflow-hidden rounded-md border border-border bg-muted`}
         >
           {displayUrl ?
             // eslint-disable-next-line @next/next/no-img-element

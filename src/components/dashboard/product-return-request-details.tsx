@@ -33,7 +33,7 @@ export function ProductReturnRequestDetails({
   fulfilledAt?: string | null;
 }) {
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+    <div className="space-y-3 rounded-lg border border-border bg-muted p-3 text-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Your return request
       </p>

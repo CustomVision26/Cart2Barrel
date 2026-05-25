@@ -109,7 +109,7 @@ export function HomeSpotlightCarousel({
                       )}
                     >
                       <div className="space-y-1">
-                        <div className="rounded-md bg-background/80 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur">
+                        <div className="rounded-md bg-card px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur">
                           {slide.tag}
                         </div>
                         <CardTitle className="text-lg text-foreground">
@@ -132,13 +132,13 @@ export function HomeSpotlightCarousel({
                           loop={slideOffers.length > 1}
                           showControls={slideOffers.length > 1}
                         />
-                      : <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-6 text-center text-xs text-muted-foreground">
+                      : <p className="rounded-lg border border-dashed border-border bg-muted px-3 py-6 text-center text-xs text-muted-foreground">
                           Curated products coming soon for this category.
                         </p>
                       }
                     </CardContent>
 
-                    <CardFooter className="shrink-0 border-t border-border/60 bg-muted/30 px-4 py-4">
+                    <CardFooter className="shrink-0 border-t border-border/60 bg-muted px-4 py-4">
                       <Button
                         variant="secondary"
                         size="lg"

@@ -313,7 +313,7 @@ function AuditSnapshotPreviewPanel({
           </a>
           <AdminProductUrlDialog productUrl={row.productUrl} />
         </div>
-        <p className="mt-2 break-all rounded-md border border-border bg-muted/30 px-3 py-2 font-mono text-xs leading-relaxed text-muted-foreground">
+        <p className="mt-2 break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs leading-relaxed text-muted-foreground">
           {row.productUrl}
         </p>
       </div>
@@ -330,7 +330,7 @@ function AuditSnapshotPreviewPanel({
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Batch / estimate audit memo
           </p>
-          <p className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-muted/25 px-3 py-3 font-mono text-xs leading-relaxed text-foreground">
+          <p className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-muted px-3 py-3 font-mono text-xs leading-relaxed text-foreground">
             {row.auditMemo.trim()}
           </p>
         </div>
@@ -448,9 +448,9 @@ export function ItemRequestLineAuditDialog({
           </p>
         ) : (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_min(22rem,34%)] lg:items-start">
-            <FloatingHorizontalScroll className="min-w-0" viewportClassName="rounded-md border border-border">
+            <FloatingHorizontalScroll className="min-w-0" viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
               <table className="w-full min-w-[72rem] text-left text-sm sm:text-[0.9375rem]">
-                <thead className="border-b border-border bg-muted/50">
+                <thead className="border-b border-border bg-muted">
                   <tr>
                     <th className="px-3 py-3 font-medium text-foreground">Phase</th>
                     <th className="px-3 py-3 font-medium text-foreground">Status</th>
@@ -473,7 +473,7 @@ export function ItemRequestLineAuditDialog({
                     return (
                       <tr
                         key={row.id}
-                        className={`cursor-pointer align-top transition-colors hover:bg-muted/30 ${
+                        className={`cursor-pointer align-top transition-colors hover:bg-muted ${
                           selected
                             ? "bg-primary/10 ring-1 ring-inset ring-primary/25"
                             : ""
@@ -537,7 +537,7 @@ export function ItemRequestLineAuditDialog({
                 </tbody>
               </table>
             </FloatingHorizontalScroll>
-            <aside className="rounded-xl border border-border bg-muted/15 p-4 lg:max-h-[min(52rem,72vh)] lg:overflow-y-auto">
+            <aside className="rounded-xl border border-border bg-secondary p-4 lg:max-h-[min(52rem,72vh)] lg:overflow-y-auto">
               {previewRow ? (
                 <AuditSnapshotPreviewPanel row={previewRow} prevRow={previewPrev} />
               ) : (

@@ -67,7 +67,7 @@ export function AdminNestedFindOrganizePanel({
   const plural = totalCount === 1 ? itemLabel : `${itemLabel}s`;
 
   return (
-    <div className={cn("mb-4 space-y-3 rounded-lg border border-border bg-muted/10 p-4", className)}>
+    <div className={cn("mb-4 space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5", className)}>
       <AdminFindOrganizeVisibilityToggle
         id={switchId}
         visible={visible}

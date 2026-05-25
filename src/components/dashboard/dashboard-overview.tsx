@@ -216,7 +216,7 @@ export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }
                 <div className="relative flex flex-col gap-3">
                   <span
                     className={cn(
-                      "inline-flex size-10 items-center justify-center rounded-lg border border-border/60 bg-background/80",
+                      "inline-flex size-10 items-center justify-center rounded-lg border border-border/60 bg-card",
                       action.iconClass,
                     )}
                   >
@@ -252,7 +252,7 @@ export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }
               <Link
                 key={step.step}
                 href={step.href}
-                className="flex gap-3 rounded-lg border border-border/70 bg-muted/20 p-3 transition-colors hover:border-primary/35 hover:bg-muted/35"
+                className="flex gap-3 rounded-lg border border-border/70 bg-muted p-3 transition-colors hover:border-primary/35 hover:bg-accent"
               >
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 font-heading text-sm font-semibold text-primary">
                   {step.step}

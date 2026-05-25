@@ -67,7 +67,7 @@ export function AdminOrdersListControls(props: {
       <form
         method="GET"
         action={basePath}
-        className="flex flex-col gap-4 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-4 rounded-lg border border-border/80 bg-muted p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <div className="min-w-[12rem] flex-1 space-y-1.5">
           <label
@@ -187,7 +187,7 @@ export function AdminOrdersListControls(props: {
                 page: page - 1,
                 basePath,
               })}
-              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/80"
+              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent"
               prefetch={false}
             >
               Previous
@@ -206,7 +206,7 @@ export function AdminOrdersListControls(props: {
                 page: page + 1,
                 basePath,
               })}
-              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/80"
+              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent"
               prefetch={false}
             >
               Next

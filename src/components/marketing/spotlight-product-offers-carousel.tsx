@@ -47,7 +47,7 @@ export type SpotlightOfferSlide = {
 };
 
 const CARD_IMAGE_CLASS =
-  "relative aspect-square w-full max-h-28 shrink-0 bg-muted/30 sm:max-h-32";
+  "relative aspect-square w-full max-h-28 shrink-0 bg-muted sm:max-h-32";
 const CARD_BODY_CLASS = "flex flex-1 flex-col gap-2 p-2.5";
 const CARD_SHELL_CLASS =
   "flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card text-xs shadow-sm";
@@ -114,7 +114,7 @@ function SpotlightImageViewer({
                 {images.map((image, index) => (
                   <CarouselItem key={image.id}>
                     <div className="space-y-2">
-                      <div className="relative aspect-square overflow-hidden rounded-lg border border-border/70 bg-muted/20 sm:aspect-[4/3]">
+                      <div className="relative aspect-square overflow-hidden rounded-lg border border-border/70 bg-muted sm:aspect-[4/3]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={image.imageUrl}
@@ -204,7 +204,7 @@ export function SpotlightOfferCard({
           {imageUrl ?
             // eslint-disable-next-line @next/next/no-img-element
             <img src={imageUrl} alt="" className="size-full object-cover" />
-          : <div className="flex size-full items-center justify-center bg-muted/50 text-muted-foreground">
+          : <div className="flex size-full items-center justify-center bg-muted text-muted-foreground">
               <ImageIcon className="size-5" aria-hidden />
             </div>
           }

@@ -68,7 +68,7 @@ export function AdminGeneralPackageFeePanel({
   return (
     <div className="space-y-4">
       {msg ?
-        <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-foreground">
+        <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
           {msg}
         </p>
       : null}
@@ -102,7 +102,7 @@ export function AdminGeneralPackageFeePanel({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+            <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
               <p className="text-sm font-medium text-foreground">Barrels</p>
               <div className="space-y-2">
                 <Label htmlFor="single-barrel-usd">Exactly 1 barrel (USD)</Label>
@@ -134,7 +134,7 @@ export function AdminGeneralPackageFeePanel({
                 {formatUsdFromCents(barrelPackingFeeCents(4, containerRatesPreview))}
               </p>
             </div>
-            <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+            <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
               <p className="text-sm font-medium text-foreground">Bins</p>
               <div className="space-y-2">
                 <Label htmlFor="single-bin-usd">Exactly 1 bin (USD)</Label>

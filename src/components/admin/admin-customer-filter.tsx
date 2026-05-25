@@ -113,8 +113,8 @@ export function AdminCustomerFilter({ users }: AdminCustomerFilterProps) {
               role="option"
               aria-selected={!clerkUserId}
               className={cn(
-                "w-full px-3 py-2 text-left text-sm hover:bg-muted/80",
-                !clerkUserId && "bg-muted/50 font-medium",
+                "w-full px-3 py-2 text-left text-sm hover:bg-accent",
+                !clerkUserId && "bg-muted font-medium",
               )}
               onClick={() => {
                 setCustomer(null);
@@ -136,8 +136,8 @@ export function AdminCustomerFilter({ users }: AdminCustomerFilterProps) {
                   role="option"
                   aria-selected={u.clerkUserId === clerkUserId}
                   className={cn(
-                    "w-full px-3 py-2 text-left text-sm hover:bg-muted/80",
-                    u.clerkUserId === clerkUserId && "bg-muted/50 font-medium",
+                    "w-full px-3 py-2 text-left text-sm hover:bg-accent",
+                    u.clerkUserId === clerkUserId && "bg-muted font-medium",
                   )}
                   onClick={() => {
                     setCustomer(u.clerkUserId);

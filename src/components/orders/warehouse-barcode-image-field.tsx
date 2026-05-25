@@ -58,7 +58,7 @@ export function WarehouseBarcodeImageField(props: {
   }, [disabled, orderItemId, pending, router, url]);
 
   return (
-    <div className="space-y-2 rounded-lg border border-border/80 bg-muted/10 p-3">
+    <div className="space-y-2 rounded-lg border border-border/80 bg-muted p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-medium text-foreground">Barcode photo</p>

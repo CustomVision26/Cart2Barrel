@@ -402,7 +402,7 @@ export function AdminQuoteHistoryGroupedTable({
 
   if (groups.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No saved quotes yet.
       </p>
     );
@@ -418,7 +418,7 @@ export function AdminQuoteHistoryGroupedTable({
       </p>
 
       {!customerExpanded ? (
-        <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+        <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
           <AdminFindOrganizeVisibilityToggle
             id={findOrganizeSwitchId}
             visible={findOrganizeVisible}
@@ -506,9 +506,9 @@ export function AdminQuoteHistoryGroupedTable({
 
       {sortedGroups.length === 0 ? null : (
         <>
-          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
             <table className="w-full min-w-[56rem] text-left text-sm">
-              <thead className="border-b border-border bg-muted/40">
+              <thead className="border-b border-border bg-muted">
                 <tr>
                   <th className="w-10 px-2 py-2.5" aria-hidden />
                   <SortableTh
@@ -552,8 +552,8 @@ export function AdminQuoteHistoryGroupedTable({
                   >
                     <tr
                       className={cn(
-                        "bg-background transition-colors hover:bg-muted/40",
-                        expanded && "bg-muted/25"
+                        "bg-background transition-colors hover:bg-accent",
+                        expanded && "bg-accent"
                       )}
                       role="button"
                       tabIndex={0}
@@ -588,7 +588,7 @@ export function AdminQuoteHistoryGroupedTable({
                     </tr>
                     {expanded ? (
                       <tr>
-                        <td colSpan={4} className="bg-muted/15 p-0">
+                        <td colSpan={4} className="bg-secondary p-0">
                           <div
                             id={panelId}
                             className="border-t border-border px-3 py-4"
@@ -634,7 +634,7 @@ export function AdminQuoteHistoryGroupedTable({
 
                             <FloatingHorizontalScroll viewportClassName="rounded-md border border-border bg-background">
                               <table className="w-full min-w-[44rem] text-left text-xs sm:text-sm">
-                                <thead className="border-b border-border bg-muted/50">
+                                <thead className="border-b border-border bg-muted">
                                   <tr>
                                     <th className="px-2 py-2 font-medium text-foreground">
                                       Photo
@@ -710,7 +710,7 @@ export function AdminQuoteHistoryGroupedTable({
                                       <Fragment key={q.id}>
                                         <tr
                                           className={cn(
-                                            "cursor-pointer align-top hover:bg-muted/30",
+                                            "cursor-pointer align-top hover:bg-muted",
                                             historyOpen &&
                                               "bg-sky-500/[0.06] shadow-[inset_3px_0_0_rgb(56_189_248_/_0.65)]",
                                           )}

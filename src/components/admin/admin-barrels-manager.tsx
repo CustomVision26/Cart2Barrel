@@ -144,7 +144,7 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
           onClick={() => setCatalogOpen((open) => !open)}
           className={cn(
             "flex w-full items-center justify-between gap-3 rounded-md border border-border bg-card/40 px-3 py-2.5 text-left transition-colors",
-            "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           )}
           aria-expanded={catalogOpen}
           aria-controls="admin-barrels-catalog-panel"
@@ -234,7 +234,7 @@ function AdminOfferingRow({
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span
               className={cn(
-                "rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground",
+                "rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground",
               )}
             >
               {containerOfferingKindLabel(kind)}
@@ -424,7 +424,7 @@ function AdminOfferingImageThumb({
 
   return (
     <div className="flex items-stretch gap-1">
-      <div className="relative size-20 shrink-0 overflow-hidden rounded border border-border/60 bg-muted/20">
+      <div className="relative size-20 shrink-0 overflow-hidden rounded border border-border/60 bg-muted">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={image.imageUrl} alt="" className="size-full object-cover" />
         <Button

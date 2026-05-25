@@ -41,7 +41,7 @@ function centsToUsdField(cents: number | null): string {
 function OfferThumb({ src }: { src: string | null }) {
   if (!src?.trim()) {
     return (
-      <div className="flex size-10 shrink-0 items-center justify-center rounded border border-border bg-muted/50 text-muted-foreground">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded border border-border bg-muted text-muted-foreground">
         <ImageIcon className="size-4" aria-hidden />
       </div>
     );
@@ -355,7 +355,7 @@ export function AdminSpotlightCategoryAddForm({
           {variantsOpen ?
             <div className="overflow-x-auto border-t border-border">
               <table className="w-full min-w-[640px] text-left text-sm">
-                <thead className="bg-muted/40 text-xs text-muted-foreground">
+                <thead className="bg-muted text-xs text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-medium">Variant</th>
                     <th className="px-3 py-2 font-medium">Price</th>
@@ -367,7 +367,7 @@ export function AdminSpotlightCategoryAddForm({
                   {resolved.variants.map((row) => {
                     const saved = savedVariantIds.has(row.id);
                     return (
-                      <tr key={row.id} className="hover:bg-muted/20">
+                      <tr key={row.id} className="hover:bg-muted">
                         <td className="px-3 py-2">
                           <p className="font-medium text-foreground">
                             {row.label}
@@ -436,7 +436,7 @@ export function AdminSpotlightCategoryAddForm({
             resolved.compareOffers.length > 0 ?
               <div className="overflow-x-auto border-t border-border">
                 <table className="w-full min-w-[720px] text-left text-sm">
-                  <thead className="bg-muted/40 text-xs text-muted-foreground">
+                  <thead className="bg-muted text-xs text-muted-foreground">
                     <tr>
                       <th className="px-3 py-2 font-medium">Retailer</th>
                       <th className="px-3 py-2 font-medium">Title</th>
@@ -449,7 +449,7 @@ export function AdminSpotlightCategoryAddForm({
                     {resolved.compareOffers.map((offer) => {
                       const saved = savedRetailerIds.has(offer.id);
                       return (
-                        <tr key={offer.id} className="hover:bg-muted/20">
+                        <tr key={offer.id} className="hover:bg-muted">
                           <td className="px-3 py-2">
                             <p className="font-medium">{offer.retailer}</p>
                             {offer.isOriginal ?

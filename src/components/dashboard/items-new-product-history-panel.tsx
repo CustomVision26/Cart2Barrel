@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ChevronDown, InfoIcon, SearchIcon } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
@@ -22,6 +22,14 @@ import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snaps
 import { itemRequestStatusLabel } from "@/lib/item-request-status-label";
 import { resolveProductHistoryStatusDisplay } from "@/lib/product-history-status";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import {
+  dashItemsCollapsibleSection,
+  dashItemsCollapsibleTrigger,
+  dashItemsTableEmpty,
+  dashItemsTableHead,
+  dashItemsTableScroll,
+  dashItemsTableSectionBar,
+} from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
 
 import { useAddItemPayload } from "./add-item-payload-context";
@@ -144,11 +152,11 @@ function ToggleBlock({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-background">
+    <section className={dashItemsCollapsibleSection}>
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-center gap-3 bg-muted/20 px-3 py-3 text-left hover:bg-muted/35"
+        className={dashItemsCollapsibleTrigger}
         aria-expanded={open}
       >
         <ChevronDown
@@ -547,7 +555,7 @@ export function ItemsNewProductHistoryPanel() {
   return (
     <div className="space-y-4">
       <section className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
-        <div className="border-b border-border bg-muted/20 p-4">
+        <div className={dashItemsTableSectionBar}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl space-y-1">
               <p className="text-xs font-medium uppercase tracking-wide text-primary">
@@ -787,13 +795,13 @@ export function ItemsNewProductHistoryPanel() {
       </section>
 
       {allRequests.length === 0 ? (
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className={dashItemsTableEmpty}>
           No product history yet. Requests, quotes, and cart records will appear here.
         </p>
       ) : null}
 
       {allRequests.length > 0 && filteredSorted.length === 0 ? (
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className={dashItemsTableEmpty}>
           No product history records match your search.
         </p>
       ) : null}
@@ -834,9 +842,9 @@ export function ItemsNewProductHistoryPanel() {
                 summary={group.summary}
                 defaultOpen={group.defaultOpen ?? true}
               >
-                <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+                <FloatingHorizontalScroll viewportClassName={dashItemsTableScroll}>
                   <table className="w-full min-w-[56rem] text-left text-sm">
-                    <thead className="border-b border-border bg-muted/20 text-xs uppercase tracking-wide text-muted-foreground">
+                    <thead className={dashItemsTableHead}>
                       <tr>
                         <th className="w-10 px-2 py-2" scope="col" />
                         <th className="px-3 py-2 font-medium" scope="col">

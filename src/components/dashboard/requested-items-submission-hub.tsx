@@ -10,13 +10,14 @@ export function RequestedItemsSubmissionHub() {
     <Link
       href={DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE}
       className={cn(
-        "block rounded-xl border border-border bg-muted/10 p-6 transition-colors",
-        "outline-none hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring",
+        "group block rounded-xl border border-border/80 bg-card p-6 shadow-sm ring-1 ring-foreground/5 transition-all",
+        "outline-none hover:border-primary/35 hover:shadow-md hover:ring-primary/15",
+        "focus-visible:ring-2 focus-visible:ring-ring",
         "sm:max-w-xl",
       )}
     >
       <span className="flex items-center gap-2 text-base font-semibold text-foreground">
-        <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <Sparkles className="size-4 shrink-0 text-primary" aria-hidden />
         Start a request
       </span>
       <p className="mt-2 text-sm text-muted-foreground">

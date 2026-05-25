@@ -39,7 +39,7 @@ function ProductReturnSummaryCard({ row }: { row: DashboardPaidOrderLineRow }) {
     : null);
 
   return (
-    <div className="flex gap-3 rounded-lg border border-border bg-muted/30 p-3">
+    <div className="flex gap-3 rounded-lg border border-border bg-muted p-3">
       <ProductRequestThumbnail
         variant="list"
         imageUrl={r.productImageUrl}

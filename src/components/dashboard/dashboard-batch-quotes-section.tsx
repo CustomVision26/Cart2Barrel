@@ -34,6 +34,12 @@ import {
   batchQuoteSessionEventKindLabel,
   ownerBatchQuoteSessionStatusBadge,
 } from "@/lib/batch-quote-session-status-labels";
+import {
+  dashItemsTableFilterPanel,
+  dashItemsTableHeadPlain,
+  dashItemsTableScroll,
+  dashItemsTableStatusPanel,
+} from "@/lib/app-table-surfaces";
 import { displaySiteName } from "@/lib/site-name";
 import { batchQuoteSessionBadgeKind } from "@/lib/status-badge-map";
 import { compareLocale, compareNum, type SortDir } from "@/lib/table-sort";
@@ -318,7 +324,7 @@ export function DashboardBatchQuotesSection({
 
   return (
     <div className="space-y-8">
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+      <div className={dashItemsTableFilterPanel}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs font-medium text-foreground">Find & organize</p>
           <div className="flex items-center gap-2">
@@ -511,7 +517,7 @@ export function DashboardBatchQuotesSection({
         return (
           <section
             key={session.id}
-            className="space-y-3 rounded-lg border border-border bg-muted/10 p-4"
+            className={dashItemsTableFilterPanel}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-start gap-1 sm:gap-2">
@@ -631,7 +637,7 @@ export function DashboardBatchQuotesSection({
                           submitPending ||
                           removePending
                         }
-                        className="border-muted-foreground/35 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                        className="border-muted-foreground/35 text-muted-foreground hover:bg-accent hover:text-foreground"
                         onClick={() => withdrawQuotedBatch(session.id)}
                       >
                         {withdrawPending &&
@@ -665,9 +671,9 @@ export function DashboardBatchQuotesSection({
               </p>
             ) : null}
 
-            <FloatingHorizontalScroll viewportClassName="rounded-md border border-border">
+            <FloatingHorizontalScroll viewportClassName={dashItemsTableScroll}>
               <table className="w-full min-w-[36rem] text-left text-sm">
-                <thead className="border-b border-border bg-muted/40">
+                <thead className={dashItemsTableHeadPlain}>
                   <tr>
                     {isDraft ? (
                       <th className="w-10 px-2 py-2 text-center">
@@ -734,7 +740,7 @@ export function DashboardBatchQuotesSection({
             </FloatingHorizontalScroll>
 
             {statusEvents.length > 0 ? (
-              <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+              <div className={dashItemsTableStatusPanel}>
                 <p className="mb-2 text-xs font-medium text-foreground">Status history</p>
                 <ul className="space-y-1.5 text-xs text-muted-foreground">
                   {statusEvents.map((ev) => (

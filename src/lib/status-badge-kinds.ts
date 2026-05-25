@@ -40,7 +40,7 @@ const CLASSES: Record<StatusBadgeKind, string> = {
   newRequest:
     "border-emerald-900/50 bg-emerald-950/[0.35] text-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-100",
   deletedFromCart:
-    "border-muted-foreground/35 bg-muted/70 text-muted-foreground",
+    "border-muted-foreground/35 bg-muted text-muted-foreground",
   quoted:
     "border-cyan-500/40 bg-cyan-500/[0.11] text-cyan-950 dark:border-cyan-500/45 dark:bg-cyan-500/12 dark:text-cyan-100",
   customerResend:
@@ -48,8 +48,8 @@ const CLASSES: Record<StatusBadgeKind, string> = {
   outOfStock:
     "border-rose-500/45 bg-rose-500/[0.12] text-rose-950 dark:border-rose-500/50 dark:bg-rose-500/15 dark:text-rose-100",
   draft:
-    "border-border bg-muted/50 text-muted-foreground",
-  neutral: "border-border bg-muted/40 text-muted-foreground",
+    "border-border bg-muted text-muted-foreground",
+  neutral: "border-border bg-muted text-muted-foreground",
   outsidePurchaseProblemReceipt:
     "border-amber-600/55 bg-amber-500/20 text-amber-950 dark:border-amber-500/55 dark:bg-amber-500/20 dark:text-amber-50",
 };

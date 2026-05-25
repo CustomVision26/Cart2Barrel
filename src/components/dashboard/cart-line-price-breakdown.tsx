@@ -23,7 +23,7 @@ export function CartLinePriceBreakdown({
   return (
     <ul
       className={cn(
-        "divide-y divide-border/60 rounded-lg border border-border/70 bg-muted/15",
+        "divide-y divide-border/60 rounded-lg border border-border/70 bg-secondary",
         className,
       )}
       role="list"

@@ -126,7 +126,7 @@ export function AdminBatchItemsTable({
 
   if (queueTotalCount === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No pending batch requests. Draft batches appear here after shoppers submit
         batch requests.
       </p>
@@ -149,7 +149,7 @@ export function AdminBatchItemsTable({
       </p>
 
       {!batchExpanded ? (
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+      <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -301,7 +301,7 @@ export function AdminBatchItemsTable({
       ) : null}
 
       {totalCount === 0 ? (
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           No batches match your search. Try another batch number, site key,
           customer name, email, or Clerk user id fragment.
         </p>
@@ -373,9 +373,9 @@ export function AdminBatchItemsTable({
           </div>
           ) : null}
 
-          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
             <table className="w-full min-w-[52rem] text-left text-sm">
-              <thead className="border-b border-border bg-muted/40">
+              <thead className="border-b border-border bg-muted">
                 <tr>
                   <th className="w-8 px-2 py-2.5" aria-hidden />
                   <th className="px-3 py-2.5 font-medium">Submitted</th>
@@ -423,8 +423,8 @@ export function AdminBatchItemsTable({
                     <Fragment key={session.id}>
                       <tr
                         className={cn(
-                          "cursor-pointer transition-colors hover:bg-muted/30",
-                          expanded && "bg-muted/25",
+                          "cursor-pointer transition-colors hover:bg-muted",
+                          expanded && "bg-accent",
                         )}
                         role="button"
                         tabIndex={0}
@@ -500,7 +500,7 @@ export function AdminBatchItemsTable({
                         </td>
                       </tr>
                       {expanded ? (
-                        <tr className="bg-muted/10">
+                        <tr className="bg-secondary">
                           <td colSpan={BATCH_TABLE_COL_SPAN} className="p-0">
                             <div className="border-t border-border px-3 py-4">
                               <AdminNestedFindOrganizePanel
@@ -568,7 +568,7 @@ export function AdminBatchItemsTable({
                                   viewportClassName="mt-4 rounded-lg border border-border"
                                 >
                                   <table className="w-full min-w-[40rem] text-left text-sm">
-                                    <thead className="border-b border-border bg-muted/30">
+                                    <thead className="border-b border-border bg-muted">
                                       <tr>
                                         <th className="w-14 px-3 py-2 font-medium">
                                           Image

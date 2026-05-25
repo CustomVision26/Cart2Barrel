@@ -20,6 +20,10 @@ import {
   buildProductHistoryTimelineEvents,
   type ProductHistoryTimelineEvent,
 } from "@/lib/product-history-timeline";
+import {
+  dashItemsTableEmpty,
+  dashItemsTimelineCard,
+} from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
 
 function ToggleSection({
@@ -43,11 +47,11 @@ function ToggleSection({
 
   return (
     <section className={cn("overflow-hidden rounded-xl border border-border", className)}>
-      <div className="flex flex-wrap items-center gap-3 bg-muted/25 px-3 py-3">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border bg-muted px-3 py-3">
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-card text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-expanded={open}
           aria-label={ariaLabel}
         >
@@ -133,7 +137,7 @@ export function ProductHistoryTrackRecord({
 
   if (events.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+      <p className={cn(dashItemsTimelineCard, "text-sm text-muted-foreground")}>
         No status records were saved for this product yet.
       </p>
     );
@@ -181,7 +185,7 @@ export function ProductHistoryTrackRecord({
                 "rounded-lg border p-3",
                 event.highlight ?
                   "border-primary/25 bg-primary/5"
-                : "border-border bg-muted/10",
+                : cn("border-border", dashItemsTimelineCard),
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">

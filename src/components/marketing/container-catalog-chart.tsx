@@ -53,7 +53,7 @@ function ContainerThumbnail({
   if (!primary) {
     return (
       <span
-        className="flex size-10 shrink-0 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20 text-muted-foreground"
+        className="flex size-10 shrink-0 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted text-muted-foreground"
         aria-hidden
       >
         <ImageIcon className="size-4" />
@@ -65,7 +65,7 @@ function ContainerThumbnail({
     <button
       type="button"
       className={cn(
-        "relative size-10 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/20",
+        "relative size-10 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted",
         "ring-offset-background transition hover:ring-2 hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
       title="Double-click to view photos"
@@ -121,7 +121,7 @@ function ContainerImageSlideshow({
                 {images.map((image, index) => (
                   <CarouselItem key={image.id}>
                     <div
-                      className="relative aspect-[4/3] overflow-hidden rounded-lg border border-border/70 bg-muted/20"
+                      className="relative aspect-[4/3] overflow-hidden rounded-lg border border-border/70 bg-muted"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -163,12 +163,12 @@ export function ContainerCatalogChart({ rows }: ContainerCatalogChartProps) {
         </CardHeader>
         <CardContent className="pt-0">
           {rows.length === 0 ?
-            <p className="rounded-lg border border-dashed border-border/70 bg-muted/20 px-3 py-4 text-xs leading-relaxed text-muted-foreground">
+            <p className="rounded-lg border border-dashed border-border/70 bg-muted px-3 py-4 text-xs leading-relaxed text-muted-foreground">
               Container options are being published. Sign in later or contact us
               for current barrel and bin availability.
             </p>
           : <div className="overflow-hidden rounded-lg border border-border/70">
-              <div className="grid grid-cols-[auto_1fr_auto] gap-2 border-b border-border/70 bg-muted/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="grid grid-cols-[auto_1fr_auto] gap-2 border-b border-border/70 bg-muted px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <span className="w-10">Photo</span>
                 <span>Container</span>
                 <span className="text-right">Price</span>
@@ -178,7 +178,7 @@ export function ContainerCatalogChart({ rows }: ContainerCatalogChartProps) {
                   <li
                     key={row.id}
                     className={`grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2.5 text-xs ${
-                      index % 2 === 0 ? "bg-background/40" : "bg-muted/20"
+                      index % 2 === 0 ? "bg-card" : "bg-muted"
                     }`}
                   >
                     <ContainerThumbnail

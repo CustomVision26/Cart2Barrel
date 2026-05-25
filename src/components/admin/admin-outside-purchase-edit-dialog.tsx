@@ -308,7 +308,7 @@ export function AdminOutsidePurchaseEditDialog({
           : null}
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-muted/15 px-6 py-4 sm:gap-0">
+        <DialogFooter className="gap-2 border-t border-border bg-secondary px-6 py-4 sm:gap-0">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>

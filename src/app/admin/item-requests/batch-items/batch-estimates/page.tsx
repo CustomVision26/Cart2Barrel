@@ -29,7 +29,7 @@ export default async function AdminBatchItemsBatchEstimatesPage({
 
   if (batchQuoteHistoryBundles.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No combined batch estimates on file yet. Saved batch quotes appear here after staff
         record an estimate from a submitted bundle.
       </p>

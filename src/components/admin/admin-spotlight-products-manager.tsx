@@ -129,7 +129,7 @@ function SpotlightCategoryPanel({
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <div className="relative size-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted/50">
+                  <div className="relative size-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
                     {product.imageUrl ?
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -354,7 +354,7 @@ export function AdminSpotlightProductsManager({
             statusMessage.toLowerCase().includes("could not") ||
               statusMessage.toLowerCase().includes("required")
               ? "border-destructive/40 bg-destructive/10 text-foreground"
-              : "border-border bg-muted/40 text-muted-foreground",
+              : "border-border bg-muted text-muted-foreground",
           )}
           role="status"
         >

@@ -74,7 +74,7 @@ export function AdminOrdersCarouselView({
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No orders on this page.
       </p>
     );
@@ -86,7 +86,7 @@ export function AdminOrdersCarouselView({
         {lanes.map(({ lane, groups }) => (
           <section
             key={lane}
-            className="space-y-4 rounded-xl border border-border/80 bg-muted/15 p-4 sm:p-5"
+            className="space-y-4 rounded-xl border border-border/80 bg-secondary p-4 sm:p-5"
           >
             <div className="space-y-1.5">
               <h2 className="text-xl font-semibold tracking-tight text-foreground">
@@ -109,7 +109,7 @@ export function AdminOrdersCarouselView({
             </div>
 
             {groups.length === 0 ?
-              <p className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+              <p className="rounded-lg border border-dashed border-border bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
                 No orders in this lane right now.
               </p>
             : <Carousel opts={{ align: "start", dragFree: true }} className="w-full">

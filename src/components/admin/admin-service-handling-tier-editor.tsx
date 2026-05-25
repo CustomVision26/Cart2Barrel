@@ -67,7 +67,7 @@ export function AdminServiceHandlingTierEditor({
       </CardHeader>
       <CardContent className="space-y-4">
         {msg ?
-          <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-foreground">
+          <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
             {msg}
           </p>
         : null}
@@ -77,9 +77,9 @@ export function AdminServiceHandlingTierEditor({
           </p>
         : null}
 
-        <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+        <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
           <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-            <thead className="border-b border-border bg-muted/40">
+            <thead className="border-b border-border bg-muted">
               <tr>
                 <th className="px-3 py-2 font-medium">From (USD)</th>
                 <th className="px-3 py-2 font-medium">Through (USD)</th>
@@ -104,7 +104,7 @@ export function AdminServiceHandlingTierEditor({
                     <div className="space-y-1">
                       <Label className="sr-only">Through (USD), row {idx + 1}</Label>
                       {row.openEndedMax ?
-                        <p className="rounded-md border border-border bg-muted/30 px-2.5 py-2 text-sm text-muted-foreground">
+                        <p className="rounded-md border border-border bg-muted px-2.5 py-2 text-sm text-muted-foreground">
                           Open-ended (system max)
                         </p>
                       : <UsdDecimalInput

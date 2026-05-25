@@ -20,21 +20,21 @@ export async function AdminRefundQueueBanner() {
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
           href="/admin/orders"
-          className="inline-flex rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-primary hover:bg-muted/80"
+          className="inline-flex rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-primary hover:bg-accent"
           prefetch={false}
         >
           Orders
         </Link>
         <Link
           href="/admin/purchase-orders"
-          className="inline-flex rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-primary hover:bg-muted/80"
+          className="inline-flex rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-primary hover:bg-accent"
           prefetch={false}
         >
           Purchase orders
         </Link>
         <Link
           href="/admin/packages"
-          className="inline-flex rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-primary hover:bg-muted/80"
+          className="inline-flex rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-primary hover:bg-accent"
           prefetch={false}
         >
           Packages

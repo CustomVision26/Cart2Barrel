@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
@@ -64,7 +64,7 @@ function PackageMeta({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-background/80 p-2">
+    <div className="rounded-lg border border-border bg-card p-2">
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
@@ -90,9 +90,9 @@ function AwaitingBarrelPackagesTable({
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
   return (
-    <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+    <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
       <table className="w-full min-w-[56rem] text-left text-sm">
-        <thead className="border-b border-border bg-muted/40">
+        <thead className="border-b border-border bg-muted">
           <tr>
             <th className="px-3 py-2.5 font-medium text-foreground">Customer</th>
             <th className="w-14 px-3 py-2.5 font-medium text-foreground">Image</th>
@@ -125,7 +125,7 @@ function AwaitingBarrelPackagesTable({
             return (
               <tr
                 key={line.id}
-                className="border-b border-border bg-background last:border-b-0 odd:bg-muted/15"
+                className="border-b border-border bg-background last:border-b-0 odd:bg-secondary"
               >
                 <td className="max-w-[12rem] px-3 py-2 align-top text-foreground">
                   <span className="line-clamp-2">{line.customerDisplayLabel}</span>
@@ -229,7 +229,7 @@ function CustomerPackageGroup({
     <section className="overflow-hidden rounded-2xl border border-border bg-background">
       <button
         type="button"
-        className="flex w-full flex-col gap-3 border-b border-border bg-muted/20 p-3 text-left transition-colors hover:bg-muted/35 lg:flex-row lg:items-center lg:justify-between"
+        className="flex w-full flex-col gap-3 border-b border-border bg-muted p-3 text-left transition-colors hover:bg-accent lg:flex-row lg:items-center lg:justify-between"
         onClick={() => onExpandedChange(!expanded)}
         aria-expanded={expanded}
       >
@@ -276,7 +276,7 @@ function CustomerPackageGroup({
             search={lineSearch}
             onSearchChange={onLineSearchChange}
             searchLabel="Search packages"
-            searchPlaceholder="Product, order, request, batch…"
+            searchPlaceholder="Product, order, request, batch�"
             pageSize={linePageSize}
             onPageSizeChange={onLinePageSizeChange}
             pageSizeLabel="Packages per page"
@@ -408,7 +408,7 @@ export function AdminWarehouseReceivingSection({
             awaiting-inbound lines appear here (same queue as Purchase orders).
           </p>
         </div>
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           Nothing to receive yet.
         </p>
       </section>
@@ -418,7 +418,7 @@ export function AdminWarehouseReceivingSection({
   return (
     <section className="space-y-4">
       <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
-        <div className="border-b border-border bg-muted/20 p-4">
+        <div className="border-b border-border bg-muted p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl space-y-1">
               <p className="text-xs font-medium uppercase tracking-wide text-primary">
@@ -473,7 +473,7 @@ export function AdminWarehouseReceivingSection({
         <div className="space-y-5 p-4">
           {tableView ?
             lines.length === 0 ?
-              <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+              <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
                 No package lines match the current filters.
               </p>
             : <AwaitingBarrelPackagesTable

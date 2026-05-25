@@ -45,7 +45,7 @@ export function SortableTh({
     >
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-md px-0.5 py-0.5 text-left hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center gap-1 rounded-md px-0.5 py-0.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={(e) => {
           e.stopPropagation();
           onSort();
@@ -90,7 +90,7 @@ export function SortableThCompact({
     >
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-md px-0.5 py-0.5 text-left hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center gap-1 rounded-md px-0.5 py-0.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={(e) => {
           e.stopPropagation();
           onSort();

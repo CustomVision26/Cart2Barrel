@@ -58,7 +58,7 @@ export function ProductToBarrelFiltersToolbar({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-muted/15 px-4 py-3">
+    <div className="space-y-3 rounded-lg border border-border bg-secondary px-4 py-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
         <div className="min-w-[12rem] flex-1 space-y-1.5">
           <Label htmlFor={`${idPrefix}-search`}>{searchLabel}</Label>

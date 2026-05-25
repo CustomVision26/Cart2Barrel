@@ -144,7 +144,7 @@ export function AdminCompanyPurchaseDialog(
             </p>
           : null}
 
-          <dl className="grid gap-3 rounded-lg border border-border bg-muted/15 p-3">
+          <dl className="grid gap-3 rounded-lg border border-border bg-secondary p-3">
             <div className="flex flex-col gap-0.5">
               <dt className="text-xs font-medium text-muted-foreground">Product</dt>
               <dd className="font-medium leading-snug text-foreground">{productName}</dd>
@@ -217,7 +217,7 @@ export function AdminCompanyPurchaseDialog(
               </p>
             </div>
 
-            <fieldset className="space-y-2 rounded-lg border border-border/80 bg-muted/10 p-3">
+            <fieldset className="space-y-2 rounded-lg border border-border/80 bg-muted p-3">
               <legend className="px-1 text-xs font-medium text-foreground">
                 Retailer shipment tracking (optional)
               </legend>

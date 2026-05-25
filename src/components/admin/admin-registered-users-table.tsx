@@ -89,7 +89,7 @@ export function AdminRegisteredUsersTable({
 
   if (users.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No registered accounts yet. Profiles are created when users sign in.
       </p>
     );
@@ -128,7 +128,7 @@ export function AdminRegisteredUsersTable({
       <FloatingHorizontalScroll className="rounded-lg border border-border">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+            <tr className="border-b border-border bg-muted text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-2.5 font-medium">Name</th>
               <th className="px-3 py-2.5 font-medium">Email</th>
               <th className="px-3 py-2.5 font-medium">Created</th>
@@ -145,7 +145,7 @@ export function AdminRegisteredUsersTable({
                 <tr
                   key={row.clerkUserId}
                   className={cn(
-                    "bg-background/80",
+                    "bg-card",
                     banned && "bg-destructive/5",
                   )}
                 >

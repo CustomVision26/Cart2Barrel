@@ -111,7 +111,7 @@ export function BarrelShippingIntakeForm({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm">
+          <div className="rounded-lg border border-border/80 bg-muted p-4 text-sm">
             <p className="font-medium text-foreground">
               {container.alias} — {container.slotLabel}
             </p>

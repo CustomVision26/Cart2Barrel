@@ -117,7 +117,7 @@ export function AdminOutsidePurchaseReturnEstimateDialog({
         </DialogHeader>
 
         <div className="grid gap-4 px-6 py-4">
-          <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
+          <div className="rounded-lg border border-border/80 bg-muted p-3 text-sm">
             <p className="font-medium text-foreground">
               {request.productName?.trim() || "Outside purchase"}
             </p>
@@ -184,7 +184,7 @@ export function AdminOutsidePurchaseReturnEstimateDialog({
           </Field>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-muted/15 px-6 py-4 sm:gap-0">
+        <DialogFooter className="gap-2 border-t border-border bg-secondary px-6 py-4 sm:gap-0">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Close
           </Button>

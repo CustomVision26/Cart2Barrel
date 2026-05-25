@@ -110,7 +110,7 @@ export function BarrelShipmentTrackingTimeline({
       </ol>
 
       {tracking?.freightCompanyName ?
-        <dl className="grid gap-1.5 rounded-md border border-border/60 bg-muted/10 px-2.5 py-2 text-xs">
+        <dl className="grid gap-1.5 rounded-md border border-border/60 bg-muted px-2.5 py-2 text-xs">
           <div>
             <dt className="text-muted-foreground">Freight company</dt>
             <dd className="text-foreground">{tracking.freightCompanyName}</dd>

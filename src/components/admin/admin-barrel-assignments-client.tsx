@@ -228,12 +228,12 @@ export function AdminBarrelAssignmentsClient({
       ) : null}
 
       {rows.length === 0 ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           No products are in the barrel packing queue. Outside purchases with paid service fees
           and warehouse receipts in good condition appear here.
         </p>
       : grouped.length === 0 ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           No products match your search or filters. Clear filters or try different keywords.
         </p>
       : (
@@ -358,8 +358,8 @@ function OwnerAssignmentSection({
       <button
         type="button"
         className={cn(
-          "flex w-full flex-wrap items-baseline justify-between gap-2 border-b border-border bg-muted/25 px-4 py-3 text-left hover:bg-muted/40",
-          expanded && "bg-muted/35",
+          "flex w-full flex-wrap items-baseline justify-between gap-2 border-b border-border bg-muted px-4 py-3 text-left hover:bg-accent",
+          expanded && "bg-accent",
         )}
         aria-expanded={expanded}
         onClick={onToggle}

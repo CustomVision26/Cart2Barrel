@@ -57,14 +57,14 @@ export function CollapsibleOrderTableSection({
         tbodyClassName,
       )}
     >
-      <tr className="bg-muted/30">
+      <tr className="bg-muted">
         <td className="px-3 py-2.5 text-xs text-muted-foreground" colSpan={colSpan}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             {hasProducts ?
               <button
                 type="button"
                 onClick={toggleProducts}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-expanded={productsOpen}
                 aria-label={productsOpen ? "Hide products for this order" : "Show products for this order"}
               >

@@ -58,7 +58,7 @@ export function AdminCustomerPackagesHub({
             "-mb-px rounded-t-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
             packageTab === "general"
               ? "border-border border-b-background bg-background text-foreground"
-              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
         >
           General package fee
@@ -69,7 +69,7 @@ export function AdminCustomerPackagesHub({
             "-mb-px rounded-t-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
             packageTab === "customer"
               ? "border-border border-b-background bg-background text-foreground"
-              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
         >
           Select customer
@@ -80,7 +80,7 @@ export function AdminCustomerPackagesHub({
             "-mb-px rounded-t-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
             packageTab === "saved"
               ? "border-border border-b-background bg-background text-foreground"
-              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
         >
           Saved packages

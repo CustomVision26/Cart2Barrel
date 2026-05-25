@@ -150,7 +150,7 @@ export function AdminGrantAdminRolePanel({ users }: AdminGrantAdminRolePanelProp
                         "flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors",
                         isAdmin
                           ? "cursor-not-allowed opacity-70"
-                          : "hover:bg-muted/50",
+                          : "hover:bg-accent",
                         selected && "bg-primary/10",
                       )}
                     >

@@ -31,7 +31,7 @@ export function CartSection({
           : null}
         </div>
         {count != null && count > 0 ?
-          <span className="inline-flex shrink-0 items-center rounded-md border border-border/70 bg-muted/25 px-2.5 py-1 text-xs font-medium tabular-nums text-muted-foreground">
+          <span className="inline-flex shrink-0 items-center rounded-md border border-border/70 bg-muted px-2.5 py-1 text-xs font-medium tabular-nums text-muted-foreground">
             {count} {count === 1 ? "item" : "items"}
           </span>
         : null}

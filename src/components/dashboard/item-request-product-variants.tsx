@@ -12,6 +12,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  dashItemsTableCardHeader,
+  dashItemsTableHead,
+  dashItemsTableScroll,
+  dashItemsVariantRowCurrent,
+} from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
 
 type ItemRequestProductVariantsProps = {
@@ -121,9 +127,9 @@ export function ItemRequestProductVariants({
         : null}
 
         {variants.length > 0 ?
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className={cn("overflow-x-auto", dashItemsTableScroll)}>
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className={dashItemsTableHead}>
                 <tr>
                   <th className="px-3 py-2 font-medium">Variant</th>
                   <th className="px-3 py-2 font-medium">Price</th>
@@ -137,7 +143,7 @@ export function ItemRequestProductVariants({
                     key={row.id}
                     className={cn(
                       "border-b border-border/80 last:border-0",
-                      row.isCurrent && "bg-primary/5",
+                      row.isCurrent && dashItemsVariantRowCurrent,
                     )}
                   >
                     <td className="px-3 py-2.5">
@@ -224,7 +230,7 @@ export function ItemRequestProductVariants({
 
   return (
     <Card className="overflow-hidden border-border/80 shadow-none">
-      <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
+      <CardHeader className={dashItemsTableCardHeader}>
         <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
           <Layers className="size-4 text-muted-foreground" aria-hidden />
           Store variants

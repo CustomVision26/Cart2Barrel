@@ -19,7 +19,7 @@ export function AdminRoleGrantsLogTable({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No admin grants recorded yet. When you assign admin access, entries
         appear here with who granted it and when.
       </p>
@@ -30,7 +30,7 @@ export function AdminRoleGrantsLogTable({
     <FloatingHorizontalScroll className="rounded-lg border border-border">
       <table className="w-full min-w-[640px] text-left text-sm">
         <thead>
-          <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+          <tr className="border-b border-border bg-muted text-xs uppercase tracking-wide text-muted-foreground">
             <th className="px-3 py-2.5 font-medium">When</th>
             <th className="px-3 py-2.5 font-medium">New admin</th>
             <th className="px-3 py-2.5 font-medium">Granted by</th>
@@ -39,7 +39,7 @@ export function AdminRoleGrantsLogTable({
         </thead>
         <tbody className="divide-y divide-border">
           {rows.map((row) => (
-            <tr key={row.id} className="bg-background/80">
+            <tr key={row.id} className="bg-card">
               <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
                 {formatWhen(row.createdAt)}
               </td>

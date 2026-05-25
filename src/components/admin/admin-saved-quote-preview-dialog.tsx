@@ -60,7 +60,7 @@ export function AdminSavedQuotePreviewDialog({
     <Dialog>
       <DialogTrigger
         type="button"
-        className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground shadow-sm hover:bg-muted/60"
+        className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground shadow-sm hover:bg-accent"
       >
         <EyeIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />
         {label}
@@ -73,7 +73,7 @@ export function AdminSavedQuotePreviewDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm">
-          <div className="space-y-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+          <div className="space-y-2 rounded-lg border border-border bg-muted px-3 py-2.5">
             <div className="flex gap-3">
               <ProductRequestThumbnail
                 variant="dialog"

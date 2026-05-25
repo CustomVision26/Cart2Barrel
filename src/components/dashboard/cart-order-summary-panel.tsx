@@ -78,7 +78,7 @@ export function CartOrderSummaryPanel({
 
       <CardContent className="space-y-5 p-5">
         {showBreakdown ?
-          <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted/10 px-3.5 py-3 text-sm">
+          <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted px-3.5 py-3 text-sm">
             <SummaryRow
               label="Subtotal (items & containers)"
               valueCents={quotedAndContainerSubtotalCents}
@@ -114,7 +114,7 @@ export function CartOrderSummaryPanel({
           </div>
         : null}
 
-        <div className="rounded-xl border border-border/80 bg-muted/20 px-4 py-4 shadow-inner">
+        <div className="rounded-xl border border-border/80 bg-muted px-4 py-4 shadow-inner">
           <div className="flex items-baseline justify-between gap-4">
             <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               {processingPreviewCents > 0 ? "Estimated total" : "Total"}

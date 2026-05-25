@@ -350,7 +350,7 @@ export function AdminPurchaseOrdersTable({
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No lines on this page.
       </p>
     );
@@ -401,9 +401,9 @@ export function AdminPurchaseOrdersTable({
         </div>
       </div>
 
-      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
         <table className="w-full min-w-[76rem] text-left text-sm">
-          <thead className="border-b border-border bg-muted/40">
+          <thead className="border-b border-border bg-muted">
             <tr>
               <th className="w-10 px-2 py-2.5">
                 <span className="sr-only">Select for receiving</span>
@@ -464,8 +464,8 @@ export function AdminPurchaseOrdersTable({
             <tbody key={clerkUserId}>
               <tr
                 className={cn(
-                  "border-b border-border bg-muted/50 transition-colors hover:bg-muted/60",
-                  expanded && "bg-muted/40",
+                  "border-b border-border bg-muted transition-colors hover:bg-accent",
+                  expanded && "bg-muted",
                 )}
                 role="button"
                 tabIndex={0}
@@ -503,7 +503,7 @@ export function AdminPurchaseOrdersTable({
               </tr>
               {expanded ? (
                 <>
-                  <tr className="bg-muted/15">
+                  <tr className="bg-secondary">
                     <td colSpan={PURCHASE_ORDERS_TABLE_COL_SPAN} className="p-0">
                       <div className="border-b border-border px-3 py-4">
                         <AdminNestedFindOrganizePanel
@@ -625,7 +625,7 @@ export function AdminPurchaseOrdersTable({
               return (
                 <div
                   key={orderItemId}
-                  className="space-y-4 rounded-lg border border-border bg-muted/20 p-4"
+                  className="space-y-4 rounded-lg border border-border/80 bg-muted p-4"
                 >
                   <div>
                     <p className="font-medium text-foreground">

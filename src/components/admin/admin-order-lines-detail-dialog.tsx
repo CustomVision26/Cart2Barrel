@@ -270,7 +270,7 @@ export function AdminOrderLinesDetailDialog({
           "max-h-[min(92vh,56rem)] sm:max-w-[min(96vw,80rem)]",
         )}
       >
-        <DialogHeader className="shrink-0 gap-3 border-b border-border bg-muted/20 px-4 py-4 sm:px-6">
+        <DialogHeader className="shrink-0 gap-3 border-b border-border bg-muted px-4 py-4 sm:px-6">
           <DialogTitle className="text-left text-lg">Order products</DialogTitle>
           <div className="grid gap-3 text-left sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-0.5">
@@ -355,7 +355,7 @@ export function AdminOrderLinesDetailDialog({
             )}
           >
             <table className="w-full min-w-[64rem] text-left text-sm">
-              <thead className="sticky top-0 z-10 border-b border-border bg-muted/90 backdrop-blur-sm">
+              <thead className="sticky top-0 z-10 border-b border-border bg-muted">
                 <tr>
                   <th className="whitespace-nowrap px-3 py-2.5 font-medium text-foreground">
                     Photo
@@ -393,7 +393,7 @@ export function AdminOrderLinesDetailDialog({
                       batchEstimatesBySessionId[bucket.batchSessionId] ?? null;
                     return (
                       <Fragment key={bucket.batchSessionId}>
-                        <tr className="bg-muted/50">
+                        <tr className="bg-muted">
                           <td
                             colSpan={9}
                             className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-foreground"
@@ -415,7 +415,7 @@ export function AdminOrderLinesDetailDialog({
                         </tr>
                         {batchEstimate ?
                           <tr>
-                            <td colSpan={9} className="bg-muted/30 px-3 py-2">
+                            <td colSpan={9} className="bg-muted px-3 py-2">
                               <AdminOrderEstimateSummary
                                 rows={batchEstimateSummaryRows(batchEstimate)}
                               />
@@ -437,7 +437,7 @@ export function AdminOrderLinesDetailDialog({
                   }
                   return (
                     <Fragment key={`single:${group.order.id}:${bi}`}>
-                      <tr className="bg-muted/50">
+                      <tr className="bg-muted">
                         <td
                           colSpan={9}
                           className={cn(
@@ -462,7 +462,7 @@ export function AdminOrderLinesDetailDialog({
                 })}
                 {containerLines.length > 0 ?
                   <>
-                    <tr className="bg-muted/50">
+                    <tr className="bg-muted">
                       <td
                         colSpan={9}
                         className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"

@@ -129,7 +129,7 @@ export function OutsidePurchaseReturnRequestDialog({
         </DialogHeader>
 
         <div className="space-y-4 px-6 py-4">
-          <div className="flex gap-3 rounded-lg border border-border bg-muted/15 p-3">
+          <div className="flex gap-3 rounded-lg border border-border bg-secondary p-3">
             <CalendarRangeIcon
               className="mt-0.5 size-5 shrink-0 text-muted-foreground"
               aria-hidden
@@ -234,7 +234,7 @@ export function OutsidePurchaseReturnRequestDialog({
           </label>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-muted/15 px-6 py-4 sm:gap-0">
+        <DialogFooter className="gap-2 border-t border-border bg-secondary px-6 py-4 sm:gap-0">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>

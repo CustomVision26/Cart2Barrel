@@ -74,7 +74,7 @@ export function UserSettingsDialog() {
         </DialogHeader>
         <div className="flex min-h-[280px]">
           <nav
-            className="flex w-36 shrink-0 flex-col gap-1 border-r border-border/80 bg-muted/30 p-2"
+            className="flex w-36 shrink-0 flex-col gap-1 border-r border-border/80 bg-muted p-2"
             aria-label="Settings sections"
           >
             <button
@@ -84,7 +84,7 @@ export function UserSettingsDialog() {
                 "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
                 activeTab === "appearance" ?
                   "bg-background font-medium text-foreground shadow-sm ring-1 ring-border/60"
-                : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
+                : "text-muted-foreground hover:bg-card hover:text-foreground",
               )}
             >
               <Palette className="size-4 shrink-0" />
@@ -123,7 +123,7 @@ export function UserSettingsDialog() {
                       Dark
                     </Button>
                   </div>
-                  <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted px-3 py-2 text-xs text-muted-foreground">
                     <Monitor className="size-3.5 shrink-0" />
                     Current: {currentTheme === "light" ? "Light" : "Dark"} mode
                   </div>
@@ -141,7 +141,7 @@ export function UserSettingsDialog() {
                       onChange={(event) => {
                         setInterfaceColor(event.target.value as InterfaceColorId);
                       }}
-                      className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-3 pr-9 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      className="h-9 w-full appearance-none rounded-lg border border-input bg-input px-3 pr-9 text-sm text-foreground shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       {INTERFACE_COLOR_IDS.map((colorId) => (
                         <option key={colorId} value={colorId}>

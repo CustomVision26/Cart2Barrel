@@ -87,8 +87,8 @@ export function CartBatchBundleCard(props: CartBatchBundleCardProps) {
 
   return (
     <li className="p-4 sm:p-5">
-      <article className="overflow-hidden rounded-xl border border-border/80 bg-background/60 shadow-sm">
-        <header className="border-b border-border/60 bg-muted/15 px-4 py-4 sm:px-5">
+      <article className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+        <header className="border-b border-border/60 bg-secondary px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -161,7 +161,7 @@ export function CartBatchBundleCard(props: CartBatchBundleCardProps) {
             title="Price breakdown"
             description="Site merchandise, fees, and batch subtotal"
             defaultOpen={false}
-            className="border-border/70 bg-background/40"
+            className="border-border/70 bg-card"
           >
             <CartLinePriceBreakdown rows={priceRows} className="border-0 bg-transparent" />
           </CollapsibleFieldSection>
@@ -169,7 +169,7 @@ export function CartBatchBundleCard(props: CartBatchBundleCardProps) {
 
         <div
           className={cn(
-            "border-t border-border/60 bg-muted/10",
+            "border-t border-border/60 bg-muted",
             !linesOpen && "hidden",
           )}
           role="region"

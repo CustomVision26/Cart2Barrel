@@ -80,7 +80,7 @@ function Panel({
   return (
     <section
       className={cn(
-        "rounded-xl border border-border/80 bg-muted/20 p-4 shadow-sm",
+        "rounded-xl border border-border/80 bg-muted p-4 shadow-sm",
         className
       )}
     >
@@ -413,7 +413,7 @@ export function AdminQuoteHistoryEditDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92vh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
-        <DialogHeader className="space-y-1 border-b border-border/80 bg-muted/15 px-6 py-5">
+        <DialogHeader className="space-y-1 border-b border-border/80 bg-secondary px-6 py-5">
           <DialogTitle className="text-lg tracking-tight">Edit quote</DialogTitle>
           <DialogDescription className="text-sm leading-relaxed">
             Update pricing and product details. Saving publishes a new current
@@ -614,7 +614,7 @@ export function AdminQuoteHistoryEditDialog({
         </div>
 
         {result?.ok && derived ? (
-          <div className="shrink-0 border-t border-border/80 bg-muted/20 px-6 py-4">
+          <div className="shrink-0 border-t border-border/80 bg-muted px-6 py-4">
             <div className="mb-4 flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">New total</p>

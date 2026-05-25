@@ -70,7 +70,7 @@ export function DashboardCheckoutChargesPreviewDialog({
         type="button"
         className={
           triggerClassName ??
-          "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         }
       >
         <EyeIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />
@@ -109,7 +109,7 @@ export function DashboardCheckoutChargesPreviewDialog({
                   Products on this receipt
                 </p>
                 <ul
-                  className="divide-y divide-border/60 rounded-lg border border-border/70 bg-muted/10"
+                  className="divide-y divide-border/60 rounded-lg border border-border/70 bg-muted"
                   role="list"
                 >
                   {preview.productLines.map((line, i) => (

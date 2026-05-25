@@ -161,7 +161,7 @@ export function BarrelOutboundShippingChargeCard({
                     </span>
                   </li>
                 ))}
-                <li className="flex items-center justify-between gap-3 bg-muted/25 px-2.5 py-2">
+                <li className="flex items-center justify-between gap-3 bg-muted px-2.5 py-2">
                   <span className="font-semibold text-foreground">Total due</span>
                   <span className="text-sm font-semibold tabular-nums text-foreground">
                     {formatUsd(charge.totalCents)}
@@ -171,7 +171,7 @@ export function BarrelOutboundShippingChargeCard({
             </div>
 
             {charge.adminNote ?
-              <p className="rounded-md border border-border/60 bg-muted/15 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
+              <p className="rounded-md border border-border/60 bg-secondary px-2.5 py-2 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
                 {charge.adminNote}
               </p>
             : null}

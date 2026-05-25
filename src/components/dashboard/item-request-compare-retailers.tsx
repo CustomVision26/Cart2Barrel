@@ -14,6 +14,11 @@ import {
 } from "@/components/ui/card";
 import { formatUsd } from "@/lib/admin-markup";
 import { COMPARE_REQUIRES_PRODUCT_NAME_MESSAGE } from "@/lib/item-request-product-name-hint";
+import {
+  dashItemsTableCardHeader,
+  dashItemsTableHead,
+  dashItemsTableScroll,
+} from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
 
 type ItemRequestCompareRetailersProps = {
@@ -56,7 +61,7 @@ export function ItemRequestCompareRetailers({
 
   return (
     <Card className="overflow-hidden border-border/80 shadow-none">
-      <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
+      <CardHeader className={dashItemsTableCardHeader}>
         <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
           <ShoppingBag className="size-4 text-muted-foreground" aria-hidden />
           Retailer price comparison
@@ -113,9 +118,9 @@ export function ItemRequestCompareRetailers({
 
         {offers.length > 0 ?
           <div className="space-y-4">
-            <div className="overflow-x-auto rounded-lg border border-border">
+            <div className={cn("overflow-x-auto", dashItemsTableScroll)}>
               <table className="w-full min-w-[640px] text-left text-sm">
-                <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <thead className={dashItemsTableHead}>
                   <tr>
                     <th className="px-3 py-2 font-medium">Retailer</th>
                     <th className="px-3 py-2 font-medium">Price</th>

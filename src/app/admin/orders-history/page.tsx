@@ -105,7 +105,7 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
       <AdminOrdersTabNav activeTab="history" />
 
       {!admin ? (
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           You do not have admin access.
         </p>
       ) : (
@@ -123,12 +123,12 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
               />
             </AdminParentControlsShell>
           {noHistoryAtAll ? (
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No paid checkout history has been recorded yet.
             </p>
           ) : null}
           {noSearchHits ? (
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No order history records match your lookup. Try customer name or email,
               batch number, order id, product wording, request id, order line id, or
               Stripe payment reference.

@@ -76,7 +76,7 @@ function CustomerShipmentSection({
     <section className="overflow-hidden rounded-xl border border-border bg-background">
       <button
         type="button"
-        className="flex w-full flex-col gap-2 border-b border-border bg-muted/20 p-4 text-left transition-colors hover:bg-muted/35"
+        className="flex w-full flex-col gap-2 border-b border-border bg-muted p-4 text-left transition-colors hover:bg-accent"
         onClick={() => onExpandedChange(!expanded)}
         aria-expanded={expanded}
       >
@@ -124,7 +124,7 @@ function CustomerShipmentSection({
           />
 
           {visible.length === 0 ? (
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-6 text-center text-sm text-muted-foreground">
               {lineSearch.trim()
                 ? "No containers match the current search."
                 : "No containers for this customer."}

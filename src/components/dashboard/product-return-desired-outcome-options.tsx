@@ -42,7 +42,7 @@ export function ProductReturnDesiredOutcomeOptions({
                 "flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors",
                 selected ?
                   "border-primary bg-primary/10 ring-1 ring-primary/40"
-                : "border-border bg-muted/20 hover:border-primary/40",
+                : "border-border bg-muted hover:border-primary/40",
                 disabled && "cursor-not-allowed opacity-60",
               )}
             >

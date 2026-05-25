@@ -303,7 +303,7 @@ export function AdminBatchQuoteHistoryPanel({
       </p>
 
       {!customerExpanded ? (
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+      <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -426,9 +426,9 @@ export function AdminBatchQuoteHistoryPanel({
       </div>
       ) : null}
 
-      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+      <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
         <table className="w-full min-w-[56rem] text-left text-sm">
-          <thead className="border-b border-border bg-muted/40">
+          <thead className="border-b border-border bg-muted">
             <tr>
               <th className="px-3 py-2.5 font-medium">Batch</th>
               <th className="px-3 py-2.5 font-medium">Customer</th>
@@ -468,8 +468,8 @@ export function AdminBatchQuoteHistoryPanel({
               <Fragment key={clerkUserId}>
                 <tr
                   className={cn(
-                    "border-b border-border bg-muted/40 transition-colors hover:bg-muted/55",
-                    expanded && "bg-muted/50",
+                    "border-b border-border bg-muted transition-colors hover:bg-accent",
+                    expanded && "bg-muted",
                   )}
                   role="button"
                   tabIndex={0}
@@ -508,7 +508,7 @@ export function AdminBatchQuoteHistoryPanel({
                 </tr>
                 {expanded ? (
                   <>
-                    <tr className="bg-muted/15">
+                    <tr className="bg-secondary">
                       <td colSpan={BATCH_ESTIMATES_TABLE_COL_SPAN} className="p-0">
                         <div className="border-b border-border px-3 py-4">
                           <AdminNestedFindOrganizePanel
@@ -605,7 +605,7 @@ export function AdminBatchQuoteHistoryPanel({
                     <Dialog>
                       <DialogTrigger
                         type="button"
-                        className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted/60"
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-accent"
                       >
                         Preview bundle
                       </DialogTrigger>
@@ -637,7 +637,7 @@ export function AdminBatchQuoteHistoryPanel({
                                 return (
                                   <li
                                     key={r.id}
-                                    className="rounded-md border border-border bg-muted/20 px-3 py-2.5"
+                                    className="rounded-md border border-border bg-muted px-3 py-2.5"
                                   >
                                     <p className="font-medium text-foreground">
                                       {r.productName?.trim() || "Product"}
@@ -664,7 +664,7 @@ export function AdminBatchQuoteHistoryPanel({
                                       ) : null}
                                     </dl>
                                     {q ? (
-                                      <div className="mt-3 rounded-md border border-border bg-muted/15 px-2.5 py-2.5">
+                                      <div className="mt-3 rounded-md border border-border bg-secondary px-2.5 py-2.5">
                                         <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                                           If purchased alone (saved quote)
                                         </p>
@@ -733,7 +733,7 @@ export function AdminBatchQuoteHistoryPanel({
                                       </p>
                                     )}
                                     {q?.merchandiseIncludesSiteShippingTax ? (
-                                      <p className="mt-2 rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs leading-relaxed text-muted-foreground">
+                                      <p className="mt-2 rounded-md border border-border bg-muted px-2 py-1.5 text-xs leading-relaxed text-muted-foreground">
                                         <span className="font-medium text-foreground">
                                           Shipping &amp; tax in merchandise:
                                         </span>{" "}
@@ -754,7 +754,7 @@ export function AdminBatchQuoteHistoryPanel({
                               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                 Batch estimates
                               </p>
-                              <div className="grid gap-2 rounded-md border border-border bg-muted/15 p-3 text-sm tabular-nums">
+                              <div className="grid gap-2 rounded-md border border-border/80 bg-muted p-3 text-sm tabular-nums">
                                 <div className="flex justify-between gap-2">
                                   <span className="text-muted-foreground">
                                     Service &amp; handling

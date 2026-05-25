@@ -139,7 +139,7 @@ export function DashboardRequestRefundDialog({ row }: { row: DashboardPaidOrderL
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+          <div className="rounded-lg border border-border bg-muted p-3 text-sm">
             <dl className="grid gap-2 text-foreground">
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -227,7 +227,7 @@ export function DashboardRequestRefundDialog({ row }: { row: DashboardPaidOrderL
               </p>
             </div>
 
-            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+            <div className="space-y-3 rounded-lg border border-border/80 bg-muted p-3">
               <p className="text-sm font-medium text-foreground">Refund amount preference</p>
               <label className="flex cursor-pointer items-start gap-2">
                 <input

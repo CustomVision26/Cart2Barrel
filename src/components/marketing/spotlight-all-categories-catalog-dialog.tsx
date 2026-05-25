@@ -53,7 +53,7 @@ function CategoryMenuButton({
         "flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
         selected
           ? "border-primary/40 bg-primary/10 shadow-sm"
-          : "border-transparent bg-transparent hover:border-border hover:bg-muted/50",
+          : "border-transparent bg-transparent hover:border-border hover:bg-accent",
       )}
     >
       <div
@@ -140,7 +140,7 @@ export function SpotlightAllCategoriesCatalogDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <aside className="shrink-0 border-b border-border bg-muted/20 lg:w-72 lg:border-b-0 lg:border-r">
+          <aside className="shrink-0 border-b border-border bg-muted lg:w-72 lg:border-b-0 lg:border-r">
             <p className="hidden px-4 pt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">
               Categories
             </p>

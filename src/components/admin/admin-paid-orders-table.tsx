@@ -129,7 +129,7 @@ export function AdminPaidOrdersTable({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No orders on this page.
       </p>
     );
@@ -140,9 +140,9 @@ export function AdminPaidOrdersTable({
     customerOrderGroups[0]?.orderGroups[0]?.order.id ?? null;
 
   return (
-    <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+    <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
       <table className="w-full min-w-[72rem] text-left text-sm">
-        <thead className="border-b border-border bg-muted/40">
+        <thead className="border-b border-border bg-muted">
           <tr>
             <th className="px-3 py-2.5 font-medium text-foreground">Photo</th>
             <th className="px-3 py-2.5 font-medium text-foreground">Quote source</th>
@@ -169,7 +169,7 @@ export function AdminPaidOrdersTable({
             ({ clerkUserId, displayLabel, orderGroups }) => (
               <Fragment key={clerkUserId}>
               <tbody>
-                <tr className="border-b border-border bg-muted/50">
+                <tr className="border-b border-border bg-muted">
                   <td
                     className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-foreground"
                     colSpan={subgroupColSpan()}
@@ -375,14 +375,14 @@ function AdminOrderContainerLineRow({
   orderCreatedAt: string;
 }) {
   return (
-    <tr className="align-top bg-muted/15">
+    <tr className="align-top bg-secondary">
       <td className="px-3 py-3 align-top">
-        <span className="flex size-12 items-center justify-center rounded-md border border-border/60 bg-muted/30 text-muted-foreground">
+        <span className="flex size-12 items-center justify-center rounded-md border border-border/60 bg-muted text-muted-foreground">
           <Package className="size-6 shrink-0" aria-hidden />
         </span>
       </td>
       <td className="max-w-[11rem] px-3 py-3 align-top text-muted-foreground">
-        <span className="inline-flex rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground">
+        <span className="inline-flex rounded-md border border-border/60 bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground">
           Container
         </span>
       </td>

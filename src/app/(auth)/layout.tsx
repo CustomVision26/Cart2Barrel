@@ -11,7 +11,7 @@ export default function AuthLayout({
         <AuthMarketingBackdrop />
       </div>
       <div
-        className="fixed inset-0 z-[1] bg-background/65 backdrop-blur-sm"
+        className="fixed inset-0 z-[1] bg-card backdrop-blur-sm"
         aria-hidden
       />
       <div className="relative z-10 flex min-h-full flex-1 items-center justify-center p-4 sm:p-6">

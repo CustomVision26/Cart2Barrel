@@ -23,7 +23,7 @@ const WORKFLOW_STEPS = [
     step: "01",
     title: "Product from store",
     description:
-      "Paste the retailer URL and load variants (SerpAPI) to confirm size, color, and price.",
+      "Paste the retailer URL and load variants to confirm size, color, and price.",
   },
   {
     step: "02",
@@ -137,13 +137,13 @@ export default async function DashboardAiAssistedItemRequestPage({
           />
         </div>
 
-        <ol className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3">
+        <ol className="grid gap-px overflow-hidden rounded-xl border border-border/80 bg-border shadow-sm ring-1 ring-foreground/5 sm:grid-cols-3">
           {WORKFLOW_STEPS.map(({ step, title, description }) => (
             <li
               key={step}
-              className="flex flex-col gap-2 bg-background px-4 py-4 sm:px-5"
+              className="flex flex-col gap-2.5 bg-card px-4 py-4 sm:px-5"
             >
-              <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">
+              <span className="inline-flex w-fit items-center rounded-md bg-primary/15 px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-primary ring-1 ring-primary/25">
                 {step}
               </span>
               <span className="text-sm font-medium text-foreground">{title}</span>

@@ -33,7 +33,7 @@ export function CollapsibleFieldSection({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-lg border border-border bg-muted/10 shadow-sm",
+        "overflow-hidden rounded-lg border border-border/80 bg-card shadow-sm ring-1 ring-foreground/5",
         compact && "rounded-md shadow-none",
         className,
       )}
@@ -46,7 +46,7 @@ export function CollapsibleFieldSection({
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
           "flex w-full items-center gap-2 text-left transition-colors",
-          "hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           compact ? "px-2.5 py-2" : "px-3 py-2.5",
         )}
       >
@@ -72,7 +72,7 @@ export function CollapsibleFieldSection({
         </span>
         <span
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-md border border-border/80 bg-background/80 font-medium text-muted-foreground",
+            "inline-flex shrink-0 items-center gap-1 rounded-md border border-border/80 bg-card font-medium text-muted-foreground",
             compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs",
           )}
           aria-hidden

@@ -263,6 +263,31 @@
   --brand-logo-glow: oklch(0.65 0.24 320);
 }
 
+/* Tint cards, fields, and sidebar surfaces with the active interface accent */
+:root[data-interface-color] {
+  --card: color-mix(in oklch, oklch(1 0 0) 82%, var(--primary));
+  --popover: var(--card);
+  --muted: color-mix(in oklch, oklch(0.97 0 0) 76%, var(--primary));
+  --secondary: color-mix(in oklch, oklch(0.97 0 0) 72%, var(--primary));
+  --input: color-mix(in oklch, oklch(0.922 0 0) 66%, var(--primary));
+  --accent: color-mix(in oklch, oklch(0.97 0 0) 76%, var(--primary));
+  --sidebar: color-mix(in oklch, oklch(0.985 0 0) 82%, var(--primary));
+  --sidebar-accent: color-mix(in oklch, oklch(0.97 0 0) 76%, var(--primary));
+  --brand-watermark-opacity: 0.2;
+}
+
+.dark[data-interface-color] {
+  --card: color-mix(in oklch, oklch(0.205 0 0) 70%, var(--primary));
+  --popover: var(--card);
+  --muted: color-mix(in oklch, oklch(0.269 0 0) 66%, var(--primary));
+  --secondary: color-mix(in oklch, oklch(0.269 0 0) 62%, var(--primary));
+  --input: color-mix(in oklch, oklch(0.28 0 0) 58%, var(--primary));
+  --accent: color-mix(in oklch, oklch(0.269 0 0) 66%, var(--primary));
+  --sidebar: color-mix(in oklch, oklch(0.205 0 0) 70%, var(--primary));
+  --sidebar-accent: color-mix(in oklch, oklch(0.269 0 0) 66%, var(--primary));
+  --brand-watermark-opacity: 0.1;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

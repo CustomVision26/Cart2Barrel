@@ -57,9 +57,9 @@ export function AdminCustomerPackagesListPanel({
             <span className="font-medium text-foreground">Select customer</span> to create
             one.
           </p>
-        : <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+        : <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
             <table className="w-full min-w-[960px] border-collapse text-left text-sm">
-              <thead className="border-b border-border bg-muted/40">
+              <thead className="border-b border-border bg-muted">
                 <tr>
                   <th className="px-3 py-2 font-medium">Customer</th>
                   <th className="px-3 py-2 font-medium">Cart (barrel / bin)</th>

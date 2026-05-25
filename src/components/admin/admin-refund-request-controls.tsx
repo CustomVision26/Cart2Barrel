@@ -203,7 +203,7 @@ export function AdminRefundRequestControls({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed">
+            <div className="rounded-md border border-border bg-muted p-3 text-xs leading-relaxed">
               <dl className="grid gap-2 text-foreground">
                 <div>
                   <dt className="font-medium uppercase tracking-wide text-muted-foreground">
@@ -249,7 +249,7 @@ export function AdminRefundRequestControls({
                 : null}
               </dl>
             </div>
-            <div className="rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+            <div className="rounded-md border border-border bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
               <span className="font-medium text-foreground">Shopper details</span>
               <p className="mt-2 whitespace-pre-wrap">{refundRequest.details}</p>
             </div>

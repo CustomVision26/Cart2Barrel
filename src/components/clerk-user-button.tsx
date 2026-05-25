@@ -18,7 +18,7 @@ export function ClerkUserButton() {
     return (
       <div
         aria-hidden
-        className="h-9 w-9 shrink-0 rounded-full border border-border/60 bg-muted/40"
+        className="h-9 w-9 shrink-0 rounded-full border border-border/60 bg-muted"
       />
     );
   }

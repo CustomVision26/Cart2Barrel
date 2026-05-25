@@ -387,8 +387,8 @@ export function ContainerSlotsInventorySection({
   return (
     <section
       className={cn(
-        "rounded-lg border border-border bg-muted/20",
-        embedded && "bg-muted/10",
+        "rounded-lg border border-border bg-muted",
+        embedded && "bg-muted",
         tableOpen ?
           compact ? "space-y-2 px-3 py-2"
           : "space-y-3 px-4 py-3"
@@ -503,7 +503,7 @@ export function ContainerSlotsInventorySection({
               compact ? "min-w-[36rem] text-xs" : "min-w-[40rem] text-sm",
             )}
           >
-            <thead className="border-b border-border bg-muted/40 text-muted-foreground">
+            <thead className="border-b border-border bg-muted text-muted-foreground">
               <tr>
                 {showCustomerColumn ?
                   <SortableHeader
@@ -593,7 +593,7 @@ export function ContainerSlotsInventorySection({
                 const isMarking =
                   markPending && markingBarrelId === row.barrelId;
                 return (
-                  <tr key={row.barrelId} className="hover:bg-muted/20">
+                  <tr key={row.barrelId} className="hover:bg-muted">
                     {showCustomerColumn ?
                       <td className={cellClass}>
                         {row.ownerClerkUserId ? (

@@ -74,7 +74,7 @@ export function AdminPackagesListControls(props: {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm">
-      <div className="border-b border-border bg-muted/20 p-4">
+      <div className="border-b border-border bg-muted p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl space-y-1">
             <p className="text-xs font-medium uppercase tracking-wide text-primary">
@@ -195,7 +195,7 @@ export function AdminPackagesListControls(props: {
         {hasCustomView ?
           <Link
             href="/admin/packages"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground hover:bg-muted/80"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground hover:bg-accent"
             prefetch={false}
           >
             Reset
@@ -203,7 +203,7 @@ export function AdminPackagesListControls(props: {
         : null}
       </form>
 
-      <div className="flex flex-col gap-3 border-t border-border bg-background/60 p-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-t border-border bg-card p-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <p>
           {totalLines === 0 ?
             "No package lines match this view."
@@ -224,7 +224,7 @@ export function AdminPackagesListControls(props: {
         <nav className="flex flex-wrap items-center gap-2" aria-label="Pagination">
           <Link
             href={pageLink(query, 1)}
-            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/80 aria-disabled:pointer-events-none aria-disabled:opacity-45"
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent aria-disabled:pointer-events-none aria-disabled:opacity-45"
             aria-disabled={page <= 1}
             prefetch={false}
           >
@@ -232,7 +232,7 @@ export function AdminPackagesListControls(props: {
           </Link>
           <Link
             href={pageLink(query, Math.max(1, page - 1))}
-            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/80 aria-disabled:pointer-events-none aria-disabled:opacity-45"
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent aria-disabled:pointer-events-none aria-disabled:opacity-45"
             aria-disabled={page <= 1}
             prefetch={false}
           >
@@ -245,7 +245,7 @@ export function AdminPackagesListControls(props: {
               className={
                 pageNumber === page ?
                   "rounded-md border border-primary bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
-                : "rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/80"
+                : "rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent"
               }
               aria-current={pageNumber === page ? "page" : undefined}
               prefetch={false}
@@ -255,7 +255,7 @@ export function AdminPackagesListControls(props: {
           ))}
           <Link
             href={pageLink(query, Math.min(totalPages, page + 1))}
-            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/80 aria-disabled:pointer-events-none aria-disabled:opacity-45"
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent aria-disabled:pointer-events-none aria-disabled:opacity-45"
             aria-disabled={page >= totalPages}
             prefetch={false}
           >
@@ -263,7 +263,7 @@ export function AdminPackagesListControls(props: {
           </Link>
           <Link
             href={pageLink(query, totalPages)}
-            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/80 aria-disabled:pointer-events-none aria-disabled:opacity-45"
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent aria-disabled:pointer-events-none aria-disabled:opacity-45"
             aria-disabled={page >= totalPages}
             prefetch={false}
           >

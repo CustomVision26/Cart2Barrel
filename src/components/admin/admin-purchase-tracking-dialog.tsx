@@ -201,7 +201,7 @@ export function AdminPurchaseTrackingDialog(props: AdminPurchaseTrackingDialogPr
             : null}
           </div>
 
-          <fieldset className="space-y-2 rounded-lg border border-border/80 bg-muted/10 p-3">
+          <fieldset className="space-y-2 rounded-lg border border-border/80 bg-muted p-3">
             <legend className="px-1 text-xs font-medium text-foreground">
               Carrier / retailer + number
             </legend>

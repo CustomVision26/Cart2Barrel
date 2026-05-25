@@ -125,7 +125,7 @@ export function DashboardOrderSlideCard({
             {previewSlots.map((tile, i) => (
               <div
                 key={tile ? `${tile.label}:${i}` : `empty:${i}`}
-                className="relative min-h-0 overflow-hidden bg-muted/30"
+                className="relative min-h-0 overflow-hidden bg-muted"
               >
                 {tile ?
                   <ProductRequestThumbnail
@@ -136,16 +136,16 @@ export function DashboardOrderSlideCard({
                   />
                 : tiles.length === 0 && i === 0 ?
                   <div
-                    className="flex size-full items-center justify-center bg-muted/25 text-muted-foreground"
+                    className="flex size-full items-center justify-center bg-muted text-muted-foreground"
                     aria-hidden
                   >
                     <Package className="size-10 opacity-40" />
                   </div>
                 : (
-                  <div className="size-full bg-muted/20" aria-hidden />
+                  <div className="size-full bg-muted" aria-hidden />
                 )}
                 {tile && i === tiles.length - 1 && extraCount > 0 ?
-                  <span className="absolute inset-0 flex items-center justify-center bg-background/65 text-sm font-semibold text-foreground">
+                  <span className="absolute inset-0 flex items-center justify-center bg-card text-sm font-semibold text-foreground">
                     +{extraCount}
                   </span>
                 : null}

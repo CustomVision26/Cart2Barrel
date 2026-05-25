@@ -17,7 +17,7 @@ export async function CartHeaderLink() {
   return (
     <Link
       href="/dashboard/cart"
-      className="relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+      className="relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       aria-label={count > 0 ? `Cart, ${count} items` : "Cart"}
     >
       <ShoppingCart className="size-5" aria-hidden />

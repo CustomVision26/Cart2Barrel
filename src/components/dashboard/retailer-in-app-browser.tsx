@@ -166,7 +166,7 @@ export function RetailerInAppBrowser({
         className,
       )}
     >
-      <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-border bg-muted px-3 py-2">
         <div className="flex gap-1.5" aria-hidden>
           <span className="size-2.5 rounded-full bg-red-500/70" />
           <span className="size-2.5 rounded-full bg-amber-500/70" />
@@ -199,7 +199,7 @@ export function RetailerInAppBrowser({
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 border-b border-border bg-muted/30 px-2 py-1.5">
+      <div className="flex items-center gap-1.5 border-b border-border bg-muted px-2 py-1.5">
         <Button
           type="button"
           variant="ghost"
@@ -228,9 +228,9 @@ export function RetailerInAppBrowser({
         </div>
       </div>
 
-      <div className="relative bg-muted/15">
+      <div className="relative bg-secondary">
         {activeUrl && (meta?.imageUrl || metaLoading) ?
-          <div className="flex items-center gap-3 border-b border-border/60 bg-muted/25 px-3 py-2">
+          <div className="flex items-center gap-3 border-b border-border/60 bg-muted px-3 py-2">
             {meta?.imageUrl ?
               <img
                 src={meta.imageUrl}
@@ -287,7 +287,7 @@ export function RetailerInAppBrowser({
         : frameSrc ?
           <div className="relative">
             {frameLoading ?
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-card backdrop-blur-[1px]">
                 <Loader2
                   className="size-6 animate-spin text-muted-foreground"
                   aria-hidden

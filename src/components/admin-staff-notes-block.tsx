@@ -87,7 +87,7 @@ export function AdminStaffNotesBlock({
       className={cn(
         compact ?
           "space-y-1"
-        : "space-y-2 rounded-md border border-border bg-muted/15 px-3 py-2.5",
+        : "space-y-2 rounded-md border border-border bg-secondary px-3 py-2.5",
         className,
       )}
     >

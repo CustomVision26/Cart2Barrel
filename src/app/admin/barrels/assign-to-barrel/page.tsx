@@ -24,7 +24,7 @@ export default async function AdminAssignToBarrelPage({ searchParams }: PageProp
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Assign to barrel
         </h1>
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           You do not have admin access.
         </p>
       </div>

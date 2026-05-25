@@ -84,7 +84,7 @@ export default async function AdminItemRequestsQueuePage({ searchParams }: PageP
   }
 
   return (
-    <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+    <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
       Nothing in the active queue right now (no pending, resend, or quoted items).
     </p>
   );

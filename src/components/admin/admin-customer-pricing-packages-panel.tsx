@@ -143,7 +143,7 @@ export function AdminCustomerPricingPackagesPanel({
   return (
     <div className="space-y-6" key={selectedClerkUserId ?? "none"}>
       {msg ?
-        <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-foreground">
+        <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
           {msg}
         </p>
       : null}
@@ -280,7 +280,7 @@ export function AdminCustomerPricingPackagesPanel({
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+                <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
                   <p className="text-sm font-medium text-foreground">Barrels</p>
                   <div className="space-y-2">
                     <Label htmlFor="cust-single-barrel">Exactly 1 barrel (USD)</Label>
@@ -313,7 +313,7 @@ export function AdminCustomerPricingPackagesPanel({
                     />
                   </div>
                 </div>
-                <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+                <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
                   <p className="text-sm font-medium text-foreground">Bins</p>
                   <div className="space-y-2">
                     <Label htmlFor="cust-single-bin">Exactly 1 bin (USD)</Label>
@@ -348,7 +348,7 @@ export function AdminCustomerPricingPackagesPanel({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/10 p-4">
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted p-4">
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground">
                     Custom service &amp; handling tiers
@@ -365,9 +365,9 @@ export function AdminCustomerPricingPackagesPanel({
               </div>
 
               {overrideServiceTiers ?
-                <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+                <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
                   <table className="w-full min-w-[520px] border-collapse text-left text-sm">
-                    <thead className="border-b border-border bg-muted/40">
+                    <thead className="border-b border-border bg-muted">
                       <tr>
                         <th className="px-3 py-2 font-medium">From (USD)</th>
                         <th className="px-3 py-2 font-medium">Through (USD)</th>
@@ -387,7 +387,7 @@ export function AdminCustomerPricingPackagesPanel({
                           </td>
                           <td className="px-3 py-2">
                             {row.openEndedMax ?
-                              <p className="rounded-md border border-border bg-muted/30 px-2.5 py-2 text-sm text-muted-foreground">
+                              <p className="rounded-md border border-border bg-muted px-2.5 py-2 text-sm text-muted-foreground">
                                 Open-ended
                               </p>
                             : <UsdDecimalInput

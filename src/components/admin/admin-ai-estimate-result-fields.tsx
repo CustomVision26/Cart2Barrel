@@ -131,7 +131,7 @@ export function AdminAiEstimateResultFields({
   const showEditableProduct = setEditProductName != null && editProductName != null;
   const sectionCard = polishedEditLayout
     ? "rounded-xl border border-border bg-card/40 p-4 shadow-sm"
-    : "space-y-3 rounded-lg border border-border bg-muted/15 p-3";
+    : "space-y-3 rounded-lg border border-border bg-secondary p-3";
 
   return (
     <div
@@ -452,8 +452,8 @@ export function AdminAiEstimateResultFields({
           className={cn(
             "space-y-2",
             polishedEditLayout
-              ? "rounded-lg border border-border/80 bg-muted/25 p-3"
-              : "rounded-lg border border-border bg-muted/20 p-3",
+              ? "rounded-lg border border-border/80 bg-muted p-3"
+              : "rounded-lg border border-border/80 bg-muted p-3",
           )}
         >
           <div className="flex justify-between gap-2 tabular-nums text-muted-foreground">
@@ -561,7 +561,7 @@ export function AdminAiEstimateResultFields({
           </Field>
           <label
             htmlFor={`${idPrefix}-merch-includes-site-fees`}
-            className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-background/80 px-2.5 py-2 text-xs text-muted-foreground"
+            className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-xs text-muted-foreground"
           >
             <input
               id={`${idPrefix}-merch-includes-site-fees`}

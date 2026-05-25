@@ -48,7 +48,7 @@ export function ServiceHandlingFeeChart({
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         <div className="overflow-hidden rounded-lg border border-border/70">
-          <div className="grid grid-cols-[1fr_auto] gap-2 border-b border-border/70 bg-muted/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="grid grid-cols-[1fr_auto] gap-2 border-b border-border/70 bg-muted px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <span>Unit price range</span>
             <span className="text-right">Fee</span>
           </div>
@@ -57,7 +57,7 @@ export function ServiceHandlingFeeChart({
               <li
                 key={row.unitPriceRangeLabel}
                 className={`grid grid-cols-[1fr_auto] gap-2 px-3 py-2.5 text-xs ${
-                  index % 2 === 0 ? "bg-background/40" : "bg-muted/20"
+                  index % 2 === 0 ? "bg-card" : "bg-muted"
                 }`}
               >
                 <span className="font-medium text-foreground">
@@ -70,7 +70,7 @@ export function ServiceHandlingFeeChart({
             ))}
           </ul>
         </div>
-        <p className="inline-flex items-start gap-2 rounded-lg border border-border/70 bg-muted/40 px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="inline-flex items-start gap-2 rounded-lg border border-border/70 bg-muted px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
           {copy.footer}
         </p>

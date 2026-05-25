@@ -122,7 +122,7 @@ export function HowItWorksCustomerCosts() {
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
-                  <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs font-medium text-foreground">
+                  <p className="rounded-lg bg-muted px-3 py-2 text-xs font-medium text-foreground">
                     When due:{" "}
                     <span className="font-normal text-muted-foreground">
                       {phase.when}

@@ -26,6 +26,12 @@ import {
   ownerBatchQuoteSessionStatusBadge,
 } from "@/lib/batch-quote-session-status-labels";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
+import {
+  dashItemsTableFilterPanel,
+  dashItemsTableHeadPlain,
+  dashItemsTableScroll,
+  dashItemsTableStatusPanel,
+} from "@/lib/app-table-surfaces";
 import { displaySiteName } from "@/lib/site-name";
 import {
   batchQuoteSessionBadgeKind,
@@ -227,7 +233,7 @@ export function DashboardBatchHistorySection({
 
   return (
     <div className="space-y-8">
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+      <div className={dashItemsTableFilterPanel}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs font-medium text-foreground">Find & organize</p>
           <div className="flex items-center gap-2">
@@ -422,7 +428,7 @@ export function DashboardBatchHistorySection({
         return (
           <section
             key={session.id}
-            className="space-y-3 rounded-lg border border-border bg-muted/10 p-4"
+            className={dashItemsTableFilterPanel}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-start gap-1 sm:gap-2">
@@ -558,9 +564,9 @@ export function DashboardBatchHistorySection({
               hidden={!bodyOpen}
               className={cn(bodyOpen && "space-y-3")}
             >
-              <FloatingHorizontalScroll viewportClassName="rounded-md border border-border">
+              <FloatingHorizontalScroll viewportClassName={dashItemsTableScroll}>
                 <table className="w-full min-w-[36rem] text-left text-sm">
-                  <thead className="border-b border-border bg-muted/40">
+                  <thead className={dashItemsTableHeadPlain}>
                     <tr>
                       <th className="px-3 py-2 font-medium">Photo</th>
                       <th className="px-3 py-2 font-medium">Product</th>
@@ -602,7 +608,7 @@ export function DashboardBatchHistorySection({
                 </table>
               </FloatingHorizontalScroll>
               {statusEvents.length > 0 ? (
-                <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
+                <div className={dashItemsTableStatusPanel}>
                   <p className="text-xs font-medium text-foreground">
                     Quote history — each stage is a snapshot from when your bundle changed
                     state
@@ -624,7 +630,7 @@ export function DashboardBatchHistorySection({
                       return (
                         <li
                           key={ev.id}
-                          className="rounded-md border border-border/50 bg-background/40"
+                          className="rounded-md border border-border/80 bg-card p-2"
                         >
                           <div className="flex flex-wrap items-start gap-2 p-2">
                             <Button
@@ -721,9 +727,9 @@ export function DashboardBatchHistorySection({
                                   No line items were stored for this stage (often a legacy
                                   log entry).
                                 </p>
-                              : <FloatingHorizontalScroll viewportClassName="rounded-md border border-border">
+                              : <FloatingHorizontalScroll viewportClassName={dashItemsTableScroll}>
                                   <table className="w-full min-w-[36rem] text-left text-sm">
-                                    <thead className="border-b border-border bg-muted/40">
+                                    <thead className={dashItemsTableHeadPlain}>
                                       <tr>
                                         <th className="px-3 py-2 font-medium">Photo</th>
                                         <th className="px-3 py-2 font-medium">Product</th>

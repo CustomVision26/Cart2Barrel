@@ -28,6 +28,15 @@ import { ProductRequestThumbnail } from "@/components/product-request-thumbnail"
 import { OutOfStockProductPreviewDialog } from "@/components/dashboard/out-of-stock-product-preview-dialog";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { SortableThCompact } from "@/components/sortable-th";
+import {
+  dashItemsTableCellNote,
+  dashItemsTableCellNoteDashed,
+  dashItemsTableHeadPlain,
+  dashItemsTableRowBatchSelected,
+  dashItemsTableRowInBatch,
+  dashItemsTableScroll,
+  dashItemsTableToolbar,
+} from "@/lib/app-table-surfaces";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -581,7 +590,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
               </div>
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+          <div className={dashItemsTableToolbar}>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Batch selection
@@ -766,9 +775,9 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
           ) : null}
           {filteredActive.length > 0 ? (
             <>
-              <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+              <FloatingHorizontalScroll viewportClassName={dashItemsTableScroll}>
                 <table className="w-full min-w-[48rem] text-left text-sm">
-                  <thead className="border-b border-border bg-muted/40">
+                  <thead className={dashItemsTableHeadPlain}>
                     <tr>
                       <th className="w-10 px-2 py-2.5 text-center text-xs font-medium text-foreground">
                         Batch
@@ -841,10 +850,8 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                           key={r.id}
                           className={cn(
                             "align-top transition-[background-color,box-shadow,color] duration-150",
-                            inBundledBatch &&
-                              "bg-muted/15 text-muted-foreground opacity-[0.72]",
-                            inBatchSelection &&
-                              "bg-muted/35 text-muted-foreground opacity-100 shadow-[inset_3px_0_0_hsl(var(--primary)/0.45)]"
+                            inBundledBatch && dashItemsTableRowInBatch,
+                            inBatchSelection && dashItemsTableRowBatchSelected
                           )}
                           data-batch-selected={
                             inBatchSelection ? "true" : undefined
@@ -1024,7 +1031,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                 if (inBundledBatch) {
                                   return (
                                     <p
-                                      className="rounded-md border border-border bg-muted/25 px-2 py-1.5 text-center text-[11px] leading-snug text-muted-foreground"
+                                      className={dashItemsTableCellNote}
                                       title="Open Batch Quotes to accept or preview this bundle."
                                     >
                                       Manage in{" "}
@@ -1037,7 +1044,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                 if (inBatchSelection) {
                                   return (
                                     <p
-                                      className="rounded-md border border-dashed border-border bg-muted/20 px-2 py-1.5 text-center text-[11px] leading-snug text-muted-foreground"
+                                      className={dashItemsTableCellNoteDashed}
                                       title="Uncheck Batch to accept this estimate on its own."
                                     >
                                       Accept estimate disabled while selected for a
@@ -1062,7 +1069,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                       defaultOpen={
                                         showReturnActions || returnEstimateAccepted
                                       }
-                                      className="min-w-[11.5rem] bg-background/60"
+                                      className="min-w-[11.5rem] bg-card"
                                     >
                                       <div className="flex flex-col gap-2">
                                         {showReturnRequest ?

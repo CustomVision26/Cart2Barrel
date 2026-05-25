@@ -348,7 +348,7 @@ export function AdminOutsidePurchaseIntakePanel({
               </FieldContent>
             </Field>
 
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/80 bg-muted/10 px-3 py-2.5 text-sm">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/80 bg-muted px-3 py-2.5 text-sm">
               <input
                 type="checkbox"
                 checked={isPackLine}
@@ -561,7 +561,7 @@ export function AdminOutsidePurchaseIntakePanel({
               </Field>
             </CollapsibleFieldSection>
 
-            <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3">
+            <div className="space-y-2 rounded-lg border border-border/80 bg-muted p-3">
               <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Customer charge preview
                 <HelpBalloon label="About customer charge preview">
@@ -651,12 +651,12 @@ export function AdminOutsidePurchaseIntakePanel({
           tooltipClassName="w-80"
         />
         {recentRows.length === 0 ?
-          <p className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg border border-border/80 bg-card px-4 py-6 text-center text-sm text-muted-foreground">
             No outside-purchase lines yet.
           </p>
-        : <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+        : <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
             <table className="w-full min-w-[52rem] text-left text-sm">
-              <thead className="border-b border-border bg-muted/40">
+              <thead className="border-b border-border bg-muted">
                 <tr>
                   <th className="px-3 py-2.5 font-medium">Ref</th>
                   <th className="px-3 py-2.5 font-medium">Customer</th>

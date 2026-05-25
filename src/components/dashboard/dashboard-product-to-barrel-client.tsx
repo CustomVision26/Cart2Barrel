@@ -52,7 +52,7 @@ export function DashboardProductToBarrelClient({
     <div className="space-y-4">
       <ContainerSlotsInventorySection barrels={barrels} showLookupFilters />
 
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-3 text-sm text-muted-foreground">
         Staff assign products to your paid containers. This page is read-only — you can see
         fulfillment status, container alias, and when each assignment was made. Changes appear
         on{" "}

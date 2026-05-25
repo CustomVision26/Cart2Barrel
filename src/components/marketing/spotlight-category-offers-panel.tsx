@@ -145,7 +145,7 @@ function ProductOfferSection({
   const offers = buildOffersForProduct(product, isSignedIn);
 
   return (
-    <li className="rounded-xl border border-border/80 bg-muted/10 p-4 sm:p-5">
+    <li className="rounded-xl border border-border/80 bg-muted p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-pretty text-sm font-semibold text-foreground">
           {title}

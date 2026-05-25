@@ -121,7 +121,7 @@ export function OutsidePurchaseReturnPreviewDialog({
           </div>
 
           {returnRequest?.returnStaffNote?.trim() ?
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className="rounded-lg border border-border/80 bg-muted p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Staff note
               </p>
@@ -144,7 +144,7 @@ export function OutsidePurchaseReturnPreviewDialog({
           </CollapsibleFieldSection>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-muted/15 px-6 py-4 sm:gap-0">
+        <DialogFooter className="gap-2 border-t border-border bg-secondary px-6 py-4 sm:gap-0">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Close
           </Button>

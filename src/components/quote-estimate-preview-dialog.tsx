@@ -203,7 +203,7 @@ export function QuoteEstimatePreviewDialog({
             "inline-flex items-center gap-1 font-medium transition-colors",
             triggerVariant === "link" ?
               "text-sm text-primary underline-offset-2 hover:underline"
-            : "rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground shadow-sm hover:bg-muted/60",
+            : "rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground shadow-sm hover:bg-accent",
           )}
         >
           {triggerVariant === "button" ?
@@ -245,7 +245,7 @@ export function QuoteEstimatePreviewDialog({
         ) : (
           <div className="min-w-0 space-y-4 text-sm">
             {showProductDetails && product ? (
-              <div className="min-w-0 space-y-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+              <div className="min-w-0 space-y-2 rounded-lg border border-border bg-muted px-3 py-2.5">
                 <div className="flex gap-3">
                   <ProductRequestThumbnail
                     variant="dialog"
@@ -525,7 +525,7 @@ export function QuoteEstimatePreviewDialog({
                     </dl>
                   </CollapsibleFieldSection>
                 ) : quote.quotedRequestLine ? (
-                  <div className="rounded-md border border-border bg-muted/15 px-3 py-2 text-xs">
+                  <div className="rounded-md border border-border bg-secondary px-3 py-2 text-xs">
                     <p className="mb-1.5 font-medium text-foreground">
                       Line staff priced against (saved with this estimate)
                     </p>
@@ -648,7 +648,7 @@ export function QuoteEstimatePreviewDialog({
           </DialogHeader>
 
           {pendingResendBody ? (
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-xs">
+            <div className="rounded-lg border border-border bg-muted px-3 py-2.5 text-xs">
               <p className="mb-2 font-medium text-foreground">Staff will use:</p>
               {product?.productName?.trim() ? (
                 <p className="mb-2 text-foreground">{product.productName.trim()}</p>

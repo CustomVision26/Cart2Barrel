@@ -288,7 +288,7 @@ function ActiveQueueLineTableRow({
   const accountName = submitterDisplayName(group.userFullName, group.userEmail);
 
   return (
-    <tr className="hover:bg-muted/30">
+    <tr className="hover:bg-muted">
       {showAccountColumns ? (
         <>
           <td className="px-3 py-2 align-top">
@@ -634,7 +634,7 @@ export function AdminItemRequestsGroupedTable({
         />
       : null}
       {!customerExpanded ? (
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+      <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -800,9 +800,9 @@ export function AdminItemRequestsGroupedTable({
       {groups.length > 0 ? (
         <>
         {paginationMode === "accounts" ? (
-          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
             <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead className="border-b border-border bg-muted/40">
+        <thead className="border-b border-border bg-muted">
           <tr>
             <th className="w-10 px-2 py-2.5" aria-hidden />
             <SortableTh
@@ -904,8 +904,8 @@ export function AdminItemRequestsGroupedTable({
             <tbody key={g.clerkUserId} className="border-b border-border last:border-b-0">
               <tr
                 className={cn(
-                  "bg-background transition-colors hover:bg-muted/40",
-                  expanded && "bg-muted/25"
+                  "bg-background transition-colors hover:bg-accent",
+                  expanded && "bg-accent"
                 )}
                 role="button"
                 tabIndex={0}
@@ -954,7 +954,7 @@ export function AdminItemRequestsGroupedTable({
               </tr>
               {expanded ? (
                 <tr>
-                  <td colSpan={7} className="bg-muted/15 p-0">
+                  <td colSpan={7} className="bg-secondary p-0">
                     <div
                       id={panelId}
                       className="border-t border-border px-3 py-4"
@@ -1003,7 +1003,7 @@ export function AdminItemRequestsGroupedTable({
                           />
                         <FloatingHorizontalScroll viewportClassName="rounded-md border border-border bg-background">
                           <table className="w-full min-w-[52rem] text-left text-xs sm:text-sm">
-                            <thead className="border-b border-border bg-muted/50">
+                            <thead className="border-b border-border bg-muted">
                               <tr>
                                 <SortableThCompact
                                   columnId="line-kind"
@@ -1153,9 +1153,9 @@ export function AdminItemRequestsGroupedTable({
             </table>
           </FloatingHorizontalScroll>
         ) : (
-          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
+          <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
             <table className="w-full min-w-[72rem] text-left text-xs sm:text-sm">
-              <thead className="border-b border-border bg-muted/40">
+              <thead className="border-b border-border bg-muted">
                 <tr>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-foreground">
                     Account

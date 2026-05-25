@@ -19,6 +19,11 @@ import {
 import { Separator } from "@/components/ui/separator";
 import type { BatchQuoteEstimate } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  dashItemsTableStatusPanel,
+  dashItemsTimelineCard,
+} from "@/lib/app-table-surfaces";
+import { cn } from "@/lib/utils";
 
 type BatchEstimatePreviewDialogProps = {
   batchSessionId: string;
@@ -73,7 +78,7 @@ export function BatchEstimatePreviewDialog({
       >
         <DialogTrigger
           type="button"
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60"
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
         >
           <EyeIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />
           Preview estimate
@@ -90,7 +95,7 @@ export function BatchEstimatePreviewDialog({
           </DialogHeader>
 
           <div className="space-y-4 text-sm tabular-nums">
-            <div className="grid gap-2 rounded-md border border-border bg-muted/15 p-3">
+            <div className={cn("grid gap-2", dashItemsTableStatusPanel)}>
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">Batch merchandise total</span>
                 <span className="text-foreground">
@@ -115,7 +120,7 @@ export function BatchEstimatePreviewDialog({
               </div>
             </div>
 
-            <div className="grid gap-2 rounded-md border border-border bg-muted/15 p-3">
+            <div className={cn("grid gap-2", dashItemsTableStatusPanel)}>
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">Batch shipping</span>
                 <span className="text-foreground">
@@ -134,7 +139,7 @@ export function BatchEstimatePreviewDialog({
               </div>
             </div>
 
-            <div className="grid gap-2 rounded-md border border-border bg-muted/15 p-3">
+            <div className={cn("grid gap-2", dashItemsTableStatusPanel)}>
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">Batch sale tax</span>
                 <span className="text-foreground">
@@ -186,7 +191,7 @@ export function BatchEstimatePreviewDialog({
               </li>
             </ul>
 
-            <div className="flex justify-between rounded-md border border-border bg-muted/10 px-3 py-2 text-xs tabular-nums">
+            <div className={cn("flex justify-between text-xs tabular-nums", dashItemsTimelineCard)}>
               <span className="text-muted-foreground">Saved subtotal (staff)</span>
               <span className="font-medium text-foreground">
                 {formatUsd(estimate.subtotalCents)}
@@ -246,7 +251,7 @@ export function BatchEstimatePreviewDialog({
               the remaining quoted storefront lines.
             </DialogDescription>
           </DialogHeader>
-          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 font-mono text-xs text-muted-foreground">
+          <p className={cn(dashItemsTableStatusPanel, "font-mono text-xs text-muted-foreground")}>
             Batch <span className="text-foreground">{batchNumber}</span>
           </p>
           <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">

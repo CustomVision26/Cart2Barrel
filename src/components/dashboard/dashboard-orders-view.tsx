@@ -119,13 +119,13 @@ export async function DashboardOrdersView({
           </AdminParentControlsShell>
 
           {noOrdersAtAll ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               {copy.empty}
             </p>
           : null}
 
           {noSearchHits ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No orders match your search. Try batch number, order UUID, request or line UUID, Stripe
               reference, note text, or product wording.
             </p>
@@ -151,13 +151,13 @@ export async function DashboardOrdersView({
           />
 
           {noOrdersAtAll ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               {copy.empty}
             </p>
           : null}
 
           {noSearchHits ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No orders match your search. Try batch number, order UUID, request or line UUID, Stripe
               reference, note text, or product wording.
             </p>

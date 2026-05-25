@@ -106,7 +106,7 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
         </p>
       ) : null}
       {!admin ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           You do not have admin access.
         </p>
       : (
@@ -123,14 +123,14 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
               />
             </AdminParentControlsShell>
           {emptyQueue ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No packages are awaiting barrel or consolidation yet. Lines appear here after
               warehouse receipt from Purchase orders, including customer-accepted damaged or
               wrong-item deliveries.
             </p>
           : null}
           {noSearchHits ?
-            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No packages match your filter. Try customer name or email, product wording, order id,
               request id, batch number, or batch session id.
             </p>

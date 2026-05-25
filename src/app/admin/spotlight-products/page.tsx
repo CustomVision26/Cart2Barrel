@@ -43,7 +43,7 @@ export default async function AdminSpotlightProductsPage() {
         </p>
       </div>
       {!admin ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border bg-muted px-4 py-6 text-sm text-muted-foreground">
           Admin access is required to manage spotlight products.
         </p>
       : <AdminSpotlightProductsManager initialProducts={products} />}

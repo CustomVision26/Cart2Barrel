@@ -132,7 +132,7 @@ export function BarrelShippingPricingSection({
             {awaitingQuote.map((row) => (
               <li
                 key={row.intakeId}
-                className="rounded-lg border border-dashed border-border/80 bg-muted/15 px-4 py-3 text-sm"
+                className="rounded-lg border border-dashed border-border/80 bg-secondary px-4 py-3 text-sm"
               >
                 <p className="font-medium text-foreground">
                   {row.alias} — {row.slotLabel}

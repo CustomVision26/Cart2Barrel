@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ChevronDown } from "lucide-react";
 import { Fragment, useState } from "react";
@@ -31,6 +31,12 @@ import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { resolveProductHistoryStatusDisplay } from "@/lib/product-history-status";
 import { displaySiteName } from "@/lib/site-name";
+import {
+  dashItemsChargesCell,
+  dashItemsTableRowExpanded,
+  dashItemsTableRowHover,
+  dashItemsTimelineCard,
+} from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
 
 function latestActivityMs(
@@ -52,7 +58,7 @@ function ChargesGrid({ rows }: { rows: { label: string; value: React.ReactNode }
       {rows.map((row) => (
         <div
           key={row.label}
-          className="rounded-md border border-border bg-muted/10 p-2"
+          className={dashItemsChargesCell}
         >
           <dt className="text-xs text-muted-foreground">{row.label}</dt>
           <dd className="mt-0.5 font-medium tabular-nums text-foreground">
@@ -165,12 +171,12 @@ export function ProductHistoryTableRow({
 
   return (
     <Fragment>
-      <tr className="border-b border-border hover:bg-muted/10">
+      <tr className={cn("border-b border-border", dashItemsTableRowHover)}>
         <td className="w-10 px-2 py-3 align-top">
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-muted/80"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/80 bg-card text-foreground hover:bg-accent"
             aria-expanded={expanded}
             aria-label={
               expanded ?
@@ -200,7 +206,7 @@ export function ProductHistoryTableRow({
               </p>
               <p className="text-xs text-muted-foreground">
                 {displaySiteName(request.siteName, request.productUrl)}
-                {bundle ? ` Â· Batch ${bundle.session.batchNumber}` : ""}
+                {bundle ? ` · Batch ${bundle.session.batchNumber}` : ""}
               </p>
               <p className="font-mono text-[11px] text-muted-foreground">
                 {request.id}
@@ -289,7 +295,7 @@ export function ProductHistoryTableRow({
                         {bundle.statusEvents.map((event) => (
                           <div
                             key={event.id}
-                            className="rounded-md border border-border bg-muted/10 p-2 text-sm"
+                            className={cn(dashItemsTimelineCard, "text-sm")}
                           >
                             <div className="flex flex-wrap justify-between gap-2">
                               <span className="font-medium">
@@ -314,7 +320,7 @@ export function ProductHistoryTableRow({
         </td>
       </tr>
       {expanded ?
-        <tr className="border-b border-border bg-muted/5">
+        <tr className={dashItemsTableRowExpanded}>
           <td colSpan={6} className="px-4 py-4">
             <ProductHistoryTrackRecord
               request={request}

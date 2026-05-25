@@ -230,11 +230,11 @@ function ToggleSection({
 
   return (
     <section className={cn("overflow-hidden rounded-xl border border-border", className)}>
-      <div className="flex flex-wrap items-center gap-3 bg-muted/25 px-3 py-3">
+      <div className="flex flex-wrap items-center gap-3 bg-muted px-3 py-3">
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-expanded={open}
           aria-label={ariaLabel}
         >
@@ -277,7 +277,7 @@ function ProductHistoryCard({
 
   return (
     <article className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground">
-      <div className="grid gap-4 border-b border-border bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
+      <div className="grid gap-4 border-b border-border bg-muted p-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
         <div className="flex min-w-0 gap-4">
           <ProductRequestThumbnail
             variant="cart"
@@ -395,7 +395,7 @@ function ProductHistoryCard({
                   />
                 ) : null}
               </div>
-              <div className="rounded-lg border border-border bg-muted/10 p-3">
+              <div className="rounded-lg border border-border/80 bg-muted p-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -440,7 +440,7 @@ export function DashboardOrderHistoryTimeline({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No product history records on this page.
       </p>
     );
@@ -627,7 +627,7 @@ export function DashboardOrderHistoryTimeline({
                       summary={`${bucket.lines.length} product${
                         bucket.lines.length === 1 ? "" : "s"
                       }`}
-                      className="bg-background/70"
+                      className="bg-card"
                       bodyClassName="space-y-3"
                     >
                       {bucket.lines.map((row) => (

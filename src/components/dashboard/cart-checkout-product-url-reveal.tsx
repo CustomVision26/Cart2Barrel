@@ -40,7 +40,7 @@ export function CartCheckoutProductUrlReveal({
           role="region"
           aria-labelledby={btnId}
           className={cn(
-            "rounded-md border border-border/60 bg-muted/30 px-3 py-2",
+            "rounded-md border border-border/60 bg-muted px-3 py-2",
             "text-xs leading-relaxed"
           )}
         >
