@@ -24,9 +24,9 @@ import { Button } from "@/components/ui/button";
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldLabel,
 } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -39,7 +39,6 @@ import {
 import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
 import { displaySiteName } from "@/lib/site-name";
 import { compareLocale, compareNum, type SortDir } from "@/lib/table-sort";
-import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -303,13 +302,8 @@ export function AdminBatchQuoteHistoryPanel({
         Combined retailer quotes persist here with preview and bundled estimate edits.
       </p>
 
-      <div
-        className={cn(
-          "space-y-3 rounded-lg border border-border bg-muted/10 p-4",
-          adminParentControlsDisabledClass(customerExpanded),
-        )}
-        aria-hidden={customerExpanded || undefined}
-      >
+      {!customerExpanded ? (
+      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -320,9 +314,12 @@ export function AdminBatchQuoteHistoryPanel({
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Field className="gap-1.5 sm:col-span-2">
-                <FieldLabel htmlFor="batch-estimates-search" className="text-xs">
-                  Search
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="batch-estimates-search"
+                  label="Search"
+                  help="Case-insensitive match across batch number, site key, customer, and line products."
+                  helpLabel="About Search"
+                />
                 <FieldContent>
                   <Input
                     id="batch-estimates-search"
@@ -332,10 +329,6 @@ export function AdminBatchQuoteHistoryPanel({
                     autoComplete="off"
                   />
                 </FieldContent>
-                <FieldDescription>
-                  Case-insensitive match across batch number, site key, customer, and line
-                  products.
-                </FieldDescription>
               </Field>
 
               <Field className="gap-1.5">
@@ -378,9 +371,12 @@ export function AdminBatchQuoteHistoryPanel({
               </Field>
 
               <Field className="gap-1.5">
-                <FieldLabel htmlFor="batch-estimates-page-size" className="text-xs">
-                  Per page
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="batch-estimates-page-size"
+                  label="Per page"
+                  help="Paginates the records shown in this panel."
+                  helpLabel="About Per page"
+                />
                 <FieldContent>
                   <select
                     id="batch-estimates-page-size"
@@ -428,16 +424,11 @@ export function AdminBatchQuoteHistoryPanel({
           </>
         ) : null}
       </div>
+      ) : null}
 
       <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
         <table className="w-full min-w-[56rem] text-left text-sm">
-          <thead
-            className={cn(
-              "border-b border-border bg-muted/40",
-              adminParentControlsDisabledClass(customerExpanded),
-            )}
-            aria-hidden={customerExpanded || undefined}
-          >
+          <thead className="border-b border-border bg-muted/40">
             <tr>
               <th className="px-3 py-2.5 font-medium">Batch</th>
               <th className="px-3 py-2.5 font-medium">Customer</th>
@@ -820,32 +811,20 @@ export function AdminBatchQuoteHistoryPanel({
         </table>
       </FloatingHorizontalScroll>
 
-      {filteredSorted.length > 0 ? (
-        <div
-          className={cn(
-            "flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between",
-            adminParentControlsDisabledClass(customerExpanded),
-          )}
-          aria-hidden={customerExpanded || undefined}
-        >
+      {filteredSorted.length > 0 && !customerExpanded ? (
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             Page{" "}
             <span className="font-medium tabular-nums text-foreground">{pageSafe}</span>{" "}
             of{" "}
             <span className="font-medium tabular-nums text-foreground">{totalPages}</span>
-            {customerExpanded ? (
-              <span className="text-muted-foreground/80">
-                {" "}
-                (collapse customer to change)
-              </span>
-            ) : null}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={customerExpanded || pageSafe <= 1}
+              disabled={pageSafe <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
               Previous
@@ -854,7 +833,7 @@ export function AdminBatchQuoteHistoryPanel({
               type="button"
               variant="outline"
               size="sm"
-              disabled={customerExpanded || pageSafe >= totalPages}
+              disabled={pageSafe >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
               Next

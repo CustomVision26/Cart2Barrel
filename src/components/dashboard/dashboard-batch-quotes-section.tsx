@@ -21,9 +21,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldLabel,
 } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -340,12 +340,12 @@ export function DashboardBatchQuotesSection({
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Field className="gap-1.5">
-                <FieldLabel
+                <FieldLabelWithHelp
                   htmlFor="dashboard-batch-quotes-search"
-                  className="text-xs"
-                >
-                  Search
-                </FieldLabel>
+                  label="Search"
+                  help="Matches batch number, site, status, and any line item fields."
+                  helpLabel="About Search"
+                />
                 <FieldContent>
                   <Input
                     id="dashboard-batch-quotes-search"
@@ -358,9 +358,6 @@ export function DashboardBatchQuotesSection({
                     autoComplete="off"
                   />
                 </FieldContent>
-                <FieldDescription>
-                  Matches batch number, site, status, and any line item fields.
-                </FieldDescription>
               </Field>
 
               <Field className="gap-1.5">

@@ -14,10 +14,8 @@ import {
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
 import { purchaseQueueRowToWarehouseReceivingLine } from "@/lib/admin-package-receiving-line";
-import {
-  loadAdminStaffProfilesByClerkUserIds,
-  resolveOrderLineUpdatedByClerkUserId,
-} from "@/lib/admin-staff-profiles";
+import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
+import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { safeCurrentUser } from "@/lib/safe-current-user";

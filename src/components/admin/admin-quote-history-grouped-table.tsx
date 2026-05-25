@@ -12,6 +12,7 @@ import {
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { AdminProductUrlDialog } from "@/components/admin/admin-product-url-dialog";
 import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-history-edit-dialog";
 import { AdminQuoteHistoryProductTimelineTable } from "@/components/admin/admin-quote-history-product-timeline-table";
@@ -316,6 +317,55 @@ export function AdminQuoteHistoryGroupedTable({
     sortedGroups.length === 0 ? 0 : (pageSafe - 1) * pageSize + 1;
   const showTo = Math.min(pageSafe * pageSize, sortedGroups.length);
 
+  const expandedGroup = useMemo(() => {
+    if (!openClerkUserId) return null;
+    return (
+      sortedGroups.find((g) => g.clerkUserId === openClerkUserId) ??
+      groups.find((g) => g.clerkUserId === openClerkUserId) ??
+      null
+    );
+  }, [openClerkUserId, sortedGroups, groups]);
+
+  const expandedLinePanel = useMemo(() => {
+    if (!expandedGroup) return null;
+
+    const lineFiltered = expandedGroup.lines.filter((line) =>
+      quoteHistoryLineMatchesQuery(line, lineSearch, orderContextByRequestId),
+    );
+    const sortedLines = sortQuoteHistoryLines(
+      lineFiltered,
+      lineSortKey,
+      lineSortDir,
+      orderContextByRequestId,
+    );
+    const quoteLineCount = sortedLines.length;
+    const qlTotalPages = Math.max(1, Math.ceil(quoteLineCount / pageSize));
+    const rawQlPage = quoteLinePageByCustomerId[expandedGroup.clerkUserId] ?? 1;
+    const qlPageSafe = Math.min(Math.max(1, rawQlPage), qlTotalPages);
+    const qlStart = (qlPageSafe - 1) * pageSize;
+    const quoteLineSlice = sortedLines.slice(qlStart, qlStart + pageSize);
+    const qlShowFrom = quoteLineCount === 0 ? 0 : qlStart + 1;
+    const qlShowTo = Math.min(qlStart + pageSize, quoteLineCount);
+
+    return {
+      lineFiltered,
+      quoteLineCount,
+      qlTotalPages,
+      qlPageSafe,
+      quoteLineSlice,
+      qlShowFrom,
+      qlShowTo,
+    };
+  }, [
+    expandedGroup,
+    lineSearch,
+    lineSortKey,
+    lineSortDir,
+    orderContextByRequestId,
+    pageSize,
+    quoteLinePageByCustomerId,
+  ]);
+
   const cycleGroupSort = useCallback((key: QhGroupSortKey) => {
     const next = nextSortState(groupSortKey, groupSortDir, key);
     setGroupSortKey(next.key);
@@ -367,110 +417,98 @@ export function AdminQuoteHistoryGroupedTable({
         lines.
       </p>
 
-      <div
-        className={cn(
-          "space-y-3 rounded-lg border border-border bg-muted/10 p-4 transition-opacity",
-          customerExpanded && "pointer-events-none opacity-50",
-        )}
-        aria-hidden={customerExpanded}
-      >
-        <AdminFindOrganizeVisibilityToggle
-          id={findOrganizeSwitchId}
-          visible={findOrganizeVisible}
-          onVisibleChange={setFindOrganizeVisible}
-        />
+      {!customerExpanded ? (
+        <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
+          <AdminFindOrganizeVisibilityToggle
+            id={findOrganizeSwitchId}
+            visible={findOrganizeVisible}
+            onVisibleChange={setFindOrganizeVisible}
+          />
 
-        {findOrganizeVisible ? (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Field className="gap-1.5 sm:col-span-2 lg:col-span-2">
-                <FieldLabel htmlFor="quote-history-search" className="text-xs">
-                  Search
-                </FieldLabel>
-                <FieldContent>
-                  <Input
-                    id="quote-history-search"
-                    placeholder="Customer, email, product, URL, request or quote id…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    autoComplete="off"
-                  />
-                </FieldContent>
-                <FieldDescription>
-                  Case-insensitive substring match. Table columns sort the
-                  current result set.
-                </FieldDescription>
-              </Field>
+          {findOrganizeVisible ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Field className="gap-1.5 sm:col-span-2 lg:col-span-2">
+                  <FieldLabel htmlFor="quote-history-search" className="text-xs">
+                    Search
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="quote-history-search"
+                      placeholder="Customer, email, product, URL, request or quote id…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </FieldContent>
+                  <FieldDescription>
+                    Case-insensitive substring match. Table columns sort the
+                    current result set.
+                  </FieldDescription>
+                </Field>
 
-              <Field className="gap-1.5">
-                <FieldLabel htmlFor="quote-history-page-size" className="text-xs">
-                  Rows per page
-                </FieldLabel>
-                <FieldContent>
-                  <select
-                    id="quote-history-page-size"
-                    className={SELECT_CLASS}
-                    value={pageSize}
-                    onChange={(e) =>
-                      setPageSize(
-                        Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]
-                      )
-                    }
-                  >
-                    {PAGE_SIZE_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </FieldContent>
-                <FieldDescription>
-                  Limits customer groups in the table above. When you expand a customer, the
-                  same number limits how many products show at once (with its own
-                  prev/next).
-                </FieldDescription>
-              </Field>
-            </div>
+                <Field className="gap-1.5">
+                  <FieldLabel htmlFor="quote-history-page-size" className="text-xs">
+                    Rows per page
+                  </FieldLabel>
+                  <FieldContent>
+                    <select
+                      id="quote-history-page-size"
+                      className={SELECT_CLASS}
+                      value={pageSize}
+                      onChange={(e) =>
+                        setPageSize(
+                          Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]
+                        )
+                      }
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </FieldContent>
+                  <FieldDescription>
+                    Limits customer groups in the table below.
+                  </FieldDescription>
+                </Field>
+              </div>
 
-            <p className="text-xs text-muted-foreground">
-              {sortedGroups.length === 0 ? (
-                <>No customers match the current search.</>
-              ) : (
-                <>
-                  Showing{" "}
-                  <span className="font-medium tabular-nums text-foreground">
-                    {showFrom}–{showTo}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-medium tabular-nums text-foreground">
-                    {sortedGroups.length}
-                  </span>{" "}
-                  customer group{sortedGroups.length === 1 ? "" : "s"}
-                  {sortedGroups.length < groups.length ? (
-                    <>
-                      {" "}
-                      (<span className="tabular-nums">{groups.length}</span>{" "}
-                      total loaded)
-                    </>
-                  ) : null}
-                </>
-              )}
-            </p>
-          </>
-        ) : null}
-      </div>
+              <p className="text-xs text-muted-foreground">
+                {sortedGroups.length === 0 ? (
+                  <>No customers match the current search.</>
+                ) : (
+                  <>
+                    Showing{" "}
+                    <span className="font-medium tabular-nums text-foreground">
+                      {showFrom}–{showTo}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-medium tabular-nums text-foreground">
+                      {sortedGroups.length}
+                    </span>{" "}
+                    customer group{sortedGroups.length === 1 ? "" : "s"}
+                    {sortedGroups.length < groups.length ? (
+                      <>
+                        {" "}
+                        (<span className="tabular-nums">{groups.length}</span>{" "}
+                        total loaded)
+                      </>
+                    ) : null}
+                  </>
+                )}
+              </p>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       {sortedGroups.length === 0 ? null : (
         <>
           <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[56rem] text-left text-sm">
-              <thead
-                className={cn(
-                  "border-b border-border bg-muted/40 transition-opacity",
-                  customerExpanded && "pointer-events-none opacity-50",
-                )}
-                aria-hidden={customerExpanded}
-              >
+              <thead className="border-b border-border bg-muted/40">
                 <tr>
                   <th className="w-10 px-2 py-2.5" aria-hidden />
                   <SortableTh
@@ -501,42 +539,8 @@ export function AdminQuoteHistoryGroupedTable({
                 const expanded = openClerkUserId === g.clerkUserId;
                 const panelId = `${baseId}-quotes-${g.clerkUserId}`;
                 const name = submitterDisplayName(g.userFullName, g.userEmail);
-
-                const lineFiltered = expanded
-                  ? g.lines.filter((line) =>
-                      quoteHistoryLineMatchesQuery(
-                        line,
-                        lineSearch,
-                        orderContextByRequestId,
-                      ),
-                    )
-                  : [];
-                const sortedLinesForGroup = expanded
-                  ? sortQuoteHistoryLines(
-                      lineFiltered,
-                      lineSortKey,
-                      lineSortDir,
-                      orderContextByRequestId,
-                    )
-                  : [];
-                const quoteLineCount = sortedLinesForGroup.length;
-                const qlTotalPages = Math.max(
-                  1,
-                  Math.ceil(quoteLineCount / pageSize)
-                );
-                const rawQlPage = quoteLinePageByCustomerId[g.clerkUserId] ?? 1;
-                const qlPageSafe = Math.min(
-                  Math.max(1, rawQlPage),
-                  qlTotalPages
-                );
-                const qlStart = (qlPageSafe - 1) * pageSize;
-                const quoteLineSlice = sortedLinesForGroup.slice(
-                  qlStart,
-                  qlStart + pageSize
-                );
-                const qlShowFrom =
-                  quoteLineCount === 0 ? 0 : qlStart + 1;
-                const qlShowTo = Math.min(qlStart + pageSize, quoteLineCount);
+                const linePanel = expanded ? expandedLinePanel : null;
+                const quoteLineSlice = linePanel?.quoteLineSlice ?? [];
                 const fullGroupLines =
                   groups.find((group) => group.clerkUserId === g.clerkUserId)?.lines ??
                   g.lines;
@@ -602,107 +606,31 @@ export function AdminQuoteHistoryGroupedTable({
                               status is still Quoted.
                             </p>
 
-                            <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/10 p-4">
-                              <AdminFindOrganizeVisibilityToggle
-                                id={lineFindOrganizeSwitchId}
+                            {linePanel ? (
+                              <AdminNestedFindOrganizePanel
+                                switchId={`${lineFindOrganizeSwitchId}-${g.clerkUserId}`}
+                                searchInputId={`${baseId}-line-search-${g.clerkUserId}`}
+                                pageSizeSelectId={`${baseId}-line-page-size-${g.clerkUserId}`}
                                 visible={lineFindOrganizeVisible}
                                 onVisibleChange={setLineFindOrganizeVisible}
+                                search={lineSearch}
+                                onSearchChange={setLineSearch}
+                                searchLabel="Search products"
+                                searchPlaceholder="Product, URL, site, status, request or quote id…"
+                                searchDescription="Filters this customer's products only. Column headers below sort the filtered list."
+                                pageSize={pageSize}
+                                onPageSizeChange={setPageSize}
+                                pageSizeLabel="Products per page"
+                                pageSizeDescription="Paginates the product rows in this panel."
+                                showFrom={linePanel.qlShowFrom}
+                                showTo={linePanel.qlShowTo}
+                                totalCount={linePanel.quoteLineCount}
+                                totalLoaded={g.lines.length}
+                                itemLabel="product"
+                                emptyMessage="No products for this customer."
+                                noMatchMessage="No products match the current search."
                               />
-
-                              {lineFindOrganizeVisible ? (
-                                <>
-                                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                    <Field className="gap-1.5 sm:col-span-2 lg:col-span-2">
-                                      <FieldLabel
-                                        htmlFor={`${baseId}-line-search`}
-                                        className="text-xs"
-                                      >
-                                        Search products
-                                      </FieldLabel>
-                                      <FieldContent>
-                                        <Input
-                                          id={`${baseId}-line-search`}
-                                          placeholder="Product, URL, site, status, request or quote id…"
-                                          value={lineSearch}
-                                          onChange={(e) => setLineSearch(e.target.value)}
-                                          autoComplete="off"
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      </FieldContent>
-                                      <FieldDescription>
-                                        Filters this customer&apos;s products only.
-                                        Column headers below sort the filtered list.
-                                      </FieldDescription>
-                                    </Field>
-
-                                    <Field className="gap-1.5">
-                                      <FieldLabel
-                                        htmlFor={`${baseId}-line-page-size`}
-                                        className="text-xs"
-                                      >
-                                        Products per page
-                                      </FieldLabel>
-                                      <FieldContent>
-                                        <select
-                                          id={`${baseId}-line-page-size`}
-                                          className={SELECT_CLASS}
-                                          value={pageSize}
-                                          onChange={(e) =>
-                                            setPageSize(
-                                              Number(
-                                                e.target.value,
-                                              ) as (typeof PAGE_SIZE_OPTIONS)[number],
-                                            )
-                                          }
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          {PAGE_SIZE_OPTIONS.map((n) => (
-                                            <option key={n} value={n}>
-                                              {n}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </FieldContent>
-                                      <FieldDescription>
-                                        Paginates the product rows in this panel.
-                                      </FieldDescription>
-                                    </Field>
-                                  </div>
-
-                                  <p className="text-xs text-muted-foreground">
-                                    {quoteLineCount === 0 ? (
-                                      lineSearch.trim() ? (
-                                        <>No products match the current search.</>
-                                      ) : (
-                                        <>No products for this customer.</>
-                                      )
-                                    ) : (
-                                      <>
-                                        Showing{" "}
-                                        <span className="font-medium tabular-nums text-foreground">
-                                          {qlShowFrom}–{qlShowTo}
-                                        </span>{" "}
-                                        of{" "}
-                                        <span className="font-medium tabular-nums text-foreground">
-                                          {quoteLineCount}
-                                        </span>{" "}
-                                        product{quoteLineCount === 1 ? "" : "s"}
-                                        {lineFiltered.length < g.lines.length ? (
-                                          <>
-                                            {" "}
-                                            (
-                                            <span className="tabular-nums">
-                                              {g.lines.length}
-                                            </span>{" "}
-                                            total for customer)
-                                          </>
-                                        ) : null}
-                                      </>
-                                    )}
-                                  </p>
-                                </>
-                              ) : null}
-                            </div>
+                            ) : null}
 
                             <FloatingHorizontalScroll viewportClassName="rounded-md border border-border bg-background">
                               <table className="w-full min-w-[44rem] text-left text-xs sm:text-sm">
@@ -888,64 +816,6 @@ export function AdminQuoteHistoryGroupedTable({
                                 </tbody>
                               </table>
                             </FloatingHorizontalScroll>
-                            {quoteLineCount > pageSize ? (
-                              <div className="mt-3 flex flex-col items-stretch gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="text-xs text-muted-foreground">
-                                  Products{" "}
-                                  <span className="font-medium tabular-nums text-foreground">
-                                    {qlShowFrom}–{qlShowTo}
-                                  </span>{" "}
-                                  of{" "}
-                                  <span className="font-medium tabular-nums text-foreground">
-                                    {quoteLineCount}
-                                  </span>
-                                  {" · "}
-                                  Page{" "}
-                                  <span className="font-medium tabular-nums text-foreground">
-                                    {qlPageSafe}
-                                  </span>{" "}
-                                  of{" "}
-                                  <span className="font-medium tabular-nums text-foreground">
-                                    {qlTotalPages}
-                                  </span>
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={qlPageSafe <= 1}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setQuoteLinePageByCustomerId((prev) => ({
-                                        ...prev,
-                                        [g.clerkUserId]: Math.max(1, qlPageSafe - 1),
-                                      }));
-                                    }}
-                                  >
-                                    Previous products
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={qlPageSafe >= qlTotalPages}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setQuoteLinePageByCustomerId((prev) => ({
-                                        ...prev,
-                                        [g.clerkUserId]: Math.min(
-                                          qlTotalPages,
-                                          qlPageSafe + 1
-                                        ),
-                                      }));
-                                    }}
-                                  >
-                                    Next products
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -956,50 +826,101 @@ export function AdminQuoteHistoryGroupedTable({
             </table>
           </FloatingHorizontalScroll>
 
-          <div
-            className={cn(
-              "flex flex-col items-stretch gap-3 border-t border-border pt-4 transition-opacity sm:flex-row sm:items-center sm:justify-between",
-              customerExpanded && "pointer-events-none opacity-50",
-            )}
-            aria-hidden={customerExpanded}
-          >
-            <p className="text-xs text-muted-foreground">
-              Customer groups — page{" "}
-              <span className="font-medium tabular-nums text-foreground">
-                {pageSafe}
-              </span>{" "}
-              of{" "}
-              <span className="font-medium tabular-nums text-foreground">
-                {totalPages}
-              </span>
-              {customerExpanded ?
-                <span className="text-muted-foreground/80">
-                  {" "}
-                  (collapse customer to change)
+          {!customerExpanded ? (
+            <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Customer groups — page{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {pageSafe}
+                </span>{" "}
+                of{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {totalPages}
                 </span>
-              : null}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={customerExpanded || pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={customerExpanded || pageSafe >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next
-              </Button>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pageSafe <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pageSafe >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : expandedLinePanel && expandedGroup &&
+            expandedLinePanel.quoteLineCount > pageSize ? (
+            <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Products{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {expandedLinePanel.qlShowFrom}–{expandedLinePanel.qlShowTo}
+                </span>{" "}
+                of{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {expandedLinePanel.quoteLineCount}
+                </span>
+                {" · "}
+                Page{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {expandedLinePanel.qlPageSafe}
+                </span>{" "}
+                of{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {expandedLinePanel.qlTotalPages}
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={expandedLinePanel.qlPageSafe <= 1}
+                  onClick={() =>
+                    setQuoteLinePageByCustomerId((prev) => ({
+                      ...prev,
+                      [expandedGroup.clerkUserId]: Math.max(
+                        1,
+                        expandedLinePanel.qlPageSafe - 1,
+                      ),
+                    }))
+                  }
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    expandedLinePanel.qlPageSafe >= expandedLinePanel.qlTotalPages
+                  }
+                  onClick={() =>
+                    setQuoteLinePageByCustomerId((prev) => ({
+                      ...prev,
+                      [expandedGroup.clerkUserId]: Math.min(
+                        expandedLinePanel.qlTotalPages,
+                        expandedLinePanel.qlPageSafe + 1,
+                      ),
+                    }))
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </>
       )}
 

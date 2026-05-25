@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import type { AssignmentHistoryRow } from "@/data/barrel-package-assignment";
 import { adminCustomerSortKey } from "@/lib/admin-customer-group";
-import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import { cn } from "@/lib/utils";
 
 export type AdminBarrelAssignmentHistoryRow = AssignmentHistoryRow;
@@ -243,13 +242,8 @@ export function AdminBarrelAssignmentHistoryTable({
 
   return (
     <div className="space-y-4">
-      <div
-        className={cn(
-          "space-y-3 rounded-lg border border-border bg-muted/10 p-4",
-          adminParentControlsDisabledClass(customerExpanded),
-        )}
-        aria-hidden={customerExpanded || undefined}
-      >
+      {!customerExpanded ? (
+      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -278,6 +272,7 @@ export function AdminBarrelAssignmentHistoryTable({
           </>
         ) : null}
       </div>
+      ) : null}
 
       {grouped.length === 0 ? (
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">

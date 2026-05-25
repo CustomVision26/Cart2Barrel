@@ -7,8 +7,6 @@ import {
   type ReactNode,
 } from "react";
 
-import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
-import { cn } from "@/lib/utils";
 
 type AdminNestedPanelFocusContextValue = {
   nestedPanelActive: boolean;
@@ -56,14 +54,9 @@ export function AdminParentControlsShell({
   disabled?: boolean;
 }) {
   const { nestedPanelActive } = useAdminNestedPanelFocus();
-  const isDisabled = disabled ?? nestedPanelActive;
+  const isHidden = disabled ?? nestedPanelActive;
 
-  return (
-    <div
-      className={cn(adminParentControlsDisabledClass(isDisabled), className)}
-      aria-hidden={isDisabled || undefined}
-    >
-      {children}
-    </div>
-  );
+  if (isHidden) return null;
+
+  return <div className={className}>{children}</div>;
 }

@@ -8,7 +8,8 @@ import {
   AdminParentControlsShell,
 } from "@/components/admin/admin-nested-panel-focus-context";
 import { listAdminPurchaseQueuePage } from "@/data/admin-purchase-queue";
-import { loadAdminStaffProfilesByClerkUserIds, resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
+import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
+import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsByRequestIds,

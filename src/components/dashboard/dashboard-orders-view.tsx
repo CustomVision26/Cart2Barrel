@@ -2,9 +2,14 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@clerk/nextjs/server";
 
+import {
+  AdminNestedPanelFocusProvider,
+  AdminParentControlsShell,
+} from "@/components/admin/admin-nested-panel-focus-context";
 import { DashboardOrderHistoryTimeline } from "@/components/dashboard/dashboard-order-history-timeline";
 import { DashboardOrdersCarouselView } from "@/components/dashboard/dashboard-orders-carousel-view";
 import { DashboardOrdersListControls } from "@/components/dashboard/dashboard-orders-list-controls";
+import { DashboardPageTitleWithHelp } from "@/components/dashboard/dashboard-page-title-with-help";
 import { DashboardOrdersTabNav } from "@/components/dashboard/dashboard-orders-tab-nav";
 import {
   groupItemRequestLineSnapshotsByRequestId,
@@ -90,50 +95,82 @@ export async function DashboardOrdersView({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {copy.title}
-        </h1>
-        <p className="text-sm text-muted-foreground">{copy.description}</p>
+        <DashboardPageTitleWithHelp
+          title={copy.title}
+          tooltipClassName="w-80"
+          help={copy.description}
+        />
       </div>
 
       <DashboardOrdersTabNav activeTab={mode} />
 
-      <DashboardOrdersListControls
-        key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
-        basePath={copy.basePath}
-        query={pagePack.query}
-        totalOrders={pagePack.totalOrders}
-        page={pagePack.page}
-        totalPages={pagePack.totalPages}
-        pageSize={pagePack.pageSize}
-      />
+      {mode === "history" ? (
+        <AdminNestedPanelFocusProvider>
+          <AdminParentControlsShell>
+            <DashboardOrdersListControls
+              key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
+              basePath={copy.basePath}
+              query={pagePack.query}
+              totalOrders={pagePack.totalOrders}
+              page={pagePack.page}
+              totalPages={pagePack.totalPages}
+              pageSize={pagePack.pageSize}
+            />
+          </AdminParentControlsShell>
 
-      {noOrdersAtAll ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-          {copy.empty}
-        </p>
-      : null}
+          {noOrdersAtAll ?
+            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+              {copy.empty}
+            </p>
+          : null}
 
-      {noSearchHits ?
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-          No orders match your search. Try batch number, order UUID, request or line UUID, Stripe
-          reference, note text, or product wording.
-        </p>
-      : null}
+          {noSearchHits ?
+            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+              No orders match your search. Try batch number, order UUID, request or line UUID, Stripe
+              reference, note text, or product wording.
+            </p>
+          : null}
 
-      {!noOrdersAtAll && !noSearchHits ?
-        mode === "history" ?
-          <DashboardOrderHistoryTimeline
-            rows={pagePack.rows}
-            snapshotsByRequestId={snapshotsByRequestId}
+          {!noOrdersAtAll && !noSearchHits ? (
+            <DashboardOrderHistoryTimeline
+              rows={pagePack.rows}
+              snapshotsByRequestId={snapshotsByRequestId}
+            />
+          ) : null}
+        </AdminNestedPanelFocusProvider>
+      ) : (
+        <>
+          <DashboardOrdersListControls
+            key={`${pagePack.query.sort}:${pagePack.query.page}:${pagePack.query.ps}:${pagePack.query.q}`}
+            basePath={copy.basePath}
+            query={pagePack.query}
+            totalOrders={pagePack.totalOrders}
+            page={pagePack.page}
+            totalPages={pagePack.totalPages}
+            pageSize={pagePack.pageSize}
           />
-        : (
-          <DashboardOrdersCarouselView
-            rows={pagePack.rows}
-            snapshotsByRequestId={snapshotsByRequestId}
-          />
-        )
-      : null}
+
+          {noOrdersAtAll ?
+            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+              {copy.empty}
+            </p>
+          : null}
+
+          {noSearchHits ?
+            <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+              No orders match your search. Try batch number, order UUID, request or line UUID, Stripe
+              reference, note text, or product wording.
+            </p>
+          : null}
+
+          {!noOrdersAtAll && !noSearchHits ? (
+            <DashboardOrdersCarouselView
+              rows={pagePack.rows}
+              snapshotsByRequestId={snapshotsByRequestId}
+            />
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

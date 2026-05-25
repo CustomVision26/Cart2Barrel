@@ -4,6 +4,7 @@ import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-sc
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { ChevronDownIcon } from "lucide-react";
 
+import { SectionTitleWithHelp } from "@/components/ui/section-title-with-help";
 import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
@@ -423,14 +424,19 @@ export function AdminWarehouseReceivingSection({
               <p className="text-xs font-medium uppercase tracking-wide text-primary">
                 Packaging file inventory
               </p>
-              <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                Receive, locate, and document package files
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Each card shows one package awaiting barrel. Use Preview intake to
-                review recorded data, or Edit intake to update quantity, condition,
-                shelf, barcode, and proof photos before assign-to-barrel.
-              </p>
+              <SectionTitleWithHelp
+                title="Receive, locate, and document package files"
+                titleClassName="text-lg font-semibold tracking-tight text-foreground"
+                help={
+                  <>
+                    Each card shows one package awaiting barrel. Use Preview intake to review
+                    recorded data, or Edit intake to update quantity, condition, shelf, barcode,
+                    and proof photos before assign-to-barrel.
+                  </>
+                }
+                helpLabel="About package cards"
+                tooltipClassName="w-80"
+              />
             </div>
             <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[24rem]">
               <div className="flex flex-wrap items-center justify-end gap-2 lg:justify-start">

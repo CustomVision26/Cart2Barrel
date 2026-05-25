@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import type { AdminListQuery } from "@/lib/admin-customer-filter";
 import { ADMIN_CUSTOMER_FILTER_PARAM } from "@/lib/admin-customer-filter";
 import { buildAdminPurchaseOrdersListHref } from "@/lib/paid-orders-list-params";
@@ -90,16 +93,22 @@ export function AdminPurchaseQueueListControls(props: {
           Apply
         </button>
       </form>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        One row per paid line that still needs a company purchase. Use{" "}
-        <span className="font-medium text-foreground">Review and approve</span>, then{" "}
-        <span className="font-medium text-foreground">Approve purchase</span>, after buying from the
-        retailer. For the full paid order context, open{" "}
-        <Link href="/admin/orders" className="font-medium text-primary underline-offset-4 hover:underline">
-          Orders
-        </Link>
-        .
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-medium text-muted-foreground">About this queue</span>
+        <HelpBalloon label="About the purchase queue" tooltipClassName="w-[28rem]">
+          One row per paid line that still needs a company purchase. Use{" "}
+          <span className="font-medium text-foreground">Review and approve</span>, then{" "}
+          <span className="font-medium text-foreground">Approve purchase</span>, after buying from
+          the retailer. For the full paid order context, open{" "}
+          <Link
+            href="/admin/orders"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Orders
+          </Link>
+          .
+        </HelpBalloon>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4 text-xs text-muted-foreground">
         <p>

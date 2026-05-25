@@ -14,6 +14,7 @@ import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
 import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
 import {
@@ -56,7 +57,6 @@ import {
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
 import { cn } from "@/lib/utils";
-import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import {
   resolveOrderLineUpdatedByClerkUserId,
   type AdminStaffProfilesByClerkUserId,
@@ -359,55 +359,51 @@ export function AdminPurchaseOrdersTable({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-muted-foreground">
-          Select lines (including problem receipts), then use{" "}
-          <span className="font-medium text-foreground">Received delivery</span>{" "}
-          to log or correct quantities, condition, and shelf. Condition{" "}
-          <span className="font-medium text-foreground">Good</span> sets{" "}
-          <span className="font-medium text-foreground">
-            Delivery received: good - awaiting barrel
-          </span>
-          ; the line then leaves this list for{" "}
-          <Link
-            href="/admin/packages"
-            className="font-medium text-primary underline-offset-4 hover:underline"
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            disabled={selectedCount === 0}
+            onClick={openReceiveDialog}
           >
-            Packages
-          </Link>
-          . Shoppers see it on{" "}
-          <Link
-            href="/dashboard/orders"
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Dashboard → Orders
-          </Link>
-          ; receipt detail stays in{" "}
-          <span className="font-medium text-foreground">Request line audit</span>.
-        </p>
-        <Button
-          type="button"
-          size="sm"
-          disabled={selectedCount === 0}
-          onClick={openReceiveDialog}
-        >
-          Received delivery
-          {selectedCount > 0 ?
-            <span className="ml-1 tabular-nums text-primary-foreground/80">
-              ({selectedCount})
+            Received delivery
+            {selectedCount > 0 ?
+              <span className="ml-1 tabular-nums text-primary-foreground/80">
+                ({selectedCount})
+              </span>
+            : null}
+          </Button>
+          <HelpBalloon label="About Received delivery" tooltipClassName="w-[28rem]">
+            Select lines (including problem receipts), then use{" "}
+            <span className="font-medium text-foreground">Received delivery</span> to log
+            or correct quantities, condition, and shelf. Condition{" "}
+            <span className="font-medium text-foreground">Good</span> sets{" "}
+            <span className="font-medium text-foreground">
+              Delivery received: good - awaiting barrel
             </span>
-          : null}
-        </Button>
+            ; the line then leaves this list for{" "}
+            <Link
+              href="/admin/packages"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Packages
+            </Link>
+            . Shoppers see it on{" "}
+            <Link
+              href="/dashboard/orders"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Dashboard → Orders
+            </Link>
+            ; receipt detail stays in{" "}
+            <span className="font-medium text-foreground">Request line audit</span>.
+          </HelpBalloon>
+        </div>
       </div>
 
       <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
         <table className="w-full min-w-[76rem] text-left text-sm">
-          <thead
-            className={cn(
-              "border-b border-border bg-muted/40",
-              adminParentControlsDisabledClass(customerExpanded),
-            )}
-            aria-hidden={customerExpanded || undefined}
-          >
+          <thead className="border-b border-border bg-muted/40">
             <tr>
               <th className="w-10 px-2 py-2.5">
                 <span className="sr-only">Select for receiving</span>

@@ -51,7 +51,6 @@ import {
 import {
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
-import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import { cn } from "@/lib/utils";
 
 const selectClassName = cn(
@@ -211,12 +210,7 @@ export function AdminBarrelAssignmentsClient({
         </p>
       : null}
 
-      <div
-        className={cn(
-          adminParentControlsDisabledClass(ownerExpanded),
-        )}
-        aria-hidden={ownerExpanded || undefined}
-      >
+      {!ownerExpanded ? (
         <ProductToBarrelFiltersToolbar
           idPrefix="admin-atb"
           totalCount={rows.length}
@@ -231,7 +225,7 @@ export function AdminBarrelAssignmentsClient({
           searchLabel="Search products & customers"
           searchPlaceholder="Product, container, customer id, order, status…"
         />
-      </div>
+      ) : null}
 
       {rows.length === 0 ?
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">

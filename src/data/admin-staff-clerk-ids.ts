@@ -1,3 +1,5 @@
+import "server-only";
+
 import { clerkClient } from "@clerk/nextjs/server";
 import type { User } from "@clerk/nextjs/server";
 

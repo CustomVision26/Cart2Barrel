@@ -25,16 +25,16 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldLabel,
 } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
+import { SectionTitleWithHelp } from "@/components/ui/section-title-with-help";
 import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
 import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import { displaySiteName } from "@/lib/site-name";
 import type { SortDir } from "@/lib/table-sort";
 import {
@@ -430,6 +430,7 @@ type AdminItemRequestsGroupedTableProps = {
   returnRequestsByItemRequestId?: Record<string, OutsidePurchaseReturnRequest>;
   orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
+  introHelp?: React.ReactNode;
 };
 
 export function AdminItemRequestsGroupedTable({
@@ -440,6 +441,7 @@ export function AdminItemRequestsGroupedTable({
   returnRequestsByItemRequestId = {},
   orderContextByRequestId = {},
   merchantEstimateFees,
+  introHelp,
 }: AdminItemRequestsGroupedTableProps) {
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
   const [panelChoiceMade, setPanelChoiceMade] = useState(false);
@@ -621,13 +623,18 @@ export function AdminItemRequestsGroupedTable({
 
   return (
     <div className="space-y-3">
-      <div
-        className={cn(
-          "space-y-3 rounded-lg border border-border bg-muted/10 p-4",
-          adminParentControlsDisabledClass(customerExpanded),
-        )}
-        aria-hidden={customerExpanded || undefined}
-      >
+      {introHelp ?
+        <SectionTitleWithHelp
+          as="p"
+          title="Active queue"
+          titleClassName="text-sm font-medium text-foreground"
+          help={introHelp}
+          helpLabel="About Active requests"
+          tooltipClassName="w-[28rem]"
+        />
+      : null}
+      {!customerExpanded ? (
+      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -638,9 +645,16 @@ export function AdminItemRequestsGroupedTable({
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field className="gap-1.5 sm:col-span-2 lg:col-span-2">
-                <FieldLabel htmlFor="active-queue-search" className="text-xs">
-                  Search
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="active-queue-search"
+                  label="Search"
+                  help={
+                    paginationMode === "accounts" ?
+                      "Case-insensitive substring match. Account headers sort the account list; expand a row for line-level sort in the panel."
+                    : "Case-insensitive substring match. Column headers sort the flat queue lines."
+                  }
+                  helpLabel="About Search"
+                />
                 <FieldContent>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Input
@@ -664,18 +678,15 @@ export function AdminItemRequestsGroupedTable({
                     ) : null}
                   </div>
                 </FieldContent>
-                <FieldDescription>
-                  Case-insensitive substring match.{" "}
-                  {paginationMode === "accounts" ?
-                    "Account headers sort the account list; expand a row for line-level sort in the panel."
-                  : "Column headers sort the flat queue lines."}
-                </FieldDescription>
               </Field>
 
               <Field className="gap-1.5">
-                <FieldLabel htmlFor="active-queue-pagination-mode" className="text-xs">
-                  Paginate by
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="active-queue-pagination-mode"
+                  label="Paginate by"
+                  help="Account groups: one table row per shopper; expand for lines. Queue lines: one row per active-queue item with its own page size."
+                  helpLabel="About Paginate by"
+                />
                 <FieldContent>
                   <select
                     id="active-queue-pagination-mode"
@@ -691,18 +702,19 @@ export function AdminItemRequestsGroupedTable({
                     <option value="queue_lines">Queue lines (flat)</option>
                   </select>
                 </FieldContent>
-                <FieldDescription>
-                  Account groups: one table row per shopper; expand for lines. Queue
-                  lines: one row per active-queue item with its own page size.
-                </FieldDescription>
               </Field>
 
               <Field className="gap-1.5">
-                <FieldLabel htmlFor="active-queue-page-size" className="text-xs">
-                  {paginationMode === "queue_lines" ?
-                    "Queue lines per page"
-                  : "Accounts per page"}
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="active-queue-page-size"
+                  label={
+                    paginationMode === "queue_lines" ?
+                      "Queue lines per page"
+                    : "Accounts per page"
+                  }
+                  help="Paginates the records shown in this panel."
+                  helpLabel="About page size"
+                />
                 <FieldContent>
                   <select
                     id="active-queue-page-size"
@@ -783,19 +795,14 @@ export function AdminItemRequestsGroupedTable({
           </>
         ) : null}
       </div>
+      ) : null}
 
       {groups.length > 0 ? (
         <>
         {paginationMode === "accounts" ? (
           <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead
-          className={cn(
-            "border-b border-border bg-muted/40",
-            adminParentControlsDisabledClass(customerExpanded),
-          )}
-          aria-hidden={customerExpanded || undefined}
-        >
+        <thead className="border-b border-border bg-muted/40">
           <tr>
             <th className="w-10 px-2 py-2.5" aria-hidden />
             <SortableTh
@@ -985,7 +992,7 @@ export function AdminItemRequestsGroupedTable({
                             pageSize={pageSize}
                             onPageSizeChange={setPageSize}
                             pageSizeLabel="Lines per page"
-                            pageSizeDescription="Paginates queue lines in this panel."
+                            pageSizeDescription="Paginates the records shown in this panel."
                             showFrom={lineShowFrom}
                             showTo={lineShowTo}
                             totalCount={lineCount}
@@ -1256,14 +1263,8 @@ export function AdminItemRequestsGroupedTable({
           </FloatingHorizontalScroll>
         )}
 
-          {itemCount > 0 ? (
-            <div
-              className={cn(
-                "flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between",
-                adminParentControlsDisabledClass(customerExpanded),
-              )}
-              aria-hidden={customerExpanded || undefined}
-            >
+          {itemCount > 0 && !customerExpanded ? (
+            <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted-foreground">
                 Page{" "}
                 <span className="font-medium tabular-nums text-foreground">
@@ -1273,19 +1274,13 @@ export function AdminItemRequestsGroupedTable({
                 <span className="font-medium tabular-nums text-foreground">
                   {totalPages}
                 </span>
-                {customerExpanded ? (
-                  <span className="text-muted-foreground/80">
-                    {" "}
-                    (collapse account to change)
-                  </span>
-                ) : null}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={customerExpanded || pageSafe <= 1}
+                  disabled={pageSafe <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
                   Previous
@@ -1294,7 +1289,7 @@ export function AdminItemRequestsGroupedTable({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={customerExpanded || pageSafe >= totalPages}
+                  disabled={pageSafe >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 >
                   Next

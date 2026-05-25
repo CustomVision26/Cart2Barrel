@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 
+import { SectionTitleWithHelp } from "@/components/ui/section-title-with-help";
 import type { AdminListQuery } from "@/lib/admin-customer-filter";
 import { ADMIN_CUSTOMER_FILTER_PARAM } from "@/lib/admin-customer-filter";
 import {
@@ -77,14 +80,19 @@ export function AdminPackagesListControls(props: {
             <p className="text-xs font-medium uppercase tracking-wide text-primary">
               Package control center
             </p>
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Find warehouse-ready packages fast
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Filter by product, customer, order, request, batch number, or
-              session ID. Sort the receiving queue so warehouse staff can pick
-              the next package with less scanning.
-            </p>
+            <SectionTitleWithHelp
+              title="Find warehouse-ready packages fast"
+              titleClassName="text-lg font-semibold tracking-tight text-foreground"
+              help={
+                <>
+                  Filter by product, customer, order, request, batch number, or session ID.
+                  Sort the receiving queue so warehouse staff can pick the next package with
+                  less scanning.
+                </>
+              }
+              helpLabel="About package search"
+              tooltipClassName="w-80"
+            />
           </div>
           <div className="grid grid-cols-3 gap-2 text-xs sm:min-w-[24rem]">
             <div className="rounded-lg border border-border bg-background p-2">

@@ -6,23 +6,23 @@ import type { SaveProfileState } from "@/actions/profile";
 import { saveContactProfileAction } from "@/actions/profile";
 import { OnboardingSkipButton } from "@/components/onboarding-skip-button";
 import { Button } from "@/components/ui/button";
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { Input } from "@/components/ui/input";
 import type { Profile } from "@/db/schema";
 import type { AfterSaveRedirect } from "@/lib/validations/profile-payload";
@@ -51,11 +51,13 @@ export function ProfileForm({
   return (
     <Card className="w-full max-w-lg border-border/80 shadow-sm">
       <CardHeader>
-        <CardTitle>Account contact</CardTitle>
-        <CardDescription>
-          Legal name and phone for receipts, billing, and how we reach you. Your
-          Delivery address worldwide is saved separately as a shipping label.
-        </CardDescription>
+        <CardTitle className="inline-flex items-center gap-2">
+          Account contact
+          <HelpBalloon label="About account contact" tooltipClassName="w-80">
+            Legal name and phone for receipts, billing, and how we reach you. Your Delivery
+            address worldwide is saved separately as a shipping label.
+          </HelpBalloon>
+        </CardTitle>
       </CardHeader>
       <form action={formAction}>
         <input type="hidden" name="afterSaveRedirect" value={afterSaveRedirect} />
@@ -76,10 +78,12 @@ export function ProfileForm({
                 <FieldError errors={fieldErr(state.fieldErrors?.fullName)} />
               </Field>
               <Field>
-                <FieldLabel htmlFor="phone">Phone number</FieldLabel>
-                <FieldDescription>
-                  Number we use for account, billing, and delivery coordination.
-                </FieldDescription>
+                <FieldLabelWithHelp
+                  htmlFor="phone"
+                  label="Phone number"
+                  help="Number we use for account, billing, and delivery coordination."
+                  helpLabel="About phone number"
+                />
                 <Input
                   id="phone"
                   name="phone"

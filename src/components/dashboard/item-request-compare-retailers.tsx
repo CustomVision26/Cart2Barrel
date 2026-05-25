@@ -5,10 +5,10 @@ import { ExternalLink, Loader2, ShoppingBag } from "lucide-react";
 
 import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { Button } from "@/components/ui/button";
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -60,13 +60,12 @@ export function ItemRequestCompareRetailers({
         <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
           <ShoppingBag className="size-4 text-muted-foreground" aria-hidden />
           Retailer price comparison
+          <HelpBalloon label="About Retailer price comparison" tooltipClassName="w-80">
+            Search Google Shopping via SerpApi for offers across the web (same as browser shopping
+            extensions). Verified rows are AI-checked for the same SKU; others are shown for price
+            discovery—confirm on the retailer site before submitting.
+          </HelpBalloon>
         </CardTitle>
-        <CardDescription className="text-sm leading-relaxed">
-          Search Google Shopping via SerpApi for offers across the web (same as
-          browser shopping extensions). Verified rows are AI-checked for the same
-          SKU; others are shown for price discovery—confirm on the retailer site
-          before submitting.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-6 py-5">
         <div className="flex flex-wrap items-center gap-2">

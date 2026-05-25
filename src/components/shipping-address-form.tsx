@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import {
   Field,
   FieldError,
@@ -60,11 +60,13 @@ export function ShippingAddressForm({
   return (
     <Card className="w-full max-w-lg border-border/80 shadow-sm">
       <CardHeader>
-        <CardTitle>Shipping address</CardTitle>
-        <CardDescription>
-          Where we deliver your packed barrel worldwide. This is your shipping
-          label, separate from the account name on your profile.
-        </CardDescription>
+        <CardTitle className="inline-flex items-center gap-2">
+          Shipping address
+          <HelpBalloon label="About shipping address" tooltipClassName="w-80">
+            Where we deliver your packed barrel worldwide. This is your shipping label, separate
+            from the account name on your profile.
+          </HelpBalloon>
+        </CardTitle>
       </CardHeader>
       <form action={formAction}>
         <input type="hidden" name="afterSaveRedirect" value={afterSaveRedirect} />

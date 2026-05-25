@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { ItemRequestWorkspace } from "@/components/dashboard/item-request-workspace";
+import { DashboardPageTitleWithHelp } from "@/components/dashboard/dashboard-page-title-with-help";
 import { getActiveSpotlightProductForPrefill } from "@/data/spotlight-category-products";
 import { Button } from "@/components/ui/button";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
@@ -123,15 +124,17 @@ export default async function DashboardAiAssistedItemRequestPage({
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             New item request
           </p>
-          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            AI-assisted item request
-          </h1>
-          <p className="max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-            Provide a product URL, review the listing, and submit structured details
-            for staff review. AI can extract title, variant, and an estimated
-            merchandise total, or help you compare verified offers from other
-            retailers before submission.
-          </p>
+          <DashboardPageTitleWithHelp
+            title="AI-assisted item request"
+            tooltipClassName="w-[28rem]"
+            help={
+              <>
+                Provide a product URL, review the listing, and submit structured details for staff
+                review. AI can extract title, variant, and an estimated merchandise total, or help
+                you compare verified offers from other retailers before submission.
+              </>
+            }
+          />
         </div>
 
         <ol className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3">

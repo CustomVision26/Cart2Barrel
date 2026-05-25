@@ -25,9 +25,9 @@ import { Button } from "@/components/ui/button";
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldLabel,
 } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { Input } from "@/components/ui/input";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -35,7 +35,6 @@ import {
 } from "@/lib/admin-customer-group";
 import { displaySiteName } from "@/lib/site-name";
 import { compareLocale, compareNum, type SortDir } from "@/lib/table-sort";
-import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
@@ -538,13 +537,8 @@ export function AdminBatchHistoryTable({
         append rows below; superseded totals stay listed for audit.
       </p>
 
-      <div
-        className={cn(
-          "space-y-3 rounded-lg border border-border bg-muted/10 p-4",
-          adminParentControlsDisabledClass(customerExpanded),
-        )}
-        aria-hidden={customerExpanded || undefined}
-      >
+      {!customerExpanded ? (
+      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -555,9 +549,12 @@ export function AdminBatchHistoryTable({
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <Field className="gap-1.5">
-                <FieldLabel htmlFor="batch-history-search" className="text-xs">
-                  Batch number
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="batch-history-search"
+                  label="Batch number"
+                  help="Filters records in this panel only. Column headers below sort the filtered list."
+                  helpLabel="About Batch number"
+                />
                 <FieldContent>
                   <Input
                     id="batch-history-search"
@@ -567,7 +564,6 @@ export function AdminBatchHistoryTable({
                     autoComplete="off"
                   />
                 </FieldContent>
-                <FieldDescription>Substring match, case-insensitive.</FieldDescription>
               </Field>
 
               <Field className="gap-1.5">
@@ -662,9 +658,12 @@ export function AdminBatchHistoryTable({
               </Field>
 
               <Field className="gap-1.5">
-                <FieldLabel htmlFor="batch-history-page-size" className="text-xs">
-                  Per page
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="batch-history-page-size"
+                  label="Per page"
+                  help="Paginates the records shown in this panel."
+                  helpLabel="About Per page"
+                />
                 <FieldContent>
                   <select
                     id="batch-history-page-size"
@@ -722,6 +721,7 @@ export function AdminBatchHistoryTable({
           </>
         ) : null}
       </div>
+      ) : null}
 
       <div className="space-y-8">
         {groupedPageSlice.map(({ clerkUserId, displayLabel, bundles: customerBundles }) => {
@@ -843,31 +843,19 @@ export function AdminBatchHistoryTable({
         })}
       </div>
 
-      {filteredSorted.length > 0 ? (
-        <div
-          className={cn(
-            "flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between",
-            adminParentControlsDisabledClass(customerExpanded),
-          )}
-          aria-hidden={customerExpanded || undefined}
-        >
+      {filteredSorted.length > 0 && !customerExpanded ? (
+        <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             Page{" "}
             <span className="font-medium tabular-nums text-foreground">{pageSafe}</span> of{" "}
             <span className="font-medium tabular-nums text-foreground">{totalPages}</span>
-            {customerExpanded ? (
-              <span className="text-muted-foreground/80">
-                {" "}
-                (collapse customer to change)
-              </span>
-            ) : null}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={customerExpanded || pageSafe <= 1}
+              disabled={pageSafe <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
               Previous
@@ -876,7 +864,7 @@ export function AdminBatchHistoryTable({
               type="button"
               variant="outline"
               size="sm"
-              disabled={customerExpanded || pageSafe >= totalPages}
+              disabled={pageSafe >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
               Next

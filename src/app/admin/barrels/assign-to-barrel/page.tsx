@@ -6,7 +6,7 @@ import {
   listBarrelOptionsForOwner,
 } from "@/data/barrel-package-assignment";
 import { parseAdminCustomerFilter } from "@/lib/admin-customer-filter";
-import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles";
+import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 

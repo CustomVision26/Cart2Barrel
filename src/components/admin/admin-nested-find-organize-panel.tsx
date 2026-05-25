@@ -4,9 +4,8 @@ import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find
 import {
   Field,
   FieldContent,
-  FieldDescription,
-  FieldLabel,
 } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -79,9 +78,12 @@ export function AdminNestedFindOrganizePanel({
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field className="gap-1.5 sm:col-span-2 lg:col-span-2">
-              <FieldLabel htmlFor={searchInputId} className="text-xs">
-                {searchLabel}
-              </FieldLabel>
+              <FieldLabelWithHelp
+                htmlFor={searchInputId}
+                label={searchLabel}
+                help={searchDescription}
+                helpLabel={`About ${searchLabel}`}
+              />
               <FieldContent>
                 <Input
                   id={searchInputId}
@@ -92,13 +94,15 @@ export function AdminNestedFindOrganizePanel({
                   onClick={(e) => e.stopPropagation()}
                 />
               </FieldContent>
-              <FieldDescription>{searchDescription}</FieldDescription>
             </Field>
 
             <Field className="gap-1.5">
-              <FieldLabel htmlFor={pageSizeSelectId} className="text-xs">
-                {pageSizeLabel}
-              </FieldLabel>
+              <FieldLabelWithHelp
+                htmlFor={pageSizeSelectId}
+                label={pageSizeLabel}
+                help={pageSizeDescription}
+                helpLabel={`About ${pageSizeLabel}`}
+              />
               <FieldContent>
                 <select
                   id={pageSizeSelectId}
@@ -118,7 +122,6 @@ export function AdminNestedFindOrganizePanel({
                   ))}
                 </select>
               </FieldContent>
-              <FieldDescription>{pageSizeDescription}</FieldDescription>
             </Field>
           </div>
 

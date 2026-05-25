@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/profile-form";
+import { DashboardShippingAddressHeader } from "@/components/dashboard/dashboard-shipping-address-header";
 import { ShippingAddressForm } from "@/components/shipping-address-form";
 import { getPrimaryShippingAddress } from "@/data/addresses";
 import {
@@ -39,13 +40,7 @@ export default async function DashboardShippingAddressPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Profile &amp; address
-        </h1>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Account contact (billing / legal) and your international shipping
-          label used for barrel delivery.
-        </p>
+        <DashboardShippingAddressHeader />
       </div>
       <div className="flex w-full max-w-lg flex-col gap-8">
         <ProfileForm profile={profile} afterSaveRedirect={afterSave} />

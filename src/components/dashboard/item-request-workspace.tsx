@@ -25,19 +25,19 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import { Input, inputFieldClassName } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { formatUsd } from "@/lib/admin-markup";
@@ -909,14 +909,14 @@ export function ItemRequestWorkspace({
   const browseCard = (
     <Card className="overflow-hidden border-border/80 shadow-none">
       <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
           Product from store
+          <HelpBalloon label="About Product from store" tooltipClassName="w-80">
+            Paste the retailer product URL and load sizes, colors, and prices from the store
+            listing (SerpAPI for Walmart, Amazon, and similar retailers). Must match the product
+            link on your request.
+          </HelpBalloon>
         </CardTitle>
-        <CardDescription className="text-sm leading-relaxed">
-          Paste the retailer product URL and load sizes, colors, and prices from the
-          store listing (SerpAPI for Walmart, Amazon, and similar retailers). Must
-          match the product link on your request.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-6 py-5">
         <div className="space-y-1.5">
@@ -989,14 +989,14 @@ export function ItemRequestWorkspace({
   const requestCard = (
     <Card className="overflow-hidden border-border/80 shadow-none">
       <CardHeader className="space-y-1 border-b border-border bg-muted/30 px-6 py-5">
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
           Request details
+          <HelpBalloon label="About Request details" tooltipClassName="w-80">
+            Complete the fields below. Apply a store variant or enter details manually.
+            Merchandise estimates reflect retailer product cost only—staff will issue an official
+            quote after review.
+          </HelpBalloon>
         </CardTitle>
-        <CardDescription className="text-sm leading-relaxed">
-          Complete the fields below. Apply a store variant or enter details manually.
-          Merchandise estimates reflect retailer product cost only—staff will issue an
-          official quote after review.
-        </CardDescription>
       </CardHeader>
         <CardContent className="px-6 py-5">
           <FieldSet key={formResetKey} className="gap-6">
@@ -1026,7 +1026,7 @@ export function ItemRequestWorkspace({
                     </ul>
                   </div>
                 </div>
-                <p className="leading-relaxed">
+                <p className="inline-flex flex-wrap items-center gap-2 leading-relaxed">
                   {variantRows.length > 0 ?
                     <>
                       This variant is loaded by{" "}
@@ -1043,11 +1043,17 @@ export function ItemRequestWorkspace({
                       on another available product row above to populate the form.
                     </>
                   : <>
-                      Align the store product URL with the product link, then use{" "}
-                      <span className="font-medium text-foreground">
-                        Load product from store
+                      <span>
+                        Align the store product URL with the product link, then use{" "}
+                        <span className="font-medium text-foreground">
+                          Load product from store
+                        </span>
+                        . All fields remain editable before you submit.
                       </span>
-                      . All fields remain editable before you submit.
+                      <HelpBalloon label="About loading from store">
+                        Align the store product URL with the product link, then use Load product
+                        from store. All fields remain editable before you submit.
+                      </HelpBalloon>
                     </>
                   }
                 </p>
@@ -1123,7 +1129,19 @@ export function ItemRequestWorkspace({
 
             <FieldGroup>
               <Field data-invalid={Boolean(fieldError("productUrl")?.length)}>
-                <FieldLabel htmlFor="item-product-url">Product link</FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="item-product-url"
+                  label="Product link"
+                  help={
+                    <>
+                      Paste the product page URL for this request (sent to staff). It must match
+                      the store product URL above—use{" "}
+                      <span className="font-medium text-foreground">Use store URL above</span> to
+                      copy the link here.
+                    </>
+                  }
+                  helpLabel="About Product link"
+                />
                 <FieldContent>
                   <Input
                     id="item-product-url"
@@ -1151,14 +1169,6 @@ export function ItemRequestWorkspace({
                       showUrlSyncHint ? "item-product-url-sync-hint" : undefined
                     }
                   />
-                  <FieldDescription>
-                    Paste the product page URL for this request (sent to staff). It must
-                    match the store product URL above—use{" "}
-                    <span className="font-medium text-foreground">
-                      Use store URL above
-                    </span>{" "}
-                    to copy the link here.
-                  </FieldDescription>
                   <FieldError errors={fieldError("productUrl")?.map((m) => ({ message: m }))} />
                 </FieldContent>
               </Field>
@@ -1204,9 +1214,12 @@ export function ItemRequestWorkspace({
             <Separator />
 
             <Field data-invalid={Boolean(fieldError("productName")?.length)}>
-              <FieldLabel htmlFor="item-product-name">
-                Product name
-              </FieldLabel>
+              <FieldLabelWithHelp
+                htmlFor="item-product-name"
+                label="Product name"
+                help="Required for price comparison (minimum 2 characters). If Apply could not read the page, copy the product title from the retailer listing."
+                helpLabel="About Product name"
+              />
               <FieldContent>
                 <Input
                   id="item-product-name"
@@ -1216,10 +1229,6 @@ export function ItemRequestWorkspace({
                   onChange={(e) => setProductName(e.target.value)}
                   aria-invalid={Boolean(fieldError("productName")?.length)}
                 />
-                <FieldDescription>
-                  Required for price comparison (minimum 2 characters). If Apply could
-                  not read the page, copy the product title from the retailer listing.
-                </FieldDescription>
                 <FieldError errors={fieldError("productName")?.map((m) => ({ message: m }))} />
               </FieldContent>
             </Field>
@@ -1293,16 +1302,18 @@ export function ItemRequestWorkspace({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="item-product-photo">
-                Product photo{" "}
-                <span className="font-normal text-muted-foreground">(optional)</span>
-              </FieldLabel>
+              <FieldLabelWithHelp
+                htmlFor="item-product-photo"
+                label={
+                  <>
+                    Product photo{" "}
+                    <span className="font-normal text-muted-foreground">(optional)</span>
+                  </>
+                }
+                help="Filled from the listing when you Apply a store variant or run AI. You can also upload your own file (JPEG, PNG, WebP, or GIF up to 8 MB)—upload replaces the listing image on submit."
+                helpLabel="About Product photo"
+              />
               <FieldContent className="space-y-2">
-                <FieldDescription>
-                  Filled from the listing when you Apply a store variant or run AI. You can
-                  also upload your own file (JPEG, PNG, WebP, or GIF up to 8 MB)—upload
-                  replaces the listing image on submit.
-                </FieldDescription>
                 {draftProductImageUrl?.trim() ?
                   <div className="flex flex-wrap items-start gap-3 rounded-md border border-border bg-muted/20 p-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}

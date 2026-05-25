@@ -3,10 +3,8 @@ import { redirect } from "next/navigation";
 import { AdminBatchItemsTable } from "@/components/admin/admin-batch-items-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
 import { listSubmittedBatchSessionsForAdminPage } from "@/data/batch-quote-sessions";
-import {
-  batchEstimateRecordedByClerkUserId,
-  loadAdminStaffProfilesByClerkUserIds,
-} from "@/lib/admin-staff-profiles";
+import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
+import { batchEstimateRecordedByClerkUserId } from "@/lib/admin-staff-profiles";
 import {
   filterAdminSubmittedBatchBundles,
   parseAdminCustomerFilter,

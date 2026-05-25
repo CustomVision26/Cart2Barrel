@@ -558,13 +558,13 @@ export function ItemsNewProductHistoryPanel() {
                   fulfillment status from one place.
                 </HelpBalloon>
               </p>
-              <h2 className="text-xl font-semibold text-foreground">
+              <h2 className="inline-flex flex-wrap items-center gap-2 text-xl font-semibold text-foreground">
                 Find products, quotes, and batch activity fast
+                <HelpBalloon label="About product history search">
+                  Search product timelines from request creation through quote, cart, checkout,
+                  purchase, and fulfillment records.
+                </HelpBalloon>
               </h2>
-              <p className="text-sm text-muted-foreground">
-                Search product timelines from request creation through quote, cart,
-                checkout, purchase, and fulfillment records.
-              </p>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
               <div className="rounded-lg border border-border bg-background p-2">

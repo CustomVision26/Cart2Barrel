@@ -1,9 +1,7 @@
 import { AdminBatchQuoteHistoryPanel } from "@/components/admin/admin-batch-quote-history-panel";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
-import {
-  batchEstimateRecordedByClerkUserId,
-  loadAdminStaffProfilesByClerkUserIds,
-} from "@/lib/admin-staff-profiles";
+import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
+import { batchEstimateRecordedByClerkUserId } from "@/lib/admin-staff-profiles";
 import {
   filterAdminSubmittedBatchBundles,
   parseAdminCustomerFilter,

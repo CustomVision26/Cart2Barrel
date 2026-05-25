@@ -17,7 +17,10 @@ import { ProductRequestThumbnail } from "@/components/product-request-thumbnail"
 import { CartLinePriceBreakdown } from "@/components/dashboard/cart-line-price-breakdown";
 import { Button } from "@/components/ui/button";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
+import { SectionTitleWithHelp } from "@/components/ui/section-title-with-help";
 import { ImageFileInput } from "@/components/ui/image-file-input";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -255,21 +258,26 @@ export function AdminOutsidePurchaseIntakePanel({
     <div className="space-y-8">
       <section className="rounded-lg border border-border bg-card p-4 sm:p-6">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-foreground">
-            Outside purchase intake
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Record products the customer bought elsewhere and shipped to your
-            address. Each line gets a unique{" "}
-            <span className="font-mono text-xs">OP-YYYYMMDD-XXXX</span> reference.
-            The customer pays{" "}
-            <span className="font-medium text-foreground">
-              outside purchase service &amp; handling only
-            </span>
-            , calculated from your outside-purchase fee tiers and the listed unit price ×
-            quantity. In-app service &amp; handling fees do not apply. Merchandise,
-            shipping, and tax from their receipt are not billed here.
-          </p>
+          <SectionTitleWithHelp
+            title="Outside purchase intake"
+            titleClassName="text-lg font-semibold text-foreground"
+            help={
+              <>
+                Record products the customer bought elsewhere and shipped to your address.
+                Each line gets a unique{" "}
+                <span className="font-mono text-xs">OP-YYYYMMDD-XXXX</span> reference. The
+                customer pays{" "}
+                <span className="font-medium text-foreground">
+                  outside purchase service &amp; handling only
+                </span>
+                , calculated from your outside-purchase fee tiers and the listed unit price ×
+                quantity. In-app service &amp; handling fees do not apply. Merchandise, shipping,
+                and tax from their receipt are not billed here.
+              </>
+            }
+            helpLabel="About outside purchase intake"
+            tooltipClassName="w-[28rem]"
+          />
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
@@ -356,12 +364,12 @@ export function AdminOutsidePurchaseIntakePanel({
                 className="mt-0.5 size-4 rounded border-input"
               />
               <span>
-                <span className="font-medium text-foreground">
+                <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
                   Pack / bundle / case
-                </span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  Charge outside-purchase service &amp; handling per consumer unit: units
-                  in each pack × per-unit fee × number of packs.
+                  <HelpBalloon label="About pack pricing">
+                    Charge outside-purchase service &amp; handling per consumer unit: units in
+                    each pack × per-unit fee × number of packs.
+                  </HelpBalloon>
                 </span>
               </span>
             </label>
@@ -389,11 +397,13 @@ export function AdminOutsidePurchaseIntakePanel({
               </Field>
               {isPackLine ?
                 <Field>
-                  <FieldLabel htmlFor="op-units-per-pack">Units per pack</FieldLabel>
+                  <FieldLabelWithHelp
+                    htmlFor="op-units-per-pack"
+                    label="Units per pack"
+                    help="Consumer units in one pack (e.g. 12 for a case, 2 for a twin-pack)."
+                    helpLabel="About units per pack"
+                  />
                   <FieldContent>
-                    <p className="mb-1 text-xs text-muted-foreground">
-                      Consumer units in one pack (e.g. 12 for a case, 2 for a twin-pack).
-                    </p>
                     <Input
                       id="op-units-per-pack"
                       type="number"
@@ -406,15 +416,13 @@ export function AdminOutsidePurchaseIntakePanel({
                 </Field>
               : null}
               <Field className={isPackLine ? undefined : "sm:col-span-2"}>
-                <FieldLabel htmlFor="op-unit-price">
-                  Listed unit price (USD, for tier only)
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-unit-price"
+                  label="Listed unit price (USD, for tier only)"
+                  help={`Single-item price used to pick the outside-purchase service & handling tier${isPackLine ? " (not pack price)." : "."}`}
+                  helpLabel="About listed unit price"
+                />
                 <FieldContent>
-                  <p className="mb-1 text-xs text-muted-foreground">
-                    Single-item price used to pick the outside-purchase service &amp;
-                    handling tier
-                    {isPackLine ? " (not pack price)." : "."}
-                  </p>
                   <Input
                     id="op-unit-price"
                     inputMode="decimal"
@@ -554,12 +562,12 @@ export function AdminOutsidePurchaseIntakePanel({
             </CollapsibleFieldSection>
 
             <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Customer charge preview
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Outside purchase service &amp; handling only — in-app merchandise, shipping,
-                tax, and in-app service fees are not included.
+                <HelpBalloon label="About customer charge preview">
+                  Outside purchase service &amp; handling only — in-app merchandise, shipping,
+                  tax, and in-app service fees are not included.
+                </HelpBalloon>
               </p>
               <CartLinePriceBreakdown rows={previewRows} />
             </div>
@@ -634,7 +642,14 @@ export function AdminOutsidePurchaseIntakePanel({
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Recent outside purchases</h3>
+        <SectionTitleWithHelp
+          as="h3"
+          title="Recent outside purchases"
+          titleClassName="text-sm font-semibold text-foreground"
+          help="One row per product with its current fulfillment status. Superseded estimates voided when a customer requests a new quote are omitted here; open Active requests to see those lines."
+          helpLabel="About recent outside purchases"
+          tooltipClassName="w-80"
+        />
         {recentRows.length === 0 ?
           <p className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
             No outside-purchase lines yet.

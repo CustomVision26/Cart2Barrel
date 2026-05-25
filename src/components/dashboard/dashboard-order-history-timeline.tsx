@@ -2,7 +2,10 @@
 
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+
+import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
+import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
 
 import {
   DashboardOrderHistoryEventPreviewDialog,
@@ -174,6 +177,27 @@ function groupRowsByCustomerAndOrder(
       lineCount: customerRows.length,
     };
   });
+}
+
+function historyLineMatchesQuery(
+  row: DashboardPaidOrderLineRow,
+  q: string,
+): boolean {
+  if (!q) return true;
+  const r = row.request;
+  const chunks = [
+    r.id,
+    r.productName,
+    r.productUrl,
+    displaySiteName(r.siteName, r.productUrl),
+    row.order.id,
+    row.orderItem.id,
+    row.resolvedBatchNumber,
+    row.resolvedBatchSessionId,
+  ];
+  return chunks.some(
+    (chunk) => chunk != null && String(chunk).toLowerCase().includes(q),
+  );
 }
 
 function ToggleSection({
@@ -422,16 +446,62 @@ export function DashboardOrderHistoryTimeline({
     );
   }
 
+  const baseId = useId();
+  const { setNestedPanelActive } = useAdminNestedPanelFocus();
   const customerGroups = groupRowsByCustomerAndOrder(rows);
+  const [openCustomerKey, setOpenCustomerKey] = useState<string | null>(null);
+  const [panelChoiceMade, setPanelChoiceMade] = useState(false);
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
+  const [linePageSize, setLinePageSize] = useState<10 | 5 | 25 | 50>(10);
+  const [linePage, setLinePage] = useState(1);
+
+  const activeCustomerKey =
+    panelChoiceMade ? openCustomerKey : (customerGroups[0]?.key ?? null);
+
+  useEffect(() => {
+    setNestedPanelActive(activeCustomerKey != null);
+  }, [activeCustomerKey, setNestedPanelActive]);
+
+  const openCustomer = customerGroups.find((g) => g.key === activeCustomerKey);
+  const openCustomerRows = openCustomer
+    ? openCustomer.orderGroups.flatMap(({ lines }) => lines)
+    : [];
+  const searchNorm = lineSearch.trim().toLowerCase();
+  const filteredOpenRows = openCustomerRows.filter((row) =>
+    historyLineMatchesQuery(row, searchNorm),
+  );
+  const lineCount = filteredOpenRows.length;
+  const lineTotalPages = Math.max(1, Math.ceil(lineCount / linePageSize));
+  const linePageSafe = Math.min(Math.max(1, linePage), lineTotalPages);
+  const lineStart = (linePageSafe - 1) * linePageSize;
+  const pagedOpenRows = filteredOpenRows.slice(lineStart, lineStart + linePageSize);
+  const pagedOpenRowIds = new Set(pagedOpenRows.map((row) => row.orderItem.id));
+  const lineShowFrom = lineCount === 0 ? 0 : lineStart + 1;
+  const lineShowTo = Math.min(lineStart + linePageSize, lineCount);
 
   return (
     <div className="space-y-5">
-      {customerGroups.map((customerGroup) => (
+      {customerGroups.map((customerGroup) => {
+        const expanded = activeCustomerKey === customerGroup.key;
+        return (
         <ToggleSection
           key={customerGroup.key}
           ariaLabel="Toggle products for this customer"
-          defaultOpen
+          open={expanded}
+          onOpenChange={(next) => {
+            setPanelChoiceMade(true);
+            if (next) {
+              setOpenCustomerKey(customerGroup.key);
+              setLineSearch("");
+              setLinePage(1);
+              setOpenOrderId(null);
+            } else if (activeCustomerKey === customerGroup.key) {
+              setOpenCustomerKey(null);
+            }
+          }}
+          defaultOpen={false}
           title={
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground">Customer</span>
@@ -453,7 +523,47 @@ export function DashboardOrderHistoryTimeline({
           className="bg-background"
           bodyClassName="space-y-4"
         >
-          {customerGroup.orderGroups.map(({ order, lines }) => {
+          {expanded ? (
+            <AdminNestedFindOrganizePanel
+              switchId={`${baseId}-line-find-organize-${customerGroup.key}`}
+              searchInputId={`${baseId}-line-search-${customerGroup.key}`}
+              pageSizeSelectId={`${baseId}-line-page-size-${customerGroup.key}`}
+              visible={lineFindOrganizeVisible}
+              onVisibleChange={setLineFindOrganizeVisible}
+              search={lineSearch}
+              onSearchChange={(value) => {
+                setLineSearch(value);
+                setLinePage(1);
+              }}
+              searchLabel="Search product history"
+              searchPlaceholder="Product, URL, order id, line id, batch…"
+              pageSize={linePageSize}
+              onPageSizeChange={(size) => {
+                setLinePageSize(size);
+                setLinePage(1);
+              }}
+              pageSizeLabel="Products per page"
+              showFrom={lineShowFrom}
+              showTo={lineShowTo}
+              totalCount={lineCount}
+              totalLoaded={customerGroup.lineCount}
+              itemLabel="product"
+              emptyMessage="No product history for this customer."
+              noMatchMessage="No products match the current search."
+              className="mb-0"
+            />
+          ) : null}
+          {(expanded
+            ? customerGroup.orderGroups
+                .map(({ order, lines }) => ({
+                  order,
+                  lines: lines.filter((line) =>
+                    pagedOpenRowIds.has(line.orderItem.id),
+                  ),
+                }))
+                .filter(({ lines }) => lines.length > 0)
+            : customerGroup.orderGroups
+          ).map(({ order, lines }) => {
             const buckets = partitionPaidLinesIntoBatchBuckets(lines);
             return (
               <ToggleSection
@@ -534,7 +644,8 @@ export function DashboardOrderHistoryTimeline({
             );
           })}
         </ToggleSection>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
-import { adminParentControlsDisabledClass } from "@/lib/admin-parent-controls-disabled";
 import {
   ADMIN_SUBMITTED_BATCH_PAGE_SIZES,
   adminSubmittedBatchListHrefMerge,
@@ -149,13 +148,8 @@ export function AdminBatchItemsTable({
         combined estimate per batch below.
       </p>
 
-      <div
-        className={cn(
-          "space-y-3 rounded-lg border border-border bg-muted/10 p-4",
-          adminParentControlsDisabledClass(batchExpanded),
-        )}
-        aria-hidden={batchExpanded || undefined}
-      >
+      {!batchExpanded ? (
+      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4">
         <AdminFindOrganizeVisibilityToggle
           id={findOrganizeSwitchId}
           visible={findOrganizeVisible}
@@ -304,6 +298,7 @@ export function AdminBatchItemsTable({
           </div>
         ) : null}
       </div>
+      ) : null}
 
       {totalCount === 0 ? (
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -312,13 +307,8 @@ export function AdminBatchItemsTable({
         </p>
       ) : (
         <>
-          <div
-            className={cn(
-              "flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between",
-              adminParentControlsDisabledClass(batchExpanded),
-            )}
-            aria-hidden={batchExpanded || undefined}
-          >
+          {!batchExpanded ? (
+          <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <p>
               Showing{" "}
               <span className="tabular-nums font-medium text-foreground">
@@ -334,15 +324,9 @@ export function AdminBatchItemsTable({
                   <span className="text-muted-foreground/80">(filtered)</span>
                 </>
               ) : null}
-              {batchExpanded ? (
-                <span className="text-muted-foreground/80">
-                  {" "}
-                  (collapse batch to change)
-                </span>
-              ) : null}
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              {listQuery.page > 1 && !batchExpanded ? (
+              {listQuery.page > 1 ? (
                 <Link
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
@@ -365,7 +349,7 @@ export function AdminBatchItemsTable({
               <span className="tabular-nums text-muted-foreground">
                 Page {listQuery.page} / {maxPage}
               </span>
-              {listQuery.page < maxPage && !batchExpanded ? (
+              {listQuery.page < maxPage ? (
                 <Link
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
@@ -387,16 +371,11 @@ export function AdminBatchItemsTable({
               )}
             </div>
           </div>
+          ) : null}
 
           <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border">
             <table className="w-full min-w-[52rem] text-left text-sm">
-              <thead
-                className={cn(
-                  "border-b border-border bg-muted/40",
-                  adminParentControlsDisabledClass(batchExpanded),
-                )}
-                aria-hidden={batchExpanded || undefined}
-              >
+              <thead className="border-b border-border bg-muted/40">
                 <tr>
                   <th className="w-8 px-2 py-2.5" aria-hidden />
                   <th className="px-3 py-2.5 font-medium">Submitted</th>

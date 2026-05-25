@@ -137,7 +137,7 @@ function orderLineTimelineEvents(
     kind: "current",
   });
 
-  return events;
+  return [...events].reverse();
 }
 
 function ToggleSection({
@@ -352,7 +352,16 @@ function ProductHistoryCard({
         </div>
       </div>
 
-      <div className="p-4">
+      <ToggleSection
+        ariaLabel="Toggle track record log for this product"
+        title={
+          <span className="text-sm font-semibold text-foreground">Track record log</span>
+        }
+        summary={`${events.length} status event${events.length === 1 ? "" : "s"} after checkout`}
+        className="border-0 bg-transparent"
+        bodyClassName="px-4 pb-4 pt-0"
+        defaultOpen
+      >
         <div className="space-y-4">
           {events.map((event, index) => (
             <div key={event.id} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
@@ -394,7 +403,7 @@ function ProductHistoryCard({
             </div>
           ))}
         </div>
-      </div>
+      </ToggleSection>
         </>
       ) : null}
     </article>

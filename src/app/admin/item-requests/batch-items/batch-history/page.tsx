@@ -1,8 +1,8 @@
 import { AdminBatchHistoryTable } from "@/components/admin/admin-batch-history-table";
 import { loadAdminItemRequestsPagePayload } from "@/data/admin-item-requests-page-payload";
+import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
 import {
   batchEstimateRecordedByClerkUserId,
-  loadAdminStaffProfilesByClerkUserIds,
   snapshotRecordedByClerkUserId,
 } from "@/lib/admin-staff-profiles";
 import {

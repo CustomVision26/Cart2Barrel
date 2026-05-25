@@ -1,5 +1,3 @@
-import type { AdminCustomerProfileSlice } from "@/data/admin-customer-profiles";
-import { loadAdminCustomerProfilesByClerkUserIds } from "@/data/admin-customer-profiles";
 import type {
   BatchQuoteEstimate,
   ItemQuote,
@@ -7,29 +5,16 @@ import type {
   OrderItem,
 } from "@/db/schema";
 
+/** Client-safe staff/admin identity slice for Updated-by columns. */
+export type AdminStaffProfileSlice = {
+  fullName: string | null;
+  email: string | null;
+};
+
 export type AdminStaffProfilesByClerkUserId = Record<
   string,
-  AdminCustomerProfileSlice
+  AdminStaffProfileSlice
 >;
-
-export function uniqueClerkUserIds(
-  ...lists: (string | null | undefined)[][]
-): string[] {
-  const set = new Set<string>();
-  for (const list of lists) {
-    for (const id of list) {
-      const trimmed = id?.trim();
-      if (trimmed) set.add(trimmed);
-    }
-  }
-  return [...set];
-}
-
-export async function loadAdminStaffProfilesByClerkUserIds(
-  ids: (string | null | undefined)[],
-): Promise<AdminStaffProfilesByClerkUserId> {
-  return loadAdminCustomerProfilesByClerkUserIds(uniqueClerkUserIds(ids));
-}
 
 export function resolveOrderLineUpdatedByClerkUserId(
   orderItem: Pick<

@@ -17,10 +17,8 @@ import {
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
-import {
-  loadAdminStaffProfilesByClerkUserIds,
-  resolveOrderLineUpdatedByClerkUserId,
-} from "@/lib/admin-staff-profiles";
+import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
+import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import {
   orderSlideLaneNamesList,
   ORDER_SLIDE_LANE_AUDIENCE,
@@ -128,14 +126,12 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         tooltipClassName="w-80"
         help={
           <>
-            Browse paid checkouts in horizontal lanes —{" "}
+            Orders appear in horizontal lanes below —{" "}
             <span className="font-medium text-foreground">
               {orderSlideLaneNamesList(ORDER_SLIDE_LANE_AUDIENCE)}
             </span>{" "}
-            — with a product preview on each card. Double-click a card to open the full table
-            grouped by batch and single items. Replacement returns in transit and money-back
-            returns appear under{" "}
-            <span className="font-medium text-foreground">Purchase orders</span>.
+            — newest first in each lane. Double-click a card to open the full table
+            grouped by batch and single. Pagination counts orders across all lanes.
           </>
         }
       />
