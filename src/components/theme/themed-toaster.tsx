@@ -4,19 +4,28 @@ import { useTheme } from "@/components/theme/theme-provider";
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 
-export function ThemedToaster() {
+function ThemedToasterInner() {
   const { resolvedTheme } = useTheme();
+
+  return (
+    <Toaster
+      richColors
+      closeButton
+      theme={resolvedTheme === "light" ? "light" : "dark"}
+    />
+  );
+}
+
+export function ThemedToaster() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  return (
-    <Toaster
-      richColors
-      closeButton
-      theme={mounted && resolvedTheme === "light" ? "light" : "dark"}
-    />
-  );
+  if (!mounted) {
+    return null;
+  }
+
+  return <ThemedToasterInner />;
 }

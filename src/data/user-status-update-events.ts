@@ -12,7 +12,9 @@ import {
 import {
   userStatusHrefForActiveProduct,
   userStatusHrefForBatchQuotes,
+  userStatusHrefForDashboard,
   userStatusHrefForOrders,
+  userStatusHrefForSupportTicket,
   userStatusUpdateNavSection,
   type UserStatusNavSection,
 } from "@/lib/user-status-updates";
@@ -242,6 +244,73 @@ export async function recordOutsidePurchaseReturnEstimateReadyActivity(params: {
     href: userStatusHrefForActiveProduct(params.itemRequestId),
     entityType: "item_request",
     entityId: params.itemRequestId,
+  });
+}
+
+export async function recordSupportTicketStaffReplyActivity(params: {
+  clerkUserId: string;
+  ticketId: string;
+  ticketNumber: string;
+  subject: string;
+  preview: string;
+}): Promise<void> {
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "support_ticket_staff_reply",
+    title: "Hub replied to your message",
+    body: `${params.ticketNumber} · ${params.subject} — ${params.preview}`,
+    href: userStatusHrefForSupportTicket(params.ticketId),
+    entityType: "support_ticket",
+    entityId: params.ticketId,
+  });
+}
+
+export async function recordAccountWelcomeActivity(params: {
+  clerkUserId: string;
+  displayName: string | null;
+}): Promise<void> {
+  const greeting = params.displayName?.trim();
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "account_welcome",
+    title: "Welcome to Cart2Barrel",
+    body:
+      greeting ?
+        `Hi ${greeting} — your account is ready. Submit product links for estimates or explore your dashboard.`
+      : "Your account is ready. Submit product links for estimates or explore your dashboard.",
+    href: userStatusHrefForDashboard(),
+    entityType: "profile",
+    entityId: params.clerkUserId,
+  });
+}
+
+export async function recordAccountSuspendedActivity(params: {
+  clerkUserId: string;
+}): Promise<void> {
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "account_suspended",
+    title: "Account suspended",
+    body:
+      "Your Cart2Barrel account has been suspended by our team. You cannot sign in until an administrator reinstates access. Contact support if you believe this is a mistake.",
+    href: userStatusHrefForDashboard(),
+    entityType: "profile",
+    entityId: params.clerkUserId,
+  });
+}
+
+export async function recordAccountReinstatedActivity(params: {
+  clerkUserId: string;
+}): Promise<void> {
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "account_reinstated",
+    title: "Account reinstated",
+    body:
+      "Your account suspension has been lifted. You can sign in and use Cart2Barrel again.",
+    href: userStatusHrefForDashboard(),
+    entityType: "profile",
+    entityId: params.clerkUserId,
   });
 }
 

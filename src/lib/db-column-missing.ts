@@ -372,3 +372,18 @@ export function isMissingUserStatusUpdateTablesError(e: unknown): boolean {
   if (code === "42P01") return true;
   return /does not exist|relation\b/i.test(msg);
 }
+
+/** Support hub tables until `npm run db:push` or `npm run db:ensure-support-hub`. */
+export function isMissingSupportHubTablesError(e: unknown): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  const mentions =
+    msg.includes("hub_contact_settings") ||
+    msg.includes("support_tickets") ||
+    msg.includes("support_messages") ||
+    msg.includes("support_ticket_status") ||
+    msg.includes("support_message_author_role");
+  if (!mentions) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}

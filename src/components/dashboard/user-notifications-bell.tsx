@@ -9,7 +9,11 @@ import {
   ClipboardList,
   CreditCard,
   Package,
+  Headphones,
+  PartyPopper,
   RotateCcw,
+  ShieldBan,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   XCircle,
@@ -50,6 +54,14 @@ function eventIcon(kind: UserStatusUpdateKind) {
     case "product_return_fulfilled":
     case "outside_purchase_return_estimate_ready":
       return ShoppingBag;
+    case "account_welcome":
+      return PartyPopper;
+    case "account_suspended":
+      return ShieldBan;
+    case "account_reinstated":
+      return ShieldCheck;
+    case "support_ticket_staff_reply":
+      return Headphones;
     default:
       return Sparkles;
   }

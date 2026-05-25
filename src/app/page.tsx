@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
+import { ContactUsHeaderButton } from "@/components/support/contact-us-header-button";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { HomeStorefront } from "@/components/marketing/home-storefront";
@@ -41,6 +42,7 @@ export default async function Home() {
                 <Button variant="ghost" size="lg" nativeButton={false} render={<Link href="/dashboard" />}>
                   Dashboard
                 </Button>
+                <ContactUsHeaderButton />
                 <CartHeaderLink />
                 <UserHeaderControls />
               </>

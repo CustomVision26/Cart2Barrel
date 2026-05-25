@@ -3,8 +3,15 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
+import {
+  recordUserBannedActivity,
+} from "@/data/admin-user-activity-events";
 import { resolveStaffClerkUserIds } from "@/data/admin-staff-clerk-ids";
 import { getProfileByClerkId } from "@/data/profiles";
+import {
+  recordAccountReinstatedActivity,
+  recordAccountSuspendedActivity,
+} from "@/data/user-status-update-events";
 import { banClerkUser, unbanClerkUser } from "@/lib/clerk-user-ban";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { adminBanUserSchema } from "@/lib/validations/admin-ban-user";
@@ -71,6 +78,25 @@ export async function banUserAction(
     return { ok: false, message: result.message };
   }
 
+  const targetProfile = await getProfileByClerkId(targetId);
+  const actorName =
+    [cu!.firstName, cu!.lastName]
+      .map((s) => s?.trim())
+      .filter((s): s is string => Boolean(s))
+      .join(" ") ||
+    cu!.primaryEmailAddress?.emailAddress?.trim() ||
+    "Admin";
+
+  await Promise.all([
+    recordUserBannedActivity({
+      customerClerkUserId: targetId,
+      displayName: targetProfile?.fullName ?? null,
+      email: targetProfile?.email ?? null,
+      bannedByDisplayName: actorName,
+    }),
+    recordAccountSuspendedActivity({ clerkUserId: targetId }),
+  ]);
+
   revalidateAdminUsersPaths();
   return {
     ok: true,
@@ -102,6 +128,8 @@ export async function unbanUserAction(
   if (!result.ok) {
     return { ok: false, message: result.message };
   }
+
+  await recordAccountReinstatedActivity({ clerkUserId: targetId });
 
   revalidateAdminUsersPaths();
   return {

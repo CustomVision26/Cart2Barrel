@@ -24,30 +24,11 @@ import {
 
 type SettingsTab = "appearance";
 
-export function UserSettingsDialog() {
+function UserSettingsDialogContent() {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const { theme, setTheme } = useTheme();
   const { interfaceColor, setInterfaceColor } = useAppearance();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-9 shrink-0"
-        aria-label="Settings"
-        disabled
-      >
-        <Settings className="size-4" />
-      </Button>
-    );
-  }
 
   const currentTheme = theme === "light" ? "light" : "dark";
 
@@ -186,4 +167,28 @@ export function UserSettingsDialog() {
       </DialogContent>
     </Dialog>
   );
+}
+
+export function UserSettingsDialog() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-9 shrink-0"
+        aria-label="Settings"
+        disabled
+      >
+        <Settings className="size-4" />
+      </Button>
+    );
+  }
+
+  return <UserSettingsDialogContent />;
 }

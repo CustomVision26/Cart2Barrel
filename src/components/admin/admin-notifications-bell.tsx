@@ -10,8 +10,11 @@ import {
   CreditCard,
   Package,
   RotateCcw,
+  Headphones,
+  ShieldBan,
   ShoppingBag,
   Sparkles,
+  UserPlus,
 } from "lucide-react";
 
 import {
@@ -46,6 +49,13 @@ function eventIcon(kind: AdminUserActivityEventKind) {
     case "product_return_requested":
     case "outside_purchase_return_submitted":
       return ShoppingBag;
+    case "user_registered":
+      return UserPlus;
+    case "user_banned":
+      return ShieldBan;
+    case "support_ticket_submitted":
+    case "support_ticket_customer_reply":
+      return Headphones;
     default:
       return Sparkles;
   }

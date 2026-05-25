@@ -23,6 +23,11 @@ await sql`
   END $$
 `;
 
+await sql`ALTER TYPE "public"."admin_user_activity_event_kind" ADD VALUE IF NOT EXISTS 'user_registered'`;
+await sql`ALTER TYPE "public"."admin_user_activity_event_kind" ADD VALUE IF NOT EXISTS 'user_banned'`;
+await sql`ALTER TYPE "public"."admin_user_activity_event_kind" ADD VALUE IF NOT EXISTS 'support_ticket_submitted'`;
+await sql`ALTER TYPE "public"."admin_user_activity_event_kind" ADD VALUE IF NOT EXISTS 'support_ticket_customer_reply'`;
+
 await sql`
   CREATE TABLE IF NOT EXISTS "admin_user_activity_events" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

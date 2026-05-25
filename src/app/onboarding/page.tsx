@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
+import { ContactUsHeaderButton } from "@/components/support/contact-us-header-button";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { ProfileForm } from "@/components/profile-form";
 import { ShippingAddressForm } from "@/components/shipping-address-form";
@@ -32,7 +33,10 @@ export default async function OnboardingPage() {
       <header className="border-b border-border/80 px-4 py-3">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
           <BrandLogoLink />
-          <UserHeaderControls />
+          <div className="flex items-center gap-1">
+            <ContactUsHeaderButton />
+            <UserHeaderControls />
+          </div>
         </div>
       </header>
       <main className="flex flex-1 flex-col items-center px-4 py-10">

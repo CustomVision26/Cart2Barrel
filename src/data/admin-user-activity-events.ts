@@ -17,10 +17,12 @@ import { formatUsd } from "@/lib/admin-markup";
 import {
   adminActivityEventNavSection,
   adminActivityHrefForBatchSubmitted,
+  adminActivityHrefForAllUsers,
   adminActivityHrefForItemRequestQueue,
   adminActivityHrefForOrders,
   adminActivityHrefForOutsidePurchase,
   adminActivityHrefForPurchaseOrders,
+  adminActivityHrefForSupportTicket,
   type AdminActivityNavSection,
 } from "@/lib/admin-user-activity";
 import { isMissingAdminUserActivityTablesError } from "@/lib/db-column-missing";
@@ -245,6 +247,82 @@ export async function recordOutsidePurchaseReturnSubmittedActivity(params: {
     href: adminActivityHrefForOutsidePurchase(params.customerClerkUserId),
     entityType: "item_request",
     entityId: params.itemRequestId,
+  });
+}
+
+export async function recordUserRegisteredActivity(params: {
+  customerClerkUserId: string;
+  displayName: string | null;
+  email: string | null;
+}): Promise<void> {
+  const label =
+    params.displayName?.trim() ||
+    params.email?.trim() ||
+    params.customerClerkUserId.slice(0, 12);
+  const body = params.email?.trim() || null;
+  await recordAdminUserActivityEvent({
+    customerClerkUserId: params.customerClerkUserId,
+    kind: "user_registered",
+    title: "New account registered",
+    body: body ? `${label} · ${body}` : label,
+    href: adminActivityHrefForAllUsers(params.customerClerkUserId),
+    entityType: "profile",
+    entityId: params.customerClerkUserId,
+  });
+}
+
+export async function recordSupportTicketSubmittedActivity(params: {
+  customerClerkUserId: string;
+  ticketId: string;
+  ticketNumber: string;
+  subject: string;
+}): Promise<void> {
+  await recordAdminUserActivityEvent({
+    customerClerkUserId: params.customerClerkUserId,
+    kind: "support_ticket_submitted",
+    title: "New support message",
+    body: `${params.ticketNumber} · ${params.subject}`,
+    href: adminActivityHrefForSupportTicket(params.ticketId),
+    entityType: "support_ticket",
+    entityId: params.ticketId,
+  });
+}
+
+export async function recordSupportTicketCustomerReplyActivity(params: {
+  customerClerkUserId: string;
+  ticketId: string;
+  ticketNumber: string;
+  subject: string;
+}): Promise<void> {
+  await recordAdminUserActivityEvent({
+    customerClerkUserId: params.customerClerkUserId,
+    kind: "support_ticket_customer_reply",
+    title: "Support reply from customer",
+    body: `${params.ticketNumber} · ${params.subject}`,
+    href: adminActivityHrefForSupportTicket(params.ticketId),
+    entityType: "support_ticket",
+    entityId: params.ticketId,
+  });
+}
+
+export async function recordUserBannedActivity(params: {
+  customerClerkUserId: string;
+  displayName: string | null;
+  email: string | null;
+  bannedByDisplayName: string;
+}): Promise<void> {
+  const label =
+    params.displayName?.trim() ||
+    params.email?.trim() ||
+    params.customerClerkUserId.slice(0, 12);
+  await recordAdminUserActivityEvent({
+    customerClerkUserId: params.customerClerkUserId,
+    kind: "user_banned",
+    title: "Account suspended",
+    body: `${label} — banned by ${params.bannedByDisplayName}`,
+    href: adminActivityHrefForAllUsers(params.customerClerkUserId),
+    entityType: "profile",
+    entityId: params.customerClerkUserId,
   });
 }
 

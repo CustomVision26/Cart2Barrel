@@ -1,6 +1,5 @@
 "use client";
 
-import { ClerkProvider } from "@clerk/nextjs";
 import {
   createContext,
   useCallback,
@@ -67,21 +66,6 @@ export function useAppearance() {
   return context;
 }
 
-function ClerkThemedProvider({ children }: { children: ReactNode }) {
-  const { resolvedTheme } = useTheme();
-
-  return (
-    <ClerkProvider
-      dynamic
-      appearance={{
-        baseTheme: resolvedTheme,
-      }}
-    >
-      {children}
-    </ClerkProvider>
-  );
-}
-
 function InterfaceColorSync({ children }: { children: ReactNode }) {
   const [interfaceColor, setInterfaceColorState] = useState<InterfaceColorId>(
     "default",
@@ -140,9 +124,7 @@ function ThemeSync({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={value}>
-      <ClerkThemedProvider>
-        <InterfaceColorSync>{children}</InterfaceColorSync>
-      </ClerkThemedProvider>
+      <InterfaceColorSync>{children}</InterfaceColorSync>
     </ThemeContext.Provider>
   );
 }

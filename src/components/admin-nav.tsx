@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Package,
   ShoppingBag,
+  Headphones,
   Sparkles,
   Truck,
   Users,
@@ -17,6 +18,7 @@ import { usePathname } from "next/navigation";
 
 import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
+import { ADMIN_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 import { cn } from "@/lib/utils";
 
 type AdminNavLink = {
@@ -95,6 +97,17 @@ const SECTIONS: AdminNavSection[] = [
         icon: Warehouse,
         match: (path) =>
           path === "/admin/shipments" || path.startsWith("/admin/shipments/"),
+      },
+    ],
+  },
+  {
+    title: "Support",
+    links: [
+      {
+        href: ADMIN_SUPPORT_ROUTES.inbox,
+        label: "Support",
+        icon: Headphones,
+        match: (path) => path.startsWith("/admin/support"),
       },
     ],
   },
@@ -204,6 +217,7 @@ function MobileNavLink({
 export type AdminNavBadges = {
   itemRequests?: number;
   orders?: number;
+  support?: number;
 };
 
 function navBadgeForHref(
@@ -219,6 +233,9 @@ function navBadgeForHref(
   }
   if (href === "/admin/orders") {
     return badges.orders;
+  }
+  if (href === ADMIN_SUPPORT_ROUTES.inbox || href.startsWith("/admin/support")) {
+    return badges.support;
   }
   return undefined;
 }

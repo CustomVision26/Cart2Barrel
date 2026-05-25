@@ -2,6 +2,8 @@ import { headers } from "next/headers";
 import { Webhook } from "svix";
 import { z } from "zod";
 
+import { notifyOnNewUserRegistration } from "@/data/account-registration-notifications";
+import { getProfileByClerkId } from "@/data/profiles";
 import { syncProfileFromClerkWebhookUser } from "@/data/sync-profile-from-clerk-webhook";
 import {
   clerkWebhookSigningSecretNotConfiguredMessage,
@@ -66,7 +68,33 @@ export async function POST(req: Request) {
   }
 
   switch (envelope.data.type) {
-    case "user.created":
+    case "user.created": {
+      const userParsed = clerkWebhookUserSchema.safeParse(envelope.data.data);
+      if (!userParsed.success) {
+        return new Response("Invalid user payload.", { status: 400 });
+      }
+      const user = userParsed.data;
+      const hadProfile = Boolean(await getProfileByClerkId(user.id));
+      await syncProfileFromClerkWebhookUser(user);
+      if (!hadProfile) {
+        const displayName = [user.first_name, user.last_name]
+          .map((s) => s?.trim())
+          .filter((s): s is string => Boolean(s))
+          .join(" ");
+        const email =
+          user.email_addresses?.find(
+            (e) => e.id === user.primary_email_address_id,
+          )?.email_address?.trim() ||
+          user.email_addresses?.[0]?.email_address?.trim() ||
+          null;
+        await notifyOnNewUserRegistration({
+          clerkUserId: user.id,
+          displayName: displayName || null,
+          email,
+        });
+      }
+      break;
+    }
     case "user.updated": {
       const userParsed = clerkWebhookUserSchema.safeParse(envelope.data.data);
       if (!userParsed.success) {
