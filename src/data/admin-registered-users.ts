@@ -1,6 +1,7 @@
 import { desc } from "drizzle-orm";
 
 import { resolveStaffClerkUserIds } from "@/data/admin-staff-clerk-ids";
+import { filterProfilesToActiveClerkUsers } from "@/data/filter-profiles-to-active-clerk-users";
 import type { AdminProfileAccountKind } from "@/data/customer-pricing-packages";
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
@@ -32,17 +33,19 @@ export async function listRegisteredUsersForAdmin(): Promise<
       .from(profiles)
       .orderBy(desc(profiles.createdAt));
 
+    const activeRows = await filterProfilesToActiveClerkUsers(rows);
+
     const staffIds = await resolveStaffClerkUserIds(
-      rows.map((r) => ({
+      activeRows.map((r) => ({
         clerkUserId: r.clerkUserId,
         email: r.email,
       })),
     );
     const bannedById = await clerkBannedStatusByUserIds(
-      rows.map((r) => r.clerkUserId),
+      activeRows.map((r) => r.clerkUserId),
     );
 
-    return rows.map((r) => {
+    return activeRows.map((r) => {
       const email = r.email?.trim() || null;
       return {
         clerkUserId: r.clerkUserId,

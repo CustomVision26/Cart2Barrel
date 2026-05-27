@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
-import { ContactUsHeaderButton } from "@/components/support/contact-us-header-button";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { UserNotificationsBell } from "@/components/dashboard/user-notifications-bell";
@@ -41,12 +40,7 @@ export default async function DashboardLayout({
                 Admin
               </Link>
             : null}
-            {gate.ok ?
-              <>
-                <ContactUsHeaderButton />
-                <UserNotificationsBell initial={statusSummary} />
-              </>
-            : null}
+            {gate.ok ? <UserNotificationsBell initial={statusSummary} /> : null}
             <CartHeaderLink />
             <UserHeaderControls />
           </div>

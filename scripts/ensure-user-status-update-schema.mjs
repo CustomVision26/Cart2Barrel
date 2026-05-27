@@ -28,7 +28,6 @@ await sql`
 await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'account_welcome'`;
 await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'account_suspended'`;
 await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'account_reinstated'`;
-await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'support_ticket_staff_reply'`;
 
 await sql`
   CREATE TABLE IF NOT EXISTS "user_status_update_events" (

@@ -14,7 +14,6 @@ import {
   userStatusHrefForBatchQuotes,
   userStatusHrefForDashboard,
   userStatusHrefForOrders,
-  userStatusHrefForSupportTicket,
   userStatusUpdateNavSection,
   type UserStatusNavSection,
 } from "@/lib/user-status-updates";
@@ -244,24 +243,6 @@ export async function recordOutsidePurchaseReturnEstimateReadyActivity(params: {
     href: userStatusHrefForActiveProduct(params.itemRequestId),
     entityType: "item_request",
     entityId: params.itemRequestId,
-  });
-}
-
-export async function recordSupportTicketStaffReplyActivity(params: {
-  clerkUserId: string;
-  ticketId: string;
-  ticketNumber: string;
-  subject: string;
-  preview: string;
-}): Promise<void> {
-  await recordUserStatusUpdateEvent({
-    clerkUserId: params.clerkUserId,
-    kind: "support_ticket_staff_reply",
-    title: "Hub replied to your message",
-    body: `${params.ticketNumber} · ${params.subject} — ${params.preview}`,
-    href: userStatusHrefForSupportTicket(params.ticketId),
-    entityType: "support_ticket",
-    entityId: params.ticketId,
   });
 }
 

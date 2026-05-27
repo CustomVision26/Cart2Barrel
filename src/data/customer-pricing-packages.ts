@@ -2,6 +2,7 @@ import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 
 import { resolveStaffClerkUserIds } from "@/data/admin-staff-clerk-ids";
+import { filterProfilesToActiveClerkUsers } from "@/data/filter-profiles-to-active-clerk-users";
 import { getDb } from "@/db";
 import {
   customerPricingPackages,
@@ -228,7 +229,8 @@ async function listProfilesForAdminPickerUncached(): Promise<AdminProfilePickerR
         hasCustomPackage: Boolean(r.packageUserId),
       };
     });
-    return attachAccountKinds(mapped);
+    const active = await filterProfilesToActiveClerkUsers(mapped);
+    return attachAccountKinds(active);
   } catch {
     const rows = await db
       .select({
@@ -249,7 +251,8 @@ async function listProfilesForAdminPickerUncached(): Promise<AdminProfilePickerR
         hasCustomPackage: false,
       };
     });
-    return attachAccountKinds(mapped);
+    const active = await filterProfilesToActiveClerkUsers(mapped);
+    return attachAccountKinds(active);
   }
 }
 

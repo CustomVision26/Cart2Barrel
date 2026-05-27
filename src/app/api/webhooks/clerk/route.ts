@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { notifyOnNewUserRegistration } from "@/data/account-registration-notifications";
 import { getProfileByClerkId } from "@/data/profiles";
+import { syncProfileDeletedFromClerkWebhook } from "@/data/sync-profile-deleted-from-clerk-webhook";
 import { syncProfileFromClerkWebhookUser } from "@/data/sync-profile-from-clerk-webhook";
 import {
   clerkWebhookSigningSecretNotConfiguredMessage,
@@ -25,6 +26,10 @@ const clerkWebhookUserSchema = z.object({
   primary_email_address_id: z.string().nullable().optional(),
   first_name: z.string().nullable().optional(),
   last_name: z.string().nullable().optional(),
+});
+
+const clerkWebhookUserDeletedSchema = z.object({
+  id: z.string().min(1),
 });
 
 const clerkWebhookEnvelopeSchema = z.object({
@@ -103,9 +108,16 @@ export async function POST(req: Request) {
       await syncProfileFromClerkWebhookUser(userParsed.data);
       break;
     }
-    case "user.deleted":
-      // Keep local profile rows for order history (orders FK is restrict).
+    case "user.deleted": {
+      const deletedParsed = clerkWebhookUserDeletedSchema.safeParse(
+        envelope.data.data,
+      );
+      if (!deletedParsed.success) {
+        return new Response("Invalid deleted user payload.", { status: 400 });
+      }
+      await syncProfileDeletedFromClerkWebhook(deletedParsed.data.id);
       break;
+    }
     default:
       break;
   }

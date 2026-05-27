@@ -965,8 +965,6 @@ export const adminUserActivityEventKindEnum = pgEnum(
     "outside_purchase_return_submitted",
     "user_registered",
     "user_banned",
-    "support_ticket_submitted",
-    "support_ticket_customer_reply",
   ],
 );
 
@@ -1033,7 +1031,6 @@ export const userStatusUpdateKindEnum = pgEnum("user_status_update_kind", [
   "account_welcome",
   "account_suspended",
   "account_reinstated",
-  "support_ticket_staff_reply",
 ]);
 
 export const userStatusUpdateEvents = pgTable(
@@ -1061,93 +1058,6 @@ export const userStatusUpdateEvents = pgTable(
     ),
     index("user_status_update_events_created_idx").on(t.createdAt),
     index("user_status_update_events_kind_created_idx").on(t.kind, t.createdAt),
-  ],
-);
-
-/** Singleton hub contact details shown on the public Contact us experience. */
-export const hubContactSettings = pgTable("hub_contact_settings", {
-  singletonKey: text("singleton_key").primaryKey().default("default"),
-  supportEmail: text("support_email"),
-  supportPhone: text("support_phone"),
-  whatsAppNumber: text("whatsapp_number"),
-  instagramUrl: text("instagram_url"),
-  facebookUrl: text("facebook_url"),
-  xUrl: text("x_url"),
-  tiktokUrl: text("tiktok_url"),
-  businessHours: text("business_hours"),
-  publicIntro: text("public_intro"),
-  updatedByClerkUserId: text("updated_by_clerk_user_id"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-    .defaultNow()
-    .notNull(),
-});
-
-export const supportTicketStatusEnum = pgEnum("support_ticket_status", [
-  "open",
-  "awaiting_staff",
-  "awaiting_customer",
-  "resolved",
-  "closed",
-]);
-
-export const supportMessageAuthorRoleEnum = pgEnum("support_message_author_role", [
-  "customer",
-  "staff",
-  "system",
-]);
-
-/** Customer support thread header. */
-export const supportTickets = pgTable(
-  "support_tickets",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    ticketNumber: text("ticket_number").notNull().unique(),
-    clerkUserId: text("clerk_user_id")
-      .notNull()
-      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
-    subject: text("subject").notNull(),
-    status: supportTicketStatusEnum("status").notNull().default("open"),
-    lastMessageAt: timestamp("last_message_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    lastMessagePreview: text("last_message_preview"),
-    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (t) => [
-    index("support_tickets_user_last_message_idx").on(
-      t.clerkUserId,
-      t.lastMessageAt,
-    ),
-    index("support_tickets_status_last_message_idx").on(
-      t.status,
-      t.lastMessageAt,
-    ),
-  ],
-);
-
-/** Messages within a support ticket (customer ↔ hub staff). */
-export const supportMessages = pgTable(
-  "support_messages",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    ticketId: uuid("ticket_id")
-      .notNull()
-      .references(() => supportTickets.id, { onDelete: "cascade" }),
-    authorClerkUserId: text("author_clerk_user_id"),
-    authorRole: supportMessageAuthorRoleEnum("author_role").notNull(),
-    body: text("body").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (t) => [
-    index("support_messages_ticket_created_idx").on(t.ticketId, t.createdAt),
   ],
 );
 
@@ -1712,22 +1622,6 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
     references: [userCartContainerPackingFees.clerkUserId],
   }),
   adminRoleGrantsReceived: many(adminRoleGrants),
-  supportTickets: many(supportTickets),
-}));
-
-export const supportTicketsRelations = relations(supportTickets, ({ one, many }) => ({
-  profile: one(profiles, {
-    fields: [supportTickets.clerkUserId],
-    references: [profiles.clerkUserId],
-  }),
-  messages: many(supportMessages),
-}));
-
-export const supportMessagesRelations = relations(supportMessages, ({ one }) => ({
-  ticket: one(supportTickets, {
-    fields: [supportMessages.ticketId],
-    references: [supportTickets.id],
-  }),
 }));
 
 export const adminRoleGrantsRelations = relations(adminRoleGrants, ({ one }) => ({
@@ -2150,14 +2044,6 @@ export type AdminUserActivityEventKind =
 export type UserStatusUpdateEvent = typeof userStatusUpdateEvents.$inferSelect;
 export type NewUserStatusUpdateEvent = typeof userStatusUpdateEvents.$inferInsert;
 export type UserStatusUpdateKind = UserStatusUpdateEvent["kind"];
-export type HubContactSettings = typeof hubContactSettings.$inferSelect;
-export type NewHubContactSettings = typeof hubContactSettings.$inferInsert;
-export type SupportTicket = typeof supportTickets.$inferSelect;
-export type NewSupportTicket = typeof supportTickets.$inferInsert;
-export type SupportTicketStatus = SupportTicket["status"];
-export type SupportMessage = typeof supportMessages.$inferSelect;
-export type NewSupportMessage = typeof supportMessages.$inferInsert;
-export type SupportMessageAuthorRole = SupportMessage["authorRole"];
 export type UserCartContainerPackingFees =
   typeof userCartContainerPackingFees.$inferSelect;
 

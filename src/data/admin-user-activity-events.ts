@@ -22,7 +22,6 @@ import {
   adminActivityHrefForOrders,
   adminActivityHrefForOutsidePurchase,
   adminActivityHrefForPurchaseOrders,
-  adminActivityHrefForSupportTicket,
   type AdminActivityNavSection,
 } from "@/lib/admin-user-activity";
 import { isMissingAdminUserActivityTablesError } from "@/lib/db-column-missing";
@@ -268,40 +267,6 @@ export async function recordUserRegisteredActivity(params: {
     href: adminActivityHrefForAllUsers(params.customerClerkUserId),
     entityType: "profile",
     entityId: params.customerClerkUserId,
-  });
-}
-
-export async function recordSupportTicketSubmittedActivity(params: {
-  customerClerkUserId: string;
-  ticketId: string;
-  ticketNumber: string;
-  subject: string;
-}): Promise<void> {
-  await recordAdminUserActivityEvent({
-    customerClerkUserId: params.customerClerkUserId,
-    kind: "support_ticket_submitted",
-    title: "New support message",
-    body: `${params.ticketNumber} · ${params.subject}`,
-    href: adminActivityHrefForSupportTicket(params.ticketId),
-    entityType: "support_ticket",
-    entityId: params.ticketId,
-  });
-}
-
-export async function recordSupportTicketCustomerReplyActivity(params: {
-  customerClerkUserId: string;
-  ticketId: string;
-  ticketNumber: string;
-  subject: string;
-}): Promise<void> {
-  await recordAdminUserActivityEvent({
-    customerClerkUserId: params.customerClerkUserId,
-    kind: "support_ticket_customer_reply",
-    title: "Support reply from customer",
-    body: `${params.ticketNumber} · ${params.subject}`,
-    href: adminActivityHrefForSupportTicket(params.ticketId),
-    entityType: "support_ticket",
-    entityId: params.ticketId,
   });
 }
 

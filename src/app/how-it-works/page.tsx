@@ -3,7 +3,6 @@ import Link from "next/link";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { HowItWorksPageMain } from "@/components/marketing/how-it-works-page-main";
-import { ContactUsHeaderButton } from "@/components/support/contact-us-header-button";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { Button } from "@/components/ui/button";
 import { listActiveContainerOfferingsWithImages } from "@/data/container-offerings";
@@ -77,7 +76,6 @@ export default async function HowItWorksPage() {
                 >
                   Dashboard
                 </Button>
-                <ContactUsHeaderButton />
                 <UserHeaderControls />
               </>
             : <>

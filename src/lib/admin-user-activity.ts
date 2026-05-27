@@ -1,6 +1,5 @@
 import type { AdminUserActivityEventKind } from "@/db/schema";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
-import { ADMIN_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 import { ADMIN_USERS_ROUTES } from "@/lib/admin-users-routes";
 import { withAdminCustomerFilter } from "@/lib/admin-customer-filter";
 
@@ -78,10 +77,6 @@ export function adminActivityHrefForAllUsers(
 ): string {
   if (!customerClerkUserId) return ADMIN_USERS_ROUTES.allUsers;
   return withAdminCustomerFilter(ADMIN_USERS_ROUTES.allUsers, customerClerkUserId);
-}
-
-export function adminActivityHrefForSupportTicket(ticketId: string): string {
-  return ADMIN_SUPPORT_ROUTES.ticket(ticketId);
 }
 
 export function formatAdminActivityRelativeTime(iso: string): string {

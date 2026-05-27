@@ -9,7 +9,6 @@ import {
   ClipboardList,
   CreditCard,
   Package,
-  Headphones,
   PartyPopper,
   RotateCcw,
   ShieldBan,
@@ -60,8 +59,6 @@ function eventIcon(kind: UserStatusUpdateKind) {
       return ShieldBan;
     case "account_reinstated":
       return ShieldCheck;
-    case "support_ticket_staff_reply":
-      return Headphones;
     default:
       return Sparkles;
   }
