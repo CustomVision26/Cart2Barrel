@@ -67,7 +67,8 @@ export function HowItWorksServices() {
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Cart2Barrel is a consolidation service: we buy or receive your US
           store orders, pack them into a shared barrel or bin, and arrange
-          international shipping to your door—with clear status at every step.
+          international shipping to your custom destination—with clear status at
+          every step.
         </p>
       </RevealOnScroll>
 

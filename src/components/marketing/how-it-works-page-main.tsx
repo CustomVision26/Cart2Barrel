@@ -40,7 +40,7 @@ export function HowItWorksPageMain({
           How it works
         </p>
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-          Your path from US shopping to home delivery
+          Your path from US shopping to custom destination
         </h1>
       </RevealOnScroll>
 

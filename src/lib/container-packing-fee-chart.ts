@@ -59,7 +59,7 @@ export function buildContainerPackingFeeChartRows(
     },
     {
       containerLabel: "2+ barrels in cart",
-      chargeLabel: `${formatUsd(rates.multiBarrelPackingPerUnitCents)} / barrel`,
+      chargeLabel: `${formatUsd(rates.multiBarrelPackingPerUnitCents)} per barrel`,
     },
     {
       containerLabel: "1 bin in cart",
@@ -67,7 +67,7 @@ export function buildContainerPackingFeeChartRows(
     },
     {
       containerLabel: "2+ bins in cart",
-      chargeLabel: `${formatUsd(rates.multiBinPackingPerUnitCents)} / bin`,
+      chargeLabel: `${formatUsd(rates.multiBinPackingPerUnitCents)} per bin`,
     },
   ];
 }
