@@ -7,6 +7,8 @@ import { getDb } from "@/db";
 import { itemRequests } from "@/db/schema";
 import { insertItemRequestLineSnapshot } from "@/data/item-request-line-snapshots";
 import { recordItemRequestSubmittedActivity } from "@/data/admin-user-activity-events";
+import { formatUsd } from "@/lib/admin-markup";
+import { parseUsdToCents } from "@/lib/admin-pricing-form-utils";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 import { parseCreateItemRequestInput } from "@/lib/validations/item-request";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
@@ -45,6 +47,20 @@ export async function createItemRequestAction(
     hostnameFromProductUrl(parsed.data.productUrl) ||
     null;
 
+  const noteParts: string[] = [];
+  if (parsed.data.customerUnitPriceUsd) {
+    const unitCents = parseUsdToCents(parsed.data.customerUnitPriceUsd);
+    if (unitCents > 0) {
+      noteParts.push(
+        `Customer-reported retailer unit price: ${formatUsd(unitCents)} (qty ${parsed.data.quantity}).`,
+      );
+    }
+  }
+  if (parsed.data.note?.trim()) {
+    noteParts.push(parsed.data.note.trim());
+  }
+  const combinedNote = noteParts.length > 0 ? noteParts.join("\n\n") : null;
+
   const db = getDb();
   const [created] = await db
     .insert(itemRequests)
@@ -55,7 +71,7 @@ export async function createItemRequestAction(
       productSize: parsed.data.productSize ?? null,
       productColor: parsed.data.productColor ?? null,
       quantity: parsed.data.quantity,
-      note: parsed.data.note ?? null,
+      note: combinedNote,
       siteName,
       productImageUrl: parsed.data.productImageUrl?.trim() || null,
     })

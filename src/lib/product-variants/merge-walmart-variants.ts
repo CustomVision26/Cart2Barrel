@@ -4,7 +4,7 @@ export function normalizeColorKey(value: string | null | undefined): string {
   return value?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
 }
 
-function colorKeyFromRow(row: ProductVariantOffer): string {
+export function colorKeyFromRow(row: ProductVariantOffer): string {
   const color = normalizeColorKey(row.color);
   if (color) return color;
   const label = normalizeColorKey(row.label?.split("·")[0]);
@@ -12,7 +12,7 @@ function colorKeyFromRow(row: ProductVariantOffer): string {
   return "";
 }
 
-function colorsMatch(a: string, b: string): boolean {
+export function colorsMatch(a: string, b: string): boolean {
   if (!a || !b) return false;
   if (a === b) return true;
   return a.includes(b) || b.includes(a);
@@ -76,8 +76,7 @@ export function mergeWalmartVariantsWithPageAi(
     const page = pageRowForSerpRow(row, pageByColor);
     if (!page) return row;
 
-    const usePagePrice =
-      page.priceUsdCents != null && row.priceUsdCents == null;
+    const usePagePrice = page.priceUsdCents != null;
 
     return {
       ...row,

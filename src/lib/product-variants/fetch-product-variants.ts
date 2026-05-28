@@ -11,7 +11,10 @@ import {
 import { fetchImmersiveProductVariants } from "@/lib/serpapi/google-immersive-product";
 import { findShoppingImmersiveToken } from "@/lib/serpapi/google-shopping";
 import { getSerpApiKey } from "@/lib/serpapi/env";
+import { isDirectListingRetailer } from "@/lib/product-variants/direct-listing-hosts";
+import { mergeVariantsPreferPageAi } from "@/lib/product-variants/merge-variants-prefer-page-ai";
 import { mergeWalmartVariantsWithPageAi } from "@/lib/product-variants/merge-walmart-variants";
+import { extractSheinVariantsFromHtml } from "@/lib/product-variants/shein-from-page-html";
 import {
   fetchWalmartProductSummary,
   fetchWalmartVariants,
@@ -51,9 +54,16 @@ function mergeVariants(
 
 async function fetchFromPageAi(
   productUrl: string,
+  parsed: ParsedProductUrl,
   context?: { productSize?: string | null; productColor?: string | null },
 ): Promise<ProductVariantOffer[]> {
   const html = await fetchPageHtmlForAi(productUrl);
+
+  if (parsed.hostname.toLowerCase().includes("shein.")) {
+    const sheinRows = extractSheinVariantsFromHtml(html, productUrl);
+    if (sheinRows.length > 0) return sheinRows;
+  }
+
   const { variants } = await extractProductVariantsWithOpenAI(
     html,
     productUrl,
@@ -64,6 +74,7 @@ async function fetchFromPageAi(
 
 async function fetchWalmartWithPagePrices(
   productUrl: string,
+  parsed: ParsedProductUrl,
   walmartId: string,
   context?: {
     productName?: string;
@@ -73,7 +84,7 @@ async function fetchWalmartWithPagePrices(
 ): Promise<{ variants: ProductVariantOffer[]; pageAiUsed: boolean }> {
   const serpRows = await fetchWalmartVariants(walmartId);
   try {
-    const pageRows = await fetchFromPageAi(productUrl, {
+    const pageRows = await fetchFromPageAi(productUrl, parsed, {
       productSize: context?.productSize ?? null,
       productColor: context?.productColor ?? null,
     });
@@ -103,6 +114,7 @@ async function fetchSerpApiRoute(
   if (parsed.kind === "walmart" && productId) {
     const { variants, pageAiUsed } = await fetchWalmartWithPagePrices(
       productUrl,
+      parsed,
       productId,
       context,
     );
@@ -189,11 +201,14 @@ export async function fetchProductVariants(input: {
       (parsed.kind === "walmart" || parsed.kind === "amazon") &&
       (method.includes("walmart_product") || method.includes("amazon_product"));
 
+    const skipImmersive = isDirectListingRetailer(parsed);
+
     if (
       hasSerp &&
       variants.length < 2 &&
       searchQuery.length >= 4 &&
-      !serpListingResolved
+      !serpListingResolved &&
+      !skipImmersive
     ) {
       const immersiveRows = await fetchImmersiveFallback(
         parsed,
@@ -220,14 +235,14 @@ export async function fetchProductVariants(input: {
 
     if (needsPageAi) {
       try {
-        const pageRows = await fetchFromPageAi(productUrl, {
+        const pageRows = await fetchFromPageAi(productUrl, parsed, {
           productSize: input.productSize ?? null,
           productColor: input.productColor ?? null,
         });
         if (pageRows.length > 0) {
           variants =
             variants.length > 0
-              ? mergeVariants(variants, pageRows)
+              ? mergeVariantsPreferPageAi(variants, pageRows)
               : pageRows;
           method = method ? `${method}+page_ai` : "page_ai";
         }

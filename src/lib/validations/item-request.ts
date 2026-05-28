@@ -38,6 +38,13 @@ export const createItemRequestSchema = z.object({
     .max(200)
     .optional()
     .transform((s) => (s && s.length > 0 ? s : undefined)),
+  /** Customer-reported unit price on the retailer site (USD decimal string). */
+  customerUnitPriceUsd: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((s) => (s && s.length > 0 ? s : undefined)),
   productImageUrl: z
     .string()
     .trim()

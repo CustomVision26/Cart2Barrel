@@ -104,6 +104,39 @@ export async function adminUpdateContainerOfferingAction(
   return { ok: true };
 }
 
+const adminDeleteContainerOfferingSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export async function adminDeleteContainerOfferingAction(
+  input: unknown,
+): Promise<AdminContainerOfferingMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+  const parsed = adminDeleteContainerOfferingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+  const { id } = parsed.data;
+
+  const db = getDb();
+  const deleted = await db
+    .delete(containerOfferings)
+    .where(eq(containerOfferings.id, id))
+    .returning({ id: containerOfferings.id });
+
+  if (deleted.length === 0) {
+    return { ok: false, message: "Container not found." };
+  }
+
+  revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
+  revalidatePath("/dashboard/barrels");
+  return { ok: true };
+}
+
 export type AdminUploadContainerImagesState =
   | { ok: true; uploaded: number }
   | { ok: false; message: string };

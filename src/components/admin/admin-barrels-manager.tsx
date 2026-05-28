@@ -3,14 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   adminCreateContainerOfferingAction,
+  adminDeleteContainerOfferingAction,
   adminDeleteContainerOfferingImageAction,
   adminMoveContainerOfferingImageAction,
   adminUpdateContainerOfferingAction,
   adminUploadContainerOfferingImagesAction,
 } from "@/actions/admin-container-offerings";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,7 +60,6 @@ function centsToUsdInput(cents: number): string {
 
 export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
   const router = useRouter();
-  const [createMsg, setCreateMsg] = useState<string | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(true);
   const [pending, startTransition] = useTransition();
   const createFormRef = useRef<HTMLFormElement>(null);
@@ -77,7 +79,6 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
             ref={createFormRef}
             className="grid gap-4 sm:grid-cols-2"
             action={(fd) => {
-              setCreateMsg(null);
               startTransition(async () => {
                 const res = await adminCreateContainerOfferingAction({
                   name: String(fd.get("name") ?? ""),
@@ -86,10 +87,11 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
                   priceUsd: String(fd.get("priceUsd") ?? ""),
                 });
                 if (!res.ok) {
-                  setCreateMsg(res.message);
+                  toast.error(res.message);
                   return;
                 }
                 createFormRef.current?.reset();
+                toast.success("Container created.");
                 router.refresh();
               });
             }}
@@ -131,9 +133,6 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
               </Button>
             </div>
           </form>
-          {createMsg ?
-            <p className="mt-3 text-sm text-destructive">{createMsg}</p>
-          : null}
         </CardContent>
       </Card>
 
@@ -195,7 +194,7 @@ function AdminOfferingRow({
   disabledAll: boolean;
   onRefresh: () => void;
 }) {
-  const [msg, setMsg] = useState<string | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
   const disabled = disabledAll || pending;
@@ -257,7 +256,6 @@ function AdminOfferingRow({
           className="grid gap-4 sm:grid-cols-2"
           onSubmit={(e) => {
             e.preventDefault();
-            setMsg(null);
             startTransition(async () => {
               const res = await adminUpdateContainerOfferingAction({
                 id: offering.id,
@@ -268,9 +266,10 @@ function AdminOfferingRow({
                 isActive,
               });
               if (!res.ok) {
-                setMsg(res.message);
+                toast.error(res.message);
                 return;
               }
+              toast.success("Container updated.");
               onRefresh();
             });
           }}
@@ -330,12 +329,44 @@ function AdminOfferingRow({
               Visible on shopper catalog
             </Label>
           </div>
-          <div className="sm:col-span-2">
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
             <Button type="submit" size="sm" disabled={disabled}>
               Save changes
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              disabled={disabled}
+              onClick={() => setRemoveOpen(true)}
+            >
+              Remove container
+            </Button>
           </div>
         </form>
+
+        <AdminConfirmDialog
+          open={removeOpen}
+          onOpenChange={setRemoveOpen}
+          title="Remove this container?"
+          description="This deletes the catalog entry, its photos, and any shopper cart lines for this container. Past orders keep their line snapshots."
+          confirmLabel="Remove"
+          pending={pending}
+          destructive
+          onConfirm={() => {
+            startTransition(async () => {
+              const res = await adminDeleteContainerOfferingAction({ id: offering.id });
+              if (!res.ok) {
+                toast.error(res.message);
+                return;
+              }
+              setRemoveOpen(false);
+              toast.success("Container removed.");
+              onRefresh();
+            });
+          }}
+        />
 
         <div className="space-y-2 border-t border-border/50 pt-4">
           <Label>Photos ({images.length})</Label>
@@ -352,7 +383,6 @@ function AdminOfferingRow({
                   offeringId={offering.id}
                   image={im}
                   disabled={disabled}
-                  onMessage={setMsg}
                   onRefresh={onRefresh}
                 />
               ))}
@@ -374,10 +404,9 @@ function AdminOfferingRow({
               onClick={() => {
                 const el = fileRef.current;
                 if (!el?.files?.length) {
-                  setMsg("Choose one or more images first.");
+                  toast.error("Choose one or more images first.");
                   return;
                 }
-                setMsg(null);
                 startTransition(async () => {
                   const fd = new FormData();
                   fd.set("offeringId", offering.id);
@@ -386,10 +415,15 @@ function AdminOfferingRow({
                   }
                   const res = await adminUploadContainerOfferingImagesAction(fd);
                   if (!res.ok) {
-                    setMsg(res.message);
+                    toast.error(res.message);
                     return;
                   }
                   el.value = "";
+                  toast.success(
+                    res.uploaded === 1 ?
+                      "1 image uploaded."
+                    : `${res.uploaded} images uploaded.`,
+                  );
                   onRefresh();
                 });
               }}
@@ -398,9 +432,6 @@ function AdminOfferingRow({
             </Button>
           </div>
         </div>
-        {msg ?
-          <p className="text-sm text-destructive">{msg}</p>
-        : null}
       </CardContent>
     </Card>
   );
@@ -410,13 +441,11 @@ function AdminOfferingImageThumb({
   offeringId,
   image,
   disabled,
-  onMessage,
   onRefresh,
 }: {
   offeringId: string;
   image: AdminSerializableImage;
   disabled: boolean;
-  onMessage: (m: string | null) => void;
   onRefresh: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -434,15 +463,15 @@ function AdminOfferingImageThumb({
           className="absolute right-0.5 top-0.5 h-6 min-w-0 px-1.5 text-[10px]"
           disabled={busy}
           onClick={() => {
-            onMessage(null);
             startTransition(async () => {
               const res = await adminDeleteContainerOfferingImageAction({
                 imageId: image.id,
               });
               if (!res.ok) {
-                onMessage(res.message);
+                toast.error(res.message);
                 return;
               }
+              toast.success("Image removed.");
               onRefresh();
             });
           }}
@@ -459,7 +488,6 @@ function AdminOfferingImageThumb({
           disabled={busy}
           title="Move earlier in carousel"
           onClick={() => {
-            onMessage(null);
             startTransition(async () => {
               const res = await adminMoveContainerOfferingImageAction({
                 offeringId,
@@ -467,7 +495,7 @@ function AdminOfferingImageThumb({
                 direction: "up",
               });
               if (!res.ok) {
-                onMessage(res.message);
+                toast.error(res.message);
                 return;
               }
               onRefresh();
@@ -484,7 +512,6 @@ function AdminOfferingImageThumb({
           disabled={busy}
           title="Move later in carousel"
           onClick={() => {
-            onMessage(null);
             startTransition(async () => {
               const res = await adminMoveContainerOfferingImageAction({
                 offeringId,
@@ -492,7 +519,7 @@ function AdminOfferingImageThumb({
                 direction: "down",
               });
               if (!res.ok) {
-                onMessage(res.message);
+                toast.error(res.message);
                 return;
               }
               onRefresh();

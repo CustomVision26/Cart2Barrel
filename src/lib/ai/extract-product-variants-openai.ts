@@ -65,8 +65,8 @@ export async function extractProductVariantsWithOpenAI(
           "Each variant object keys: label, size, color, packLabel, unitPriceUsd, productUrl, imageUrl, inStock, isCurrent.",
           "Rules:",
           "- List every distinct SKU you can find: sizes, colors, pack counts (2-pack, 6-pack), weights, etc.",
-          "- unitPriceUsd: ONE unit price in USD for that SKU (number or null).",
-          "- Match prices to the correct variant row from JSON in script tags (__NUXT__, __NEXT_DATA__, skuList, warehouseList, ld+json Offers).",
+          "- unitPriceUsd: ONE unit price in USD for that SKU (number or null). Use the customer-facing sale or promotional price (e.g. Limited-Time Deal, flash sale), NOT a higher crossed-out or was/retail/MSRP price.",
+          "- Match prices to the correct variant row from JSON in script tags (__NUXT__, __NEXT_DATA__, skuList, warehouseList, ld+json Offers). On SHEIN/Temu, prefer salePrice/discountPrice over retailPrice.",
           "- For Walmart color swatches: each color tile shows its own price (e.g. rollback/sale)—use that price for that color, not the main item price.",
           "- isCurrent: true only for the variant that matches the page's pre-selected options",
           context?.productSize || context?.productColor

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { updateMerchantPackingBarrelFeesAction } from "@/actions/update-merchant-pricing-settings";
 import type { ContainerPackingRates } from "@/lib/container-packing-fee";
@@ -56,8 +57,6 @@ export function AdminGeneralPackageFeePanel({
   const [containerForm, setContainerForm] = useState(() =>
     containerRatesToFormState(initialContainerPackingRates),
   );
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const containerRatesPreview = useMemo(
@@ -67,17 +66,6 @@ export function AdminGeneralPackageFeePanel({
 
   return (
     <div className="space-y-4">
-      {msg ?
-        <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
-          {msg}
-        </p>
-      : null}
-      {err ?
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {err}
-        </p>
-      : null}
-
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Packing &amp; container combinations</CardTitle>
@@ -172,18 +160,16 @@ export function AdminGeneralPackageFeePanel({
             type="button"
             disabled={pending}
             onClick={() => {
-              setMsg(null);
-              setErr(null);
               startTransition(async () => {
                 const res = await updateMerchantPackingBarrelFeesAction({
                   packingFeePerLineCents: parseUsdToCents(packingDollars),
                   containerPackingRates: containerRatesPreview,
                 });
                 if (!res.ok) {
-                  setErr(res.message);
+                  toast.error(res.message);
                   return;
                 }
-                setMsg(res.message);
+                toast.success(res.message);
                 router.refresh();
               });
             }}

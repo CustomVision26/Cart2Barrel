@@ -4,11 +4,13 @@ import { UsdDecimalInput } from "@/components/admin/usd-decimal-input";
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import {
   deleteCustomerPricingPackageAction,
   saveCustomerPricingPackageAction,
 } from "@/actions/customer-pricing-package";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import type { AdminProfilePickerRow } from "@/data/customer-pricing-packages";
 import type { CustomerPricingPackageSnapshot } from "@/data/customer-pricing-packages";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
@@ -95,8 +97,7 @@ export function AdminCustomerPricingPackagesPanel({
     initial.overrideServiceTiers,
   );
   const [tierRows, setTierRows] = useState<FeeTierEditableRow[]>(initial.tierRows);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const filteredUsers = useMemo(() => {
@@ -142,17 +143,6 @@ export function AdminCustomerPricingPackagesPanel({
 
   return (
     <div className="space-y-6" key={selectedClerkUserId ?? "none"}>
-      {msg ?
-        <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
-          {msg}
-        </p>
-      : null}
-      {err ?
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {err}
-        </p>
-      : null}
-
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Select customer</CardTitle>
@@ -229,28 +219,7 @@ export function AdminCustomerPricingPackagesPanel({
                     variant="outline"
                     size="sm"
                     disabled={pending}
-                    onClick={() => {
-                      setMsg(null);
-                      setErr(null);
-                      if (
-                        !window.confirm(
-                          "Remove this customer's custom package? They will use global fees again.",
-                        )
-                      ) {
-                        return;
-                      }
-                      startTransition(async () => {
-                        const res = await deleteCustomerPricingPackageAction({
-                          clerkUserId: selectedClerkUserId,
-                        });
-                        if (!res.ok) {
-                          setErr(res.message);
-                          return;
-                        }
-                        setMsg(res.message);
-                        router.refresh();
-                      });
-                    }}
+                    onClick={() => setRemoveOpen(true)}
                   >
                     Remove custom package
                   </Button>
@@ -435,13 +404,11 @@ export function AdminCustomerPricingPackagesPanel({
                 type="button"
                 disabled={pending}
                 onClick={() => {
-                  setMsg(null);
-                  setErr(null);
                   if (overrideServiceTiers) {
                     const centsRows = prepareEditableRowsForSave(tierRows);
                     const tierErr = validateTiers(centsRows);
                     if (tierErr) {
-                      setErr(tierErr);
+                      toast.error(tierErr);
                       return;
                     }
                   }
@@ -458,16 +425,42 @@ export function AdminCustomerPricingPackagesPanel({
                       tiers: tierPayload,
                     });
                     if (!res.ok) {
-                      setErr(res.message);
+                      toast.error(res.message);
                       return;
                     }
-                    setMsg(res.message);
+                    toast.success(res.message);
                     router.refresh();
                   });
                 }}
               >
                 Save customer package
               </Button>
+
+              {customerPackage && selectedClerkUserId ?
+                <AdminConfirmDialog
+                  open={removeOpen}
+                  onOpenChange={setRemoveOpen}
+                  title="Remove custom package?"
+                  description={`${selectedUser.displayName} will use global packing and container fees again.`}
+                  confirmLabel="Remove package"
+                  pending={pending}
+                  destructive
+                  onConfirm={() => {
+                    startTransition(async () => {
+                      const res = await deleteCustomerPricingPackageAction({
+                        clerkUserId: selectedClerkUserId,
+                      });
+                      if (!res.ok) {
+                        toast.error(res.message);
+                        return;
+                      }
+                      setRemoveOpen(false);
+                      toast.success(res.message);
+                      router.refresh();
+                    });
+                  }}
+                />
+              : null}
             </CardContent>
           </Card>
         </>

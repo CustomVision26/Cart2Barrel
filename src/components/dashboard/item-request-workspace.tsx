@@ -36,11 +36,16 @@ import {
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field";
+import { FieldHoverHint } from "@/components/ui/field-hover-hint";
 import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { HelpBalloon } from "@/components/ui/help-balloon";
 import { Input, inputFieldClassName } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  centsToUsdInput,
+  parseUsdToCents,
+} from "@/lib/admin-pricing-form-utils";
 import {
   spotlightFormSeedFromPrefill,
   spotlightPrefillMerchPreview,
@@ -187,6 +192,14 @@ export function ItemRequestWorkspace({
   const [productSize, setProductSize] = useState(spotlightSeed?.productSize ?? "");
   const [productColor, setProductColor] = useState(spotlightSeed?.productColor ?? "");
   const [quantity, setQuantity] = useState("1");
+  const [unitPriceDollars, setUnitPriceDollars] = useState(
+    spotlightSeed?.aiMerchPreview?.unitPriceCents != null
+      ? centsToUsdInput(spotlightSeed.aiMerchPreview.unitPriceCents)
+      : "",
+  );
+  const [unitPriceUserEdited, setUnitPriceUserEdited] = useState(false);
+  const [storeVariantsLoaded, setStoreVariantsLoaded] = useState(false);
+  const [priceHintDismissed, setPriceHintDismissed] = useState(false);
   const [note, setNote] = useState("");
 
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -215,14 +228,19 @@ export function ItemRequestWorkspace({
     null,
   );
   const productPhotoRef = useRef<HTMLInputElement>(null);
-  const productLinkBlurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const [productLinkFocused, setProductLinkFocused] = useState(false);
   const [urlSyncHintDismissed, setUrlSyncHintDismissed] = useState(false);
   const [spotlightPrefillDismissed, setSpotlightPrefillDismissed] = useState(false);
 
   const spotlightAppliedIdRef = useRef<string | null>(null);
+
+  const applyUnitPriceFromCatalog = useCallback((cents: number | null | undefined) => {
+    setUnitPriceUserEdited(false);
+    if (cents != null && cents > 0) {
+      setUnitPriceDollars(centsToUsdInput(cents));
+    } else {
+      setUnitPriceDollars("");
+    }
+  }, []);
 
   useEffect(() => {
     if (!spotlightPrefill) {
@@ -261,6 +279,9 @@ export function ItemRequestWorkspace({
     setPendingProductPhoto(null);
     const merch = spotlightPrefillMerchPreview(spotlightPrefill, q);
     setAiMerchPreview(merch);
+    if (merch?.unitPriceCents != null) {
+      applyUnitPriceFromCatalog(merch.unitPriceCents);
+    }
     setAiMessage(
       merch ?
         "Loaded from spotlight: review the fields below, then submit your request to staff."
@@ -268,7 +289,7 @@ export function ItemRequestWorkspace({
     );
     setIsSpotlightFeed(true);
     setSpotlightPrefillDismissed(false);
-  }, [spotlightPrefill, initialProductUrl, quantity]);
+  }, [spotlightPrefill, initialProductUrl, quantity, applyUnitPriceFromCatalog]);
 
   useEffect(() => {
     if (!isSpotlightFeed || !spotlightPrefill) return;
@@ -285,6 +306,29 @@ export function ItemRequestWorkspace({
       return spotlightPrefillMerchPreview(spotlightPrefill, q);
     });
   }, [quantity, isSpotlightFeed, spotlightPrefill]);
+
+  useEffect(() => {
+    if (unitPriceUserEdited) return;
+    if (aiMerchPreview?.unitPriceCents != null) {
+      setUnitPriceDollars(centsToUsdInput(aiMerchPreview.unitPriceCents));
+    }
+  }, [aiMerchPreview?.unitPriceCents, unitPriceUserEdited]);
+
+  useEffect(() => {
+    const q = parseQuantity(quantity);
+    if (q == null) return;
+    const cents = parseUsdToCents(unitPriceDollars);
+    if (cents <= 0) return;
+    const sizeNorm = productSize.trim().toLowerCase();
+    const colorNorm = productColor.trim().toLowerCase();
+    setAiMerchPreview((prev) => ({
+      quantity: q,
+      unitPriceCents: cents,
+      merchandiseSubtotalCents: cents * q,
+      variantSizeNorm: prev?.variantSizeNorm ?? sizeNorm,
+      variantColorNorm: prev?.variantColorNorm ?? colorNorm,
+    }));
+  }, [quantity, unitPriceDollars]);
 
   const pricePreviewStale = useMemo(() => {
     if (!aiMerchPreview) return false;
@@ -315,14 +359,6 @@ export function ItemRequestWorkspace({
   useEffect(() => {
     setUrlSyncHintDismissed(false);
   }, [previewInput]);
-
-  useEffect(() => {
-    return () => {
-      if (productLinkBlurTimeoutRef.current) {
-        clearTimeout(productLinkBlurTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const runLoadVariants = useCallback(() => {
     setVariantsMessage(null);
@@ -406,15 +442,31 @@ export function ItemRequestWorkspace({
         : null;
       if (liveMerch) {
         setAiMerchPreview(liveMerch);
+        applyUnitPriceFromCatalog(liveMerch.unitPriceCents);
         setAiMessage(null);
       }
+      setStoreVariantsLoaded(true);
+      setPriceHintDismissed(false);
       setVariantsMessage(
         res.variants.length > 0 ?
           formatVariantsLoadedMessage(res.variants.length, res.retailer, res.method)
         : `No variants were returned for this listing. Enter the product URL again or open the retailer's site in a new tab to verify the link.`,
       );
+      requestAnimationFrame(() => {
+        document
+          .getElementById("item-unit-price")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
     });
-  }, [previewInput, productUrl, productName, productSize, productColor, quantity]);
+  }, [
+    previewInput,
+    productUrl,
+    productName,
+    productSize,
+    productColor,
+    quantity,
+    applyUnitPriceFromCatalog,
+  ]);
 
   const hasPreviewUrl = Boolean(normalizeUrlInput(previewInput));
   const hasProductLinkUrl = Boolean(normalizeUrlInput(productUrl));
@@ -428,11 +480,9 @@ export function ItemRequestWorkspace({
   const canUseUrlSync = hasPreviewUrl || hasProductLinkUrl;
 
   const urlsAligned = urlsMatchForSubmit(previewInput, productUrl);
-  const showUrlSyncHint =
-    productLinkFocused &&
-    hasPreviewUrl &&
-    !urlsAligned &&
-    !urlSyncHintDismissed;
+  const showProductLinkSyncHint =
+    hasPreviewUrl && !urlsAligned && !urlSyncHintDismissed;
+  const showPriceVerifyHint = storeVariantsLoaded && !priceHintDismissed;
   const quantityOk = parseQuantity(quantity) != null;
   const canSubmit = urlsAligned && quantityOk && !isPending;
   const productNameReadyForCompare = isProductNameReadyForCompare(productName);
@@ -488,6 +538,10 @@ export function ItemRequestWorkspace({
     setProductColor("");
     setNote("");
     setQuantity("1");
+    setUnitPriceDollars("");
+    setUnitPriceUserEdited(false);
+    setStoreVariantsLoaded(false);
+    setPriceHintDismissed(false);
     setIsSpotlightFeed(false);
     setSpotlightPrefillDismissed(true);
     setActiveTab("request");
@@ -532,6 +586,7 @@ export function ItemRequestWorkspace({
       productColor: productColor.trim() || undefined,
       quantity,
       note: note.trim() || undefined,
+      customerUnitPriceUsd: unitPriceDollars.trim() || undefined,
       siteName: draftSiteName?.trim() || undefined,
       productImageUrl: draftProductImageUrl?.trim() || undefined,
     };
@@ -585,6 +640,7 @@ export function ItemRequestWorkspace({
     productColor,
     quantity,
     note,
+    unitPriceDollars,
     draftSiteName,
     draftProductImageUrl,
     pendingProductPhoto,
@@ -614,6 +670,7 @@ export function ItemRequestWorkspace({
       const colorNorm = (variant.color ?? productColor).trim().toLowerCase();
 
       if (variant.priceUsdCents != null) {
+        applyUnitPriceFromCatalog(variant.priceUsdCents);
         setAiMerchPreview({
           quantity: q,
           unitPriceCents: variant.priceUsdCents,
@@ -679,6 +736,7 @@ export function ItemRequestWorkspace({
           );
 
           if (res.unitPriceCents != null) {
+            applyUnitPriceFromCatalog(res.unitPriceCents);
             setAiMerchPreview({
               quantity: q,
               unitPriceCents: res.unitPriceCents,
@@ -705,7 +763,7 @@ export function ItemRequestWorkspace({
         }
       });
     },
-    [productUrl, quantity, productSize, productColor],
+    [productUrl, quantity, productSize, productColor, applyUnitPriceFromCatalog],
   );
 
   const submitFromVariant = useCallback(
@@ -729,6 +787,11 @@ export function ItemRequestWorkspace({
         productColor: variant.color?.trim() || productColor.trim() || undefined,
         quantity: String(q),
         note: note.trim() || undefined,
+        customerUnitPriceUsd:
+          unitPriceDollars.trim() ||
+          (variant.priceUsdCents != null
+            ? centsToUsdInput(variant.priceUsdCents)
+            : undefined),
         siteName:
           variantRetailer?.trim() || draftSiteName?.trim() || undefined,
         productImageUrl:
@@ -779,6 +842,7 @@ export function ItemRequestWorkspace({
       productColor,
       quantity,
       note,
+      unitPriceDollars,
       variantRetailer,
       draftSiteName,
       draftProductImageUrl,
@@ -855,6 +919,11 @@ export function ItemRequestWorkspace({
         productColor: productColor.trim() || undefined,
         quantity: String(q),
         note: note.trim() || undefined,
+        customerUnitPriceUsd:
+          unitPriceDollars.trim() ||
+          (offer.priceUsdCents != null && offer.priceUsdCents > 0
+            ? centsToUsdInput(offer.priceUsdCents)
+            : undefined),
         siteName: offer.retailer.trim() || draftSiteName?.trim() || undefined,
         productImageUrl:
           offer.imageUrl?.trim() ||
@@ -903,6 +972,7 @@ export function ItemRequestWorkspace({
       productSize,
       productColor,
       note,
+      unitPriceDollars,
       draftSiteName,
       draftProductImageUrl,
       spotlightPrefill,
@@ -1133,7 +1203,10 @@ export function ItemRequestWorkspace({
               </div>
 
             <FieldGroup>
-              <Field data-invalid={Boolean(fieldError("productUrl")?.length)}>
+              <Field
+                className="group/field relative"
+                data-invalid={Boolean(fieldError("productUrl")?.length)}
+              >
                 <FieldLabelWithHelp
                   htmlFor="item-product-url"
                   label="Product link"
@@ -1148,6 +1221,18 @@ export function ItemRequestWorkspace({
                   helpLabel="About Product link"
                 />
                 <FieldContent>
+                  <FieldHoverHint
+                    show={showProductLinkSyncHint}
+                    id="item-product-url-sync-hint"
+                    onDismiss={() => setUrlSyncHintDismissed(true)}
+                    dismissLabel="Dismiss product link hint"
+                  >
+                    Store product URL is ready — click{" "}
+                    <span className="font-semibold text-zinc-900">
+                      Use store URL above
+                    </span>{" "}
+                    to copy it into Product link.
+                  </FieldHoverHint>
                   <Input
                     id="item-product-url"
                     name="productUrl"
@@ -1157,63 +1242,26 @@ export function ItemRequestWorkspace({
                     placeholder="https://…"
                     value={productUrl}
                     onChange={(e) => setProductUrl(e.target.value)}
-                    onFocus={() => {
-                      if (productLinkBlurTimeoutRef.current) {
-                        clearTimeout(productLinkBlurTimeoutRef.current);
-                        productLinkBlurTimeoutRef.current = null;
-                      }
-                      setProductLinkFocused(true);
-                    }}
-                    onBlur={() => {
-                      productLinkBlurTimeoutRef.current = setTimeout(() => {
-                        setProductLinkFocused(false);
-                      }, 180);
-                    }}
                     aria-invalid={Boolean(fieldError("productUrl")?.length)}
                     aria-describedby={
-                      showUrlSyncHint ? "item-product-url-sync-hint" : undefined
+                      showProductLinkSyncHint ? "item-product-url-sync-hint" : undefined
                     }
                   />
                   <FieldError errors={fieldError("productUrl")?.map((m) => ({ message: m }))} />
                 </FieldContent>
               </Field>
-              <div className="relative w-fit">
-                {showUrlSyncHint ? (
-                  <div
-                    id="item-product-url-sync-hint"
-                    role="status"
-                    className="absolute bottom-full left-0 z-20 mb-2 w-[min(18rem,calc(100vw-3rem))] rounded-lg border border-primary/40 bg-primary/15 px-3 py-2.5 text-xs leading-relaxed text-foreground shadow-lg ring-1 ring-primary/20"
-                  >
-                    <span
-                      aria-hidden
-                      className="absolute -bottom-1.5 left-5 size-2.5 rotate-45 border-b border-r border-primary/40 bg-primary/15"
-                    />
-                    Store URL is ready — click{" "}
-                    <span className="font-semibold text-foreground">
-                      Use store URL above
-                    </span>{" "}
-                    to copy it into Product link.
-                  </div>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="w-fit"
-                  onPointerDown={() => {
-                    if (productLinkBlurTimeoutRef.current) {
-                      clearTimeout(productLinkBlurTimeoutRef.current);
-                      productLinkBlurTimeoutRef.current = null;
-                    }
-                  }}
-                  onClick={syncPreviewAndProductLink}
-                  disabled={!canUseUrlSync}
-                >
-                  {hasPreviewUrl
-                    ? "Use store URL above"
-                    : "Use product link above"}
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="w-fit"
+                onClick={syncPreviewAndProductLink}
+                disabled={!canUseUrlSync}
+              >
+                {hasPreviewUrl
+                  ? "Use store URL above"
+                  : "Use product link above"}
+              </Button>
             </FieldGroup>
 
             <Separator />
@@ -1288,23 +1336,101 @@ export function ItemRequestWorkspace({
               </Field>
             </div>
 
-            <Field data-invalid={Boolean(fieldError("quantity")?.length)}>
-              <FieldLabel htmlFor="item-quantity">Quantity</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="item-quantity"
-                  name="quantity"
-                  type="number"
-                  min={1}
-                  max={999}
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  className="max-w-32"
-                  aria-invalid={Boolean(fieldError("quantity")?.length)}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field data-invalid={Boolean(fieldError("quantity")?.length)}>
+                <FieldLabel htmlFor="item-quantity">Quantity</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="item-quantity"
+                    name="quantity"
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    className="max-w-32"
+                    aria-invalid={Boolean(fieldError("quantity")?.length)}
+                  />
+                  <FieldError errors={fieldError("quantity")?.map((m) => ({ message: m }))} />
+                </FieldContent>
+              </Field>
+
+              <Field data-invalid={Boolean(fieldError("customerUnitPriceUsd")?.length)}>
+                <FieldLabelWithHelp
+                  htmlFor="item-unit-price"
+                  label={
+                    <>
+                      Unit price (USD){" "}
+                      <span className="font-normal text-muted-foreground">(retailer)</span>
+                    </>
+                  }
+                  help="Per-item price on the retailer site. Filled when you load from the store or apply a variant; edit if catalog data does not match what you see on the listing."
+                  helpLabel="About unit price"
                 />
-                <FieldError errors={fieldError("quantity")?.map((m) => ({ message: m }))} />
-              </FieldContent>
-            </Field>
+                <FieldContent>
+                  <div className="relative w-full max-w-40">
+                    <FieldHoverHint
+                      show={showPriceVerifyHint}
+                      id="item-unit-price-verify-hint"
+                      anchor="center"
+                      arrowAlign="center"
+                      onDismiss={() => setPriceHintDismissed(true)}
+                      dismissLabel="Dismiss price hint"
+                    >
+                      Loaded price may not match the retailer site. Open the product page and
+                      enter the{" "}
+                      <span className="font-semibold text-zinc-900">actual unit price</span> you
+                      see on the listing.
+                    </FieldHoverHint>
+                    <Input
+                      id="item-unit-price"
+                      name="customerUnitPriceUsd"
+                      inputMode="decimal"
+                      placeholder="e.g. 3.27"
+                      value={unitPriceDollars}
+                      onChange={(e) => {
+                        setUnitPriceUserEdited(true);
+                        setPriceHintDismissed(true);
+                        const raw = e.target.value;
+                        setUnitPriceDollars(raw);
+                        const q = parseQuantity(quantity) ?? 1;
+                        const sizeNorm = productSize.trim().toLowerCase();
+                        const colorNorm = productColor.trim().toLowerCase();
+                        const cents = parseUsdToCents(raw);
+                        setAiMerchPreview({
+                          quantity: q,
+                          unitPriceCents: cents > 0 ? cents : null,
+                          merchandiseSubtotalCents: cents > 0 ? cents * q : null,
+                          variantSizeNorm: sizeNorm,
+                          variantColorNorm: colorNorm,
+                        });
+                      }}
+                      className="w-full"
+                      aria-invalid={Boolean(fieldError("customerUnitPriceUsd")?.length)}
+                      aria-describedby={
+                        showPriceVerifyHint ? "item-unit-price-verify-hint" : undefined
+                      }
+                    />
+                  </div>
+                  <FieldError
+                    errors={fieldError("customerUnitPriceUsd")?.map((m) => ({
+                      message: m,
+                    }))}
+                  />
+                  {parseUsdToCents(unitPriceDollars) > 0 && parseQuantity(quantity) != null ?
+                    <p className="text-xs text-muted-foreground">
+                      Est. merchandise:{" "}
+                      <span className="font-medium tabular-nums text-foreground">
+                        {formatUsd(
+                          parseUsdToCents(unitPriceDollars) * (parseQuantity(quantity) ?? 1),
+                        )}
+                      </span>{" "}
+                      ({parseQuantity(quantity)} × {formatUsd(parseUsdToCents(unitPriceDollars))})
+                    </p>
+                  : null}
+                </FieldContent>
+              </Field>
+            </div>
 
             <Field>
               <FieldLabelWithHelp
