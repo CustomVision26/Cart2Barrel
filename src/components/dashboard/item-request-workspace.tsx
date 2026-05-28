@@ -17,6 +17,12 @@ import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { draftItemRequestFromSerpApiAction } from "@/actions/customer-ai-item-draft";
 import { fetchProductVariantsAction } from "@/actions/product-variants";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
+import {
+  normalizeRetailerImageUrl,
+  resolveListingImageUrl,
+  resolveVariantDraftImageUrl,
+} from "@/lib/product-variants/variant-images";
+import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { ItemRequestProductVariants, VARIANT_APPLY_TOOLTIP } from "@/components/dashboard/item-request-product-variants";
 import { createItemRequestAction } from "@/actions/item-request";
 import { ItemRequestCompareRetailers } from "@/components/dashboard/item-request-compare-retailers";
@@ -36,7 +42,7 @@ import {
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field";
-import { FieldHoverHint } from "@/components/ui/field-hover-hint";
+import { FieldHoverHint, FieldInlineHint } from "@/components/ui/field-hover-hint";
 import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { HelpBalloon } from "@/components/ui/help-balloon";
 import { Input, inputFieldClassName } from "@/components/ui/input";
@@ -177,6 +183,9 @@ export function ItemRequestWorkspace({
   const [variantRows, setVariantRows] = useState<ProductVariantOffer[]>([]);
   const [variantRetailer, setVariantRetailer] = useState<string | null>(null);
   const [variantMethod, setVariantMethod] = useState<string | null>(null);
+  const [variantListingImageUrl, setVariantListingImageUrl] = useState<string | null>(
+    null,
+  );
   const [variantsMessage, setVariantsMessage] = useState<string | null>(null);
   const [compareOffers, setCompareOffers] = useState<RetailerPriceOffer[]>([]);
   const [compareSearchQuery, setCompareSearchQuery] = useState<string | null>(
@@ -200,6 +209,10 @@ export function ItemRequestWorkspace({
   const [unitPriceUserEdited, setUnitPriceUserEdited] = useState(false);
   const [storeVariantsLoaded, setStoreVariantsLoaded] = useState(false);
   const [priceHintDismissed, setPriceHintDismissed] = useState(false);
+  const [loadFromStoreHintDismissed, setLoadFromStoreHintDismissed] = useState(false);
+  /** After Use store URL copies the link, prompt Load product from store (or manual form). */
+  const [promptLoadFromStoreAfterSync, setPromptLoadFromStoreAfterSync] =
+    useState(false);
   const [note, setNote] = useState("");
 
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -341,11 +354,22 @@ export function ItemRequestWorkspace({
     return false;
   }, [aiMerchPreview, quantity, productSize, productColor]);
 
+  const scrollToLoadFromStoreButton = useCallback(() => {
+    requestAnimationFrame(() => {
+      document
+        .getElementById("item-load-from-store")
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, []);
+
   const syncPreviewAndProductLink = useCallback(() => {
     const fromPreview = normalizeUrlInput(previewInput);
     if (fromPreview) {
       setProductUrl(fromPreview);
       setUrlSyncHintDismissed(true);
+      setLoadFromStoreHintDismissed(false);
+      setPromptLoadFromStoreAfterSync(true);
+      scrollToLoadFromStoreButton();
       return;
     }
     const fromLink = normalizeUrlInput(productUrl);
@@ -354,13 +378,15 @@ export function ItemRequestWorkspace({
       setPreviewInput(/^https?:\/\//i.test(raw) ? raw : fromLink);
       setUrlSyncHintDismissed(true);
     }
-  }, [previewInput, productUrl]);
+  }, [previewInput, productUrl, scrollToLoadFromStoreButton]);
 
   useEffect(() => {
     setUrlSyncHintDismissed(false);
   }, [previewInput]);
 
   const runLoadVariants = useCallback(() => {
+    setLoadFromStoreHintDismissed(true);
+    setPromptLoadFromStoreAfterSync(false);
     setVariantsMessage(null);
     let storeUrl = normalizeUrlInput(previewInput);
     let linkUrl = normalizeUrlInput(productUrl);
@@ -411,6 +437,7 @@ export function ItemRequestWorkspace({
         setVariantRows([]);
         setVariantRetailer(null);
         setVariantMethod(null);
+        setVariantListingImageUrl(null);
         setVariantsMessage(res.message);
         return;
       }
@@ -418,12 +445,12 @@ export function ItemRequestWorkspace({
       setVariantRetailer(res.retailer);
       setVariantMethod(res.method);
       const serpTitle = res.listingTitle?.trim();
-      const serpImage = res.listingImageUrl?.trim();
+      const listingHero = resolveListingImageUrl(
+        res.variants,
+        res.listingImageUrl,
+      );
       if (serpTitle && !productName.trim()) {
         setProductName(serpTitle);
-      }
-      if (serpImage && /^https:\/\//i.test(serpImage)) {
-        setDraftProductImageUrl(serpImage);
       }
       if (res.variants.length > 0 && res.variants[0]?.label && !productName.trim() && !serpTitle) {
         const primary = res.variants.find((v) => v.isCurrent) ?? res.variants[0];
@@ -436,6 +463,18 @@ export function ItemRequestWorkspace({
         findVariantMatchingColor(res.variants, productColor) ??
         res.variants.find((v) => v.isCurrent) ??
         res.variants[0];
+      const draftImage =
+        matched ?
+          resolveVariantDraftImageUrl(matched, listingHero)
+        : listingHero;
+      if (listingHero) {
+        setVariantListingImageUrl(listingHero);
+      } else {
+        setVariantListingImageUrl(null);
+      }
+      if (draftImage) {
+        setDraftProductImageUrl(draftImage);
+      }
       const liveMerch =
         matched ?
           merchPreviewFromVariant(matched, q, productSize, productColor)
@@ -483,6 +522,13 @@ export function ItemRequestWorkspace({
   const showProductLinkSyncHint =
     hasPreviewUrl && !urlsAligned && !urlSyncHintDismissed;
   const showPriceVerifyHint = storeVariantsLoaded && !priceHintDismissed;
+  const showLoadFromStoreHint =
+    promptLoadFromStoreAfterSync &&
+    urlsAligned &&
+    hasValidProductLinkUrl &&
+    !loadFromStoreHintDismissed &&
+    !storeVariantsLoaded &&
+    !isVariantsPending;
   const quantityOk = parseQuantity(quantity) != null;
   const canSubmit = urlsAligned && quantityOk && !isPending;
   const productNameReadyForCompare = isProductNameReadyForCompare(productName);
@@ -503,8 +549,8 @@ export function ItemRequestWorkspace({
       "Product link must match the store product URL"
     : undefined;
   const fallbackCompareImage =
-    draftProductImageUrl?.trim() ||
-    spotlightPrefill?.imageUrl?.trim() ||
+    normalizeRetailerImageUrl(draftProductImageUrl) ??
+    normalizeRetailerImageUrl(spotlightPrefill?.imageUrl) ??
     null;
 
   const fieldError = useMemo(
@@ -528,6 +574,7 @@ export function ItemRequestWorkspace({
     setVariantRows([]);
     setVariantRetailer(null);
     setVariantMethod(null);
+    setVariantListingImageUrl(null);
     setVariantsMessage(null);
     setCompareOffers([]);
     setCompareSearchQuery(null);
@@ -542,6 +589,8 @@ export function ItemRequestWorkspace({
     setUnitPriceUserEdited(false);
     setStoreVariantsLoaded(false);
     setPriceHintDismissed(false);
+    setLoadFromStoreHintDismissed(false);
+    setPromptLoadFromStoreAfterSync(false);
     setIsSpotlightFeed(false);
     setSpotlightPrefillDismissed(true);
     setActiveTab("request");
@@ -571,7 +620,7 @@ export function ItemRequestWorkspace({
     setFieldErrors(undefined);
     if (!urlsMatchForSubmit(previewInput, productUrl)) {
       setFormMessage(
-        'Store product URL and Product link must be the same address. Use "Use store URL above" or edit both fields so they match.'
+        'Store product URL and Product link must be the same address. Use "Use store URL" or edit both fields so they match.'
       );
       return;
     }
@@ -588,7 +637,7 @@ export function ItemRequestWorkspace({
       note: note.trim() || undefined,
       customerUnitPriceUsd: unitPriceDollars.trim() || undefined,
       siteName: draftSiteName?.trim() || undefined,
-      productImageUrl: draftProductImageUrl?.trim() || undefined,
+      productImageUrl: normalizeRetailerImageUrl(draftProductImageUrl) ?? undefined,
     };
     const photoSnapshot = pendingProductPhoto;
     startTransition(async () => {
@@ -681,15 +730,17 @@ export function ItemRequestWorkspace({
       }
 
       const applyListingImage = (imageUrl: string | null | undefined) => {
-        const image = imageUrl?.trim();
-        if (!image || !/^https:\/\//i.test(image)) return false;
+        const image = normalizeRetailerImageUrl(imageUrl);
+        if (!image) return false;
         setDraftProductImageUrl(image);
         setPendingProductPhoto(null);
         if (productPhotoRef.current) productPhotoRef.current.value = "";
         return true;
       };
 
-      applyListingImage(variant.imageUrl);
+      applyListingImage(
+        resolveVariantDraftImageUrl(variant, variantListingImageUrl),
+      );
 
       setActiveTab("request");
       setApplyingVariantId(variant.id);
@@ -709,7 +760,9 @@ export function ItemRequestWorkspace({
             if (fallbackName && isProductNameReadyForCompare(fallbackName)) {
               setProductName(fallbackName);
             }
-            const hasImage = applyListingImage(variant.imageUrl);
+            const hasImage = applyListingImage(
+              resolveVariantDraftImageUrl(variant, variantListingImageUrl),
+            );
             const blocked = isRetailerPageFetchBlockedMessage(res.message ?? "");
             toast.error(
               blocked ?
@@ -732,7 +785,8 @@ export function ItemRequestWorkspace({
 
           if (res.siteName) setDraftSiteName(res.siteName);
           const hasListingImage = applyListingImage(
-            res.productImageUrl ?? variant.imageUrl,
+            res.productImageUrl ??
+              resolveVariantDraftImageUrl(variant, variantListingImageUrl),
           );
 
           if (res.unitPriceCents != null) {
@@ -763,7 +817,14 @@ export function ItemRequestWorkspace({
         }
       });
     },
-    [productUrl, quantity, productSize, productColor, applyUnitPriceFromCatalog],
+    [
+      productUrl,
+      quantity,
+      productSize,
+      productColor,
+      variantListingImageUrl,
+      applyUnitPriceFromCatalog,
+    ],
   );
 
   const submitFromVariant = useCallback(
@@ -795,9 +856,9 @@ export function ItemRequestWorkspace({
         siteName:
           variantRetailer?.trim() || draftSiteName?.trim() || undefined,
         productImageUrl:
-          variant.imageUrl?.trim() ||
-          draftProductImageUrl?.trim() ||
-          spotlightPrefill?.imageUrl?.trim() ||
+          resolveVariantDraftImageUrl(variant, variantListingImageUrl) ??
+          normalizeRetailerImageUrl(draftProductImageUrl) ??
+          normalizeRetailerImageUrl(spotlightPrefill?.imageUrl) ??
           undefined,
       };
       const photoSnapshot = pendingProductPhoto;
@@ -844,6 +905,7 @@ export function ItemRequestWorkspace({
       note,
       unitPriceDollars,
       variantRetailer,
+      variantListingImageUrl,
       draftSiteName,
       draftProductImageUrl,
       spotlightPrefill,
@@ -868,8 +930,8 @@ export function ItemRequestWorkspace({
         originalRetailer: draftSiteName?.trim() || undefined,
         originalPriceUsdCents: aiMerchPreview?.unitPriceCents ?? undefined,
         originalImageUrl:
-          draftProductImageUrl?.trim() ||
-          spotlightPrefill?.imageUrl?.trim() ||
+          normalizeRetailerImageUrl(draftProductImageUrl) ??
+          normalizeRetailerImageUrl(spotlightPrefill?.imageUrl) ??
           undefined,
       });
       if (!res.ok) {
@@ -926,9 +988,9 @@ export function ItemRequestWorkspace({
             : undefined),
         siteName: offer.retailer.trim() || draftSiteName?.trim() || undefined,
         productImageUrl:
-          offer.imageUrl?.trim() ||
-          draftProductImageUrl?.trim() ||
-          spotlightPrefill?.imageUrl?.trim() ||
+          normalizeRetailerImageUrl(offer.imageUrl) ??
+          normalizeRetailerImageUrl(draftProductImageUrl) ??
+          normalizeRetailerImageUrl(spotlightPrefill?.imageUrl) ??
           undefined,
       };
       const photoSnapshot = pendingProductPhoto;
@@ -982,7 +1044,7 @@ export function ItemRequestWorkspace({
   );
 
   const browseCard = (
-    <Card className="overflow-hidden border-border/80 shadow-none">
+    <Card className="overflow-visible border-border/80 shadow-none">
       <CardHeader className={dashItemsTableCardHeader}>
         <CardTitle className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
           Product from store
@@ -1005,7 +1067,12 @@ export function ItemRequestWorkspace({
             Must match the product link submitted with your request.
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div
+          className={cn(
+            "flex flex-col gap-2 sm:flex-row sm:items-center",
+            showLoadFromStoreHint && "pt-28 sm:pt-32",
+          )}
+        >
           <Input
             id="item-preview-product-url"
             key={`preview-${formResetKey}`}
@@ -1023,19 +1090,43 @@ export function ItemRequestWorkspace({
             }}
             className="min-w-0 flex-1"
           />
-          <Button
-            type="button"
-            onClick={runLoadVariants}
-            disabled={!canLoadVariants}
-            title={loadVariantsDisabledTitle}
-          >
-            {isVariantsPending ?
-              <>
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                Loading…
-              </>
-            : "Load product from store"}
-          </Button>
+          <div className="relative w-fit shrink-0 self-start">
+            <FieldHoverHint
+              show={showLoadFromStoreHint}
+              id="item-load-from-store-hint"
+              anchor="center"
+              arrowAlign="center"
+              placement="above"
+              prominent
+              onDismiss={() => {
+                setLoadFromStoreHintDismissed(true);
+                setPromptLoadFromStoreAfterSync(false);
+              }}
+              dismissLabel="Dismiss load from store hint"
+              className="w-[min(24rem,calc(100vw-2rem))]"
+            >
+              Product link is ready — click Load product from store button below to pull sizes,
+              colors, and prices from the retailer site variant listing. Or scroll down, fill out
+              the request form manually, then click Submit for staff review.
+            </FieldHoverHint>
+            <Button
+              id="item-load-from-store"
+              type="button"
+              onClick={runLoadVariants}
+              disabled={!canLoadVariants}
+              title={loadVariantsDisabledTitle}
+              aria-describedby={
+                showLoadFromStoreHint ? "item-load-from-store-hint" : undefined
+              }
+            >
+              {isVariantsPending ?
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  Loading…
+                </>
+              : "Load product from store"}
+            </Button>
+          </div>
         </div>
 
         {variantRows.length > 0 || isVariantsPending || variantsMessage ?
@@ -1043,6 +1134,7 @@ export function ItemRequestWorkspace({
             embedded
             hideLoadButton
             variants={variantRows}
+            listingImageUrl={variantListingImageUrl}
             retailer={variantRetailer}
             method={variantMethod}
             variantsMessage={variantsMessage}
@@ -1062,7 +1154,7 @@ export function ItemRequestWorkspace({
   );
 
   const requestCard = (
-    <Card className="overflow-hidden border-border/80 shadow-none">
+    <Card className="overflow-visible border-border/80 shadow-none">
       <CardHeader className={dashItemsTableCardHeader}>
         <CardTitle className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
           Request details
@@ -1203,36 +1295,21 @@ export function ItemRequestWorkspace({
               </div>
 
             <FieldGroup>
-              <Field
-                className="group/field relative"
-                data-invalid={Boolean(fieldError("productUrl")?.length)}
-              >
+              <Field data-invalid={Boolean(fieldError("productUrl")?.length)}>
                 <FieldLabelWithHelp
                   htmlFor="item-product-url"
                   label="Product link"
                   help={
                     <>
                       Paste the product page URL for this request (sent to staff). It must match
-                      the store product URL above—use{" "}
-                      <span className="font-medium text-foreground">Use store URL above</span> to
+                      the store product URL above—use the{" "}
+                      <span className="font-medium text-foreground">Use store URL</span> button to
                       copy the link here.
                     </>
                   }
                   helpLabel="About Product link"
                 />
                 <FieldContent>
-                  <FieldHoverHint
-                    show={showProductLinkSyncHint}
-                    id="item-product-url-sync-hint"
-                    onDismiss={() => setUrlSyncHintDismissed(true)}
-                    dismissLabel="Dismiss product link hint"
-                  >
-                    Store product URL is ready — click{" "}
-                    <span className="font-semibold text-zinc-900">
-                      Use store URL above
-                    </span>{" "}
-                    to copy it into Product link.
-                  </FieldHoverHint>
                   <Input
                     id="item-product-url"
                     name="productUrl"
@@ -1243,25 +1320,36 @@ export function ItemRequestWorkspace({
                     value={productUrl}
                     onChange={(e) => setProductUrl(e.target.value)}
                     aria-invalid={Boolean(fieldError("productUrl")?.length)}
-                    aria-describedby={
-                      showProductLinkSyncHint ? "item-product-url-sync-hint" : undefined
-                    }
                   />
                   <FieldError errors={fieldError("productUrl")?.map((m) => ({ message: m }))} />
                 </FieldContent>
               </Field>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-fit"
-                onClick={syncPreviewAndProductLink}
-                disabled={!canUseUrlSync}
-              >
-                {hasPreviewUrl
-                  ? "Use store URL above"
-                  : "Use product link above"}
-              </Button>
+              <div className="flex flex-col gap-2.5">
+                <FieldInlineHint
+                  show={showProductLinkSyncHint}
+                  id="item-product-url-sync-hint"
+                  prominent
+                  onDismiss={() => setUrlSyncHintDismissed(true)}
+                  dismissLabel="Dismiss product link hint"
+                >
+                  Store product URL is ready. Click{" "}
+                  <span className="font-semibold text-zinc-900">Use store URL</span> below to
+                  copy it into the Product link field.
+                </FieldInlineHint>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-fit"
+                  onClick={syncPreviewAndProductLink}
+                  disabled={!canUseUrlSync}
+                  aria-describedby={
+                    showProductLinkSyncHint ? "item-product-url-sync-hint" : undefined
+                  }
+                >
+                  {hasPreviewUrl ? "Use store URL" : "Use product link above"}
+                </Button>
+              </div>
             </FieldGroup>
 
             <Separator />
@@ -1368,12 +1456,13 @@ export function ItemRequestWorkspace({
                   helpLabel="About unit price"
                 />
                 <FieldContent>
-                  <div className="relative w-full max-w-40">
+                  <div className="relative overflow-visible">
                     <FieldHoverHint
                       show={showPriceVerifyHint}
                       id="item-unit-price-verify-hint"
-                      anchor="center"
-                      arrowAlign="center"
+                      inFrame
+                      arrowAlign="left"
+                      className="w-[min(20rem,calc(100vw-6rem))]"
                       onDismiss={() => setPriceHintDismissed(true)}
                       dismissLabel="Dismiss price hint"
                     >
@@ -1405,7 +1494,7 @@ export function ItemRequestWorkspace({
                           variantColorNorm: colorNorm,
                         });
                       }}
-                      className="w-full"
+                      className="w-full max-w-40"
                       aria-invalid={Boolean(fieldError("customerUnitPriceUsd")?.length)}
                       aria-describedby={
                         showPriceVerifyHint ? "item-unit-price-verify-hint" : undefined
@@ -1445,13 +1534,13 @@ export function ItemRequestWorkspace({
                 helpLabel="About Product photo"
               />
               <FieldContent className="space-y-2">
-                {draftProductImageUrl?.trim() ?
+                {normalizeRetailerImageUrl(draftProductImageUrl) ?
                   <div className={cn(dashItemsTableStatusPanel, "flex flex-wrap items-start gap-3 p-2")}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={draftProductImageUrl.trim()}
-                      alt=""
-                      className="h-20 w-20 shrink-0 rounded object-cover"
+                    <ProductRequestThumbnail
+                      imageUrl={normalizeRetailerImageUrl(draftProductImageUrl)}
+                      productLabel={productName.trim() || "Product"}
+                      variant="dialog"
+                      className="h-20 w-20 max-w-20"
                     />
                     <p className="min-w-0 text-xs text-muted-foreground">
                       Listing image from AI — saved with your request unless you pick your own file
@@ -1515,7 +1604,7 @@ export function ItemRequestWorkspace({
               >
                 Store product URL and product link must match. Select{" "}
                 <span className="font-medium text-foreground">
-                  Use store URL above
+                  Use store URL
                 </span>{" "}
                 or edit both fields to use the same product page address.
               </p>

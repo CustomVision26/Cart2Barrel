@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { cn } from "@/lib/utils";
 
 export type ProductRequestThumbnailVariant = "list" | "cart" | "dialog" | "admin";
@@ -35,8 +37,13 @@ export function ProductRequestThumbnail({
 }: ProductRequestThumbnailProps) {
   const url = imageUrl?.trim();
   const altBase = productLabel?.trim() || "Product";
+  const [loadFailed, setLoadFailed] = useState(false);
 
-  if (url) {
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [url]);
+
+  if (url && !loadFailed) {
     return (
       <div className={cn(frameByVariant[variant], className)}>
         {/* eslint-disable-next-line @next/next/no-img-element -- external retailer CDN URLs */}
@@ -46,6 +53,7 @@ export function ProductRequestThumbnail({
           className={imgByVariant[variant]}
           loading="lazy"
           referrerPolicy="no-referrer"
+          onError={() => setLoadFailed(true)}
         />
       </div>
     );

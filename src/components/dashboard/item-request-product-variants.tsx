@@ -3,6 +3,8 @@
 import { ExternalLink, Layers, Loader2 } from "lucide-react";
 
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
+import { normalizeRetailerImageUrl } from "@/lib/product-variants/variant-images";
+import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,6 +24,8 @@ import { cn } from "@/lib/utils";
 
 type ItemRequestProductVariantsProps = {
   variants: ProductVariantOffer[];
+  /** SerpApi listing hero image when variant rows share one photo. */
+  listingImageUrl?: string | null;
   retailer: string | null;
   method: string | null;
   variantsMessage: string | null;
@@ -70,8 +74,19 @@ export const VARIANT_SUBMIT_TOOLTIP =
 export const VARIANT_OPEN_TOOLTIP =
   "Open this variant's product page on the retailer site in a new tab.";
 
+function variantImageSrc(
+  row: ProductVariantOffer,
+  listingImageUrl: string | null | undefined,
+): string | null {
+  return (
+    normalizeRetailerImageUrl(row.imageUrl) ??
+    normalizeRetailerImageUrl(listingImageUrl)
+  );
+}
+
 export function ItemRequestProductVariants({
   variants,
+  listingImageUrl = null,
   retailer,
   method,
   variantsMessage,
@@ -128,9 +143,10 @@ export function ItemRequestProductVariants({
 
         {variants.length > 0 ?
           <div className={cn("overflow-x-auto", dashItemsTableScroll)}>
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead className={dashItemsTableHead}>
                 <tr>
+                  <th className="w-16 px-3 py-2 font-medium">Image</th>
                   <th className="px-3 py-2 font-medium">Variant</th>
                   <th className="px-3 py-2 font-medium">Price</th>
                   <th className="px-3 py-2 font-medium">Stock</th>
@@ -138,7 +154,9 @@ export function ItemRequestProductVariants({
                 </tr>
               </thead>
               <tbody>
-                {variants.map((row) => (
+                {variants.map((row) => {
+                  const imgSrc = variantImageSrc(row, listingImageUrl);
+                  return (
                   <tr
                     key={row.id}
                     className={cn(
@@ -146,6 +164,14 @@ export function ItemRequestProductVariants({
                       row.isCurrent && dashItemsVariantRowCurrent,
                     )}
                   >
+                    <td className="px-3 py-2.5 align-top">
+                      <ProductRequestThumbnail
+                        imageUrl={imgSrc}
+                        productLabel={row.label}
+                        variant="list"
+                        className="size-14 max-w-14"
+                      />
+                    </td>
                     <td className="px-3 py-2.5">
                       <div className="font-medium text-foreground">
                         {row.label || row.productTitle || "Default"}
@@ -216,7 +242,8 @@ export function ItemRequestProductVariants({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -42,18 +42,23 @@ export function mergeVariantsPreferPageAi(
 
   const merged: ProductVariantOffer[] = primaryRows.map((row) => {
     const page = pageRowForPrimaryRow(row, pageByColor);
-    if (!page || page.priceUsdCents == null) return row;
+    if (!page) return row;
+
+    const usePagePrice = page.priceUsdCents != null;
+    const usePageImage = Boolean(page.imageUrl?.trim());
+
+    if (!usePagePrice && !usePageImage) return row;
 
     return {
       ...row,
-      priceUsdCents: page.priceUsdCents,
+      priceUsdCents: usePagePrice ? page.priceUsdCents : row.priceUsdCents,
       productUrl: page.productUrl?.trim() || row.productUrl?.trim() || row.productUrl,
-      imageUrl: row.imageUrl?.trim() || page.imageUrl?.trim() || row.imageUrl,
+      imageUrl: page.imageUrl?.trim() || row.imageUrl?.trim() || row.imageUrl,
       inStock: page.inStock ?? row.inStock ?? row.inStock,
       label: row.label?.trim() || page.label?.trim() || row.label,
       size: row.size?.trim() || page.size?.trim() || row.size,
       color: row.color?.trim() || page.color?.trim() || row.color,
-      source: "page_ai",
+      source: usePagePrice || usePageImage ? "page_ai" : row.source,
     };
   });
 
