@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -82,7 +83,7 @@ function mapHubRow(row: HubContactSetting | undefined): HubContactPublic {
   };
 }
 
-export async function loadHubContactSettings(): Promise<HubContactPublic> {
+export const loadHubContactSettings = cache(async (): Promise<HubContactPublic> => {
   const db = getDb();
   const [row] = await db
     .select()
@@ -90,7 +91,7 @@ export async function loadHubContactSettings(): Promise<HubContactPublic> {
     .where(eq(hubContactSettings.singletonKey, HUB_KEY))
     .limit(1);
   return mapHubRow(row);
-}
+});
 
 export async function upsertHubContactSettings(params: {
   supportEmail: string | null;

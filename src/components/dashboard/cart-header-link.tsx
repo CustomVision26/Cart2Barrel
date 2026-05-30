@@ -3,20 +3,16 @@ import { ShoppingCart } from "lucide-react";
 
 import { auth } from "@clerk/nextjs/server";
 
-import { countApprovedCartItemsForUser } from "@/data/cart";
-import { countUserContainerCartLineRows } from "@/data/user-container-cart";
+import { getUserCartHeaderCount } from "@/data/cart-header-count";
 
 export async function CartHeaderLink() {
   const { userId } = await auth();
-  const count =
-    userId ?
-      (await countApprovedCartItemsForUser(userId)) +
-      (await countUserContainerCartLineRows(userId))
-    : 0;
+  const count = userId ? await getUserCartHeaderCount(userId) : 0;
 
   return (
     <Link
       href="/dashboard/cart"
+      prefetch={false}
       className="relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       aria-label={count > 0 ? `Cart, ${count} items` : "Cart"}
     >

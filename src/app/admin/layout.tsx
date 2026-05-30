@@ -34,8 +34,8 @@ export default async function AdminLayout({
     redirect("/dashboard");
   }
 
-  const adminPickerUsers = await listProfilesForAdminPicker();
-  const [activitySummary, openSupportCount] = await Promise.all([
+  const [adminPickerUsers, activitySummary, openSupportCount] = await Promise.all([
+    listProfilesForAdminPicker(),
     loadAdminActivityNotificationSummary(gate.userId),
     countOpenSupportTickets(),
   ]);
@@ -59,6 +59,7 @@ export default async function AdminLayout({
               <AdminNotificationsBell initial={activitySummary} />
               <Link
                 href="/dashboard"
+                prefetch={false}
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
                 User app

@@ -8,7 +8,7 @@ import { serpApiGet } from "@/lib/serpapi/http";
 
 /** Cap SerpApi calls during admin spotlight import (full matrix still available in item request flow). */
 const MAX_ASIN_FETCHES = 12;
-const ASIN_CONCURRENCY = 6;
+const ASIN_CONCURRENCY = 8;
 
 type AmazonVariantItem = {
   asin?: string;
@@ -152,13 +152,19 @@ function collectAmazonAsinRows(
   return rows.slice(0, MAX_ASIN_FETCHES);
 }
 
+export type AmazonVariantsResult = {
+  variants: ProductVariantOffer[];
+  listingTitle: string | null;
+  listingImageUrl: string | null;
+};
+
 /**
  * Amazon variant matrix: dedupe ASINs from variant groups, fetch price per ASIN (capped).
  */
 export async function fetchAmazonVariants(
   parsed: ParsedProductUrl,
   asin: string,
-): Promise<ProductVariantOffer[]> {
+): Promise<AmazonVariantsResult> {
   const domain = parsed.amazonDomain;
   const primary = await serpApiGet<AmazonProductResponse>({
     engine: "amazon_product",
@@ -244,5 +250,9 @@ export async function fetchAmazonVariants(
     });
   }
 
-  return [...byAsin.values()];
+  return {
+    variants: [...byAsin.values()],
+    listingTitle: pr?.title?.trim() || null,
+    listingImageUrl: pr?.thumbnail?.trim() || null,
+  };
 }

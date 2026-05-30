@@ -28,6 +28,7 @@ import {
   fetchWalmartVariants,
 } from "@/lib/serpapi/walmart-product";
 import { displaySiteName, hostnameFromProductUrl } from "@/lib/site-name";
+import { buildVariantSearchQuery } from "@/lib/product-url/search-query";
 
 import { enrichVariantsWithListingTitle } from "@/lib/product-variants/enrich-listing-title";
 import type {
@@ -39,6 +40,16 @@ const MAX_VARIANTS = 32;
 
 function capVariants(rows: ProductVariantOffer[]): ProductVariantOffer[] {
   return rows.slice(0, MAX_VARIANTS);
+}
+
+/** SerpApi swatch rows are usable without a slow page scrape + OpenAI pass. */
+function serpRowsLookComplete(rows: ProductVariantOffer[]): boolean {
+  if (rows.length === 0) return false;
+  const priced = rows.filter((r) => r.priceUsdCents != null).length;
+  if (rows.length >= 2) {
+    return priced >= Math.min(2, rows.length);
+  }
+  return priced >= 1;
 }
 
 function mergeVariants(
@@ -160,8 +171,27 @@ async function fetchWalmartWithPagePrices(
     productSize?: string;
     productColor?: string;
   },
-): Promise<{ variants: ProductVariantOffer[]; pageAiUsed: boolean }> {
-  const serpRows = await fetchWalmartVariants(walmartId);
+): Promise<{
+  variants: ProductVariantOffer[];
+  pageAiUsed: boolean;
+  listingTitle: string | null;
+  listingImageUrl: string | null;
+}> {
+  const {
+    variants: serpRows,
+    listingTitle,
+    listingImageUrl,
+  } = await fetchWalmartVariants(walmartId);
+
+  if (serpRowsLookComplete(serpRows)) {
+    return {
+      variants: serpRows,
+      pageAiUsed: false,
+      listingTitle,
+      listingImageUrl,
+    };
+  }
+
   try {
     const pageRows = await fetchFromPageAi(productUrl, parsed, {
       productName: context?.productName ?? null,
@@ -169,14 +199,26 @@ async function fetchWalmartWithPagePrices(
       productColor: context?.productColor ?? null,
     });
     if (pageRows.length === 0) {
-      return { variants: serpRows, pageAiUsed: false };
+      return {
+        variants: serpRows,
+        pageAiUsed: false,
+        listingTitle,
+        listingImageUrl,
+      };
     }
     return {
       variants: mergeWalmartVariantsWithPageAi(serpRows, pageRows),
       pageAiUsed: true,
+      listingTitle,
+      listingImageUrl,
     };
   } catch {
-    return { variants: serpRows, pageAiUsed: false };
+    return {
+      variants: serpRows,
+      pageAiUsed: false,
+      listingTitle,
+      listingImageUrl,
+    };
   }
 }
 
@@ -190,26 +232,43 @@ async function fetchSerpApiRoute(
     productSize?: string;
     productColor?: string;
   },
-): Promise<{ variants: ProductVariantOffer[]; method: string }> {
+): Promise<{
+  variants: ProductVariantOffer[];
+  method: string;
+  listingTitle: string | null;
+  listingImageUrl: string | null;
+}> {
   if (parsed.kind === "walmart" && productId) {
-    const { variants, pageAiUsed } = await fetchWalmartWithPagePrices(
-      productUrl,
-      parsed,
-      productId,
-      context,
-    );
+    const { variants, pageAiUsed, listingTitle, listingImageUrl } =
+      await fetchWalmartWithPagePrices(
+        productUrl,
+        parsed,
+        productId,
+        context,
+      );
     return {
       variants,
       method: pageAiUsed ? "walmart_product+page_ai" : "walmart_product",
+      listingTitle,
+      listingImageUrl,
     };
   }
   if (parsed.kind === "amazon" && asin) {
+    const { variants, listingTitle, listingImageUrl } =
+      await fetchAmazonVariants(parsed, asin);
     return {
-      variants: await fetchAmazonVariants(parsed, asin),
+      variants,
       method: "amazon_product",
+      listingTitle,
+      listingImageUrl,
     };
   }
-  return { variants: [], method: "" };
+  return {
+    variants: [],
+    method: "",
+    listingTitle: null,
+    listingImageUrl: null,
+  };
 }
 
 async function fetchImmersiveFallback(
@@ -229,6 +288,28 @@ async function fetchImmersiveFallback(
   });
 }
 
+async function tryImmersiveVariantFallback(
+  parsed: ParsedProductUrl,
+  productUrl: string,
+  searchQuery: string,
+): Promise<ProductVariantOffer[]> {
+  const queries = [searchQuery];
+  if (!searchQuery.includes(productUrl)) {
+    queries.push(productUrl);
+  }
+
+  for (const query of queries) {
+    if (query.length < 4) continue;
+    try {
+      const rows = await fetchImmersiveFallback(parsed, productUrl, query);
+      if (rows.length > 0) return rows;
+    } catch {
+      /* try next query */
+    }
+  }
+  return [];
+}
+
 export async function fetchProductVariants(input: {
   productUrl: string;
   productName?: string;
@@ -242,14 +323,12 @@ export async function fetchProductVariants(input: {
   }
 
   const retailer = displaySiteName(null, productUrl);
-  const searchQuery = [
-    input.productName?.trim(),
-    input.productSize?.trim(),
-    input.productColor?.trim(),
-    retailer,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const searchQuery = buildVariantSearchQuery({
+    productUrl,
+    productName: input.productName,
+    productSize: input.productSize,
+    productColor: input.productColor,
+  });
 
   const hasSerp = Boolean(getSerpApiKey());
   const walmartId = parsed.walmartProductId;
@@ -257,6 +336,8 @@ export async function fetchProductVariants(input: {
 
   let variants: ProductVariantOffer[] = [];
   let method = "";
+  let listingTitle: string | null = null;
+  let listingImageUrl: string | null = null;
 
   try {
     if (hasSerp && (parsed.kind === "walmart" || parsed.kind === "amazon")) {
@@ -274,6 +355,8 @@ export async function fetchProductVariants(input: {
       if (serpResult.variants.length > 0) {
         variants = serpResult.variants;
         method = serpResult.method;
+        listingTitle = serpResult.listingTitle;
+        listingImageUrl = serpResult.listingImageUrl;
       }
     }
 
@@ -281,16 +364,33 @@ export async function fetchProductVariants(input: {
       (parsed.kind === "walmart" || parsed.kind === "amazon") &&
       (method.includes("walmart_product") || method.includes("amazon_product"));
 
-    const skipImmersive = isDirectListingRetailer(parsed);
+    const directListing = isDirectListingRetailer(parsed);
+
+    if (
+      hasSerp &&
+      variants.length === 0 &&
+      searchQuery.length >= 4 &&
+      directListing
+    ) {
+      const immersiveRows = await tryImmersiveVariantFallback(
+        parsed,
+        productUrl,
+        searchQuery,
+      );
+      if (immersiveRows.length > 0) {
+        variants = immersiveRows;
+        method = "google_immersive_product";
+      }
+    }
 
     if (
       hasSerp &&
       variants.length < 2 &&
       searchQuery.length >= 4 &&
       !serpListingResolved &&
-      !skipImmersive
+      !directListing
     ) {
-      const immersiveRows = await fetchImmersiveFallback(
+      const immersiveRows = await tryImmersiveVariantFallback(
         parsed,
         productUrl,
         searchQuery,
@@ -305,15 +405,17 @@ export async function fetchProductVariants(input: {
     }
 
     const needsPageAi =
-      variants.length < 2 ||
-      (parsed.kind === "walmart" && !method.includes("page_ai")) ||
-      parsed.kind === "generic" ||
-      parsed.kind === "target" ||
-      parsed.kind === "ebay" ||
-      parsed.hostname.includes("temu.") ||
-      parsed.hostname.includes("shein.");
+      variants.length < 2 &&
+      (parsed.kind === "generic" ||
+        parsed.kind === "target" ||
+        parsed.kind === "ebay" ||
+        parsed.hostname.includes("temu.") ||
+        parsed.hostname.includes("shein."));
 
-    if (needsPageAi) {
+    const skipPageAi =
+      serpListingResolved && variants.length >= 1 && serpRowsLookComplete(variants);
+
+    if (needsPageAi && !skipPageAi) {
       try {
         const pageRows = await fetchFromPageAi(productUrl, parsed, {
           productName: input.productName ?? null,
@@ -340,7 +442,7 @@ export async function fetchProductVariants(input: {
       return {
         ok: false,
         message:
-          "No variants found for this listing. Try Fill details with AI, or a direct Walmart/Amazon product link.",
+          "No variants found for this listing. Try Fill details with AI, or paste a Walmart or Amazon product link for the most complete variant list.",
       };
     }
 
@@ -361,9 +463,13 @@ export async function fetchProductVariants(input: {
       }
     }
 
-    let listingTitle: string | null = null;
-    let listingImageUrl: string | null = null;
-    if (hasSerp && parsed.kind === "walmart" && walmartId) {
+    if (
+      hasSerp &&
+      !listingTitle &&
+      !listingImageUrl &&
+      parsed.kind === "walmart" &&
+      walmartId
+    ) {
       try {
         const summary = await fetchWalmartProductSummary(walmartId);
         listingTitle = summary.title;
@@ -371,7 +477,13 @@ export async function fetchProductVariants(input: {
       } catch {
         /* variant rows still usable */
       }
-    } else if (hasSerp && parsed.kind === "amazon" && asin) {
+    } else if (
+      hasSerp &&
+      !listingTitle &&
+      !listingImageUrl &&
+      parsed.kind === "amazon" &&
+      asin
+    ) {
       try {
         const summary = await fetchAmazonProductSummary(asin, parsed.amazonDomain);
         listingTitle = summary.title;
@@ -382,6 +494,10 @@ export async function fetchProductVariants(input: {
     }
 
     listingImageUrl = resolveListingImageUrl(variants, listingImageUrl);
+    if (!listingTitle?.trim()) {
+      const primary = variants.find((v) => v.isCurrent) ?? variants[0];
+      listingTitle = primary?.productTitle?.trim() || primary?.label?.trim() || null;
+    }
     const variantsWithImages = fillMissingVariantImages(
       capVariants(variants),
       listingImageUrl,

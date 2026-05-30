@@ -1,7 +1,7 @@
 "use client";
 
-import { ExternalLink, ReceiptText } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ExternalLink } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getCustomerBillingReceiptsAction } from "@/actions/get-customer-billing-receipts";
 import { Input } from "@/components/ui/input";
@@ -105,13 +105,35 @@ function BillingReceiptRow({ record }: { record: CustomerBillingReceiptRecord })
 }
 
 export function BillingReceiptsAccountPanel() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
   const [records, setRecords] = useState<CustomerBillingReceiptRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
 
   useEffect(() => {
+    const root = rootRef.current;
+    if (!root || visible) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.05 },
+    );
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible || loaded) return;
+
     let cancelled = false;
 
     void (async () => {
@@ -123,16 +145,18 @@ export function BillingReceiptsAccountPanel() {
         setRecords([]);
         setError(result.message);
         setLoading(false);
+        setLoaded(true);
         return;
       }
       setRecords(result.records);
       setLoading(false);
+      setLoaded(true);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [visible, loaded]);
 
   const filteredRecords = useMemo(() => {
     return records.filter((record) => {
@@ -144,7 +168,7 @@ export function BillingReceiptsAccountPanel() {
   }, [records, scopeFilter, search]);
 
   return (
-    <div className="space-y-4">
+    <div ref={rootRef} className="space-y-4">
       <div>
         <h2 className="text-base font-semibold text-foreground">Billing receipts</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -199,7 +223,11 @@ export function BillingReceiptsAccountPanel() {
         </div>
       </div>
 
-      {loading ?
+      { !visible && !loaded ?
+        <p className="rounded-lg border border-border bg-muted px-3 py-6 text-center text-sm text-muted-foreground">
+          Receipts load when you open this tab.
+        </p>
+      : loading ?
         <p className="rounded-lg border border-border bg-muted px-3 py-6 text-center text-sm text-muted-foreground">
           Loading receipts…
         </p>
@@ -228,8 +256,4 @@ export function BillingReceiptsAccountPanel() {
       )}
     </div>
   );
-}
-
-export function BillingReceiptsAccountIcon() {
-  return <ReceiptText className="size-4 shrink-0" aria-hidden />;
 }

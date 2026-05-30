@@ -114,6 +114,39 @@ export async function searchGoogleShopping(
   return out;
 }
 
+function normalizeRetailerToken(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function shoppingHitMatchesRetailer(
+  hit: SerpShoppingResult,
+  hostNeedle: string | undefined,
+): boolean {
+  if (!hostNeedle) return true;
+
+  const needle = normalizeRetailerToken(hostNeedle);
+  if (!needle) return false;
+
+  const retailerToken = normalizeRetailerToken(hit.retailer);
+  if (
+    retailerToken.includes(needle) ||
+    needle.includes(retailerToken)
+  ) {
+    return true;
+  }
+
+  try {
+    const urlHost = new URL(hit.productUrl).hostname.toLowerCase();
+    if (urlHost.includes("google.")) return false;
+    const urlStem = normalizeRetailerToken(
+      urlHost.replace(/^www\./, "").split(".")[0] ?? "",
+    );
+    return urlStem.includes(needle) || needle.includes(urlStem);
+  } catch {
+    return false;
+  }
+}
+
 /** Best shopping hit for a retailer hostname (for immersive variant follow-up). */
 export async function findShoppingImmersiveToken(opts: {
   query: string;
@@ -131,18 +164,12 @@ export async function findShoppingImmersiveToken(opts: {
 
   const match =
     hostNeedle ?
-      hits.find((h) => {
-        try {
-          const hHost = new URL(h.productUrl).hostname.toLowerCase();
-          return (
-            hHost.includes(hostNeedle) ||
-            h.retailer.toLowerCase().includes(hostNeedle)
-          );
-        } catch {
-          return h.retailer.toLowerCase().includes(hostNeedle);
-        }
-      })
-    : hits[0];
+      hits.find(
+        (h) =>
+          shoppingHitMatchesRetailer(h, hostNeedle) &&
+          h.immersiveProductPageToken,
+      )
+    : hits.find((h) => h.immersiveProductPageToken);
 
   if (!match?.immersiveProductPageToken) {
     return { token: null, productUrl: null, retailer: null };

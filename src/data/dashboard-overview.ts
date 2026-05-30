@@ -1,7 +1,6 @@
 import { and, count, countDistinct, eq, inArray, isNotNull, or } from "drizzle-orm";
 
-import { countApprovedCartItemsForUser } from "@/data/cart";
-import { countUserContainerCartLineRows } from "@/data/user-container-cart";
+import { getUserCartHeaderCount } from "@/data/cart-header-count";
 import { getDb } from "@/db";
 import {
   barrels,
@@ -129,16 +128,14 @@ export async function getDashboardOverviewStats(
   const db = getDb();
 
   const [
-    cartProducts,
-    cartContainers,
+    cartItemCount,
     quotedRow,
     paidOrdersRow,
     barrelRow,
     awaitingInboundProductCount,
     needCorrectionsProductCount,
   ] = await Promise.all([
-    countApprovedCartItemsForUser(clerkUserId),
-    countUserContainerCartLineRows(clerkUserId),
+    getUserCartHeaderCount(clerkUserId),
     db
       .select({ c: count() })
       .from(itemRequests)
@@ -161,7 +158,7 @@ export async function getDashboardOverviewStats(
   ]);
 
   return {
-    cartItemCount: cartProducts + cartContainers,
+    cartItemCount,
     quotedProductCount: Number(quotedRow[0]?.c ?? 0),
     paidOrderCount: Number(paidOrdersRow[0]?.c ?? 0),
     barrelCount: Number(barrelRow[0]?.c ?? 0),

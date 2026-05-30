@@ -103,6 +103,7 @@ function StatCard({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={cn(
         "group flex flex-col gap-2 rounded-xl border bg-card/80 p-4 shadow-sm ring-1 transition-all hover:-translate-y-0.5 hover:shadow-md",
         !highlight &&
@@ -205,6 +206,7 @@ export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }
               <Link
                 key={action.href}
                 href={action.href}
+                prefetch={false}
                 className="group relative overflow-hidden rounded-xl border border-border/80 bg-card p-4 shadow-sm ring-1 ring-foreground/5 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md hover:ring-primary/15"
               >
                 <div
@@ -252,6 +254,7 @@ export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }
               <Link
                 key={step.step}
                 href={step.href}
+                prefetch={false}
                 className="flex gap-3 rounded-lg border border-border/70 bg-muted p-3 transition-colors hover:border-primary/35 hover:bg-accent"
               >
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 font-heading text-sm font-semibold text-primary">

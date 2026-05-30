@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { UserButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
-import { BillingReceiptsAccountIcon } from "@/components/account/billing-receipts-account-panel";
+import { BillingReceiptsAccountIcon } from "@/components/account/billing-receipts-account-icon";
 
 const BillingReceiptsAccountPanel = dynamic(
   () =>
@@ -14,7 +14,7 @@ const BillingReceiptsAccountPanel = dynamic(
   {
     ssr: false,
     loading: () => (
-      <p className="text-sm text-muted-foreground">Loading billing receipts…</p>
+      <p className="text-sm text-muted-foreground">Open this tab to load receipts…</p>
     ),
   },
 );

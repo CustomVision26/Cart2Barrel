@@ -130,14 +130,21 @@ function variantKeysIncludeCurrent(
   return key.length > 0 && key === currentKey;
 }
 
+function walmartRowNeedsEnrichment(row: ProductVariantOffer): boolean {
+  return row.priceUsdCents == null || !row.productUrl?.trim();
+}
+
 async function enrichWalmartVariantRows(
   rows: ProductVariantOffer[],
 ): Promise<ProductVariantOffer[]> {
   const ids = [
     ...new Set(
       rows
-        .map((r) => r.retailerProductId?.trim())
-        .filter((id): id is string => Boolean(id)),
+        .filter(
+          (r) =>
+            r.retailerProductId?.trim() && walmartRowNeedsEnrichment(r),
+        )
+        .map((r) => r.retailerProductId!.trim()),
     ),
   ].slice(0, MAX_ENRICH_LOOKUPS);
 
@@ -198,21 +205,31 @@ export async function fetchWalmartProductSummary(productId: string): Promise<{
   };
 }
 
+export type WalmartVariantsResult = {
+  variants: ProductVariantOffer[];
+  listingTitle: string | null;
+  listingImageUrl: string | null;
+};
+
 /**
  * SKU rows from Walmart `variant_swatches`, with per-SKU SerpApi price refresh
- * when swatch prices match the parent listing.
+ * only when swatch rows are missing price or URL.
  */
 export async function fetchWalmartVariants(
   productId: string,
   opts?: { currentVariantKeys?: string[] },
-): Promise<ProductVariantOffer[]> {
+): Promise<WalmartVariantsResult> {
   const data = await serpApiGet<WalmartProductResponse>({
     ...WALMART_PRODUCT_PARAMS,
     product_id: productId,
   });
 
   const pr = data.product_result;
-  if (!pr) return [];
+  if (!pr) {
+    return { variants: [], listingTitle: null, listingImageUrl: null };
+  }
+
+  const listingTitle = pr.title?.trim() || null;
 
   const baseUrl = walmartUrlFromIds(
     pr.product_page_url,
@@ -332,5 +349,6 @@ export async function fetchWalmartVariants(
     );
   }
 
-  return enrichWalmartVariantRows(rows);
+  const variants = await enrichWalmartVariantRows(rows);
+  return { variants, listingTitle, listingImageUrl: heroImage };
 }

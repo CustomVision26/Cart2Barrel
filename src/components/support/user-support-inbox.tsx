@@ -58,6 +58,7 @@ export function UserSupportInbox({ tickets }: { tickets: SupportTicketSummary[] 
         <li key={ticket.id}>
           <Link
             href={DASHBOARD_SUPPORT_ROUTES.ticket(ticket.id)}
+            prefetch={false}
             className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
           >
             <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background">

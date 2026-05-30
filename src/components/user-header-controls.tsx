@@ -1,7 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { ClerkUserButton } from "@/components/clerk-user-button";
-import { UserSettingsDialog } from "@/components/theme/user-settings-dialog";
+
+const UserSettingsDialog = dynamic(
+  () =>
+    import("@/components/theme/user-settings-dialog").then(
+      (mod) => mod.UserSettingsDialog,
+    ),
+  { ssr: false },
+);
 
 /** Settings control and Clerk avatar grouped for header toolbars. */
 export function UserHeaderControls() {

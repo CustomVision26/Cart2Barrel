@@ -73,11 +73,15 @@ export async function fetchImmersiveProductVariants(
   if (!pr) return [];
 
   const host = opts?.retailerHostname?.toLowerCase();
+  const hostNeedle = host?.replace(/^www\./, "").split(".")[0];
   const store =
-    host ?
-      (pr.stores ?? []).find((s) =>
-        s.name?.toLowerCase().includes(host.replace(/^www\./, "").split(".")[0] ?? ""),
-      )
+    hostNeedle ?
+      (pr.stores ?? []).find((s) => {
+        const name = s.name?.trim() ?? "";
+        const token = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const needle = hostNeedle.replace(/[^a-z0-9]/g, "");
+        return token.includes(needle) || needle.includes(token);
+      })
     : (pr.stores ?? [])[0];
 
   const defaultUrl =
@@ -138,6 +142,20 @@ export async function fetchImmersiveProductVariants(
         isCurrent: Boolean(item.selected),
       });
     }
+  }
+
+  if (rows.length === 0 && pr.title?.trim()) {
+    push({
+      label: pr.title.trim(),
+      size: null,
+      color: null,
+      packLabel: null,
+      priceUsdCents: priceUsdToCents(defaultPrice),
+      productUrl: opts?.fallbackProductUrl?.trim() || defaultUrl,
+      imageUrl: defaultImage,
+      inStock: null,
+      isCurrent: true,
+    });
   }
 
   for (const opt of pr.more_options ?? []) {
