@@ -83,7 +83,7 @@
   --sidebar-ring: oklch(0.708 0 0);
   --brand-logo-glow: oklch(0.58 0.22 264);
   --brand-logo-halo: oklch(0.98 0.02 264);
-  --brand-watermark-opacity: 0.28;
+  --brand-watermark-opacity: 0.18;
   --brand-watermark-grayscale-start: 0.18;
   --brand-watermark-grayscale-end: 0;
   --brand-watermark-saturate: 1.45;
@@ -126,7 +126,7 @@
   --sidebar-ring: oklch(0.556 0 0);
   --brand-logo-glow: oklch(0.488 0.243 264.376);
   --brand-logo-halo: oklch(0.985 0 0);
-  --brand-watermark-opacity: 0.16;
+  --brand-watermark-opacity: 0.1;
   --brand-watermark-grayscale-start: 0.85;
   --brand-watermark-grayscale-end: 0.75;
   --brand-watermark-saturate: 1;
@@ -273,7 +273,7 @@
   --accent: color-mix(in oklch, oklch(0.97 0 0) 76%, var(--primary));
   --sidebar: color-mix(in oklch, oklch(0.985 0 0) 82%, var(--primary));
   --sidebar-accent: color-mix(in oklch, oklch(0.97 0 0) 76%, var(--primary));
-  --brand-watermark-opacity: 0.2;
+  --brand-watermark-opacity: 0.13;
 }
 
 .dark[data-interface-color] {
@@ -285,7 +285,7 @@
   --accent: color-mix(in oklch, oklch(0.269 0 0) 66%, var(--primary));
   --sidebar: color-mix(in oklch, oklch(0.205 0 0) 70%, var(--primary));
   --sidebar-accent: color-mix(in oklch, oklch(0.269 0 0) 66%, var(--primary));
-  --brand-watermark-opacity: 0.1;
+  --brand-watermark-opacity: 0.065;
 }
 
 @layer base {
@@ -330,7 +330,7 @@
     transform: perspective(900px) rotateX(11deg) rotateY(-9deg) scale(1);
   }
   50% {
-    opacity: calc(var(--brand-watermark-opacity, 0.16) * 1.2);
+    opacity: calc(var(--brand-watermark-opacity, 0.16) * 1.12);
     transform: perspective(900px) rotateX(8deg) rotateY(9deg) scale(1.025)
       translateZ(12px);
   }

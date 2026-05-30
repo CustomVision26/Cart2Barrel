@@ -362,6 +362,29 @@ export function ItemRequestWorkspace({
     });
   }, []);
 
+  const scrollToProductUrlSyncButton = useCallback(() => {
+    requestAnimationFrame(() => {
+      document
+        .getElementById("item-product-url-sync-button")
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, []);
+
+  const previewUrlEditedByUserRef = useRef(false);
+  const lastScrolledPreviewUrlRef = useRef<string | null>(null);
+
+  const maybeScrollToProductUrlSync = useCallback(
+    (previewRaw: string) => {
+      const normalized = normalizeUrlInput(previewRaw);
+      if (!normalized || urlsMatchForSubmit(previewRaw, productUrl)) return;
+      if (lastScrolledPreviewUrlRef.current === normalized) return;
+      if (!previewUrlEditedByUserRef.current) return;
+      lastScrolledPreviewUrlRef.current = normalized;
+      scrollToProductUrlSyncButton();
+    },
+    [productUrl, scrollToProductUrlSyncButton],
+  );
+
   const syncPreviewAndProductLink = useCallback(() => {
     const fromPreview = normalizeUrlInput(previewInput);
     if (fromPreview) {
@@ -521,6 +544,15 @@ export function ItemRequestWorkspace({
   const urlsAligned = urlsMatchForSubmit(previewInput, productUrl);
   const showProductLinkSyncHint =
     hasPreviewUrl && !urlsAligned && !urlSyncHintDismissed;
+
+  useEffect(() => {
+    if (!hasPreviewUrl) {
+      lastScrolledPreviewUrlRef.current = null;
+      return;
+    }
+    maybeScrollToProductUrlSync(previewInput);
+  }, [hasPreviewUrl, previewInput, maybeScrollToProductUrlSync]);
+
   const showPriceVerifyHint = storeVariantsLoaded && !priceHintDismissed;
   const showLoadFromStoreHint =
     promptLoadFromStoreAfterSync &&
@@ -1081,7 +1113,11 @@ export function ItemRequestWorkspace({
             aria-label="Store product URL"
             placeholder="https://example-store.com/…"
             value={previewInput}
-            onChange={(e) => setPreviewInput(e.target.value)}
+            onChange={(e) => {
+              previewUrlEditedByUserRef.current = true;
+              setPreviewInput(e.target.value);
+            }}
+            onBlur={() => maybeScrollToProductUrlSync(previewInput)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -1337,8 +1373,9 @@ export function ItemRequestWorkspace({
                   copy it into the Product link field.
                 </FieldInlineHint>
                 <Button
+                  id="item-product-url-sync-button"
                   type="button"
-                  variant="secondary"
+                  variant={canUseUrlSync ? "default" : "secondary"}
                   size="sm"
                   className="w-fit"
                   onClick={syncPreviewAndProductLink}
