@@ -8,6 +8,7 @@ import {
   CheckCheck,
   ClipboardList,
   CreditCard,
+  MessageCircle,
   Package,
   PartyPopper,
   RotateCcw,
@@ -59,6 +60,8 @@ function eventIcon(kind: UserStatusUpdateKind) {
       return ShieldBan;
     case "account_reinstated":
       return ShieldCheck;
+    case "support_reply":
+      return MessageCircle;
     default:
       return Sparkles;
   }

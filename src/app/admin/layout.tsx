@@ -11,6 +11,7 @@ import { AdminNotificationsBell } from "@/components/admin/admin-notifications-b
 import { AdminNav } from "@/components/admin-nav";
 import { loadAdminActivityNotificationSummary } from "@/data/admin-user-activity-events";
 import { listProfilesForAdminPicker } from "@/data/customer-pricing-packages";
+import { countOpenSupportTickets } from "@/data/support-tickets";
 import { getClerkSessionGate } from "@/lib/clerk-session";
 
 export default async function AdminLayout({
@@ -34,9 +35,10 @@ export default async function AdminLayout({
   }
 
   const adminPickerUsers = await listProfilesForAdminPicker();
-  const activitySummary = await loadAdminActivityNotificationSummary(
-    gate.userId,
-  );
+  const [activitySummary, openSupportCount] = await Promise.all([
+    loadAdminActivityNotificationSummary(gate.userId),
+    countOpenSupportTickets(),
+  ]);
 
   return (
     <AdminCustomerFilterShell users={adminPickerUsers}>
@@ -72,6 +74,7 @@ export default async function AdminLayout({
                 badges={{
                   itemRequests: activitySummary.itemRequestsUnread,
                   orders: activitySummary.ordersUnread,
+                  support: openSupportCount,
                 }}
               />
             </div>

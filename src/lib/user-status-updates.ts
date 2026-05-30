@@ -40,6 +40,10 @@ export function userStatusHrefForDashboard(): string {
   return "/dashboard";
 }
 
+export function userStatusHrefForSupportTicket(ticketId: string): string {
+  return `/dashboard/support/${encodeURIComponent(ticketId)}`;
+}
+
 export function formatUserStatusRelativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return "";

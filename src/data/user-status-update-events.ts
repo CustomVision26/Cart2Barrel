@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { getDb } from "@/db";
 import {
@@ -14,6 +15,7 @@ import {
   userStatusHrefForBatchQuotes,
   userStatusHrefForDashboard,
   userStatusHrefForOrders,
+  userStatusHrefForSupportTicket,
   userStatusUpdateNavSection,
   type UserStatusNavSection,
 } from "@/lib/user-status-updates";
@@ -63,6 +65,12 @@ function revalidateUserStatusSurfaces(): void {
   revalidatePath("/dashboard", "layout");
 }
 
+function scheduleRevalidateUserStatusSurfaces(): void {
+  after(() => {
+    revalidateUserStatusSurfaces();
+  });
+}
+
 export async function recordUserStatusUpdateEvent(
   input: RecordEventInput,
 ): Promise<void> {
@@ -77,7 +85,7 @@ export async function recordUserStatusUpdateEvent(
       entityType: input.entityType,
       entityId: input.entityId,
     });
-    revalidateUserStatusSurfaces();
+    scheduleRevalidateUserStatusSurfaces();
   } catch (e) {
     if (isMissingUserStatusUpdateTablesError(e)) {
       return;
@@ -295,6 +303,27 @@ export async function recordAccountReinstatedActivity(params: {
   });
 }
 
+export async function recordSupportReplyActivity(params: {
+  clerkUserId: string;
+  ticketId: string;
+  subject: string;
+  preview: string;
+}): Promise<void> {
+  const preview =
+    params.preview.trim().length > 160
+      ? `${params.preview.trim().slice(0, 157)}…`
+      : params.preview.trim();
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "support_reply",
+    title: "Support replied",
+    body: `${params.subject} — ${preview}`,
+    href: userStatusHrefForSupportTicket(params.ticketId),
+    entityType: "support_ticket",
+    entityId: params.ticketId,
+  });
+}
+
 function mapFeedRow(
   row: typeof userStatusUpdateEvents.$inferSelect,
 ): UserStatusFeedEvent {
@@ -397,7 +426,7 @@ export async function markUserStatusUpdateEventsRead(params: {
       .values(existing.map((row) => ({ eventId: row.id })))
       .onConflictDoNothing();
 
-    revalidateUserStatusSurfaces();
+    scheduleRevalidateUserStatusSurfaces();
   } catch (e) {
     if (isMissingUserStatusUpdateTablesError(e)) {
       return;

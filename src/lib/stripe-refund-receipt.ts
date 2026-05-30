@@ -35,6 +35,28 @@ async function receiptUrlFromChargeId(
   return null;
 }
 
+export function isStripePaymentIntentId(
+  value: string | null | undefined,
+): boolean {
+  const id = value?.trim() ?? "";
+  return id.startsWith("pi_");
+}
+
+export async function getStripePaymentReceiptUrl(
+  paymentIntentId: string,
+): Promise<string | null> {
+  if (!isStripePaymentIntentId(paymentIntentId)) {
+    return null;
+  }
+
+  try {
+    const stripe = getStripeServer();
+    return receiptUrlFromPaymentIntentId(stripe, paymentIntentId.trim());
+  } catch {
+    return null;
+  }
+}
+
 async function receiptUrlFromPaymentIntentId(
   stripe: Stripe,
   paymentIntentId: string,

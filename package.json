@@ -13,6 +13,7 @@
     "db:ensure-spotlight": "node scripts/ensure-spotlight-schema.mjs",
     "db:ensure-admin-activity": "node scripts/ensure-admin-user-activity-schema.mjs",
     "db:ensure-user-status-updates": "node scripts/ensure-user-status-update-schema.mjs",
+    "db:ensure-support": "node scripts/ensure-support-schema.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

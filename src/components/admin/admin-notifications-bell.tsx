@@ -8,6 +8,7 @@ import {
   CheckCheck,
   ClipboardList,
   CreditCard,
+  MessageCircle,
   Package,
   RotateCcw,
   ShieldBan,
@@ -52,6 +53,9 @@ function eventIcon(kind: AdminUserActivityEventKind) {
       return UserPlus;
     case "user_banned":
       return ShieldBan;
+    case "support_ticket_submitted":
+    case "support_ticket_replied":
+      return MessageCircle;
     default:
       return Sparkles;
   }

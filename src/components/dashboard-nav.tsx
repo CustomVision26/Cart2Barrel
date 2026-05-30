@@ -5,6 +5,7 @@ import {
   Box,
   ClipboardList,
   LayoutDashboard,
+  MessageCircle,
   Package,
   PlusCircle,
   ShoppingCart,
@@ -15,6 +16,7 @@ import { usePathname } from "next/navigation";
 
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
+import { DASHBOARD_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 import { cn } from "@/lib/utils";
 
 type DashboardNavLink = {
@@ -91,6 +93,17 @@ const SECTIONS: DashboardNavSection[] = [
         icon: Truck,
         match: (path) =>
           path === "/dashboard/shipping" || path.startsWith("/dashboard/shipping/"),
+      },
+    ],
+  },
+  {
+    title: "Support",
+    links: [
+      {
+        href: DASHBOARD_SUPPORT_ROUTES.inbox,
+        label: "Messages",
+        icon: MessageCircle,
+        match: (path) => path.startsWith("/dashboard/support"),
       },
     ],
   },

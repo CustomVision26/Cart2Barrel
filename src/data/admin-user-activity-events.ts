@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { getDb } from "@/db";
 import {
@@ -22,6 +23,7 @@ import {
   adminActivityHrefForOrders,
   adminActivityHrefForOutsidePurchase,
   adminActivityHrefForPurchaseOrders,
+  adminActivityHrefForSupportTicket,
   type AdminActivityNavSection,
 } from "@/lib/admin-user-activity";
 import { isMissingAdminUserActivityTablesError } from "@/lib/db-column-missing";
@@ -78,6 +80,12 @@ function revalidateAdminActivitySurfaces(): void {
   revalidatePath("/admin", "layout");
 }
 
+function scheduleRevalidateAdminActivitySurfaces(): void {
+  after(() => {
+    revalidateAdminActivitySurfaces();
+  });
+}
+
 export async function recordAdminUserActivityEvent(
   input: RecordEventInput,
 ): Promise<void> {
@@ -92,7 +100,7 @@ export async function recordAdminUserActivityEvent(
       entityType: input.entityType,
       entityId: input.entityId,
     });
-    revalidateAdminActivitySurfaces();
+    scheduleRevalidateAdminActivitySurfaces();
   } catch (e) {
     if (isMissingAdminUserActivityTablesError(e)) {
       return;
@@ -291,6 +299,49 @@ export async function recordUserBannedActivity(params: {
   });
 }
 
+export async function recordSupportTicketSubmittedActivity(params: {
+  customerClerkUserId: string;
+  ticketId: string;
+  subject: string;
+}): Promise<void> {
+  await recordAdminUserActivityEvent({
+    customerClerkUserId: params.customerClerkUserId,
+    kind: "support_ticket_submitted",
+    title: "New support message",
+    body: params.subject,
+    href: adminActivityHrefForSupportTicket(
+      params.customerClerkUserId,
+      params.ticketId,
+    ),
+    entityType: "support_ticket",
+    entityId: params.ticketId,
+  });
+}
+
+export async function recordSupportTicketRepliedActivity(params: {
+  customerClerkUserId: string;
+  ticketId: string;
+  subject: string;
+  preview: string;
+}): Promise<void> {
+  const preview =
+    params.preview.trim().length > 120
+      ? `${params.preview.trim().slice(0, 117)}…`
+      : params.preview.trim();
+  await recordAdminUserActivityEvent({
+    customerClerkUserId: params.customerClerkUserId,
+    kind: "support_ticket_replied",
+    title: "Customer replied to support",
+    body: `${params.subject} — ${preview}`,
+    href: adminActivityHrefForSupportTicket(
+      params.customerClerkUserId,
+      params.ticketId,
+    ),
+    entityType: "support_ticket",
+    entityId: params.ticketId,
+  });
+}
+
 function mapFeedRow(
   row: typeof adminUserActivityEvents.$inferSelect,
 ): AdminActivityFeedEvent {
@@ -426,7 +477,7 @@ export async function markAdminActivityEventsRead(params: {
       )
       .onConflictDoNothing();
 
-    revalidateAdminActivitySurfaces();
+    scheduleRevalidateAdminActivitySurfaces();
   } catch (e) {
     if (isMissingAdminUserActivityTablesError(e)) {
       return;

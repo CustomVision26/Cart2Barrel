@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Box,
   ClipboardList,
+  Headphones,
   LayoutDashboard,
   Package,
   ShoppingBag,
@@ -17,6 +18,7 @@ import { usePathname } from "next/navigation";
 
 import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
+import { ADMIN_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 import { cn } from "@/lib/utils";
 
 type AdminNavLink = {
@@ -116,6 +118,12 @@ const SECTIONS: AdminNavSection[] = [
         match: (path) =>
           path === "/admin/users" || path.startsWith("/admin/users/"),
       },
+      {
+        href: ADMIN_SUPPORT_ROUTES.contact,
+        label: "Support",
+        icon: Headphones,
+        match: (path) => path.startsWith("/admin/support"),
+      },
     ],
   },
 ];
@@ -204,6 +212,7 @@ function MobileNavLink({
 export type AdminNavBadges = {
   itemRequests?: number;
   orders?: number;
+  support?: number;
 };
 
 function navBadgeForHref(
@@ -219,6 +228,9 @@ function navBadgeForHref(
   }
   if (href === "/admin/orders") {
     return badges.orders;
+  }
+  if (href.startsWith("/admin/support")) {
+    return badges.support;
   }
   return undefined;
 }

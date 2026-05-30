@@ -4,7 +4,9 @@ import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { UserNotificationsBell } from "@/components/dashboard/user-notifications-bell";
+import { ContactUsDialog } from "@/components/support/contact-us-dialog";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { loadHubContactSettings } from "@/data/hub-contact-settings";
 import { loadUserStatusNotificationSummary } from "@/data/user-status-update-events";
 import { getClerkSessionGate } from "@/lib/clerk-session";
 
@@ -19,6 +21,7 @@ export default async function DashboardLayout({
     gate.ok ?
       await loadUserStatusNotificationSummary(gate.userId)
     : { totalUnread: 0, requestedItemsUnread: 0, ordersUnread: 0, events: [] };
+  const hubContact = gate.ok ? await loadHubContactSettings() : null;
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background">
@@ -40,6 +43,7 @@ export default async function DashboardLayout({
                 Admin
               </Link>
             : null}
+            {gate.ok && hubContact ? <ContactUsDialog hubContact={hubContact} /> : null}
             {gate.ok ? <UserNotificationsBell initial={statusSummary} /> : null}
             <CartHeaderLink />
             <UserHeaderControls />

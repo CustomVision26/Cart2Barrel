@@ -28,6 +28,7 @@ export function revalidateAfterPaidCheckoutFulfillment(): void {
   revalidatePath("/dashboard/barrels/product-to-barrel-history");
   revalidatePath("/admin/orders");
   revalidatePath("/admin/overview");
+  revalidatePath("/admin", "layout");
   revalidatePath("/admin/item-requests", "layout");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/admin/shipments");
