@@ -30,6 +30,7 @@ export const itemRequestsRowLegacySelect = {
   outsidePurchaseReference: itemRequests.outsidePurchaseReference,
   outsidePurchasePaymentPromptedAt: itemRequests.outsidePurchasePaymentPromptedAt,
   outsidePurchaseReceiptImageUrl: itemRequests.outsidePurchaseReceiptImageUrl,
+  outsidePurchaseConditionImageUrl: itemRequests.outsidePurchaseConditionImageUrl,
   outsidePurchaseReceivedCondition: itemRequests.outsidePurchaseReceivedCondition,
   outsidePurchaseShelfLocation: itemRequests.outsidePurchaseShelfLocation,
   createdAt: itemRequests.createdAt,
@@ -63,6 +64,7 @@ export const itemRequestsRowSelectWithoutReceiptImage = {
 type ItemRequestLegacyRow = Omit<ItemRequest, "batchQuoteSessionId">;
 type OutsidePurchaseIntakeOptionalColumns =
   | "outsidePurchaseReceiptImageUrl"
+  | "outsidePurchaseConditionImageUrl"
   | "outsidePurchaseReceivedCondition"
   | "outsidePurchaseShelfLocation";
 type ItemRequestLegacyRowWithoutReceipt = Omit<
@@ -79,6 +81,10 @@ export function withLegacyItemRequestDefaults(
     outsidePurchaseReceiptImageUrl:
       "outsidePurchaseReceiptImageUrl" in row ?
         (row.outsidePurchaseReceiptImageUrl ?? null)
+      : null,
+    outsidePurchaseConditionImageUrl:
+      "outsidePurchaseConditionImageUrl" in row ?
+        (row.outsidePurchaseConditionImageUrl ?? null)
       : null,
     outsidePurchaseReceivedCondition:
       "outsidePurchaseReceivedCondition" in row ?
@@ -100,6 +106,7 @@ export function itemRequestFromRowWithoutReceiptImage(
     ...row,
     batchQuoteSessionId: row.batchQuoteSessionId ?? null,
     outsidePurchaseReceiptImageUrl: null,
+    outsidePurchaseConditionImageUrl: null,
     outsidePurchaseReceivedCondition: null,
     outsidePurchaseShelfLocation: null,
   };

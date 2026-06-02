@@ -364,6 +364,10 @@ export const itemRequests = pgTable(
     ),
     /** Proof-of-purchase receipt photo from outside-purchase intake. */
     outsidePurchaseReceiptImageUrl: text("outside_purchase_receipt_image_url"),
+    /** Photo of the received product's physical condition at intake. */
+    outsidePurchaseConditionImageUrl: text(
+      "outside_purchase_condition_image_url",
+    ),
     /** Physical condition when staff received the outside-purchase product at the warehouse. */
     outsidePurchaseReceivedCondition: text("outside_purchase_received_condition"),
     /** Warehouse shelf / bin assigned at outside-purchase intake. */

@@ -13,6 +13,8 @@ import {
 } from "@/components/admin/receiving-row-actions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
+import { ImageFileInput } from "@/components/ui/image-file-input";
+import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -24,7 +26,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
+import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import { Input } from "@/components/ui/input";
+import {
+  revokeBlobPreviewUrl,
+  validateProductImageFile,
+} from "@/lib/staged-product-image";
 import type { ItemQuote, ItemRequest, OutsidePurchaseReturnRequest } from "@/db/schema";
 import { formatUsd, type MerchantServiceTierRow } from "@/lib/admin-markup";
 import {
@@ -84,6 +92,55 @@ export function AdminOutsidePurchaseEditDialog({
   const [returnStaffNote, setReturnStaffNote] = useState(
     returnRequest?.returnStaffNote ?? "",
   );
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [productImagePreview, setProductImagePreview] = useState<string | null>(
+    null,
+  );
+  const [conditionImageFile, setConditionImageFile] = useState<File | null>(null);
+  const [conditionImagePreview, setConditionImagePreview] = useState<
+    string | null
+  >(null);
+
+  const clearStagedImages = useCallback(() => {
+    setProductImageFile(null);
+    revokeBlobPreviewUrl(productImagePreview);
+    setProductImagePreview(null);
+    setConditionImageFile(null);
+    revokeBlobPreviewUrl(conditionImagePreview);
+    setConditionImagePreview(null);
+  }, [productImagePreview, conditionImagePreview]);
+
+  const onPickProductImage = useCallback(
+    (fileList: FileList | null) => {
+      const file = fileList?.[0];
+      if (!file) return;
+      const err = validateProductImageFile(file);
+      if (err) {
+        toast.error(err);
+        return;
+      }
+      setProductImageFile(file);
+      revokeBlobPreviewUrl(productImagePreview);
+      setProductImagePreview(URL.createObjectURL(file));
+    },
+    [productImagePreview],
+  );
+
+  const onPickConditionImage = useCallback(
+    (fileList: FileList | null) => {
+      const file = fileList?.[0];
+      if (!file) return;
+      const err = validateProductImageFile(file);
+      if (err) {
+        toast.error(err);
+        return;
+      }
+      setConditionImageFile(file);
+      revokeBlobPreviewUrl(conditionImagePreview);
+      setConditionImagePreview(URL.createObjectURL(file));
+    },
+    [conditionImagePreview],
+  );
 
   const resetFromProps = useCallback(() => {
     setProductName(request.productName ?? "");
@@ -101,7 +158,8 @@ export function AdminOutsidePurchaseEditDialog({
       : "",
     );
     setReturnStaffNote(returnRequest?.returnStaffNote ?? "");
-  }, [request, quote, returnRequest]);
+    clearStagedImages();
+  }, [request, quote, returnRequest, clearStagedImages]);
 
   const pricingPreview = useMemo(() => {
     return computeOutsidePurchaseCustomerQuoteCents({
@@ -126,6 +184,8 @@ export function AdminOutsidePurchaseEditDialog({
     fd.set("receivedCondition", receivedCondition);
     fd.set("receivedShelfLocation", receivedShelfLocation.trim());
     if (staffNote.trim()) fd.set("staffNote", staffNote.trim());
+    if (productImageFile) fd.set("productImage", productImageFile);
+    if (conditionImageFile) fd.set("conditionImage", conditionImageFile);
 
     startSave(async () => {
       const res = await updateAdminOutsidePurchaseIntakeAction(fd);
@@ -164,12 +224,18 @@ export function AdminOutsidePurchaseEditDialog({
         if (next) resetFromProps();
       }}
     >
-      <DialogTrigger
-        type="button"
-        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-      >
-        Edit
-      </DialogTrigger>
+      <span className="inline-flex items-center gap-1.5">
+        <DialogTrigger
+          type="button"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        >
+          Edit
+        </DialogTrigger>
+        <HelpBalloon label="About edit">
+          Open a dialog to update this outside purchase&apos;s details, condition, photos,
+          and (when applicable) the return-to-retailer estimate.
+        </HelpBalloon>
+      </span>
       <DialogContent className="max-h-[min(92vh,44rem)] gap-0 overflow-y-auto p-0 sm:max-w-xl">
         <DialogHeader className="border-b border-border px-6 py-4">
           <DialogTitle>Edit outside purchase</DialogTitle>
@@ -180,14 +246,22 @@ export function AdminOutsidePurchaseEditDialog({
 
         <div className="grid gap-4 px-6 py-4">
           <Field>
-            <FieldLabel>Product name</FieldLabel>
+            <FieldLabelWithHelp
+              label="Product name"
+              help="Name shown to the customer on this product line. Use the retailer's product title so the shopper recognizes the item."
+              helpLabel="About product name"
+            />
             <FieldContent>
               <Input value={productName} onChange={(e) => setProductName(e.target.value)} />
             </FieldContent>
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Received Qty</FieldLabel>
+              <FieldLabelWithHelp
+                label="Received Qty"
+                help="Number of units received. Service & handling is charged per unit."
+                helpLabel="About received quantity"
+              />
               <FieldContent>
                 <Input
                   type="number"
@@ -198,7 +272,11 @@ export function AdminOutsidePurchaseEditDialog({
               </FieldContent>
             </Field>
             <Field>
-              <FieldLabel>Listed unit price (tier)</FieldLabel>
+              <FieldLabelWithHelp
+                label="Listed unit price (tier)"
+                help="Single-item price used only to pick the outside-purchase service & handling tier. It is not what the customer is billed for merchandise."
+                helpLabel="About listed unit price"
+              />
               <FieldContent>
                 <Input
                   inputMode="decimal"
@@ -210,13 +288,21 @@ export function AdminOutsidePurchaseEditDialog({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Received Size</FieldLabel>
+              <FieldLabelWithHelp
+                label="Received Size"
+                help="Size/variant of the item as it actually arrived (optional)."
+                helpLabel="About received size"
+              />
               <FieldContent>
                 <Input value={productSize} onChange={(e) => setProductSize(e.target.value)} />
               </FieldContent>
             </Field>
             <Field>
-              <FieldLabel>Received Color</FieldLabel>
+              <FieldLabelWithHelp
+                label="Received Color"
+                help="Color/variant of the item as it actually arrived (optional)."
+                helpLabel="About received color"
+              />
               <FieldContent>
                 <Input value={productColor} onChange={(e) => setProductColor(e.target.value)} />
               </FieldContent>
@@ -224,7 +310,11 @@ export function AdminOutsidePurchaseEditDialog({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Condition received</FieldLabel>
+              <FieldLabelWithHelp
+                label="Condition received"
+                help="Physical state of the item when it arrived (e.g. good, damaged, wrong item). Drives the customer status and any return-to-retailer flow."
+                helpLabel="About received condition"
+              />
               <FieldContent>
                 <select
                   value={receivedCondition}
@@ -242,7 +332,11 @@ export function AdminOutsidePurchaseEditDialog({
               </FieldContent>
             </Field>
             <Field>
-              <FieldLabel>Shelf location</FieldLabel>
+              <FieldLabelWithHelp
+                label="Shelf location"
+                help="Where the item is stored in your warehouse (aisle, shelf, or bin). Internal only — helps staff find it when packing."
+                helpLabel="About shelf location"
+              />
               <FieldContent>
                 <Input
                   value={receivedShelfLocation}
@@ -252,7 +346,11 @@ export function AdminOutsidePurchaseEditDialog({
             </Field>
           </div>
           <Field>
-            <FieldLabel>Staff note</FieldLabel>
+            <FieldLabelWithHelp
+              label="Staff note"
+              help="Short message shown to the customer on this product line — e.g. a note about substitutions or condition."
+              helpLabel="About staff note"
+            />
             <FieldContent>
               <textarea
                 rows={3}
@@ -266,6 +364,105 @@ export function AdminOutsidePurchaseEditDialog({
             Service preview (good condition): {formatUsd(pricingPreview.totalPriceCents)}
           </p>
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabelWithHelp
+                label="Product display photo"
+                help="Catalog image shown to the customer. JPEG, PNG, WebP, or GIF."
+                helpLabel="About product display photo"
+              />
+              <FieldContent>
+                <ImageFileInput
+                  id={`op-edit-product-image-${request.id}`}
+                  onFiles={onPickProductImage}
+                  selectedFileName={productImageFile?.name ?? null}
+                />
+                {productImagePreview || request.productImageUrl ?
+                  <div className="mt-3 flex items-start gap-3">
+                    <ProductRequestThumbnail
+                      variant="admin"
+                      imageUrl={productImagePreview ?? request.productImageUrl}
+                      productLabel={request.productName ?? "Product"}
+                      className="size-20 shrink-0"
+                    />
+                    {productImagePreview ?
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          New photo
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setProductImageFile(null);
+                            revokeBlobPreviewUrl(productImagePreview);
+                            setProductImagePreview(null);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    : <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Current
+                      </span>
+                    }
+                  </div>
+                : null}
+              </FieldContent>
+            </Field>
+
+            <Field>
+              <FieldLabelWithHelp
+                label="Received condition photo"
+                help="Photo showing the physical condition the product arrived in. JPEG, PNG, WebP, or GIF."
+                helpLabel="About received condition photo"
+              />
+              <FieldContent>
+                <ImageFileInput
+                  id={`op-edit-condition-image-${request.id}`}
+                  onFiles={onPickConditionImage}
+                  selectedFileName={conditionImageFile?.name ?? null}
+                />
+                {conditionImagePreview || request.outsidePurchaseConditionImageUrl ?
+                  <div className="mt-3 flex items-start gap-3">
+                    <ProductRequestThumbnail
+                      variant="admin"
+                      imageUrl={
+                        conditionImagePreview ??
+                        request.outsidePurchaseConditionImageUrl
+                      }
+                      productLabel="Received condition"
+                      className="size-20 shrink-0"
+                    />
+                    {conditionImagePreview ?
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          New photo
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setConditionImageFile(null);
+                            revokeBlobPreviewUrl(conditionImagePreview);
+                            setConditionImagePreview(null);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    : <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Current
+                      </span>
+                    }
+                  </div>
+                : null}
+              </FieldContent>
+            </Field>
+          </div>
+
           {returnRequest && returnRequest.status !== "cancelled" ?
             <CollapsibleFieldSection
               title="Return to retailer estimate"
@@ -273,7 +470,11 @@ export function AdminOutsidePurchaseEditDialog({
               defaultOpen
             >
               <Field>
-                <FieldLabel>Return service fee (USD)</FieldLabel>
+                <FieldLabelWithHelp
+                  label="Return service fee (USD)"
+                  help="Fee the customer pays to have this item returned to the retailer instead of shipped in their barrel. Published for the customer to accept."
+                  helpLabel="About return service fee"
+                />
                 <FieldContent>
                   <Input
                     inputMode="decimal"
@@ -284,7 +485,11 @@ export function AdminOutsidePurchaseEditDialog({
                 </FieldContent>
               </Field>
               <Field>
-                <FieldLabel>Return estimate note</FieldLabel>
+                <FieldLabelWithHelp
+                  label="Return estimate note"
+                  help="Message shown to the customer in their Preview return dialog — explain the reason for the return or any conditions."
+                  helpLabel="About return estimate note"
+                />
                 <FieldContent>
                   <textarea
                     rows={2}
@@ -295,15 +500,22 @@ export function AdminOutsidePurchaseEditDialog({
                   />
                 </FieldContent>
               </Field>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={saving}
-                onClick={onPublishReturnEstimate}
-              >
-                Publish return estimate
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={saving}
+                  onClick={onPublishReturnEstimate}
+                >
+                  Publish return estimate
+                </Button>
+                <HelpBalloon label="About publish return estimate">
+                  Sends the return service fee and note to the customer so they can accept
+                  the return-to-retailer option. Does not save the other edits above — use
+                  Save changes for those.
+                </HelpBalloon>
+              </div>
             </CollapsibleFieldSection>
           : null}
         </div>
@@ -312,11 +524,20 @@ export function AdminOutsidePurchaseEditDialog({
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button type="button" disabled={saving} onClick={onSave}>
-            {saving ?
-              <Loader2Icon className="size-4 animate-spin" />
-            : "Save changes"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" disabled={saving} onClick={onSave}>
+              {saving ?
+                <Loader2Icon className="size-4 animate-spin" />
+              : "Save changes"}
+            </Button>
+            <HelpBalloon
+              label="About save changes"
+              tooltipClassName="right-0 left-auto translate-x-0"
+            >
+              Saves the product details, condition, shelf location, note, and any new
+              photos, then recalculates the customer&apos;s service estimate.
+            </HelpBalloon>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

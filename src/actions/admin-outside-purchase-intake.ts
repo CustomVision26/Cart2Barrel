@@ -31,7 +31,10 @@ import {
   outsidePurchaseProductUrl,
 } from "@/lib/outside-purchase";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
-import { isMissingOutsidePurchaseReceiptImageUrlColumnError } from "@/lib/db-column-missing";
+import {
+  isMissingOutsidePurchaseConditionImageUrlColumnError,
+  isMissingOutsidePurchaseReceiptImageUrlColumnError,
+} from "@/lib/db-column-missing";
 import {
   isRetailerReceiptImageMime,
   retailerReceiptExtensionForMime,
@@ -88,7 +91,10 @@ function imageFileFromFormData(formData: FormData, field: string): File | null {
 async function uploadIntakeImageForRequest(
   itemRequestId: string,
   file: File,
-  folder: "product-images" | "outside-purchase-receipts",
+  folder:
+    | "product-images"
+    | "outside-purchase-receipts"
+    | "outside-purchase-condition",
 ): Promise<string | null> {
   const token = getBlobReadWriteToken();
   if (!token) return null;
@@ -124,6 +130,8 @@ export async function saveAdminOutsidePurchaseIntakeAction(
     raw instanceof FormData ? imageFileFromFormData(raw, "productImage") : null;
   const receiptImageFile =
     raw instanceof FormData ? imageFileFromFormData(raw, "receiptImage") : null;
+  const conditionImageFile =
+    raw instanceof FormData ? imageFileFromFormData(raw, "conditionImage") : null;
   const fields =
     raw instanceof FormData ? intakeFieldsFromFormData(raw) : raw;
 
@@ -153,7 +161,10 @@ export async function saveAdminOutsidePurchaseIntakeAction(
     serviceTiers,
   });
 
-  if ((productImageFile || receiptImageFile) && !getBlobReadWriteToken()) {
+  if (
+    (productImageFile || receiptImageFile || conditionImageFile) &&
+    !getBlobReadWriteToken()
+  ) {
     return { ok: false, message: blobReadWriteNotConfiguredMessage() };
   }
 
@@ -240,6 +251,36 @@ export async function saveAdminOutsidePurchaseIntakeAction(
       }
     }
 
+    if (conditionImageFile) {
+      const conditionUrl = await uploadIntakeImageForRequest(
+        created.id,
+        conditionImageFile,
+        "outside-purchase-condition",
+      );
+      if (conditionUrl) {
+        try {
+          await db
+            .update(itemRequests)
+            .set({ outsidePurchaseConditionImageUrl: conditionUrl })
+            .where(eq(itemRequests.id, created.id));
+          created = {
+            ...created,
+            outsidePurchaseConditionImageUrl: conditionUrl,
+          };
+        } catch (e) {
+          if (isMissingOutsidePurchaseConditionImageUrlColumnError(e)) {
+            return {
+              ok: false,
+              message:
+                "Condition photo uploaded but could not be saved — run npm run db:push to apply migration 0066_outside_purchase_condition_image.",
+              itemRequestId: created.id,
+            };
+          }
+          throw e;
+        }
+      }
+    }
+
     const snap = itemRequestSnapshotForQuote(created);
     const serviceLine =
       pricing.isPackLine ?
@@ -315,6 +356,8 @@ export async function updateAdminOutsidePurchaseIntakeAction(
     raw instanceof FormData ? imageFileFromFormData(raw, "productImage") : null;
   const receiptImageFile =
     raw instanceof FormData ? imageFileFromFormData(raw, "receiptImage") : null;
+  const conditionImageFile =
+    raw instanceof FormData ? imageFileFromFormData(raw, "conditionImage") : null;
   const fields =
     raw instanceof FormData ?
       { ...intakeFieldsFromFormData(raw), itemRequestId: raw.get("itemRequestId") }
@@ -348,7 +391,10 @@ export async function updateAdminOutsidePurchaseIntakeAction(
     serviceTiers,
   });
 
-  if ((productImageFile || receiptImageFile) && !getBlobReadWriteToken()) {
+  if (
+    (productImageFile || receiptImageFile || conditionImageFile) &&
+    !getBlobReadWriteToken()
+  ) {
     return { ok: false, message: blobReadWriteNotConfiguredMessage() };
   }
 
@@ -403,6 +449,20 @@ export async function updateAdminOutsidePurchaseIntakeAction(
           .set({ outsidePurchaseReceiptImageUrl: receiptUrl })
           .where(eq(itemRequests.id, row.id));
         row = { ...row, outsidePurchaseReceiptImageUrl: receiptUrl };
+      }
+    }
+    if (conditionImageFile) {
+      const conditionUrl = await uploadIntakeImageForRequest(
+        row.id,
+        conditionImageFile,
+        "outside-purchase-condition",
+      );
+      if (conditionUrl) {
+        await db
+          .update(itemRequests)
+          .set({ outsidePurchaseConditionImageUrl: conditionUrl })
+          .where(eq(itemRequests.id, row.id));
+        row = { ...row, outsidePurchaseConditionImageUrl: conditionUrl };
       }
     }
 

@@ -133,11 +133,26 @@ export function isMissingBatchQuoteSessionIdColumnError(e: unknown): boolean {
   return isUndefinedColumnError(e, "batch_quote_session_id");
 }
 
-/** `item_requests.outside_purchase_receipt_image_url` — migration `0044_outside_purchase_receipt_image` or `npm run db:push`. */
+/**
+ * Optional outside-purchase intake image columns are missing until migrations
+ * `0044_outside_purchase_receipt_image` / `0066_outside_purchase_condition_image`
+ * (or `npm run db:push`). Both columns are dropped together in the select fallback,
+ * so either missing column routes through the same recovery path.
+ */
 export function isMissingOutsidePurchaseReceiptImageUrlColumnError(
   e: unknown,
 ): boolean {
-  return isUndefinedColumnError(e, "outside_purchase_receipt_image_url");
+  return (
+    isUndefinedColumnError(e, "outside_purchase_receipt_image_url") ||
+    isUndefinedColumnError(e, "outside_purchase_condition_image_url")
+  );
+}
+
+/** `item_requests.outside_purchase_condition_image_url` — migration `0066_outside_purchase_condition_image` or `npm run db:push`. */
+export function isMissingOutsidePurchaseConditionImageUrlColumnError(
+  e: unknown,
+): boolean {
+  return isUndefinedColumnError(e, "outside_purchase_condition_image_url");
 }
 
 /** `item_quotes.merchandise_savings_cents` is missing until that migration applies. */

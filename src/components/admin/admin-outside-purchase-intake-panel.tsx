@@ -2,8 +2,8 @@
 
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useRouter } from "next/navigation";
-import { Loader2Icon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { ChevronDownIcon, ChevronRightIcon, Loader2Icon, RefreshCwIcon } from "lucide-react";
+import { useCallback, useId, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -11,6 +11,7 @@ import {
   saveAdminOutsidePurchaseIntakeAction,
 } from "@/actions/admin-outside-purchase-intake";
 import { AdminOutsidePurchaseEditDialog } from "@/components/admin/admin-outside-purchase-edit-dialog";
+import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
@@ -44,6 +45,11 @@ import {
 } from "@/lib/item-request-status-label";
 import type { OutsidePurchaseReturnRequest } from "@/db/schema";
 import { displayProductSiteName } from "@/lib/site-name";
+import {
+  adminCustomerDisplayLabel,
+  adminCustomerSortKey,
+} from "@/lib/admin-customer-group";
+import { compareLocale } from "@/lib/table-sort";
 import {
   revokeBlobPreviewUrl,
   validateProductImageFile,
@@ -79,6 +85,195 @@ function parseUnitsPerPackInput(raw: string): number {
   return Math.min(n, 9999);
 }
 
+type OutsidePurchaseCustomerGroup = {
+  clerkUserId: string;
+  userFullName: string | null;
+  userEmail: string | null;
+  rows: OutsidePurchaseIntakeAdminRow[];
+};
+
+function groupOutsidePurchaseRowsByCustomer(
+  rows: OutsidePurchaseIntakeAdminRow[],
+): OutsidePurchaseCustomerGroup[] {
+  const map = new Map<string, OutsidePurchaseCustomerGroup>();
+
+  for (const row of rows) {
+    const id = row.request.clerkUserId;
+    let bucket = map.get(id);
+    if (!bucket) {
+      bucket = {
+        clerkUserId: id,
+        userFullName: row.userFullName,
+        userEmail: row.userEmail,
+        rows: [],
+      };
+      map.set(id, bucket);
+    }
+    bucket.rows.push(row);
+  }
+
+  return [...map.values()].sort((a, b) =>
+    compareLocale(
+      adminCustomerSortKey({
+        clerkUserId: a.clerkUserId,
+        fullName: a.userFullName,
+        email: a.userEmail,
+      }),
+      adminCustomerSortKey({
+        clerkUserId: b.clerkUserId,
+        fullName: b.userFullName,
+        email: b.userEmail,
+      }),
+      "asc",
+    ),
+  );
+}
+
+type OutsidePurchaseProductRowProps = {
+  row: OutsidePurchaseIntakeAdminRow;
+  quote?: ItemQuote;
+  returnReq: OutsidePurchaseReturnRequest | null;
+  orderContext?: ItemRequestOrderContext;
+  snapshots: ItemRequestLineSnapshot[];
+  outsidePurchaseServiceTiers: MerchantServiceTierRow[];
+  saving: boolean;
+  promptingId: string | null;
+  onRecordPrompt: (itemRequestId: string) => void;
+};
+
+function OutsidePurchaseProductRow({
+  row: { request: r },
+  quote,
+  returnReq,
+  orderContext,
+  snapshots,
+  outsidePurchaseServiceTiers,
+  saving,
+  promptingId,
+  onRecordPrompt,
+}: OutsidePurchaseProductRowProps) {
+  const ref =
+    outsidePurchaseReferenceDisplay(r) ?? r.outsidePurchaseReference ?? "—";
+  const prompted = Boolean(r.outsidePurchasePaymentPromptedAt);
+
+  return (
+    <tr className="align-top">
+      <td className="px-3 py-3 font-mono text-xs text-primary">{ref}</td>
+      <td className="max-w-[12rem] px-3 py-3">
+        <div className="flex gap-2">
+          <ProductRequestThumbnail
+            variant="admin"
+            imageUrl={r.productImageUrl}
+            productLabel={r.productName}
+          />
+          <div className="min-w-0">
+            <p className="line-clamp-2 font-medium text-foreground">
+              {r.productName?.trim() || "—"}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {displayProductSiteName(r)}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+              {r.outsidePurchaseReceiptImageUrl ?
+                <a
+                  href={r.outsidePurchaseReceiptImageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-xs text-primary hover:underline"
+                >
+                  View receipt
+                </a>
+              : null}
+              {r.outsidePurchaseConditionImageUrl ?
+                <a
+                  href={r.outsidePurchaseConditionImageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-xs text-primary hover:underline"
+                >
+                  View condition photo
+                </a>
+              : null}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-3 tabular-nums">
+        {quote ? formatUsd(quote.totalPrice) : "—"}
+      </td>
+      <td className="px-3 py-3">
+        <StatusBadge
+          kind={itemRequestStatusBadgeKindForDisplay(
+            r,
+            returnReq,
+            orderContext,
+            "admin",
+          )}
+          title={
+            orderContext ?
+              itemRequestStatusLabelForDisplay(
+                r,
+                returnReq,
+                orderContext,
+                "admin",
+              )
+            : r.status
+          }
+        >
+          {itemRequestStatusLabelForDisplay(
+            r,
+            returnReq,
+            orderContext,
+            "admin",
+          )}
+        </StatusBadge>
+        {prompted ?
+          <p className="mt-1 text-[10px] text-muted-foreground">Prompt recorded</p>
+        : null}
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex flex-col gap-2">
+          {r.status === "quoted" ?
+            <AdminOutsidePurchaseEditDialog
+              request={r}
+              quote={quote ?? null}
+              outsidePurchaseServiceTiers={outsidePurchaseServiceTiers}
+              returnRequest={returnReq}
+            />
+          : null}
+          <ItemRequestLineAuditDialog
+            itemRequestId={r.id}
+            productLabel={r.productName?.trim() || ""}
+            snapshots={snapshots}
+            triggerLabel="Status records"
+          />
+          {quote ?
+            <QuoteEstimatePreviewDialog
+              itemRequestId={r.id}
+              label="Preview charges"
+            />
+          : null}
+          {r.status === "quoted" ?
+            <Button
+              type="button"
+              size="sm"
+              variant={prompted ? "outline" : "default"}
+              disabled={saving && promptingId === r.id}
+              onClick={() => onRecordPrompt(r.id)}
+            >
+              {saving && promptingId === r.id ?
+                <Loader2Icon className="size-3.5 animate-spin" />
+              : prompted ?
+                "Re-record prompt"
+              : "Record payment prompt"}
+            </Button>
+          : null}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 type AdminOutsidePurchaseIntakePanelProps = {
   customers: AdminProfilePickerRow[];
   recentRows: OutsidePurchaseIntakeAdminRow[];
@@ -99,8 +294,15 @@ export function AdminOutsidePurchaseIntakePanel({
   outsidePurchaseServiceTiers,
 }: AdminOutsidePurchaseIntakePanelProps) {
   const router = useRouter();
+  const recentGroupsPanelId = useId();
   const [saving, startSave] = useTransition();
   const [promptingId, setPromptingId] = useState<string | null>(null);
+  const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
+
+  const customerGroups = useMemo(
+    () => groupOutsidePurchaseRowsByCustomer(recentRows),
+    [recentRows],
+  );
 
   const [clerkUserId, setClerkUserId] = useState("");
   const [reference, setReference] = useState(() => formatOutsidePurchaseReference());
@@ -122,6 +324,10 @@ export function AdminOutsidePurchaseIntakePanel({
   const [receiptImagePreview, setReceiptImagePreview] = useState<string | null>(
     null,
   );
+  const [conditionImageFile, setConditionImageFile] = useState<File | null>(null);
+  const [conditionImagePreview, setConditionImagePreview] = useState<
+    string | null
+  >(null);
 
   const pricingPreview = useMemo(() => {
     return computeOutsidePurchaseCustomerQuoteCents({
@@ -165,7 +371,10 @@ export function AdminOutsidePurchaseIntakePanel({
     setReceiptImageFile(null);
     revokeBlobPreviewUrl(receiptImagePreview);
     setReceiptImagePreview(null);
-  }, [imagePreview, receiptImagePreview]);
+    setConditionImageFile(null);
+    revokeBlobPreviewUrl(conditionImagePreview);
+    setConditionImagePreview(null);
+  }, [imagePreview, receiptImagePreview, conditionImagePreview]);
 
   const onPickProductImage = useCallback(
     (fileList: FileList | null) => {
@@ -199,6 +408,22 @@ export function AdminOutsidePurchaseIntakePanel({
     [receiptImagePreview],
   );
 
+  const onPickConditionImage = useCallback(
+    (fileList: FileList | null) => {
+      const file = fileList?.[0];
+      if (!file) return;
+      const err = validateProductImageFile(file);
+      if (err) {
+        toast.error(err);
+        return;
+      }
+      setConditionImageFile(file);
+      revokeBlobPreviewUrl(conditionImagePreview);
+      setConditionImagePreview(URL.createObjectURL(file));
+    },
+    [conditionImagePreview],
+  );
+
   const onSubmit = () => {
     if (!clerkUserId.trim()) {
       toast.error("Select a customer account.");
@@ -227,6 +452,7 @@ export function AdminOutsidePurchaseIntakePanel({
     if (staffNote.trim()) fd.set("staffNote", staffNote.trim());
     if (imageFile) fd.set("productImage", imageFile);
     if (receiptImageFile) fd.set("receiptImage", receiptImageFile);
+    if (conditionImageFile) fd.set("conditionImage", conditionImageFile);
 
     startSave(async () => {
       const res = await saveAdminOutsidePurchaseIntakeAction(fd);
@@ -283,7 +509,12 @@ export function AdminOutsidePurchaseIntakePanel({
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
           <div className="space-y-4">
             <Field>
-              <FieldLabel htmlFor="op-customer">Customer account</FieldLabel>
+              <FieldLabelWithHelp
+                htmlFor="op-customer"
+                label="Customer account"
+                help="The shopper who bought this item elsewhere and shipped it to you. The line and its service charge are billed to this account."
+                helpLabel="About customer account"
+              />
               <FieldContent>
                 <select
                   id="op-customer"
@@ -315,7 +546,12 @@ export function AdminOutsidePurchaseIntakePanel({
 
             <div className="flex flex-wrap items-end gap-2">
               <Field className="min-w-[14rem] flex-1">
-                <FieldLabel htmlFor="op-ref">Reference number</FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-ref"
+                  label="Reference number"
+                  help="Unique staff-facing tracking id (OP-YYYYMMDD-XXXX) for this outside purchase. Used on the customer's product line and in status records."
+                  helpLabel="About reference number"
+                />
                 <FieldContent>
                   <Input
                     id="op-ref"
@@ -326,19 +562,30 @@ export function AdminOutsidePurchaseIntakePanel({
                   />
                 </FieldContent>
               </Field>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setReference(formatOutsidePurchaseReference())}
-              >
-                <RefreshCwIcon className="mr-1.5 size-3.5" aria-hidden />
-                New ID
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setReference(formatOutsidePurchaseReference())}
+                >
+                  <RefreshCwIcon className="mr-1.5 size-3.5" aria-hidden />
+                  New ID
+                </Button>
+                <HelpBalloon label="About New ID">
+                  Generates a fresh unique reference number. Use it if the current
+                  id is already taken or you want a new one for this intake.
+                </HelpBalloon>
+              </div>
             </div>
 
             <Field>
-              <FieldLabel htmlFor="op-name">Product name</FieldLabel>
+              <FieldLabelWithHelp
+                htmlFor="op-name"
+                label="Product name"
+                help="Name shown to the customer on their product line and order. Use the retailer's product title so the shopper recognizes the item."
+                helpLabel="About product name"
+              />
               <FieldContent>
                 <Input
                   id="op-name"
@@ -381,9 +628,16 @@ export function AdminOutsidePurchaseIntakePanel({
               )}
             >
               <Field>
-                <FieldLabel htmlFor="op-qty">
-                  {isPackLine ? "Received Qty (packs)" : "Received Qty"}
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-qty"
+                  label={isPackLine ? "Received Qty (packs)" : "Received Qty"}
+                  help={
+                    isPackLine ?
+                      "Number of packs/cases/bundles received. Service & handling is charged per consumer unit (units per pack × this count)."
+                    : "Number of individual items received. Service & handling is charged per unit."
+                  }
+                  helpLabel="About received quantity"
+                />
                 <FieldContent>
                   <Input
                     id="op-qty"
@@ -448,7 +702,12 @@ export function AdminOutsidePurchaseIntakePanel({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="op-size">Received Size</FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-size"
+                  label="Received Size"
+                  help="Size/variant of the item as it actually arrived (optional). Shown to the customer for confirmation."
+                  helpLabel="About received size"
+                />
                 <FieldContent>
                   <Input
                     id="op-size"
@@ -458,7 +717,12 @@ export function AdminOutsidePurchaseIntakePanel({
                 </FieldContent>
               </Field>
               <Field>
-                <FieldLabel htmlFor="op-color">Received Color</FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-color"
+                  label="Received Color"
+                  help="Color/variant of the item as it actually arrived (optional). Shown to the customer for confirmation."
+                  helpLabel="About received color"
+                />
                 <FieldContent>
                   <Input
                     id="op-color"
@@ -471,9 +735,12 @@ export function AdminOutsidePurchaseIntakePanel({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="op-condition">
-                  Condition product received in
-                </FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-condition"
+                  label="Condition product received in"
+                  help="Physical state of the item when it arrived at your warehouse (e.g. good, damaged, wrong item). Drives the customer status and any return-to-retailer flow."
+                  helpLabel="About received condition"
+                />
                 <FieldContent>
                   <select
                     id="op-condition"
@@ -492,7 +759,12 @@ export function AdminOutsidePurchaseIntakePanel({
                 </FieldContent>
               </Field>
               <Field>
-                <FieldLabel htmlFor="op-shelf">Shelf location</FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-shelf"
+                  label="Shelf location"
+                  help="Where the item is stored in your warehouse (aisle, shelf, or bin). Internal only — helps staff find it when packing the barrel."
+                  helpLabel="About shelf location"
+                />
                 <FieldContent>
                   <Input
                     id="op-shelf"
@@ -505,13 +777,56 @@ export function AdminOutsidePurchaseIntakePanel({
               </Field>
             </div>
 
+            <Field>
+              <FieldLabelWithHelp
+                htmlFor="op-condition-image"
+                label="Received condition photo"
+                help="Photo showing the physical condition the product arrived in (packaging, damage, defects). JPEG, PNG, WebP, or GIF."
+                helpLabel="About received condition photo"
+              />
+              <FieldContent>
+                <ImageFileInput
+                  id="op-condition-image"
+                  onFiles={onPickConditionImage}
+                  selectedFileName={conditionImageFile?.name ?? null}
+                />
+                {conditionImagePreview ?
+                  <div className="mt-3 flex items-start gap-3">
+                    <ProductRequestThumbnail
+                      variant="admin"
+                      imageUrl={conditionImagePreview}
+                      productLabel="Received condition"
+                      className="size-24 shrink-0"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setConditionImageFile(null);
+                        revokeBlobPreviewUrl(conditionImagePreview);
+                        setConditionImagePreview(null);
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                : null}
+              </FieldContent>
+            </Field>
+
             <CollapsibleFieldSection
               title="Receipt details"
               description="Optional inbound note and receipt photo"
               defaultOpen={false}
             >
               <Field>
-                <FieldLabel htmlFor="op-receipt-note">Receipt / inbound note</FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-receipt-note"
+                  label="Receipt / inbound note"
+                  help="Internal note about the inbound package — retailer, order number, or handling details. Not shown to the customer."
+                  helpLabel="About receipt / inbound note"
+                />
                 <FieldContent>
                   <textarea
                     id="op-receipt-note"
@@ -524,7 +839,12 @@ export function AdminOutsidePurchaseIntakePanel({
                 </FieldContent>
               </Field>
               <Field>
-                <FieldLabel htmlFor="op-receipt-image">Receipt image</FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-receipt-image"
+                  label="Receipt image"
+                  help="Photo of the retailer receipt or proof of purchase. Internal record of what the customer paid the store."
+                  helpLabel="About receipt image"
+                />
                 <FieldContent>
                 <p className="mb-1 text-xs text-muted-foreground">
                   Photo of the retailer receipt or proof of purchase (JPEG, PNG, WebP, or GIF).
@@ -578,7 +898,12 @@ export function AdminOutsidePurchaseIntakePanel({
               defaultOpen={false}
             >
               <Field>
-                <FieldLabel htmlFor="op-staff-note">Staff note</FieldLabel>
+                <FieldLabelWithHelp
+                  htmlFor="op-staff-note"
+                  label="Staff note"
+                  help="Short message shown to the customer on this product line — e.g. a note about substitutions or condition. Leave blank if none."
+                  helpLabel="About staff note"
+                />
               <FieldContent>
                 <textarea
                   id="op-staff-note"
@@ -591,7 +916,12 @@ export function AdminOutsidePurchaseIntakePanel({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="op-image">Product photo</FieldLabel>
+              <FieldLabelWithHelp
+                htmlFor="op-image"
+                label="Product photo"
+                help="Catalog image shown to the customer for this product line. Use a clear photo of the actual item or the retailer's product image."
+                helpLabel="About product photo"
+              />
               <FieldContent>
                 <p className="mb-2 text-xs text-muted-foreground">
                   JPEG, PNG, WebP, or GIF — choose from your device or take a photo with the
@@ -606,14 +936,20 @@ export function AdminOutsidePurchaseIntakePanel({
             </Field>
             </CollapsibleFieldSection>
 
-            <Button type="button" disabled={saving} onClick={onSubmit} className="w-full sm:w-auto">
-              {saving ?
-                <>
-                  <Loader2Icon className="mr-2 size-4 animate-spin" aria-hidden />
-                  Saving…
-                </>
-              : "Save product & estimate"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button type="button" disabled={saving} onClick={onSubmit} className="w-full sm:w-auto">
+                {saving ?
+                  <>
+                    <Loader2Icon className="mr-2 size-4 animate-spin" aria-hidden />
+                    Saving…
+                  </>
+                : "Save product & estimate"}
+              </Button>
+              <HelpBalloon label="About save product & estimate">
+                Creates the customer&apos;s product line, uploads any photos, and publishes
+                the outside-purchase service &amp; handling estimate so the customer can pay.
+              </HelpBalloon>
+            </div>
           </div>
 
           <div className="flex flex-col items-center gap-3">
@@ -636,6 +972,19 @@ export function AdminOutsidePurchaseIntakePanel({
                 />
               </div>
             : null}
+            {conditionImagePreview ?
+              <div className="flex flex-col items-center gap-1">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Condition
+                </p>
+                <ProductRequestThumbnail
+                  variant="admin"
+                  imageUrl={conditionImagePreview}
+                  productLabel="Received condition"
+                  className="size-20"
+                />
+              </div>
+            : null}
             <p className="text-center font-mono text-xs text-primary">{reference}</p>
           </div>
         </div>
@@ -646,7 +995,7 @@ export function AdminOutsidePurchaseIntakePanel({
           as="h3"
           title="Recent outside purchases"
           titleClassName="text-sm font-semibold text-foreground"
-          help="One row per product with its current fulfillment status. Superseded estimates voided when a customer requests a new quote are omitted here; open Active requests to see those lines."
+          help="Grouped by customer. Expand an account to see each product with its current fulfillment status. Superseded estimates voided when a customer requests a new quote are omitted here; open Active requests to see those lines."
           helpLabel="About recent outside purchases"
           tooltipClassName="w-80"
         />
@@ -655,137 +1004,120 @@ export function AdminOutsidePurchaseIntakePanel({
             No outside-purchase lines yet.
           </p>
         : <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
-            <table className="w-full min-w-[52rem] text-left text-sm">
+            <table className="w-full min-w-[48rem] text-left text-sm">
               <thead className="border-b border-border bg-muted">
                 <tr>
-                  <th className="px-3 py-2.5 font-medium">Ref</th>
+                  <th className="w-10 px-2 py-2.5" aria-hidden />
                   <th className="px-3 py-2.5 font-medium">Customer</th>
-                  <th className="px-3 py-2.5 font-medium">Product</th>
-                  <th className="px-3 py-2.5 font-medium">Service due</th>
-                  <th className="px-3 py-2.5 font-medium">Status</th>
-                  <th className="px-3 py-2.5 font-medium">Actions</th>
+                  <th className="px-3 py-2.5 font-medium">Products</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
-                {recentRows.map(({ request: r, userFullName, userEmail }) => {
-                  const quote = latestQuotesByRequestId[r.id];
-                  const ref =
-                    outsidePurchaseReferenceDisplay(r) ?? r.outsidePurchaseReference ?? "—";
-                  const returnReq = returnRequestsByItemRequestId[r.id] ?? null;
-                  const prompted = Boolean(r.outsidePurchasePaymentPromptedAt);
-                  return (
-                    <tr key={r.id} className="align-top">
-                      <td className="px-3 py-3 font-mono text-xs text-primary">{ref}</td>
-                      <td className="max-w-[10rem] px-3 py-3 text-muted-foreground">
-                        <span className="line-clamp-2 text-xs">
-                          {userFullName?.trim() || userEmail?.trim() || r.clerkUserId}
-                        </span>
+              {customerGroups.map((group) => {
+                const expanded = openClerkUserId === group.clerkUserId;
+                const panelId = `${recentGroupsPanelId}-${group.clerkUserId}`;
+                const customerLabel = adminCustomerDisplayLabel({
+                  clerkUserId: group.clerkUserId,
+                  fullName: group.userFullName,
+                  email: group.userEmail,
+                });
+
+                return (
+                  <tbody
+                    key={group.clerkUserId}
+                    className="border-b border-border last:border-b-0"
+                  >
+                    <tr
+                      className={cn(
+                        "bg-background transition-colors hover:bg-accent",
+                        expanded && "bg-accent",
+                      )}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expanded}
+                      aria-controls={panelId}
+                      onClick={() =>
+                        setOpenClerkUserId((current) =>
+                          current === group.clerkUserId ? null : group.clerkUserId,
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setOpenClerkUserId((current) =>
+                            current === group.clerkUserId ? null : group.clerkUserId,
+                          );
+                        }
+                      }}
+                    >
+                      <td className="px-2 py-2.5 align-middle text-muted-foreground">
+                        {expanded ?
+                          <ChevronDownIcon className="size-4" aria-hidden />
+                        : <ChevronRightIcon className="size-4" aria-hidden />}
                       </td>
-                      <td className="max-w-[12rem] px-3 py-3">
-                        <div className="flex gap-2">
-                          <ProductRequestThumbnail
-                            variant="admin"
-                            imageUrl={r.productImageUrl}
-                            productLabel={r.productName}
-                          />
-                          <div className="min-w-0">
-                            <p className="line-clamp-2 font-medium text-foreground">
-                              {r.productName?.trim() || "—"}
-                            </p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {displayProductSiteName(r)}
-                            </p>
-                            {r.outsidePurchaseReceiptImageUrl ?
-                              <a
-                                href={r.outsidePurchaseReceiptImageUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-1 inline-block text-xs text-primary hover:underline"
-                              >
-                                View receipt
-                              </a>
-                            : null}
-                          </div>
-                        </div>
+                      <td className="px-3 py-2.5 align-middle">
+                        <AdminCustomerRecordLabel
+                          clerkUserId={group.clerkUserId}
+                          fullName={group.userFullName}
+                          email={group.userEmail}
+                          primaryClassName="text-sm font-medium"
+                        />
                       </td>
-                      <td className="px-3 py-3 tabular-nums">
-                        {quote ? formatUsd(quote.totalPrice) : "—"}
-                      </td>
-                      <td className="px-3 py-3">
-                        <StatusBadge
-                          kind={itemRequestStatusBadgeKindForDisplay(
-                            r,
-                            returnReq,
-                            orderContextByRequestId[r.id],
-                            "admin",
-                          )}
-                          title={
-                            orderContextByRequestId[r.id] ?
-                              itemRequestStatusLabelForDisplay(
-                                r,
-                                returnReq,
-                                orderContextByRequestId[r.id],
-                                "admin",
-                              )
-                            : r.status
-                          }
-                        >
-                          {itemRequestStatusLabelForDisplay(
-                            r,
-                            returnReq,
-                            orderContextByRequestId[r.id],
-                            "admin",
-                          )}
-                        </StatusBadge>
-                        {prompted ?
-                          <p className="mt-1 text-[10px] text-muted-foreground">
-                            Prompt recorded
-                          </p>
-                        : null}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-col gap-2">
-                          {r.status === "quoted" ?
-                            <AdminOutsidePurchaseEditDialog
-                              request={r}
-                              quote={quote ?? null}
-                              outsidePurchaseServiceTiers={outsidePurchaseServiceTiers}
-                              returnRequest={returnReq}
-                            />
-                          : null}
-                          <ItemRequestLineAuditDialog
-                            itemRequestId={r.id}
-                            productLabel={r.productName?.trim() || ""}
-                            snapshots={snapshotsByRequestId[r.id] ?? []}
-                            triggerLabel="Status records"
-                          />
-                          {quote ?
-                            <QuoteEstimatePreviewDialog
-                              itemRequestId={r.id}
-                              label="Preview charges"
-                            />
-                          : null}
-                          {r.status === "quoted" ?
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={prompted ? "outline" : "default"}
-                              disabled={saving && promptingId === r.id}
-                              onClick={() => onRecordPrompt(r.id)}
-                            >
-                              {saving && promptingId === r.id ?
-                                <Loader2Icon className="size-3.5 animate-spin" />
-                              : prompted ?
-                                "Re-record prompt"
-                              : "Record payment prompt"}
-                            </Button>
-                          : null}
-                        </div>
+                      <td className="px-3 py-2.5 align-middle tabular-nums text-muted-foreground">
+                        {group.rows.length}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
+                    {expanded ?
+                      <tr>
+                        <td colSpan={3} className="bg-secondary p-0">
+                          <div
+                            id={panelId}
+                            className="border-t border-border px-3 py-4"
+                            role="region"
+                            aria-label={`Outside purchases for ${customerLabel}`}
+                          >
+                            <table className="w-full min-w-[44rem] text-left text-sm">
+                              <thead className="border-b border-border/80 text-xs text-muted-foreground">
+                                <tr>
+                                  <th className="px-3 py-2 font-medium">Ref</th>
+                                  <th className="px-3 py-2 font-medium">Product</th>
+                                  <th className="px-3 py-2 font-medium">Service due</th>
+                                  <th className="px-3 py-2 font-medium">Status</th>
+                                  <th className="px-3 py-2 font-medium">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/80">
+                                {group.rows.map((row) => (
+                                  <OutsidePurchaseProductRow
+                                    key={row.request.id}
+                                    row={row}
+                                    quote={latestQuotesByRequestId[row.request.id]}
+                                    returnReq={
+                                      returnRequestsByItemRequestId[row.request.id] ??
+                                      null
+                                    }
+                                    orderContext={
+                                      orderContextByRequestId[row.request.id]
+                                    }
+                                    snapshots={
+                                      snapshotsByRequestId[row.request.id] ?? []
+                                    }
+                                    outsidePurchaseServiceTiers={
+                                      outsidePurchaseServiceTiers
+                                    }
+                                    saving={saving}
+                                    promptingId={promptingId}
+                                    onRecordPrompt={onRecordPrompt}
+                                  />
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    : null}
+                  </tbody>
+                );
+              })}
             </table>
           </FloatingHorizontalScroll>
         }
