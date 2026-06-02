@@ -22,6 +22,7 @@ import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
 import { countOutsidePurchaseIntakesAwaitingPayment } from "@/data/outside-purchase-intake";
 import { buildAdminItemRequestGroups } from "@/lib/admin-item-requests-group";
 import type { AdminItemRequestGroup } from "@/lib/admin-item-requests-group";
+import { filterAdminItemRequestGroups } from "@/lib/admin-customer-filter";
 import {
   getClerkSessionGate,
   getClerkUserForAdminData,
@@ -243,3 +244,90 @@ export const loadAdminItemRequestsPagePayload = cache(async (): Promise<
     },
   };
 });
+
+export type AdminItemRequestsQueuePagePayload = {
+  groups: AdminItemRequestGroup[];
+  snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  activeQueueLatestQuotesByRequestId: Record<string, ItemQuote>;
+  hasActiveQueue: boolean;
+  noData: boolean;
+  emptyAsNonAdmin: boolean;
+};
+
+/** Queue table only renders `activeQueueRequests`; drop full account history from the client payload. */
+export function slimAdminItemRequestGroupForClient(
+  group: AdminItemRequestGroup,
+): AdminItemRequestGroup {
+  return { ...group, requests: [] };
+}
+
+/** Active queue tab — snapshots and quotes scoped to in-flight lines only. */
+export const loadAdminItemRequestsQueuePagePayload = cache(
+  async (
+    clerkUserId?: string | null,
+  ): Promise<
+    | { ok: false; message: string }
+    | { ok: true; payload: AdminItemRequestsQueuePagePayload }
+  > => {
+    const result = await loadAdminItemRequestsBase();
+    if (!result.ok) {
+      return result;
+    }
+
+    const { base } = result;
+    const queueGroups = filterAdminItemRequestGroups(
+      base.groups.filter((g) => g.activeQueueCount > 0),
+      clerkUserId ?? undefined,
+    );
+
+    if (queueGroups.length === 0) {
+      return {
+        ok: true,
+        payload: {
+          groups: [],
+          snapshotsByRequestId: {},
+          activeQueueLatestQuotesByRequestId: {},
+          hasActiveQueue: base.hasActiveQueue,
+          noData: base.noData,
+          emptyAsNonAdmin: base.emptyAsNonAdmin,
+        },
+      };
+    }
+
+    const queueRequestIds = queueGroups.flatMap((g) =>
+      g.activeQueueRequests.map((row) => row.request.id),
+    );
+    const quotedActiveRequestIds = queueGroups.flatMap((g) =>
+      g.activeQueueRequests
+        .filter((row) => row.request.status === "quoted")
+        .map((row) => row.request.id),
+    );
+
+    const [snapshotRows, activeQueueLatestQuotes] = await Promise.all([
+      listItemRequestLineSnapshotsByRequestIds(
+        base.user,
+        queueRequestIds,
+        base.admin,
+      ),
+      quotedActiveRequestIds.length === 0
+        ? Promise.resolve(new Map<string, ItemQuote>())
+        : collectLatestQuotesForRequests(quotedActiveRequestIds),
+    ]);
+
+    return {
+      ok: true,
+      payload: {
+        groups: queueGroups.map(slimAdminItemRequestGroupForClient),
+        snapshotsByRequestId: Object.fromEntries(
+          groupItemRequestLineSnapshotsByRequestId(snapshotRows),
+        ),
+        activeQueueLatestQuotesByRequestId: Object.fromEntries(
+          activeQueueLatestQuotes,
+        ),
+        hasActiveQueue: base.hasActiveQueue,
+        noData: base.noData,
+        emptyAsNonAdmin: base.emptyAsNonAdmin,
+      },
+    };
+  },
+);
