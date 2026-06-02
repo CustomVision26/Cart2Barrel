@@ -532,7 +532,7 @@ export function AdminOutsidePurchaseEditDialog({
             </Button>
             <HelpBalloon
               label="About save changes"
-              tooltipClassName="right-0 left-auto translate-x-0"
+              tooltipClassName="top-auto bottom-full mt-0 mb-2 right-0 left-auto translate-x-0"
             >
               Saves the product details, condition, shelf location, note, and any new
               photos, then recalculates the customer&apos;s service estimate.

@@ -7,8 +7,10 @@ import {
 } from "@/components/ui/card";
 import type { FinanceDateRange } from "@/data/admin-finance-summary";
 import { getAdminFinanceSummary } from "@/data/admin-finance-summary";
+import { listProfilesForAdminPicker } from "@/data/customer-pricing-packages";
 import { ADMIN_CUSTOMER_FILTER_PARAM } from "@/lib/admin-customer-filter";
 import { formatUsd } from "@/lib/admin-markup";
+import { compareLocale } from "@/lib/table-sort";
 
 export async function AdminFinancePanel({
   range,
@@ -17,8 +19,18 @@ export async function AdminFinancePanel({
   range: FinanceDateRange;
   clerkUserId?: string;
 }) {
-  const s = await getAdminFinanceSummary(range, clerkUserId);
+  const [s, profiles] = await Promise.all([
+    getAdminFinanceSummary(range, clerkUserId),
+    listProfilesForAdminPicker(),
+  ]);
   const approxNetCents = s.saleRevenueCents - s.refundsCents - s.stripeFeeCents;
+  const customerOptions = [...profiles].sort((a, b) =>
+    compareLocale(a.displayName, b.displayName, "asc"),
+  );
+  const selectedProfile =
+    clerkUserId ?
+      profiles.find((p) => p.clerkUserId === clerkUserId) ?? null
+    : null;
 
   return (
     <div className="space-y-6">
@@ -38,9 +50,29 @@ export async function AdminFinancePanel({
         className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <input type="hidden" name="tab" value="finance" />
-        {clerkUserId ?
-          <input type="hidden" name={ADMIN_CUSTOMER_FILTER_PARAM} value={clerkUserId} />
-        : null}
+        <div className="space-y-1.5 sm:min-w-[16rem] sm:flex-1">
+          <label
+            htmlFor="finance-customer"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Customer
+          </label>
+          <select
+            id="finance-customer"
+            name={ADMIN_CUSTOMER_FILTER_PARAM}
+            defaultValue={clerkUserId ?? ""}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+          >
+            <option value="">All customers</option>
+            {customerOptions.map((p) => (
+              <option key={p.clerkUserId} value={p.clerkUserId}>
+                {p.displayName}
+                {p.email ? ` · ${p.email}` : ""}
+                {p.accountKind === "admin" ? " (staff)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="space-y-1.5">
           <label htmlFor="finance-from" className="text-xs font-medium text-muted-foreground">
             From (UTC date)
@@ -76,7 +108,15 @@ export async function AdminFinancePanel({
       <p className="text-xs text-muted-foreground">
         Range: <span className="font-mono text-foreground">{range.fromIso}</span> →{" "}
         <span className="font-mono text-foreground">{range.toIso}</span> · Paid orders in range:{" "}
-        <span className="tabular-nums text-foreground">{s.paidOrderCount}</span>
+        <span className="tabular-nums text-foreground">{s.paidOrderCount}</span> ·{" "}
+        {selectedProfile ?
+          <>
+            Customer:{" "}
+            <span className="font-medium text-foreground">
+              {selectedProfile.displayName}
+            </span>
+          </>
+        : <span className="text-foreground">All customers</span>}
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -1356,6 +1356,72 @@ export async function withdrawEstimatedBatchQuoteSessionForOwner(params: {
 }
 
 /**
+ * Withdraws a **`submitted`** ("New batch request") batch owned by `clerkUserId`
+ * before staff have saved an estimate. Detaches every linked line back to Products
+ * (`batch_quote_session_id` → null) so each product returns as an individual quoted
+ * request, then deletes the session. Deleting removes it from the admin submitted
+ * queue (revoking the staff batch-estimate task); junction/estimate/status-event rows
+ * cascade, while audit line snapshots persist via FK `SET NULL`.
+ */
+export async function withdrawSubmittedBatchQuoteSessionForOwner(params: {
+  clerkUserId: string;
+  batchSessionId: string;
+}): Promise<{ returnedCount: number }> {
+  const db = getDb();
+  const batchSessionId = params.batchSessionId;
+
+  const [session] = await db
+    .select()
+    .from(batchQuoteSessions)
+    .where(
+      and(
+        eq(batchQuoteSessions.id, batchSessionId),
+        eq(batchQuoteSessions.clerkUserId, params.clerkUserId)
+      )
+    )
+    .limit(1);
+
+  if (!session) {
+    throw new Error("Batch not found.");
+  }
+  if (session.status !== "submitted") {
+    throw new Error(
+      session.status === "draft"
+        ? "Submit this batch first, or remove its products from the draft instead."
+        : session.status === "estimated"
+          ? "Staff already saved an estimate—use Withdraw batch on the quoted bundle instead."
+          : "This batch request can no longer be withdrawn. Refresh and try again."
+    );
+  }
+
+  const linkedRequests = await listItemRequestsForBatchSession(batchSessionId);
+  const returnedCount = linkedRequests.filter(
+    (r) => r.clerkUserId === params.clerkUserId
+  ).length;
+
+  // Detach lines explicitly (FK is ON DELETE SET NULL, but make the intent clear)
+  // so they return to Products as individual quoted requests, then delete the session.
+  await detachItemRequestsFromBatchSession(batchSessionId);
+
+  const deleted = await db
+    .delete(batchQuoteSessions)
+    .where(
+      and(
+        eq(batchQuoteSessions.id, batchSessionId),
+        eq(batchQuoteSessions.clerkUserId, params.clerkUserId),
+        eq(batchQuoteSessions.status, "submitted")
+      )
+    )
+    .returning({ id: batchQuoteSessions.id });
+
+  if (deleted.length === 0) {
+    throw new Error("Could not withdraw this batch request. Refresh and try again.");
+  }
+
+  return { returnedCount };
+}
+
+/**
  * Drops selected draft-batch lines back onto Products (clears FK + removes link rows).
  * If fewer than two products remain, deletes the draft session so the last lines return
  * to Products as well — batched quoting requires two or more products.

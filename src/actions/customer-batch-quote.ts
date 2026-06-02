@@ -9,6 +9,7 @@ import {
   requestEstimatedBatchRevisionForOwner,
   submitDraftBatchSessionForOwner,
   withdrawEstimatedBatchQuoteSessionForOwner,
+  withdrawSubmittedBatchQuoteSessionForOwner,
 } from "@/data/batch-quote-sessions";
 import {
   createCustomerBatchQuoteSchema,
@@ -16,6 +17,7 @@ import {
   requestBatchEstimateRevisionSchema,
   submitCustomerBatchQuoteSchema,
   withdrawQuotedBatchSessionSchema,
+  withdrawSubmittedBatchSessionSchema,
 } from "@/lib/validations/batch-quote";
 import { isMissingBatchCartAcceptanceColumnsError } from "@/lib/db-column-missing";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
@@ -154,6 +156,44 @@ export async function requestBatchEstimateRevisionAction(
     message:
       "Your batch was returned to staff. They will prepare a revised batch estimate.",
   };
+}
+
+export async function withdrawSubmittedBatchSessionAction(
+  raw: unknown
+): Promise<CustomerBatchQuoteState> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, message: "You must be signed in." };
+
+  const parsed = withdrawSubmittedBatchSessionSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid request." };
+  }
+
+  try {
+    const { returnedCount } = await withdrawSubmittedBatchQuoteSessionForOwner({
+      clerkUserId: userId,
+      batchSessionId: parsed.data.batchSessionId,
+    });
+
+    revalidateDashboardAddItem();
+    revalidatePath("/dashboard/items");
+    revalidatePath("/admin/item-requests", "layout");
+    revalidatePath("/admin/item-requests/batch-items/batch-history");
+    revalidatePath("/admin/item-requests/batch-items/submitted");
+    revalidatePath("/admin/overview");
+
+    const message =
+      returnedCount === 0
+        ? "Batch request withdrawn. Staff will no longer prepare a batch estimate."
+        : returnedCount === 1
+          ? "Batch request withdrawn. Your product returned to Products for an individual quote."
+          : `Batch request withdrawn. ${returnedCount} products returned to Products for individual quotes.`;
+
+    return { ok: true, message };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Could not withdraw batch request.";
+    return { ok: false, message: msg };
+  }
 }
 
 export type WithdrawQuotedBatchSessionState = {

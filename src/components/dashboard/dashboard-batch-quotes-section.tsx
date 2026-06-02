@@ -12,10 +12,22 @@ import {
   removeDraftBatchProductsAction,
   submitCustomerBatchQuoteAction,
   withdrawQuotedBatchSessionAction,
+  withdrawSubmittedBatchSessionAction,
 } from "@/actions/customer-batch-quote";
 import { AcceptBatchQuoteButton } from "@/components/dashboard/accept-batch-quote-button";
 import { BatchEstimatePreviewDialog } from "@/components/dashboard/batch-estimate-preview-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
@@ -248,6 +260,22 @@ export function DashboardBatchQuotesSection({
         const next = { ...p, [sessionId]: [] };
         return next;
       });
+      router.refresh();
+    });
+  };
+
+  const withdrawSubmittedBatch = (sessionId: string) => {
+    setWithdrawingSessionId(sessionId);
+    withdrawStart(async () => {
+      const res = await withdrawSubmittedBatchSessionAction({
+        batchSessionId: sessionId,
+      });
+      setWithdrawingSessionId(null);
+      if (!res.ok) {
+        toast.error(res.message ?? "Could not withdraw batch request.");
+        return;
+      }
+      toast.success(res.message ?? "Batch request withdrawn.");
       router.refresh();
     });
   };
@@ -612,6 +640,62 @@ export function DashboardBatchQuotesSection({
                     </Button>
                   </>
                 ) : null}
+                {session.status === "submitted" ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      render={
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            withdrawPending || submitPending || removePending
+                          }
+                          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        />
+                      }
+                    >
+                      {withdrawPending && withdrawingSessionId === session.id ? (
+                        <>
+                          <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
+                          Withdrawing…
+                        </>
+                      ) : (
+                        "Withdraw request"
+                      )}
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          Withdraw this batch request?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Staff will no longer prepare a batch estimate for batch{" "}
+                          <span className="font-medium text-foreground">
+                            {session.batchNumber}
+                          </span>
+                          . Its {requests.length}{" "}
+                          {requests.length === 1 ? "product" : "products"} return to the
+                          Products tab as individual quoted lines you can accept on their
+                          own.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel
+                          render={<Button type="button" variant="outline" />}
+                        >
+                          Keep request
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          render={<Button type="button" variant="destructive" />}
+                          onClick={() => withdrawSubmittedBatch(session.id)}
+                        >
+                          Withdraw request
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : null}
                 {quotedLike ? (
                   <div className="flex flex-wrap items-center gap-2">
                     {latestEstimate ? (
@@ -763,6 +847,9 @@ export function DashboardBatchQuotesSection({
             {session.status === "submitted" ? (
               <p className="text-xs text-muted-foreground">
                 Staff will review this batch under Admin → Item requests → Batch Items.
+                Use <span className="font-medium text-foreground">Withdraw request</span>{" "}
+                to cancel the staff batch estimate and send these products back to the
+                Products tab as individual quoted lines.
               </p>
             ) : null}
 

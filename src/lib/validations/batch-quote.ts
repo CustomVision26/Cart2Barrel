@@ -44,6 +44,19 @@ export type WithdrawQuotedBatchSessionInput = z.infer<
   typeof withdrawQuotedBatchSessionSchema
 >;
 
+/**
+ * Withdraws a `submitted` ("New batch request") bundle before staff estimate it.
+ * Revokes the staff batch-estimate task and returns lines to Products for
+ * individual quotes.
+ */
+export const withdrawSubmittedBatchSessionSchema = z.object({
+  batchSessionId: z.string().uuid(),
+});
+
+export type WithdrawSubmittedBatchSessionInput = z.infer<
+  typeof withdrawSubmittedBatchSessionSchema
+>;
+
 export const saveAdminBatchQuoteEstimateSchema = z.object({
   batchSessionId: z.string().uuid(),
   siteMerchandiseCents: z.number().int().min(0).max(500_000_000),

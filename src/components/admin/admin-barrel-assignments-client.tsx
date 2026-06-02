@@ -49,6 +49,7 @@ import {
   type ProductToBarrelFilterState,
 } from "@/lib/product-to-barrel-filters";
 import {
+  adminCustomerDisplayLabel,
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
 import { cn } from "@/lib/utils";
@@ -91,18 +92,12 @@ export function AdminBarrelAssignmentsClient({
   const [filters, setFilters] = useState<ProductToBarrelFilterState>(
     DEFAULT_PRODUCT_TO_BARREL_FILTERS,
   );
-  const [openOwnerId, setOpenOwnerId] = useState<string | null>(null);
+  const [openOwnerIds, setOpenOwnerIds] = useState<string[]>([]);
   const [panelChoiceMade, setPanelChoiceMade] = useState(false);
-  const [lineSearch, setLineSearch] = useState("");
-  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
-  const [linePageSize, setLinePageSize] = useState<5 | 10 | 25 | 50>(10);
-  const [linePage, setLinePage] = useState(1);
 
   useEffect(() => {
     setPanelChoiceMade(false);
-    setOpenOwnerId(null);
-    setLineSearch("");
-    setLinePage(1);
+    setOpenOwnerIds([]);
   }, [filters]);
 
   const allBarrels = useMemo(
@@ -153,21 +148,26 @@ export function AdminBarrelAssignmentsClient({
     });
   }, [filteredRows, ownerProfiles]);
 
-  const activeOwnerId =
-    panelChoiceMade ? openOwnerId : (grouped[0]?.[0] ?? null);
-  const ownerExpanded = activeOwnerId !== null;
+  const defaultOpenOwnerIds = useMemo(
+    () =>
+      grouped
+        .filter(([, lines]) => lines.some((row) => !isPipelineLineAssigned(row)))
+        .map(([ownerId]) => ownerId),
+    [grouped],
+  );
+  const effectiveOpenIds = panelChoiceMade ? openOwnerIds : defaultOpenOwnerIds;
 
   const toggleOwner = useCallback(
     (ownerId: string) => {
+      setOpenOwnerIds((prev) => {
+        const current = panelChoiceMade ? prev : defaultOpenOwnerIds;
+        return current.includes(ownerId) ?
+            current.filter((id) => id !== ownerId)
+          : [...current, ownerId];
+      });
       setPanelChoiceMade(true);
-      const next = activeOwnerId === ownerId ? null : ownerId;
-      if (next !== activeOwnerId) {
-        setLineSearch("");
-        setLinePage(1);
-      }
-      setOpenOwnerId(next);
     },
-    [activeOwnerId],
+    [panelChoiceMade, defaultOpenOwnerIds],
   );
 
   const ownersMissingBarrels = useMemo(() => {
@@ -206,26 +206,34 @@ export function AdminBarrelAssignmentsClient({
       {ownersMissingBarrels.length > 0 ?
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
           Some customers have pipeline products but no provisioned container slots. Affected
-          user ids: {ownersMissingBarrels.map((id) => id.slice(0, 12)).join(", ")}…
+          customers:{" "}
+          {ownersMissingBarrels
+            .map((id) =>
+              adminCustomerDisplayLabel({
+                clerkUserId: id,
+                fullName: ownerProfiles[id]?.fullName,
+                email: ownerProfiles[id]?.email,
+              }),
+            )
+            .join(", ")}
+          .
         </p>
       : null}
 
-      {!ownerExpanded ? (
-        <ProductToBarrelFiltersToolbar
-          idPrefix="admin-atb"
-          totalCount={rows.length}
-          filteredCount={filteredRows.length}
-          awaitingCount={filteredAwaitingCount}
-          assignedCount={filteredAssignedCount}
-          filters={filters}
-          onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
-          onClear={() => setFilters(DEFAULT_PRODUCT_TO_BARREL_FILTERS)}
-          fulfillmentOptions={fulfillmentOptions}
-          containerOptions={containerOptions}
-          searchLabel="Search products & customers"
-          searchPlaceholder="Product, container, customer id, order, status…"
-        />
-      ) : null}
+      <ProductToBarrelFiltersToolbar
+        idPrefix="admin-atb"
+        totalCount={rows.length}
+        filteredCount={filteredRows.length}
+        awaitingCount={filteredAwaitingCount}
+        assignedCount={filteredAssignedCount}
+        filters={filters}
+        onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
+        onClear={() => setFilters(DEFAULT_PRODUCT_TO_BARREL_FILTERS)}
+        fulfillmentOptions={fulfillmentOptions}
+        containerOptions={containerOptions}
+        searchLabel="Search products & customers"
+        searchPlaceholder="Product, container, customer id, order, status…"
+      />
 
       {rows.length === 0 ?
         <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
@@ -249,27 +257,13 @@ export function AdminBarrelAssignmentsClient({
               barrels={barrelsByOwner[ownerId] ?? []}
               pending={pending}
               onAction={runAction}
-              expanded={activeOwnerId === ownerId}
+              expanded={effectiveOpenIds.includes(ownerId)}
               onToggle={() => toggleOwner(ownerId)}
               panelIds={{
                 switchId: `${baseId}-line-find-organize-${ownerId}`,
                 searchId: `${baseId}-line-search-${ownerId}`,
                 pageSizeId: `${baseId}-line-page-size-${ownerId}`,
               }}
-              lineSearch={lineSearch}
-              onLineSearchChange={(value) => {
-                setLineSearch(value);
-                setLinePage(1);
-              }}
-              lineFindOrganizeVisible={lineFindOrganizeVisible}
-              onLineFindOrganizeVisibleChange={setLineFindOrganizeVisible}
-              linePageSize={linePageSize}
-              onLinePageSizeChange={(size) => {
-                setLinePageSize(size);
-                setLinePage(1);
-              }}
-              linePage={linePage}
-              onLinePageChange={setLinePage}
               ownerProfiles={ownerProfiles}
               staffProfilesByClerkUserId={staffProfilesByClerkUserId}
             />
@@ -291,14 +285,6 @@ function OwnerAssignmentSection({
   expanded,
   onToggle,
   panelIds,
-  lineSearch,
-  onLineSearchChange,
-  lineFindOrganizeVisible,
-  onLineFindOrganizeVisibleChange,
-  linePageSize,
-  onLinePageSizeChange,
-  linePage,
-  onLinePageChange,
   staffProfilesByClerkUserId = {},
 }: {
   ownerId: string;
@@ -317,16 +303,24 @@ function OwnerAssignmentSection({
   expanded: boolean;
   onToggle: () => void;
   panelIds: { switchId: string; searchId: string; pageSizeId: string };
-  lineSearch: string;
-  onLineSearchChange: (value: string) => void;
-  lineFindOrganizeVisible: boolean;
-  onLineFindOrganizeVisibleChange: (visible: boolean) => void;
-  linePageSize: 5 | 10 | 25 | 50;
-  onLinePageSizeChange: (size: 5 | 10 | 25 | 50) => void;
-  linePage: number;
-  onLinePageChange: (page: number) => void;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
+  const [lineSearch, setLineSearch] = useState("");
+  const [lineFindOrganizeVisible, setLineFindOrganizeVisible] = useState(true);
+  const [linePageSize, setLinePageSize] = useState<5 | 10 | 25 | 50>(10);
+  const [linePage, setLinePage] = useState(1);
+
+  const onLineSearchChange = useCallback((value: string) => {
+    setLineSearch(value);
+    setLinePage(1);
+  }, []);
+  const onLineFindOrganizeVisibleChange = setLineFindOrganizeVisible;
+  const onLinePageSizeChange = useCallback((size: 5 | 10 | 25 | 50) => {
+    setLinePageSize(size);
+    setLinePage(1);
+  }, []);
+  const onLinePageChange = setLinePage;
+
   const nestedFilters = useMemo(
     () => ({
       ...DEFAULT_PRODUCT_TO_BARREL_FILTERS,

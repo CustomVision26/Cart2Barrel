@@ -37,6 +37,17 @@ import {
   dashItemsTableScroll,
   dashItemsTableToolbar,
 } from "@/lib/app-table-surfaces";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -474,15 +485,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
     });
   };
 
-  const onRemovePendingRequest = (id: string, options?: { outOfStock?: boolean }) => {
-    const message =
-      options?.outOfStock
-        ? "Remove this out-of-stock product from your active list? It will move to Product history."
-        : "Remove this pending request? You will not receive a quote for it.";
-    if (typeof window !== "undefined" && !window.confirm(message)) {
-      return;
-    }
-
+  const performRemoveRequest = (id: string) => {
     startRemoveRequests(async () => {
       const res = await withdrawCustomerProductRequestsAction({ itemRequestIds: [id] });
       if (!res.ok) {
@@ -1121,37 +1124,108 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               })()
                             : null}
                             {r.status === "pending" ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={removingRequests || inBundledBatch}
-                                title={
-                                  inBundledBatch
-                                    ? "This line is part of a batch quote."
-                                    : undefined
-                                }
-                                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => onRemovePendingRequest(r.id)}
-                              >
-                                Remove request
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger
+                                  render={
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={removingRequests || inBundledBatch}
+                                      title={
+                                        inBundledBatch
+                                          ? "This line is part of a batch quote."
+                                          : undefined
+                                      }
+                                      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    />
+                                  }
+                                >
+                                  Remove request
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Remove this pending request?
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      You will not receive a quote for it. This moves
+                                      the product to Product history, and you can
+                                      reinstate it from the History tab later.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel
+                                      render={
+                                        <Button type="button" variant="outline" />
+                                      }
+                                    >
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      render={
+                                        <Button
+                                          type="button"
+                                          variant="destructive"
+                                        />
+                                      }
+                                      onClick={() => performRemoveRequest(r.id)}
+                                    >
+                                      Remove request
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             ) : null}
                             {r.status === "out_of_stock" ? (
                               <>
                                 <OutOfStockProductPreviewDialog request={r} />
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={removingRequests}
-                                  className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                  onClick={() =>
-                                    onRemovePendingRequest(r.id, { outOfStock: true })
-                                  }
-                                >
-                                  Remove from product record
-                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger
+                                    render={
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={removingRequests}
+                                        className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                      />
+                                    }
+                                  >
+                                    Remove from product record
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Remove this out-of-stock product?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        It will move to Product history. You can
+                                        reinstate it from the History tab later.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel
+                                        render={
+                                          <Button type="button" variant="outline" />
+                                        }
+                                      >
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        render={
+                                          <Button
+                                            type="button"
+                                            variant="destructive"
+                                          />
+                                        }
+                                        onClick={() => performRemoveRequest(r.id)}
+                                      >
+                                        Remove product
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               </>
                             ) : showTablePreviewEstimate && !isOpQuoted ? (
                             <div
