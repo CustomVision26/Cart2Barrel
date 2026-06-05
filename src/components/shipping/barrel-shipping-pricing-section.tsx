@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { ShoppingCart } from "lucide-react";
 
 import { BarrelOutboundShippingChargeCard } from "@/components/shipping/barrel-outbound-shipping-charge-card";
+import { BarrelOutboundShippingPaidCard } from "@/components/shipping/barrel-outbound-shipping-paid-card";
 import { ExpectedShippingChargesNotice } from "@/components/shipping/expected-shipping-charges-notice";
 import {
   Card,
@@ -44,6 +46,9 @@ export function BarrelShippingPricingSection({
 }: BarrelShippingPricingSectionProps) {
   const { awaiting, submitted } = data;
   const { readyToPay, awaitingQuote, paid } = partitionSubmitted(submitted);
+  const inCartCount = readyToPay.filter(
+    (row) => row.outboundCharge?.inCart,
+  ).length;
   const hasReadyContainers = awaiting.length > 0 || submitted.length > 0;
 
   if (!hasReadyContainers) {
@@ -107,6 +112,22 @@ export function BarrelShippingPricingSection({
               published charges. Add each to your cart, then checkout when ready.
             </p>
           </header>
+
+          {inCartCount > 0 ?
+            <div className="flex max-w-2xl flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm">
+              <span className="inline-flex items-center gap-2 font-medium text-primary">
+                <ShoppingCart className="size-4" aria-hidden />
+                {inCartCount} of {readyToPay.length} container
+                {readyToPay.length === 1 ? "" : "s"} in your cart
+              </span>
+              <Link
+                href="/dashboard/cart"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Go to cart to checkout
+              </Link>
+            </div>
+          : null}
           <ul className="flex max-w-2xl flex-col gap-4">
             {readyToPay.map((row) => (
               <li key={row.intakeId}>
@@ -151,28 +172,17 @@ export function BarrelShippingPricingSection({
         <section className="space-y-4">
           <header className="space-y-1">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Paid
+              Paid containers
             </h2>
+            <p className="text-sm text-muted-foreground">
+              {paid.length} container{paid.length === 1 ? "" : "s"} paid. Track the
+              shipment status and download your customs clearance form below.
+            </p>
           </header>
-          <ul className="flex max-w-2xl flex-col gap-3">
+          <ul className="flex max-w-2xl flex-col gap-4">
             {paid.map((row) => (
-              <li
-                key={row.intakeId}
-                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-foreground"
-              >
-                <p className="font-medium">
-                  {row.alias} — {row.slotLabel}
-                </p>
-                <p className="mt-1 text-muted-foreground">
-                  Shipping charges paid{" "}
-                  {row.outboundCharge?.paidAt ?
-                    new Date(row.outboundCharge.paidAt).toLocaleDateString(
-                      undefined,
-                      { dateStyle: "medium" },
-                    )
-                  : ""}
-                  . Courier handoff is in progress.
-                </p>
+              <li key={row.intakeId}>
+                <BarrelOutboundShippingPaidCard row={row} />
               </li>
             ))}
           </ul>

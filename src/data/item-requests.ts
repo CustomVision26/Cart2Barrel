@@ -32,6 +32,8 @@ export const itemRequestsRowLegacySelect = {
   outsidePurchaseReceiptImageUrl: itemRequests.outsidePurchaseReceiptImageUrl,
   outsidePurchaseConditionImageUrl: itemRequests.outsidePurchaseConditionImageUrl,
   outsidePurchaseReceivedCondition: itemRequests.outsidePurchaseReceivedCondition,
+  outsidePurchaseMissingReason: itemRequests.outsidePurchaseMissingReason,
+  outsidePurchaseMissingResolvedAt: itemRequests.outsidePurchaseMissingResolvedAt,
   outsidePurchaseShelfLocation: itemRequests.outsidePurchaseShelfLocation,
   createdAt: itemRequests.createdAt,
 } as const;
@@ -66,6 +68,8 @@ type OutsidePurchaseIntakeOptionalColumns =
   | "outsidePurchaseReceiptImageUrl"
   | "outsidePurchaseConditionImageUrl"
   | "outsidePurchaseReceivedCondition"
+  | "outsidePurchaseMissingReason"
+  | "outsidePurchaseMissingResolvedAt"
   | "outsidePurchaseShelfLocation";
 type ItemRequestLegacyRowWithoutReceipt = Omit<
   ItemRequestLegacyRow,
@@ -90,6 +94,14 @@ export function withLegacyItemRequestDefaults(
       "outsidePurchaseReceivedCondition" in row ?
         (row.outsidePurchaseReceivedCondition ?? null)
       : null,
+    outsidePurchaseMissingReason:
+      "outsidePurchaseMissingReason" in row ?
+        (row.outsidePurchaseMissingReason ?? null)
+      : null,
+    outsidePurchaseMissingResolvedAt:
+      "outsidePurchaseMissingResolvedAt" in row ?
+        (row.outsidePurchaseMissingResolvedAt ?? null)
+      : null,
     outsidePurchaseShelfLocation:
       "outsidePurchaseShelfLocation" in row ?
         (row.outsidePurchaseShelfLocation ?? null)
@@ -108,6 +120,8 @@ export function itemRequestFromRowWithoutReceiptImage(
     outsidePurchaseReceiptImageUrl: null,
     outsidePurchaseConditionImageUrl: null,
     outsidePurchaseReceivedCondition: null,
+    outsidePurchaseMissingReason: null,
+    outsidePurchaseMissingResolvedAt: null,
     outsidePurchaseShelfLocation: null,
   };
 }

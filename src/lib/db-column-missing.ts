@@ -144,7 +144,9 @@ export function isMissingOutsidePurchaseReceiptImageUrlColumnError(
 ): boolean {
   return (
     isUndefinedColumnError(e, "outside_purchase_receipt_image_url") ||
-    isUndefinedColumnError(e, "outside_purchase_condition_image_url")
+    isUndefinedColumnError(e, "outside_purchase_condition_image_url") ||
+    isUndefinedColumnError(e, "outside_purchase_missing_reason") ||
+    isUndefinedColumnError(e, "outside_purchase_missing_resolved_at")
   );
 }
 
@@ -224,7 +226,8 @@ export function isMissingOrderItemWarehouseReceiptColumnsError(
 ): boolean {
   return (
     isUndefinedColumnError(e, "warehouse_received_at") ||
-    isUndefinedColumnError(e, "warehouse_received_proof_photo_urls")
+    isUndefinedColumnError(e, "warehouse_received_proof_photo_urls") ||
+    isUndefinedColumnError(e, "warehouse_received_missing_reason")
   );
 }
 

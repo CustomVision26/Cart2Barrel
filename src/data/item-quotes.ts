@@ -1026,6 +1026,75 @@ export async function listItemQuotesForOwnerByRequestIds(
   }
 }
 
+/**
+ * Admin: every quote (operational + superseded + checkout snapshots) for the
+ * given request ids, newest first. Not owner-scoped — callers must already be in
+ * an authorized admin context.
+ */
+export async function listItemQuotesByRequestIds(
+  itemRequestIds: string[],
+): Promise<ItemQuote[]> {
+  const unique = [...new Set(itemRequestIds)];
+  if (unique.length === 0) return [];
+
+  const db = getDb();
+  try {
+    return await db
+      .select()
+      .from(itemQuotes)
+      .where(inArray(itemQuotes.itemRequestId, unique))
+      .orderBy(desc(itemQuotes.createdAt));
+  } catch (e) {
+    if (isMissingMerchandiseSavingsColumnError(e)) {
+      const rows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(inArray(itemQuotes.itemRequestId, unique))
+        .orderBy(desc(itemQuotes.createdAt));
+      return rows.map((row) => ({
+        ...row,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
+        checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
+      }));
+    }
+    if (!isUndefinedColumnError(e, "checkout_snapshot_kind")) {
+      throw e;
+    }
+    try {
+      const rows = await db
+        .select(itemQuoteCoreSelect)
+        .from(itemQuotes)
+        .where(inArray(itemQuotes.itemRequestId, unique))
+        .orderBy(desc(itemQuotes.createdAt));
+      return rows.map((row) => ({
+        ...row,
+        checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
+      }));
+    } catch (e2) {
+      if (!isMissingMerchandiseSavingsColumnError(e2)) {
+        throw e2;
+      }
+      const rows = await db
+        .select(itemQuoteCoreSelectPreMerchandiseSavings)
+        .from(itemQuotes)
+        .where(inArray(itemQuotes.itemRequestId, unique))
+        .orderBy(desc(itemQuotes.createdAt));
+      return rows.map((row) => ({
+        ...row,
+        merchandiseSavingsCents: null,
+        merchandiseIncludesSiteShippingTax: false,
+        staffNote: null,
+        checkoutSnapshotKind: null,
+        recordedByClerkUserId: null,
+      }));
+    }
+  }
+}
+
 /** Update display fields only (does not change item request workflow status). */
 export async function patchItemRequestDisplayFieldsOnly(
   itemRequestId: string,

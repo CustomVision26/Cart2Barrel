@@ -123,7 +123,9 @@ export function resolveItemRequestProductStatusDisplay(
     | "productUrl"
     | "outsidePurchasePaymentPromptedAt"
     | "outsidePurchaseReceivedCondition"
-  >,
+  > & {
+    outsidePurchaseMissingResolvedAt?: ItemRequest["outsidePurchaseMissingResolvedAt"];
+  },
   options?: ResolveItemRequestProductStatusOptions,
 ): ItemRequestProductStatusDisplay {
   const op = resolveOutsidePurchaseProductStatusDisplay(request, options);

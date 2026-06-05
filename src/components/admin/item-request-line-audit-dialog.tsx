@@ -4,15 +4,20 @@ import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-sc
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { ReceivedPhotosViewer, type ReceivedProductPhoto } from "@/components/orders/received-photos-viewer";
+import { SingleEstimateRecordsList } from "@/components/orders/single-estimate-records";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import type { ItemRequestLineSnapshot } from "@/db/schema";
+import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
+import { cn } from "@/lib/utils";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   auditSnapshotChangeSummary,
@@ -29,6 +34,38 @@ import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snaps
 import { displaySiteName } from "@/lib/site-name";
 
 import { AdminProductUrlDialog } from "./admin-product-url-dialog";
+
+function EstimateRecordsButton({
+  quotes,
+  productLabel,
+}: {
+  quotes: ItemQuote[];
+  productLabel: string;
+}) {
+  if (quotes.length === 0) return null;
+  return (
+    <Dialog>
+      <DialogTrigger
+        type="button"
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "whitespace-nowrap")}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
+        Estimate records ({quotes.length})
+      </DialogTrigger>
+      <DialogContent className="max-h-[min(90vh,46rem)] w-[min(96vw,56rem)] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Single estimate records</DialogTitle>
+          <DialogDescription>
+            Quote and checkout price snapshots for{" "}
+            {productLabel.trim() || "this product"}.
+          </DialogDescription>
+        </DialogHeader>
+        <SingleEstimateRecordsList quotes={quotes} />
+        <DialogFooter showCloseButton />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function ProductReturnTrackingSnapshotPanel({
   row,
@@ -206,9 +243,13 @@ function CustomerRefundRequestSnapshotPanel({
 function AuditSnapshotPreviewPanel({
   row,
   prevRow,
+  isOutsidePurchase,
+  conditionPhotos,
 }: {
   row: ItemRequestLineSnapshot;
   prevRow: ItemRequestLineSnapshot | null;
+  isOutsidePurchase: boolean;
+  conditionPhotos: ReceivedProductPhoto[];
 }) {
   return (
     <div className="space-y-4 text-foreground">
@@ -267,64 +308,87 @@ function AuditSnapshotPreviewPanel({
           {displaySiteName(row.siteName, row.productUrl)}
         </p>
       </div>
-      <div className="flex flex-wrap gap-3 text-base">
+      {isOutsidePurchase ? null : (
+        <div className="flex flex-wrap gap-3 text-base">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Qty
+            </p>
+            <p className="tabular-nums">
+              {row.phase === "warehouse_delivery_received" ||
+              row.phase === "warehouse_delivery_received_prior" ?
+                (() => {
+                  const wrMemo = parseWarehouseReceiptMemo(row.auditMemo);
+                  return wrMemo ?
+                      `${wrMemo.receivedQty} received (ordered ${wrMemo.orderedQty})`
+                    : row.quantity;
+                })()
+              : row.quantity}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Size
+            </p>
+            <p>{row.productSize?.trim() || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Color
+            </p>
+            <p>{row.productColor?.trim() || "—"}</p>
+          </div>
+        </div>
+      )}
+      {isOutsidePurchase ? (
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Qty
+            Received condition photo
           </p>
-          <p className="tabular-nums">
-            {row.phase === "warehouse_delivery_received" ||
-            row.phase === "warehouse_delivery_received_prior" ?
-              (() => {
-                const wrMemo = parseWarehouseReceiptMemo(row.auditMemo);
-                return wrMemo ?
-                    `${wrMemo.receivedQty} received (ordered ${wrMemo.orderedQty})`
-                  : row.quantity;
-              })()
-            : row.quantity}
-          </p>
+          <div className="mt-1">
+            {conditionPhotos.length > 0 ?
+              <ReceivedPhotosViewer
+                photos={conditionPhotos}
+                triggerLabel="Received condition photo"
+              />
+            : <span className="text-sm text-muted-foreground">
+                No received condition photo was uploaded.
+              </span>
+            }
+          </div>
         </div>
+      ) : (
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Size
+            Product page URL
           </p>
-          <p>{row.productSize?.trim() || "—"}</p>
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+            <a
+              href={row.productUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-w-0 items-center gap-1 break-all text-base font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Open link
+              <ExternalLinkIcon className="size-4 shrink-0" aria-hidden />
+            </a>
+            <AdminProductUrlDialog productUrl={row.productUrl} />
+          </div>
+          <p className="mt-2 break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs leading-relaxed text-muted-foreground">
+            {row.productUrl}
+          </p>
         </div>
+      )}
+      {isOutsidePurchase ? null : (
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Color
+            Note
           </p>
-          <p>{row.productColor?.trim() || "—"}</p>
+          <p className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-3 text-base leading-relaxed text-foreground">
+            {row.note?.trim() || "—"}
+          </p>
         </div>
-      </div>
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Product page URL
-        </p>
-        <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
-          <a
-            href={row.productUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-w-0 items-center gap-1 break-all text-base font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Open link
-            <ExternalLinkIcon className="size-4 shrink-0" aria-hidden />
-          </a>
-          <AdminProductUrlDialog productUrl={row.productUrl} />
-        </div>
-        <p className="mt-2 break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs leading-relaxed text-muted-foreground">
-          {row.productUrl}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Note
-        </p>
-        <p className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-3 text-base leading-relaxed text-foreground">
-          {row.note?.trim() || "—"}
-        </p>
-      </div>
+      )}
       {row.auditMemo?.trim() ? (
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -379,6 +443,12 @@ type ItemRequestLineAuditDialogProps = {
   productLabel: string;
   snapshots: ItemRequestLineSnapshot[];
   triggerLabel?: string;
+  /** Outside-purchase lines hide size/color/qty/note and swap the URL for the received photo. */
+  isOutsidePurchase?: boolean;
+  /** Received condition photo(s) for outside purchases (slideshow when >1). */
+  conditionPhotos?: ReceivedProductPhoto[];
+  /** All quote/checkout price snapshots for this product (Estimate records button). */
+  quotes?: ItemQuote[];
 };
 
 export function ItemRequestLineAuditDialog({
@@ -386,6 +456,9 @@ export function ItemRequestLineAuditDialog({
   productLabel,
   snapshots,
   triggerLabel = "Audit trail",
+  isOutsidePurchase = false,
+  conditionPhotos = [],
+  quotes = [],
 }: ItemRequestLineAuditDialogProps) {
   const [open, setOpen] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -456,11 +529,18 @@ export function ItemRequestLineAuditDialog({
                     <th className="px-3 py-3 font-medium text-foreground">Status</th>
                     <th className="px-3 py-3 font-medium text-foreground">Time</th>
                     <th className="px-3 py-3 font-medium text-foreground">Product</th>
-                    <th className="px-3 py-3 font-medium text-foreground">URL</th>
-                    <th className="px-3 py-3 font-medium text-foreground">Size</th>
-                    <th className="px-3 py-3 font-medium text-foreground">Color</th>
-                    <th className="px-3 py-3 font-medium text-foreground">Qty</th>
-                    <th className="px-3 py-3 font-medium text-foreground">Note</th>
+                    <th className="px-3 py-3 font-medium text-foreground">
+                      {isOutsidePurchase ? "Received photo" : "URL"}
+                    </th>
+                    {isOutsidePurchase ? null : (
+                      <>
+                        <th className="px-3 py-3 font-medium text-foreground">Size</th>
+                        <th className="px-3 py-3 font-medium text-foreground">Color</th>
+                        <th className="px-3 py-3 font-medium text-foreground">Qty</th>
+                        <th className="px-3 py-3 font-medium text-foreground">Note</th>
+                      </>
+                    )}
+                    <th className="px-3 py-3 font-medium text-foreground">Records</th>
                     <th className="px-3 py-3 font-medium text-foreground">Quote id</th>
                   </tr>
                 </thead>
@@ -509,23 +589,45 @@ export function ItemRequestLineAuditDialog({
                             className="inline-block"
                             onDoubleClick={(e) => e.stopPropagation()}
                           >
-                            <AdminProductUrlDialog productUrl={row.productUrl} />
+                            {isOutsidePurchase ?
+                              conditionPhotos.length > 0 ?
+                                <ReceivedPhotosViewer
+                                  photos={conditionPhotos}
+                                  triggerLabel="Received photo"
+                                />
+                              : <span className="text-muted-foreground">—</span>
+                            : <AdminProductUrlDialog productUrl={row.productUrl} />}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {row.productSize?.trim() || "—"}
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {row.productColor?.trim() || "—"}
-                        </td>
-                        <td className="px-3 py-3 tabular-nums text-foreground">
-                          {wrMemo ?
-                            `${wrMemo.receivedQty} / ${wrMemo.orderedQty}`
-                          : row.quantity}
-                        </td>
-                        <td className="max-w-[18rem] px-3 py-3 text-muted-foreground">
-                          <span className="line-clamp-4 whitespace-pre-wrap">
-                            {row.note?.trim() || "—"}
+                        {isOutsidePurchase ? null : (
+                          <>
+                            <td className="px-3 py-3 text-muted-foreground">
+                              {row.productSize?.trim() || "—"}
+                            </td>
+                            <td className="px-3 py-3 text-muted-foreground">
+                              {row.productColor?.trim() || "—"}
+                            </td>
+                            <td className="px-3 py-3 tabular-nums text-foreground">
+                              {wrMemo ?
+                                `${wrMemo.receivedQty} / ${wrMemo.orderedQty}`
+                              : row.quantity}
+                            </td>
+                            <td className="max-w-[18rem] px-3 py-3 text-muted-foreground">
+                              <span className="line-clamp-4 whitespace-pre-wrap">
+                                {row.note?.trim() || "—"}
+                              </span>
+                            </td>
+                          </>
+                        )}
+                        <td className="px-3 py-3">
+                          <span
+                            className="inline-block"
+                            onDoubleClick={(e) => e.stopPropagation()}
+                          >
+                            <EstimateRecordsButton
+                              quotes={quotes}
+                              productLabel={productLabel}
+                            />
                           </span>
                         </td>
                         <td className="px-3 py-3 font-mono text-xs text-muted-foreground sm:text-sm">
@@ -539,7 +641,12 @@ export function ItemRequestLineAuditDialog({
             </FloatingHorizontalScroll>
             <aside className="rounded-xl border border-border bg-secondary p-4 lg:max-h-[min(52rem,72vh)] lg:overflow-y-auto">
               {previewRow ? (
-                <AuditSnapshotPreviewPanel row={previewRow} prevRow={previewPrev} />
+                <AuditSnapshotPreviewPanel
+                  row={previewRow}
+                  prevRow={previewPrev}
+                  isOutsidePurchase={isOutsidePurchase}
+                  conditionPhotos={conditionPhotos}
+                />
               ) : (
                 <p className="text-sm leading-relaxed text-muted-foreground">
                   <span className="font-medium text-foreground">Preview</span> — double-click a

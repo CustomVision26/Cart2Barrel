@@ -3,12 +3,19 @@
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, ImageIcon, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { type ChangeEvent, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   BARREL_CAPACITY_PERCENT_OPTIONS,
   canAdminEditBarrelCapacity,
@@ -22,7 +29,10 @@ import {
   filterContainerInventoryRows,
   type ContainerKindFilter,
 } from "@/lib/product-to-barrel-filters";
-import type { UserBarrelOptionRow } from "@/lib/barrel-container-types";
+import type {
+  ProgressSnapshotView,
+  UserBarrelOptionRow,
+} from "@/lib/barrel-container-types";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
@@ -257,7 +267,198 @@ function LoadProgressCell({
           </option>
         ))}
       </select>
-      {!compact ? <LoadProgressBar percent={clamped} /> : null}
+      <LoadProgressBar percent={clamped} compact={compact} />
+    </div>
+  );
+}
+
+function ContainerProgressPhoto({
+  barrelId,
+  imageUrl,
+  snapshots,
+  editable,
+  label,
+  compact = false,
+}: {
+  barrelId: string;
+  imageUrl: string | null;
+  snapshots: ProgressSnapshotView[];
+  editable: boolean;
+  label: string;
+  compact?: boolean;
+}) {
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) {
+      return;
+    }
+    const fd = new FormData();
+    fd.set("barrelId", barrelId);
+    fd.set("file", file);
+    startTransition(async () => {
+      try {
+        const { adminUploadBarrelProgressImageAction } = await import(
+          "@/actions/admin-upload-barrel-progress-image"
+        );
+        const res = await adminUploadBarrelProgressImageAction(fd);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success("Progress photo updated.");
+        router.refresh();
+      } catch {
+        toast.error("Could not reach the server. Refresh and try again.");
+      }
+    });
+  }
+
+  function remove() {
+    startTransition(async () => {
+      try {
+        const { adminRemoveBarrelProgressImageAction } = await import(
+          "@/actions/admin-upload-barrel-progress-image"
+        );
+        const res = await adminRemoveBarrelProgressImageAction({ barrelId });
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success("Progress photo removed.");
+        router.refresh();
+      } catch {
+        toast.error("Could not reach the server. Refresh and try again.");
+      }
+    });
+  }
+
+  if (!editable && !imageUrl) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {imageUrl ?
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className={cn(
+              "shrink-0 overflow-hidden rounded border border-border bg-muted",
+              compact ? "size-8" : "size-10",
+            )}
+            aria-label="View container progress photo"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- Vercel Blob public URL */}
+            <img
+              src={imageUrl}
+              alt={`Progress photo for ${label}`}
+              className="size-full object-cover"
+              loading="lazy"
+            />
+          </button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Container progress photos</DialogTitle>
+                <DialogDescription>
+                  {label} — visual record with the load percentage at each step.
+                </DialogDescription>
+              </DialogHeader>
+              {snapshots.length > 0 ?
+                <div className="max-h-[65vh] overflow-y-auto rounded-md border border-border/60">
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Photo</th>
+                        <th className="px-3 py-2 font-medium">Load</th>
+                        <th className="px-3 py-2 font-medium">Recorded</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {snapshots.map((snap) => (
+                        <tr key={snap.id} className="align-middle">
+                          <td className="px-3 py-2">
+                            <a
+                              href={snap.imageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block size-16 overflow-hidden rounded border border-border bg-muted"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element -- Vercel Blob public URL */}
+                              <img
+                                src={snap.imageUrl}
+                                alt={`Progress photo for ${label}`}
+                                className="size-full object-cover"
+                                loading="lazy"
+                              />
+                            </a>
+                          </td>
+                          <td className="px-3 py-2 tabular-nums font-medium text-foreground">
+                            {snap.capacityPercentage}%
+                          </td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">
+                            {new Date(snap.createdAt).toLocaleString(undefined, {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              : <p className="text-sm text-muted-foreground">
+                  No progress photos recorded yet.
+                </p>
+              }
+            </DialogContent>
+          </Dialog>
+        </>
+      : null}
+
+      {editable ?
+        <>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            disabled={pending}
+            onChange={onFile}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 shrink-0 gap-1 px-2 text-[11px]"
+            disabled={pending}
+            onClick={() => fileRef.current?.click()}
+          >
+            <ImageIcon className="size-3.5" aria-hidden />
+            {pending ? "Saving…" : "Add photo"}
+          </Button>
+          {imageUrl ?
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 px-1.5 text-muted-foreground"
+              disabled={pending}
+              onClick={remove}
+              aria-label="Remove progress photo"
+            >
+              <Trash2 className="size-3.5" aria-hidden />
+            </Button>
+          : null}
+        </>
+      : null}
     </div>
   );
 }
@@ -638,14 +839,24 @@ export function ContainerSlotsInventorySection({
                       {row.itemCount}
                     </td>
                     <td className={cellClass}>
-                      <LoadProgressCell
-                        barrelId={row.barrelId}
-                        percent={row.capacityPercentage}
-                        status={row.status}
-                        editable={showMarkFull}
-                        disabled={markPending}
-                        compact={compact}
-                      />
+                      <div className="space-y-1.5">
+                        <LoadProgressCell
+                          barrelId={row.barrelId}
+                          percent={row.capacityPercentage}
+                          status={row.status}
+                          editable={showMarkFull}
+                          disabled={markPending}
+                          compact={compact}
+                        />
+                        <ContainerProgressPhoto
+                          barrelId={row.barrelId}
+                          imageUrl={row.progressImageUrl ?? null}
+                          snapshots={row.progressSnapshots ?? []}
+                          editable={showMarkFull}
+                          label={`${row.alias} · ${row.slotLabel}`}
+                          compact={compact}
+                        />
+                      </div>
                     </td>
                     <td className={cn(cellClass, "min-w-[9rem] max-w-[11rem] align-top")}>
                       <AdminUpdatedByCell

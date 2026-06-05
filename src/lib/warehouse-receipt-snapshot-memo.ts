@@ -6,8 +6,15 @@ import {
   type WarehouseReceiptMemoV1,
   type WarehouseReceiptMemoV2,
 } from "@/lib/validations/admin-warehouse-receipt";
-import type { WarehouseReceiveCondition } from "@/lib/warehouse-receive-condition";
-import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
+import type {
+  WarehouseMissingReason,
+  WarehouseReceiveCondition,
+} from "@/lib/warehouse-receive-condition";
+import {
+  isWarehouseMissingReason,
+  warehouseMissingReasonLabel,
+  warehouseReceiveConditionLabel,
+} from "@/lib/warehouse-receive-condition";
 
 /** Normalized receipt fields for audit UI (v1 and v2 memos). */
 export type ParsedWarehouseReceiptMemo = {
@@ -15,6 +22,7 @@ export type ParsedWarehouseReceiptMemo = {
   orderedQty: number;
   receivedQty: number;
   condition: WarehouseReceiveCondition;
+  missingReason?: WarehouseMissingReason;
   shelfLocation: string;
   proofPhotoCount: number;
   proofPhotoUrls?: string[];
@@ -50,6 +58,7 @@ export function parseWarehouseReceiptMemo(
       orderedQty: data.orderedQty,
       receivedQty: data.receivedQty,
       condition: data.condition,
+      missingReason: data.missingReason,
       shelfLocation: data.shelfLocation,
       proofPhotoCount: data.proofPhotoCount,
       proofPhotoUrls: data.proofPhotoUrls,
@@ -96,6 +105,7 @@ export function warehouseReceiptHumanNote(params: {
   orderedQty: number;
   receivedQty: number;
   conditionKey: WarehouseReceiveCondition;
+  missingReason?: WarehouseMissingReason;
   shelfLocation: string;
   proofPhotoCount: number;
   barcodeValue?: string;
@@ -104,6 +114,10 @@ export function warehouseReceiptHumanNote(params: {
   intakeContext?: WarehouseReceiptMemoV2["intakeContext"];
 }): string {
   const conditionLabel = warehouseReceiveConditionLabel(params.conditionKey);
+  const missingReasonLabel =
+    params.conditionKey === "missing" ?
+      warehouseMissingReasonLabel(params.missingReason)
+    : null;
   const header =
     params.intakeRole === "prior" ?
       `Prior warehouse intake #${params.intakeSequence ?? "?"} (frozen before replacement receipt)`
@@ -114,7 +128,7 @@ export function warehouseReceiptHumanNote(params: {
     header,
     `Ordered qty: ${params.orderedQty}`,
     `Received qty: ${params.receivedQty}`,
-    `Condition: ${conditionLabel}`,
+    `Condition: ${conditionLabel}${missingReasonLabel ? ` (${missingReasonLabel})` : ""}`,
     `Shelf / bin: ${params.shelfLocation.trim() || "—"}`,
     `Proof photos: ${params.proofPhotoCount}`,
   ];
@@ -131,6 +145,7 @@ export type OrderItemWarehouseReceiptSnapshotSource = Pick<
   | "warehouseReceivedAt"
   | "warehouseReceivedQty"
   | "warehouseReceivedCondition"
+  | "warehouseReceivedMissingReason"
   | "warehouseShelfLocation"
   | "warehouseReceivedBarcode"
   | "warehouseReceivedBarcodeImageUrl"
@@ -172,6 +187,11 @@ export function warehouseReceiptV2FromOrderItemRow(
   const condition = warehouseConditionFromOrderItem(
     orderItem.warehouseReceivedCondition,
   );
+  const missingReason =
+    condition === "missing" &&
+    isWarehouseMissingReason(orderItem.warehouseReceivedMissingReason) ?
+      orderItem.warehouseReceivedMissingReason
+    : undefined;
   const payload: WarehouseReceiptMemoV2 = {
     kind: "warehouse_receipt_v2",
     orderItemId: orderItem.id,
@@ -182,6 +202,7 @@ export function warehouseReceiptV2FromOrderItemRow(
     orderedQty: orderItem.quantity,
     receivedQty: orderItem.warehouseReceivedQty ?? orderItem.quantity,
     condition,
+    missingReason,
     shelfLocation: shelf,
     proofPhotoCount: proofCount,
     proofPhotoUrls:
@@ -198,6 +219,7 @@ export function warehouseReceiptV2FromOrderItemRow(
     orderedQty: payload.orderedQty,
     receivedQty: payload.receivedQty,
     conditionKey: payload.condition,
+    missingReason: payload.missingReason,
     shelfLocation: payload.shelfLocation,
     proofPhotoCount: payload.proofPhotoCount,
     barcodeValue: payload.barcodeValue,

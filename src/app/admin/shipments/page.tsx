@@ -1,6 +1,7 @@
 import { AdminPageTitleWithHelp } from "@/components/admin/admin-page-title-with-help";
 import { AdminShipmentsPanel } from "@/components/admin/admin-shipments-panel";
 import { listAdminShipmentChargePageData } from "@/data/admin-barrel-outbound-shipping-charges";
+import { parseAdminCustomerFilter } from "@/lib/admin-customer-filter";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { ADMIN_SHIPPING_CHARGE_PREVIEW_ROW } from "@/lib/barrel-outbound-shipping-charge";
 import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
@@ -8,13 +9,21 @@ import { safeCurrentUser } from "@/lib/safe-current-user";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminShipmentsPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminShipmentsPage({ searchParams }: PageProps) {
   const cu = await safeCurrentUser();
   const admin = cu.ok && cu.user ? isClerkAdmin(cu.user) : false;
 
+  const { clerkUserId: filterClerkUserId } = parseAdminCustomerFilter(
+    (await searchParams) ?? {},
+  );
+
   const pageData =
     admin ?
-      await listAdminShipmentChargePageData()
+      await listAdminShipmentChargePageData(filterClerkUserId)
     : { customerGroups: [] };
 
   const { customerGroups } = pageData;

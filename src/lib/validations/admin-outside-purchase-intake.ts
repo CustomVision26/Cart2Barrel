@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { warehouseReceiveConditionSchema } from "@/lib/validations/admin-warehouse-receipt";
+import {
+  warehouseMissingReasonSchema,
+  warehouseReceiveConditionSchema,
+} from "@/lib/validations/admin-warehouse-receipt";
 
 const outsidePurchaseReferenceSchema = z
   .string()
@@ -46,6 +49,8 @@ export const adminOutsidePurchaseIntakeSchema = z.object({
       return t ? t : undefined;
     }),
   receivedCondition: warehouseReceiveConditionSchema.default("good"),
+  /** Sub-reason captured only when `receivedCondition` is `missing`. */
+  receivedMissingReason: warehouseMissingReasonSchema.optional(),
   receivedShelfLocation: z
     .string()
     .max(500)

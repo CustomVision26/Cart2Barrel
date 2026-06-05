@@ -24,9 +24,9 @@ export type { WarehouseReceiveCondition } from "@/lib/warehouse-receive-conditio
 export const CONDITION_OPTIONS = WAREHOUSE_RECEIVE_CONDITION_OPTIONS;
 
 export const receivingConditionSelectClassName = cn(
-  "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2 py-1 text-sm text-foreground outline-none",
+  "h-8 w-full min-w-0 rounded-lg border border-input bg-muted px-2 py-1 text-sm text-foreground outline-none",
   "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-  "disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30",
+  "disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/25 dark:bg-secondary",
 );
 
 export function ReceivingRowActions({

@@ -7,6 +7,7 @@ import {
   ProductHistoryEventPreviewDialog,
   type ProductHistoryTimelinePreview,
 } from "@/components/dashboard/product-history-event-preview-dialog";
+import type { ReceivedProductPhoto } from "@/components/orders/item-request-line-snapshot-preview-panel";
 import type {
   ItemQuote,
   ItemRequest,
@@ -76,11 +77,28 @@ function ToggleSection({
   );
 }
 
+/** Received product photos (condition + product) shown in the slideshow viewer. */
+function outsidePurchaseReceivedPhotos(
+  request: ItemRequest,
+): ReceivedProductPhoto[] {
+  const photos: ReceivedProductPhoto[] = [];
+  const condition = request.outsidePurchaseConditionImageUrl?.trim();
+  if (condition) {
+    photos.push({ url: condition, label: "Received condition photo" });
+  }
+  const product = request.productImageUrl?.trim();
+  if (product) {
+    photos.push({ url: product, label: "Product photo" });
+  }
+  return photos;
+}
+
 function eventPreview(
   event: ProductHistoryTimelineEvent,
   request: ItemRequest,
   statusLabel: string,
   warehouseProofPhotoUrls?: string[] | null,
+  receivedProductPhotos?: ReceivedProductPhoto[] | null,
 ): ProductHistoryTimelinePreview {
   if (event.kind === "snapshot" && event.snapshot) {
     return {
@@ -88,6 +106,9 @@ function eventPreview(
       snapshot: event.snapshot,
       prevSnapshot: event.prevSnapshot ?? null,
       warehouseProofPhotoUrls,
+      receivedProductPhotos,
+      receiptPhotoUrl: request.outsidePurchaseReceiptImageUrl,
+      productImageUrl: request.productImageUrl,
     };
   }
   return { kind: "current", request, statusLabel };
@@ -134,6 +155,9 @@ export function ProductHistoryTrackRecord({
       orderContext,
   ]);
   const opRef = outsidePurchase ? outsidePurchaseReferenceLabel(request) : null;
+  const receivedProductPhotos = outsidePurchase
+    ? outsidePurchaseReceivedPhotos(request)
+    : null;
 
   if (events.length === 0) {
     return (
@@ -214,6 +238,7 @@ export function ProductHistoryTrackRecord({
                       event.snapshot?.phase === "warehouse_delivery_received" ?
                         orderContext?.orderItem.warehouseReceivedProofPhotoUrls ?? null
                       : null,
+                      receivedProductPhotos,
                     )}
                   />
                 </div>

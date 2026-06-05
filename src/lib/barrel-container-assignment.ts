@@ -40,5 +40,5 @@ export function barrelAssignmentDropdownSuffix(
 }
 
 export function canAdminEditBarrelCapacity(status: BarrelStatus): boolean {
-  return status === "filling";
+  return status === "filling" || status === "ready_to_ship";
 }

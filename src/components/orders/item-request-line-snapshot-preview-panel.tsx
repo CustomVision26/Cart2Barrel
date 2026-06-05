@@ -2,6 +2,13 @@ import type { ReactNode } from "react";
 import { ExternalLinkIcon } from "lucide-react";
 
 import type { ItemRequestLineSnapshot } from "@/db/schema";
+import { isOutsidePurchaseProductUrl } from "@/lib/outside-purchase";
+import {
+  ReceivedPhotosViewer,
+  type ReceivedProductPhoto,
+} from "@/components/orders/received-photos-viewer";
+
+export type { ReceivedProductPhoto } from "@/components/orders/received-photos-viewer";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   auditSnapshotChangeSummary,
@@ -225,7 +232,20 @@ function CustomerRefundRequestSnapshotPanel({
   );
 }
 
-function ProductContextSection({ row }: { row: ItemRequestLineSnapshot }) {
+function ProductContextSection({
+  row,
+  receivedProductPhotos,
+  receiptPhotoUrl,
+  productImageUrl,
+}: {
+  row: ItemRequestLineSnapshot;
+  /** Received product photos (condition + product) shown in the slideshow viewer. */
+  receivedProductPhotos?: ReceivedProductPhoto[] | null;
+  /** Receipt photo shown as its own link. */
+  receiptPhotoUrl?: string | null;
+  /** Fallback product image when the snapshot row has none (e.g. outside-purchase intake). */
+  productImageUrl?: string | null;
+}) {
   const wrMemo =
     isWarehouseReceiptPhase(row.phase) ?
       parseWarehouseReceiptMemo(row.auditMemo)
@@ -245,10 +265,19 @@ function ProductContextSection({ row }: { row: ItemRequestLineSnapshot }) {
     ...(color ? [{ label: "Color", value: color }] : []),
   ];
 
+  const isOutsidePurchase = isOutsidePurchaseProductUrl(row.productUrl ?? "");
+  const effectiveProductImageUrl =
+    row.productImageUrl?.trim() || productImageUrl?.trim() || null;
+  const receivedPhotos = (receivedProductPhotos ?? []).filter((p) =>
+    p.url.trim(),
+  );
+  const receiptUrl = receiptPhotoUrl?.trim() || null;
+  const hasOutsidePurchaseLinks = receivedPhotos.length > 0 || Boolean(receiptUrl);
+
   const thumbnail = (
     <ProductRequestThumbnail
       variant="dialog"
-      imageUrl={row.productImageUrl}
+      imageUrl={effectiveProductImageUrl}
       productLabel={productName}
     />
   );
@@ -256,13 +285,13 @@ function ProductContextSection({ row }: { row: ItemRequestLineSnapshot }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-muted">
       <div className="flex gap-3 p-3">
-        {row.productImageUrl?.trim() ?
+        {effectiveProductImageUrl ?
           <a
-            href={row.productImageUrl.trim()}
+            href={effectiveProductImageUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 transition-opacity hover:opacity-90"
-            title="Open catalog listing image"
+            title="Open product photo"
           >
             {thumbnail}
           </a>
@@ -290,17 +319,41 @@ function ProductContextSection({ row }: { row: ItemRequestLineSnapshot }) {
           </dl>
         </div>
       </div>
-      <div className="border-t border-border/60 bg-muted px-3 py-2">
-        <a
-          href={row.productUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary underline-offset-4 hover:underline sm:text-sm"
-        >
-          Open product page
-          <ExternalLinkIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />
-        </a>
-      </div>
+      {isOutsidePurchase ?
+        hasOutsidePurchaseLinks ?
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border/60 bg-muted px-3 py-2">
+            {receivedPhotos.length > 0 ?
+              <ReceivedPhotosViewer
+                photos={receivedPhotos}
+                triggerLabel="Received condition photo"
+              />
+            : null}
+            {receiptUrl ?
+              <a
+                href={receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary underline-offset-4 hover:underline sm:text-sm"
+                title="Open receipt photo in a new tab"
+              >
+                <ExternalLinkIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />
+                Receipt photo
+              </a>
+            : null}
+          </div>
+        : null
+      : <div className="border-t border-border/60 bg-muted px-3 py-2">
+          <a
+            href={row.productUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary underline-offset-4 hover:underline sm:text-sm"
+          >
+            Open product page
+            <ExternalLinkIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />
+          </a>
+        </div>
+      }
     </div>
   );
 }
@@ -311,6 +364,9 @@ export function ItemRequestLineSnapshotPreviewPanel({
   urlExtra,
   showInternalIds = false,
   warehouseProofPhotoUrls,
+  receivedProductPhotos,
+  receiptPhotoUrl,
+  productImageUrl,
 }: {
   row: ItemRequestLineSnapshot;
   prevRow: ItemRequestLineSnapshot | null;
@@ -318,6 +374,12 @@ export function ItemRequestLineSnapshotPreviewPanel({
   showInternalIds?: boolean;
   /** Live order-line proof URLs when snapshot memo is v1 or lacks URLs. */
   warehouseProofPhotoUrls?: string[] | null;
+  /** Received product photos (condition + product) for outside-purchase lines. */
+  receivedProductPhotos?: ReceivedProductPhoto[] | null;
+  /** Receipt photo for outside-purchase lines (separate link). */
+  receiptPhotoUrl?: string | null;
+  /** Fallback product image when the snapshot row has none. */
+  productImageUrl?: string | null;
 }) {
   const structuredAudit = hasStructuredAuditMemo(row);
   const showNote = !structuredAudit && Boolean(row.note?.trim());
@@ -370,7 +432,12 @@ export function ItemRequestLineSnapshotPreviewPanel({
         <CustomerRefundRequestSnapshotPanel row={row} />
       : null}
 
-      <ProductContextSection row={row} />
+      <ProductContextSection
+        row={row}
+        receivedProductPhotos={receivedProductPhotos}
+        receiptPhotoUrl={receiptPhotoUrl}
+        productImageUrl={productImageUrl}
+      />
 
       {urlExtra ? <div>{urlExtra}</div> : null}
 

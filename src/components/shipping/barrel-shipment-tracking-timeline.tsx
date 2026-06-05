@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomsClearanceForm } from "@/components/shipping/customs-clearance-form";
 import { cn } from "@/lib/utils";
 import {
   BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS,
@@ -14,6 +15,8 @@ type BarrelShipmentTrackingTimelineProps = {
   paidAt: string | null;
   paymentReferenceNumber?: string | null;
   compact?: boolean;
+  /** Render the view/download customs clearance form (default true). */
+  showCustomsForm?: boolean;
 };
 
 export function customerFreightPaidStatusMessage(
@@ -38,6 +41,7 @@ export function BarrelShipmentTrackingTimeline({
   paidAt,
   paymentReferenceNumber,
   compact = false,
+  showCustomsForm = true,
 }: BarrelShipmentTrackingTimelineProps) {
   if (!paidAt) {
     return null;
@@ -135,22 +139,21 @@ export function BarrelShipmentTrackingTimeline({
               </dd>
             </div>
           : null}
-          {tracking.customsDeclarationFormUrl ?
-            <div>
-              <dt className="text-muted-foreground">Customs form</dt>
-              <dd>
-                <a
-                  href={tracking.customsDeclarationFormUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  View declaration
-                </a>
-              </dd>
-            </div>
-          : null}
         </dl>
+      : null}
+
+      {showCustomsForm && tracking?.customsDeclarationFormUrl?.trim() ?
+        <div className="space-y-1.5 rounded-md border border-border/60 bg-muted px-2.5 py-2">
+          <p
+            className={cn(
+              "font-medium text-foreground",
+              compact ? "text-[11px]" : "text-xs",
+            )}
+          >
+            Customs clearance form
+          </p>
+          <CustomsClearanceForm url={tracking.customsDeclarationFormUrl} />
+        </div>
       : null}
     </div>
   );

@@ -97,6 +97,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const outboundShippingSubtotalCents = sumOutboundShippingCartLinesCents(
     outboundShippingCartLines,
   );
+  const outboundChargeIds = outboundShippingCartLines.map((l) => l.chargeId);
 
   if (
     assembled.batchGroups.length === 0 &&
@@ -262,7 +263,6 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     );
   }
 
-  const outboundChargeIds = outboundShippingCartLines.map((l) => l.chargeId);
   if (outboundChargeIds.length > 0) {
     await clearOutboundShippingCartForCharges(userId, outboundChargeIds);
   }
@@ -314,7 +314,11 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
 
     if (checkoutUiMode === "embedded_page") {
       if (!session.client_secret) {
-        await deletePendingOrderAndRestoreContainerCart(order.id, userId);
+        await deletePendingOrderAndRestoreContainerCart(
+          order.id,
+          userId,
+          outboundChargeIds,
+        );
         return {
           ok: false,
           message: "Stripe did not return embedded checkout credentials.",
@@ -326,7 +330,11 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     }
 
     if (!session.url) {
-      await deletePendingOrderAndRestoreContainerCart(order.id, userId);
+      await deletePendingOrderAndRestoreContainerCart(
+        order.id,
+        userId,
+        outboundChargeIds,
+      );
       return { ok: false, message: "Stripe did not return a checkout URL." };
     }
 
@@ -336,7 +344,11 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
 
     return { ok: true, mode: "hosted", checkoutUrl: session.url };
   } catch (e) {
-    await deletePendingOrderAndRestoreContainerCart(order.id, userId);
+    await deletePendingOrderAndRestoreContainerCart(
+      order.id,
+      userId,
+      outboundChargeIds,
+    );
     console.error("[createCartCheckout] Stripe checkout.sessions.create failed", e);
     const detail = formatStripeApiErrorForUi(e);
     const base = "Could not start Stripe checkout.";

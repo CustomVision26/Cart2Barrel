@@ -17,6 +17,7 @@ import { AdminProductUrlDialog } from "@/components/admin/admin-product-url-dial
 import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-history-edit-dialog";
 import { AdminQuoteHistoryProductTimelineTable } from "@/components/admin/admin-quote-history-product-timeline-table";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
+import type { ReceivedProductPhoto } from "@/components/orders/received-photos-viewer";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { SortableTh, SortableThCompact } from "@/components/sortable-th";
 import { Button } from "@/components/ui/button";
@@ -31,8 +32,9 @@ import { Input } from "@/components/ui/input";
 import type { AdminQuoteHistoryGroup, AdminQuoteHistoryLine } from "@/data/admin-quote-history";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
-import type { ItemRequestLineSnapshot } from "@/db/schema";
+import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import {
   collapseQuoteHistoryToCurrentProducts,
   countQuoteHistoryProducts,
@@ -55,6 +57,14 @@ const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
 
 const SELECT_CLASS =
   "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+
+/** Received condition photo(s) captured at outside-purchase intake. */
+function outsidePurchaseConditionPhotos(r: {
+  outsidePurchaseConditionImageUrl?: string | null;
+}): ReceivedProductPhoto[] {
+  const url = r.outsidePurchaseConditionImageUrl?.trim();
+  return url ? [{ url, label: "Received condition" }] : [];
+}
 
 function submitterDisplayName(
   fullName: string | null,
@@ -210,6 +220,7 @@ function sortQuoteHistoryLines(
 type AdminQuoteHistoryGroupedTableProps = {
   groups: AdminQuoteHistoryGroup[];
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  quotesByRequestId?: Record<string, ItemQuote[]>;
   orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
@@ -217,6 +228,7 @@ type AdminQuoteHistoryGroupedTableProps = {
 export function AdminQuoteHistoryGroupedTable({
   groups,
   snapshotsByRequestId,
+  quotesByRequestId = {},
   orderContextByRequestId = {},
   merchantEstimateFees,
 }: AdminQuoteHistoryGroupedTableProps) {
@@ -776,6 +788,9 @@ export function AdminQuoteHistoryGroupedTable({
                                               itemRequestId={r.id}
                                               productLabel={r.productName?.trim() || ""}
                                               snapshots={snapshotsByRequestId[r.id] ?? []}
+                                              isOutsidePurchase={isOutsidePurchaseRequest(r)}
+                                              conditionPhotos={outsidePurchaseConditionPhotos(r)}
+                                              quotes={quotesByRequestId[r.id] ?? []}
                                             />
                                             {canEditQuote ? (
                                               <Button

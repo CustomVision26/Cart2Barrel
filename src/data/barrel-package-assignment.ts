@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import {
   barrelItems,
   barrelPackageAssignmentEvents,
+  barrelProgressSnapshots,
   barrels,
   itemRequests,
   orderContainerItems,
@@ -23,6 +24,7 @@ import { dashboardOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import type {
   AdminBarrelPipelineRow,
   ProductToBarrelLineRow,
+  ProgressSnapshotView,
   UserBarrelOptionRow,
 } from "@/lib/barrel-container-types";
 import {
@@ -245,6 +247,7 @@ function mapBarrelRowsToOptions(
   countByBarrel: Map<string, number>,
   ownerClerkUserId?: string,
   actorByBarrel?: Map<string, string>,
+  snapshotsByBarrel?: Map<string, ProgressSnapshotView[]>,
 ): UserBarrelOptionRow[] {
   const aliasMap = buildContainerAliasMap(
     rows.map((r) => ({
@@ -277,6 +280,8 @@ function mapBarrelRowsToOptions(
       status: r.barrel.status,
       itemCount,
       capacityPercentage: r.barrel.capacityPercentage,
+      progressImageUrl: r.barrel.progressImageUrl ?? null,
+      progressSnapshots: snapshotsByBarrel?.get(r.barrel.id) ?? [],
       ...(ownerClerkUserId ? { ownerClerkUserId } : {}),
       lastUpdatedByClerkUserId: actorByBarrel?.get(r.barrel.id) ?? null,
     };
@@ -302,6 +307,39 @@ async function loadItemCountsByBarrel(
   return new Map(counts.map((r) => [r.barrelId, r.c] as const));
 }
 
+async function loadProgressSnapshotsByBarrel(
+  barrelIds: string[],
+): Promise<Map<string, ProgressSnapshotView[]>> {
+  if (barrelIds.length === 0) {
+    return new Map();
+  }
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: barrelProgressSnapshots.id,
+      barrelId: barrelProgressSnapshots.barrelId,
+      imageUrl: barrelProgressSnapshots.imageUrl,
+      capacityPercentage: barrelProgressSnapshots.capacityPercentage,
+      createdAt: barrelProgressSnapshots.createdAt,
+    })
+    .from(barrelProgressSnapshots)
+    .where(inArray(barrelProgressSnapshots.barrelId, barrelIds))
+    .orderBy(desc(barrelProgressSnapshots.createdAt));
+
+  const map = new Map<string, ProgressSnapshotView[]>();
+  for (const row of rows) {
+    const list = map.get(row.barrelId) ?? [];
+    list.push({
+      id: row.id,
+      imageUrl: row.imageUrl,
+      capacityPercentage: row.capacityPercentage,
+      createdAt: row.createdAt,
+    });
+    map.set(row.barrelId, list);
+  }
+  return map;
+}
+
 export async function listUserBarrelOptionsForAssignment(
   clerkUserId: string,
 ): Promise<UserBarrelOptionRow[]> {
@@ -324,8 +362,15 @@ export async function listUserBarrelOptionsForAssignment(
   const barrelIds = rows.map((r) => r.barrel.id);
   const countByBarrel = await loadItemCountsByBarrel(barrelIds);
   const actorByBarrel = await loadLatestActorByBarrel(barrelIds);
+  const snapshotsByBarrel = await loadProgressSnapshotsByBarrel(barrelIds);
 
-  return mapBarrelRowsToOptions(rows, countByBarrel, clerkUserId, actorByBarrel);
+  return mapBarrelRowsToOptions(
+    rows,
+    countByBarrel,
+    clerkUserId,
+    actorByBarrel,
+    snapshotsByBarrel,
+  );
 }
 
 export async function getBarrelDisplayLabelById(

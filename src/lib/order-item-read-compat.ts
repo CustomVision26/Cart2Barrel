@@ -16,6 +16,7 @@ export type OrderItemReadCore = Pick<
   warehouseReceivedAt?: OrderItem["warehouseReceivedAt"];
   warehouseReceivedQty?: OrderItem["warehouseReceivedQty"];
   warehouseReceivedCondition?: OrderItem["warehouseReceivedCondition"];
+  warehouseReceivedMissingReason?: OrderItem["warehouseReceivedMissingReason"];
   warehouseShelfLocation?: OrderItem["warehouseShelfLocation"];
   warehouseReceivedBarcode?: OrderItem["warehouseReceivedBarcode"];
   warehouseReceivedBarcodeImageUrl?: OrderItem["warehouseReceivedBarcodeImageUrl"];

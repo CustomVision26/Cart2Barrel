@@ -45,6 +45,8 @@ export type AdminBarrelOutboundShippingChargeRow = {
   paidAt: string | null;
   paymentReferenceNumber: string | null;
   shipmentTracking: BarrelOutboundShipmentTrackingView | null;
+  /** Customer destination address, pre-formatted into tidy display lines. */
+  destinationLines: string[];
   /** Staff who last published or edited the shipping charge. */
   updatedByClerkUserId: string | null;
 };
@@ -80,6 +82,7 @@ export const ADMIN_SHIPPING_CHARGE_PREVIEW_ROW: AdminBarrelOutboundShippingCharg
     paidAt: null,
     paymentReferenceNumber: null,
     shipmentTracking: null,
+    destinationLines: [],
     updatedByClerkUserId: null,
   };
 

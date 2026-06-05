@@ -13,6 +13,12 @@ import {
   receivingConditionSelectClassName,
   ReceivingRowActions,
 } from "@/components/admin/receiving-row-actions";
+import type { WarehouseMissingReason } from "@/lib/warehouse-receive-condition";
+import {
+  isWarehouseMissingReason,
+  warehouseMissingReasonLabel,
+  WAREHOUSE_MISSING_REASON_OPTIONS,
+} from "@/lib/warehouse-receive-condition";
 import type { WarehouseReceivingLine } from "@/lib/admin-warehouse-receiving-types";
 import { WarehouseBarcodeImageField } from "@/components/orders/warehouse-barcode-image-field";
 import { WarehouseProofPhotosField } from "@/components/orders/warehouse-proof-photos-field";
@@ -42,6 +48,7 @@ import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-conditio
 export type PackageIntakeRowState = {
   receivedQty: number;
   condition: WarehouseReceiveCondition;
+  missingReason: WarehouseMissingReason;
   shelfLocation: string;
   proofFileCount: number;
   proofPhotoUrls: string[];
@@ -71,6 +78,10 @@ export function packageIntakeRowStateFromLine(
     return {
       receivedQty: oi.warehouseReceivedQty ?? line.orderedQty,
       condition: cond,
+      missingReason:
+        isWarehouseMissingReason(oi.warehouseReceivedMissingReason) ?
+          oi.warehouseReceivedMissingReason
+        : "package_empty",
       shelfLocation: oi.warehouseShelfLocation ?? "",
       proofPhotoUrls,
       proofFileCount:
@@ -83,6 +94,7 @@ export function packageIntakeRowStateFromLine(
   return {
     receivedQty: line.orderedQty,
     condition: "good",
+    missingReason: "package_empty",
     shelfLocation: "",
     proofPhotoUrls: [],
     proofFileCount: 0,
@@ -240,6 +252,13 @@ function IntakePreviewBody({
           </PreviewField>
           <PreviewField label="Condition">
             {warehouseReceiveConditionLabel(row.condition)}
+            {row.condition === "missing" &&
+            warehouseMissingReasonLabel(row.missingReason) ?
+              <span className="text-muted-foreground">
+                {" "}
+                ({warehouseMissingReasonLabel(row.missingReason)})
+              </span>
+            : null}
           </PreviewField>
           {intakeQty !== row.receivedQty ?
             <PreviewField label="Snapshot qty">{intakeQty}</PreviewField>
@@ -362,6 +381,28 @@ function IntakeEditForm({
               </option>
             ))}
           </select>
+          {row.condition === "missing" ?
+            <div className="mt-2 space-y-1.5">
+              <Label htmlFor={`pkg-missing-reason-${line.id}`}>Missing details</Label>
+              <select
+                id={`pkg-missing-reason-${line.id}`}
+                className={receivingConditionSelectClassName}
+                value={row.missingReason}
+                disabled={pending}
+                onChange={(e) =>
+                  onChange({
+                    missingReason: e.target.value as WarehouseMissingReason,
+                  })
+                }
+              >
+                {WAREHOUSE_MISSING_REASON_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          : null}
         </label>
       </div>
       <label className="block space-y-1.5">
@@ -592,6 +633,10 @@ export function AdminPackageFileCard({
                         orderItemId: line.id,
                         receivedQty: editDraft.receivedQty,
                         condition: editDraft.condition,
+                        missingReason:
+                          editDraft.condition === "missing" ?
+                            editDraft.missingReason
+                          : undefined,
                         shelfLocation: editDraft.shelfLocation,
                         proofPhotoCount: editDraft.proofPhotoUrls.length,
                         proofPhotoUrls: editDraft.proofPhotoUrls,

@@ -17,6 +17,7 @@ import {
   containerFullnessLabel,
 } from "@/lib/barrel-shipping-intake";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
+import { cn } from "@/lib/utils";
 
 type BarrelOutboundShippingChargeCardProps = {
   row: BarrelShippingIntakeSubmittedRow;
@@ -49,7 +50,20 @@ export function BarrelOutboundShippingChargeCard({
   }
 
   return (
-    <Card className="overflow-hidden border-border/80 bg-card shadow-sm">
+    <Card
+      className={cn(
+        "overflow-hidden bg-card shadow-sm",
+        charge.inCart ?
+          "border-primary/40 ring-1 ring-primary/30"
+        : "border-border/80",
+      )}
+    >
+      {charge.inCart ?
+        <div className="flex items-center gap-1.5 border-b border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+          <ShoppingCart className="size-3.5" aria-hidden />
+          In your cart — checkout to pay
+        </div>
+      : null}
       <CardContent className="p-3">
         <article className="flex items-center gap-3">
           <ProductRequestThumbnail
@@ -59,9 +73,17 @@ export function BarrelOutboundShippingChargeCard({
             className="rounded-md ring-1 ring-border/40"
           />
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-sm font-semibold text-foreground">
-              {row.containerName}
-            </h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="truncate text-sm font-semibold text-foreground">
+                {row.containerName}
+              </h3>
+              {charge.inCart ?
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  <ShoppingCart className="size-3" aria-hidden />
+                  In cart
+                </span>
+              : null}
+            </div>
             <p className="text-xs font-medium tabular-nums text-muted-foreground">
               Total due {formatUsd(charge.totalCents)}
             </p>

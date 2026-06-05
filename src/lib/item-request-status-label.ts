@@ -34,7 +34,9 @@ export function itemRequestStatusLabelForDisplay(
     | "productUrl"
     | "outsidePurchasePaymentPromptedAt"
     | "outsidePurchaseReceivedCondition"
-  >,
+  > & {
+    outsidePurchaseMissingResolvedAt?: ItemRequest["outsidePurchaseMissingResolvedAt"];
+  },
   returnRequest?: Pick<OutsidePurchaseReturnRequest, "status"> | null,
   orderContext?: ItemRequestOrderContext | null,
   audience?: ItemRequestProductStatusAudience,

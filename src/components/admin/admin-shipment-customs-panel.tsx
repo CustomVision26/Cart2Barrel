@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPinIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -63,12 +64,33 @@ export function AdminShipmentCustomsPanel({
       return;
     }
     startTransition(async () => {
+      // If the admin selected a clearance form image but did not click
+      // "Upload" first, upload it now so the customer's view/download link
+      // is saved as part of this single save action.
+      let customsUrl: string | null = formImageUrl.trim() || null;
+      const pendingFile = fileRef.current?.files?.[0];
+      if (pendingFile) {
+        const fd = new FormData();
+        fd.set("barrelId", row.barrelId);
+        fd.set("file", pendingFile);
+        const upload = await adminUploadCustomsDeclarationFormAction(fd);
+        if (!upload.ok) {
+          toast.error(upload.message);
+          return;
+        }
+        customsUrl = upload.imageUrl;
+        setFormImageUrl(upload.imageUrl);
+        if (fileRef.current) {
+          fileRef.current.value = "";
+        }
+      }
+
       const res = await adminSaveBarrelShipmentCustomsAction({
         barrelId: row.barrelId,
         freightCompanyName,
         freightDropOffAt,
         estimatedArrivalAt,
-        customsDeclarationFormUrl: formImageUrl.trim() || null,
+        customsDeclarationFormUrl: customsUrl,
       });
       if (!res.ok) {
         toast.error(res.message);
@@ -145,6 +167,25 @@ export function AdminShipmentCustomsPanel({
         paymentReferenceNumber={row.paymentReferenceNumber}
         compact
       />
+
+      {row.destinationLines.length > 0 ?
+        <div className="flex items-start gap-1.5 rounded-md border border-border/60 bg-muted px-2.5 py-2 text-xs">
+          <MapPinIcon
+            className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <p className="font-medium text-foreground">Destination</p>
+            <address className="not-italic text-muted-foreground">
+              {row.destinationLines.map((line) => (
+                <span key={line} className="block">
+                  {line}
+                </span>
+              ))}
+            </address>
+          </div>
+        </div>
+      : null}
 
       <div className="space-y-3 rounded-md border border-border/60 p-3">
         <p className="text-xs font-medium text-foreground">Customs clearance info</p>

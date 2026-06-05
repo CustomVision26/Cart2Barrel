@@ -19,9 +19,11 @@ import { AcceptQuoteButton } from "@/components/dashboard/accept-quote-button";
 import { useAddItemPayload } from "@/components/dashboard/add-item-payload-context";
 import { CartLineUrlOrReceipt } from "@/components/dashboard/cart-line-url-or-receipt";
 import { OutsidePurchaseReturnPreviewDialog } from "@/components/dashboard/outside-purchase-return-preview-dialog";
+import { OutsidePurchaseMissingItemPreviewDialog } from "@/components/dashboard/outside-purchase-missing-item-preview-dialog";
 import { OutsidePurchaseCancelReturnButton } from "@/components/dashboard/outside-purchase-cancel-return-button";
 import { OutsidePurchaseReturnRequestDialog } from "@/components/dashboard/outside-purchase-return-request-dialog";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
+import { HelpBalloon } from "@/components/ui/help-balloon";
 import { ItemsNewProductHistoryPanel } from "@/components/dashboard/items-new-product-history-panel";
 import { useBatchQuoteSelection } from "@/components/dashboard/batch-quote-selection-context";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
@@ -72,6 +74,7 @@ import {
   itemRequestStatusLabelForDisplay,
 } from "@/lib/item-request-status-label";
 import {
+  isOutsidePurchaseMissingItem,
   isOutsidePurchaseProblemReceiptCondition,
   outsidePurchaseAllowsAcceptQuote,
   outsidePurchaseShowsCancelReturnAction,
@@ -622,24 +625,33 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
             })}
           </div>
           <div className="flex flex-col items-end gap-2 sm:shrink-0 sm:flex-row sm:items-center sm:gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={
-                batchSelectedIds.size === 0 ||
-                removableCheckedCount === 0 ||
-                removingRequests ||
-                addingBatch
-              }
-              className={cn(
-                batchSelectedIds.size > 0 &&
-                  "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              )}
-              onClick={() => setRemoveCheckedDialogOpen(true)}
-            >
-              Remove checked
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={
+                  batchSelectedIds.size === 0 ||
+                  removableCheckedCount === 0 ||
+                  removingRequests ||
+                  addingBatch
+                }
+                className={cn(
+                  batchSelectedIds.size > 0 &&
+                    "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                )}
+                onClick={() => setRemoveCheckedDialogOpen(true)}
+              >
+                Remove checked
+              </Button>
+              <HelpBalloon label="What does Remove checked do?">
+                Moves all checked products to{" "}
+                <span className="font-medium text-foreground">Product history</span> at
+                once, so you stop tracking them here. Checked items already in a batch
+                quote are skipped — uncheck them or use Batch Quotes. Nothing is deleted;
+                you can reinstate items from the History tab anytime.
+              </HelpBalloon>
+            </div>
             <div className="flex flex-col items-end gap-2">
             {batchSelectedIds.size > 0 ? (
               <p className="max-w-[22rem] text-right text-xs text-muted-foreground">
@@ -1055,6 +1067,13 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                     </p>
                                   );
                                 }
+                                if (isOutsidePurchaseMissingItem(r)) {
+                                  return (
+                                    <OutsidePurchaseMissingItemPreviewDialog
+                                      request={r}
+                                    />
+                                  );
+                                }
                                 if (isOpQuoted) {
                                   return (
                                     <CollapsibleFieldSection
@@ -1124,6 +1143,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               })()
                             : null}
                             {r.status === "pending" ? (
+                              <div className="flex items-center gap-1.5">
                               <AlertDialog>
                                 <AlertDialogTrigger
                                   render={
@@ -1176,6 +1196,19 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
+                              <HelpBalloon
+                                label="What does Remove request do?"
+                                tooltipClassName="right-0 left-auto translate-x-0"
+                              >
+                                Cancels this pending request so it won&apos;t be quoted,
+                                and moves the product to{" "}
+                                <span className="font-medium text-foreground">
+                                  Product history
+                                </span>
+                                . Nothing is deleted — you can reinstate it from the
+                                History tab later.
+                              </HelpBalloon>
+                              </div>
                             ) : null}
                             {r.status === "out_of_stock" ? (
                               <>

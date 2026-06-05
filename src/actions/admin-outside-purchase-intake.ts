@@ -41,7 +41,10 @@ import {
   RETAILER_RECEIPT_IMAGE_MAX_BYTES,
 } from "@/lib/retailer-receipt-images";
 import { withOutsidePurchaseStaffNotePrefix } from "@/lib/outside-purchase-staff-note";
-import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
+import {
+  warehouseMissingReasonLabel,
+  warehouseReceiveConditionLabel,
+} from "@/lib/warehouse-receive-condition";
 import {
   adminUpdateOutsidePurchaseIntakeSchema,
   parseAdminOutsidePurchaseIntakeInput,
@@ -79,6 +82,7 @@ function intakeFieldsFromFormData(formData: FormData): Record<string, unknown> {
     unitPriceCents: num("unitPriceCents"),
     staffNote: formData.get("staffNote") || undefined,
     receivedCondition: formData.get("receivedCondition") || undefined,
+    receivedMissingReason: formData.get("receivedMissingReason") || undefined,
     receivedShelfLocation: formData.get("receivedShelfLocation") || undefined,
   };
 }
@@ -149,6 +153,8 @@ export async function saveAdminOutsidePurchaseIntakeAction(
   }
 
   const d = parsed.data;
+  const missingReason =
+    d.receivedCondition === "missing" ? (d.receivedMissingReason ?? null) : null;
   const reference = d.outsidePurchaseReference ?? formatOutsidePurchaseReference();
   const productUrl = outsidePurchaseProductUrl(reference);
   const siteName = "Outside purchase";
@@ -187,6 +193,7 @@ export async function saveAdminOutsidePurchaseIntakeAction(
         source: "outside_purchase",
         outsidePurchaseReference: reference,
         outsidePurchaseReceivedCondition: d.receivedCondition,
+        outsidePurchaseMissingReason: missingReason,
         outsidePurchaseShelfLocation:
           d.receivedShelfLocation === "" ? null : d.receivedShelfLocation,
         outsidePurchasePaymentPromptedAt: promptedAt,
@@ -290,7 +297,9 @@ export async function saveAdminOutsidePurchaseIntakeAction(
     const staffNoteParts = [
       withOutsidePurchaseStaffNotePrefix(d.staffNote),
       d.note ? `Receipt note: ${d.note}` : null,
-      `Received condition: ${warehouseReceiveConditionLabel(d.receivedCondition)}.`,
+      `Received condition: ${warehouseReceiveConditionLabel(d.receivedCondition)}${
+        missingReason ? ` (${warehouseMissingReasonLabel(missingReason)})` : ""
+      }.`,
       `Shelf / bin: ${shelfTrim || "—"}.`,
       serviceLine,
       `Listed unit price for tier: ${formatUsd(pricing.unitPriceCents)}.`,
@@ -369,6 +378,8 @@ export async function updateAdminOutsidePurchaseIntakeAction(
   }
 
   const d = parsed.data;
+  const missingReason =
+    d.receivedCondition === "missing" ? (d.receivedMissingReason ?? null) : null;
   const existing = await getItemRequestById(d.itemRequestId);
   if (!existing || !isOutsidePurchaseRequest(existing)) {
     return { ok: false, message: "Outside-purchase product not found." };
@@ -411,6 +422,7 @@ export async function updateAdminOutsidePurchaseIntakeAction(
       note: d.note ?? null,
       outsidePurchaseReference: reference,
       outsidePurchaseReceivedCondition: d.receivedCondition,
+      outsidePurchaseMissingReason: missingReason,
       outsidePurchaseShelfLocation:
         d.receivedShelfLocation === "" ? null : d.receivedShelfLocation,
     })
@@ -477,7 +489,9 @@ export async function updateAdminOutsidePurchaseIntakeAction(
       [
         withOutsidePurchaseStaffNotePrefix(d.staffNote),
         d.note ? `Receipt note: ${d.note}` : null,
-        `Received condition: ${warehouseReceiveConditionLabel(d.receivedCondition)}.`,
+        `Received condition: ${warehouseReceiveConditionLabel(d.receivedCondition)}${
+          missingReason ? ` (${warehouseMissingReasonLabel(missingReason)})` : ""
+        }.`,
         `Shelf / bin: ${shelfTrim || "—"}.`,
         serviceLine,
         `Listed unit price for tier: ${formatUsd(pricing.unitPriceCents)}.`,

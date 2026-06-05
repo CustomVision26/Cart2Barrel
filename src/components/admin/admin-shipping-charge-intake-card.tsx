@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type ChangeEvent, useMemo, useState, useTransition } from "react";
-import { Pencil } from "lucide-react";
+import { ChevronDownIcon, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveBarrelOutboundShippingChargeAction } from "@/actions/admin-barrel-outbound-shipping-charge";
@@ -64,6 +64,7 @@ export function AdminShippingChargeIntakeCard({
   staffProfilesByClerkUserId = {},
 }: AdminShippingChargeIntakeCardProps) {
   const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [customsOpen, setCustomsOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -171,7 +172,36 @@ export function AdminShippingChargeIntakeCard({
               />
             </p>
           </div>
-          <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 gap-1 px-2 text-xs"
+            aria-expanded={expanded}
+            onClick={() =>
+              setExpanded((value) => {
+                const next = !value;
+                if (!next) {
+                  setEditing(false);
+                  setCustomsOpen(false);
+                }
+                return next;
+              })
+            }
+          >
+            {expanded ? "Hide" : "Manage"}
+            <ChevronDownIcon
+              className={cn(
+                "size-3.5 transition-transform",
+                expanded && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </Button>
+        </article>
+
+        {expanded ?
+          <div className="mt-3 flex flex-col gap-1 border-t border-border/60 pt-3 sm:flex-row sm:flex-wrap">
             {isPaid ?
               <Button
                 type="button"
@@ -198,9 +228,9 @@ export function AdminShippingChargeIntakeCard({
               {editing ? "Close" : "Edit"}
             </Button>
           </div>
-        </article>
+        : null}
 
-        {customsOpen ?
+        {expanded && customsOpen ?
           <div className="mt-3 border-t border-border/60 pt-3">
             <AdminShipmentCustomsPanel
               row={row}
@@ -209,7 +239,7 @@ export function AdminShippingChargeIntakeCard({
           </div>
         : null}
 
-        {editing ?
+        {expanded && editing ?
           <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
             <dl className="grid gap-2 text-xs sm:grid-cols-2">
               <div>
@@ -219,6 +249,11 @@ export function AdminShippingChargeIntakeCard({
                   {row.customerEmail ?
                     <span className="mt-0.5 block font-normal text-muted-foreground">
                       {row.customerEmail}
+                    </span>
+                  : null}
+                  {row.destinationLines.length > 0 ?
+                    <span className="mt-1 block font-normal text-muted-foreground">
+                      {row.destinationLines.join(", ")}
                     </span>
                   : null}
                 </dd>

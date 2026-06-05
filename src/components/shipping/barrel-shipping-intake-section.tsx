@@ -74,7 +74,10 @@ export function BarrelShippingIntakeSection({
           <ul className="flex max-w-2xl flex-col gap-6">
             {submitted.map((row) => (
               <li key={row.intakeId}>
-                <BarrelShippingIntakeSubmittedCard row={row} />
+                <BarrelShippingIntakeSubmittedCard
+                  row={row}
+                  shippingAddress={shippingAddress}
+                />
               </li>
             ))}
           </ul>

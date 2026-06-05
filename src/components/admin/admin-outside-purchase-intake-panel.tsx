@@ -58,7 +58,11 @@ import {
   CONDITION_OPTIONS,
   receivingConditionSelectClassName,
 } from "@/components/admin/receiving-row-actions";
-import type { WarehouseReceiveCondition } from "@/lib/warehouse-receive-condition";
+import type {
+  WarehouseMissingReason,
+  WarehouseReceiveCondition,
+} from "@/lib/warehouse-receive-condition";
+import { WAREHOUSE_MISSING_REASON_OPTIONS } from "@/lib/warehouse-receive-condition";
 import { cn } from "@/lib/utils";
 
 function parseDollarsToCents(raw: string): number {
@@ -315,6 +319,8 @@ export function AdminOutsidePurchaseIntakePanel({
   const [productColor, setProductColor] = useState("");
   const [receivedCondition, setReceivedCondition] =
     useState<WarehouseReceiveCondition>("good");
+  const [receivedMissingReason, setReceivedMissingReason] =
+    useState<WarehouseMissingReason>("package_empty");
   const [receivedShelfLocation, setReceivedShelfLocation] = useState("");
   const [receiptNote, setReceiptNote] = useState("");
   const [staffNote, setStaffNote] = useState(OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX);
@@ -362,6 +368,7 @@ export function AdminOutsidePurchaseIntakePanel({
     setProductSize("");
     setProductColor("");
     setReceivedCondition("good");
+    setReceivedMissingReason("package_empty");
     setReceivedShelfLocation("");
     setReceiptNote("");
     setStaffNote(OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX);
@@ -447,6 +454,9 @@ export function AdminOutsidePurchaseIntakePanel({
     if (productSize.trim()) fd.set("productSize", productSize.trim());
     if (productColor.trim()) fd.set("productColor", productColor.trim());
     fd.set("receivedCondition", receivedCondition);
+    if (receivedCondition === "missing") {
+      fd.set("receivedMissingReason", receivedMissingReason);
+    }
     fd.set("receivedShelfLocation", receivedShelfLocation.trim());
     if (receiptNote.trim()) fd.set("note", receiptNote.trim());
     if (staffNote.trim()) fd.set("staffNote", staffNote.trim());
@@ -756,6 +766,32 @@ export function AdminOutsidePurchaseIntakePanel({
                       </option>
                     ))}
                   </select>
+                  {receivedCondition === "missing" ?
+                    <div className="mt-2 space-y-1.5">
+                      <label
+                        htmlFor="op-missing-reason"
+                        className="text-xs font-medium text-muted-foreground"
+                      >
+                        Missing details
+                      </label>
+                      <select
+                        id="op-missing-reason"
+                        value={receivedMissingReason}
+                        onChange={(e) =>
+                          setReceivedMissingReason(
+                            e.target.value as WarehouseMissingReason,
+                          )
+                        }
+                        className={receivingConditionSelectClassName}
+                      >
+                        {WAREHOUSE_MISSING_REASON_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  : null}
                 </FieldContent>
               </Field>
               <Field>

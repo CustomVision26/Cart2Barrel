@@ -1,7 +1,9 @@
 import "server-only";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { StripeCheckoutPriceDataLine } from "@/data/cart";
+import { STRIPE_CHECKOUT_LINE_MIN_US_CENTS } from "@/data/cart";
+import { formatUsd } from "@/lib/admin-markup";
 
 import { getDb } from "@/db";
 import {
@@ -218,20 +220,92 @@ export function sumOutboundShippingCartLinesCents(
   return lines.reduce((s, l) => s + l.totalCents, 0);
 }
 
+/** Lightweight count of outbound shipping charges in the user's cart (header badge). */
+export async function countUserOutboundShippingCartLineRows(
+  clerkUserId: string,
+): Promise<number> {
+  const db = getDb();
+  try {
+    const rows = await db
+      .select({ chargeId: userOutboundShippingCartLines.chargeId })
+      .from(userOutboundShippingCartLines)
+      .where(eq(userOutboundShippingCartLines.clerkUserId, clerkUserId));
+    return rows.length;
+  } catch (e) {
+    if (isMissingBarrelOutboundShippingChargesTableError(e)) {
+      return 0;
+    }
+    throw e;
+  }
+}
+
+/**
+ * Stripe Checkout line items for outbound container shipping. Each itemized
+ * charge (freight, customs, pickup, etc.) becomes its own checkout line so the
+ * customer clearly sees what they are paying for. If a container has any line
+ * below Stripe's per-line minimum, that container falls back to a single
+ * combined line whose description still spells out every charge and amount.
+ */
 export function buildStripeLineItemsFromOutboundShippingCart(
   lines: OutboundShippingCartLineView[],
 ): StripeCheckoutPriceDataLine[] {
-  return lines.map((line) => ({
-    quantity: 1,
-    price_data: {
-      currency: "usd",
-      unit_amount: line.totalCents,
-      product_data: {
-        name: `Outbound shipping — ${line.alias}`,
-        description: `${line.slotLabel} · ${line.lines.map((l) => l.label).join(", ")}`,
+  const items: StripeCheckoutPriceDataLine[] = [];
+
+  for (const line of lines) {
+    const chargeLines = line.lines.filter((l) => l.amountCents > 0);
+
+    if (chargeLines.length === 0) {
+      items.push({
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          unit_amount: line.totalCents,
+          product_data: {
+            name: `Outbound shipping — ${line.alias}`,
+            description: line.slotLabel,
+          },
+        },
+      });
+      continue;
+    }
+
+    const canItemize = chargeLines.every(
+      (l) => l.amountCents >= STRIPE_CHECKOUT_LINE_MIN_US_CENTS,
+    );
+
+    if (canItemize) {
+      for (const charge of chargeLines) {
+        items.push({
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: charge.amountCents,
+            product_data: {
+              name: `Shipping: ${charge.label}`,
+              description: `${line.alias} · ${line.slotLabel}`,
+            },
+          },
+        });
+      }
+      continue;
+    }
+
+    items.push({
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: line.totalCents,
+        product_data: {
+          name: `Outbound shipping — ${line.alias}`,
+          description: `${line.slotLabel} · ${chargeLines
+            .map((l) => `${l.label} ${formatUsd(l.amountCents)}`)
+            .join(", ")}`,
+        },
       },
-    },
-  }));
+    });
+  }
+
+  return items;
 }
 
 export async function clearOutboundShippingCartForCharges(
@@ -248,6 +322,37 @@ export async function clearOutboundShippingCartForCharges(
         inArray(userOutboundShippingCartLines.chargeId, chargeIds),
       ),
     );
+}
+
+/**
+ * Re-adds outbound shipping charges to the user's cart after an abandoned/cancelled
+ * checkout (charges are cleared from the cart when a Stripe session is created).
+ * Only restores charges the user owns that are still unpaid; existing rows are kept.
+ */
+export async function restoreOutboundShippingCartForCharges(
+  clerkUserId: string,
+  chargeIds: string[],
+): Promise<void> {
+  if (chargeIds.length === 0) return;
+  await ensureBarrelOutboundShippingChargesSchema();
+  const db = getDb();
+
+  const restorable = await db
+    .select({ id: barrelOutboundShippingCharges.id })
+    .from(barrelOutboundShippingCharges)
+    .where(
+      and(
+        eq(barrelOutboundShippingCharges.clerkUserId, clerkUserId),
+        inArray(barrelOutboundShippingCharges.id, chargeIds),
+        isNull(barrelOutboundShippingCharges.paidAt),
+      ),
+    );
+  if (restorable.length === 0) return;
+
+  await db
+    .insert(userOutboundShippingCartLines)
+    .values(restorable.map((c) => ({ clerkUserId, chargeId: c.id })))
+    .onConflictDoNothing();
 }
 
 export async function markOutboundShippingChargesPaid(

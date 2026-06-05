@@ -10,7 +10,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ItemRequestLineSnapshotPreviewPanel } from "@/components/orders/item-request-line-snapshot-preview-panel";
+import {
+  ItemRequestLineSnapshotPreviewPanel,
+  type ReceivedProductPhoto,
+} from "@/components/orders/item-request-line-snapshot-preview-panel";
 import type { ItemRequest, ItemRequestLineSnapshot } from "@/db/schema";
 import { displaySiteName } from "@/lib/site-name";
 import { cn } from "@/lib/utils";
@@ -21,6 +24,9 @@ export type ProductHistoryTimelinePreview =
       snapshot: ItemRequestLineSnapshot;
       prevSnapshot: ItemRequestLineSnapshot | null;
       warehouseProofPhotoUrls?: string[] | null;
+      receivedProductPhotos?: ReceivedProductPhoto[] | null;
+      receiptPhotoUrl?: string | null;
+      productImageUrl?: string | null;
     }
   | { kind: "current"; request: ItemRequest; statusLabel: string };
 
@@ -95,6 +101,9 @@ export function ProductHistoryEventPreviewDialog({
             row={preview.snapshot}
             prevRow={preview.prevSnapshot}
             warehouseProofPhotoUrls={preview.warehouseProofPhotoUrls}
+            receivedProductPhotos={preview.receivedProductPhotos}
+            receiptPhotoUrl={preview.receiptPhotoUrl}
+            productImageUrl={preview.productImageUrl}
           />
         : <CurrentProductStatusPreviewPanel
             request={preview.request}

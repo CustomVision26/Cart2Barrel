@@ -51,6 +51,11 @@ import {
 } from "@/lib/order-line-product-return-display";
 import { canSubmitWarehouseReceiptForFulfillment } from "@/lib/warehouse-receipt-queue";
 import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
+import type { WarehouseMissingReason } from "@/lib/warehouse-receive-condition";
+import {
+  isWarehouseMissingReason,
+  WAREHOUSE_MISSING_REASON_OPTIONS,
+} from "@/lib/warehouse-receive-condition";
 import { displaySiteName } from "@/lib/site-name";
 import {
   adminCustomerDisplayLabel,
@@ -150,6 +155,7 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
     return {
       receivedQty: oi.quantity,
       condition: "good",
+      missingReason: "package_empty",
       shelfLocation: "",
       proofPhotoUrls: [],
       proofFileCount: 0,
@@ -164,6 +170,10 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
     return {
       receivedQty: oi.warehouseReceivedQty ?? oi.quantity,
       condition: cond,
+      missingReason:
+        isWarehouseMissingReason(oi.warehouseReceivedMissingReason) ?
+          oi.warehouseReceivedMissingReason
+        : "package_empty",
       shelfLocation: oi.warehouseShelfLocation ?? "",
       proofPhotoUrls,
       proofFileCount:
@@ -176,6 +186,7 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
   return {
     receivedQty: oi.quantity,
     condition: "good",
+    missingReason: "package_empty",
     shelfLocation: "",
     proofPhotoUrls: [],
     proofFileCount: 0,
@@ -186,6 +197,7 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
 type ReceiveDraft = {
   receivedQty: number;
   condition: WarehouseReceiveCondition;
+  missingReason: WarehouseMissingReason;
   shelfLocation: string;
   proofFileCount: number;
   proofPhotoUrls: string[];
@@ -684,6 +696,30 @@ export function AdminPurchaseOrdersTable({
                         </option>
                       ))}
                     </select>
+                    {draft.condition === "missing" ?
+                      <div className="mt-2 space-y-1">
+                        <Label htmlFor={`recv-${orderItemId}-missing-reason`}>
+                          Missing details
+                        </Label>
+                        <select
+                          id={`recv-${orderItemId}-missing-reason`}
+                          className={receivingConditionSelectClassName}
+                          value={draft.missingReason}
+                          onChange={(e) =>
+                            updateDraft(orderItemId, {
+                              missingReason: e.target
+                                .value as WarehouseMissingReason,
+                            })
+                          }
+                        >
+                          {WAREHOUSE_MISSING_REASON_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    : null}
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`recv-${orderItemId}-shelf`}>
@@ -767,6 +803,8 @@ export function AdminPurchaseOrdersTable({
                       orderItemId,
                       receivedQty: d.receivedQty,
                       condition: d.condition,
+                      missingReason:
+                        d.condition === "missing" ? d.missingReason : undefined,
                       shelfLocation: d.shelfLocation,
                       proofPhotoCount: d.proofPhotoUrls.length,
                       proofPhotoUrls: d.proofPhotoUrls,

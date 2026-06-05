@@ -13,6 +13,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { AdminAiEstimateDialog } from "@/components/admin/admin-ai-estimate-dialog";
 import { AdminMarkOutOfStockButton } from "@/components/admin/admin-mark-out-of-stock-button";
 import { AdminOutsidePurchaseReturnEstimateDialog } from "@/components/admin/admin-outside-purchase-return-estimate-dialog";
+import { AdminItemRequestPreviewDialog } from "@/components/admin/admin-item-request-preview-dialog";
 import { AdminItemRequestUrlOrReceipt } from "@/components/admin/admin-item-request-url-or-receipt";
 import { AdminProductUrlDialog } from "@/components/admin/admin-product-url-dialog";
 import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-history-edit-dialog";
@@ -399,7 +400,10 @@ function ActiveQueueLineTableRow({
         }
       </td>
       <td className="px-2 py-2 align-top">
-        <QuoteEstimatePreviewDialog itemRequestId={r.id} />
+        <div className="flex flex-col items-start gap-2">
+          <QuoteEstimatePreviewDialog itemRequestId={r.id} />
+          <AdminItemRequestPreviewDialog request={r} />
+        </div>
       </td>
       <td className="px-2 py-2 align-top">
         <ItemRequestLineAuditDialog

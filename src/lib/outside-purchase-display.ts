@@ -14,7 +14,17 @@ export type OutsidePurchaseDisplayRequest = Pick<
   | "productUrl"
   | "outsidePurchasePaymentPromptedAt"
   | "outsidePurchaseReceivedCondition"
->;
+> & {
+  /** Optional so partial callers still satisfy the type; absent ⇒ unresolved. */
+  outsidePurchaseMissingResolvedAt?: ItemRequest["outsidePurchaseMissingResolvedAt"];
+};
+
+/** Customer marked a `missing` outside-purchase line as resolved. */
+export function isOutsidePurchaseMissingResolved(
+  request: OutsidePurchaseDisplayRequest,
+): boolean {
+  return Boolean(request.outsidePurchaseMissingResolvedAt);
+}
 
 export function parseOutsidePurchaseReceivedCondition(
   raw: string | null | undefined,
@@ -87,7 +97,9 @@ export function outsidePurchaseStatusLabelForDisplay(
     case "wrong_item":
       return `Received: Wrong item${suffix}`;
     case "missing":
-      return `Received: Missing item${suffix}`;
+      return isOutsidePurchaseMissingResolved(request) ?
+          "Missing item : resolved"
+        : `Received: Missing item${suffix}`;
     default:
       return `Payment due${suffix}`;
   }
@@ -123,6 +135,24 @@ export function isOutsidePurchaseProblemReceiptCondition(
     condition === "damaged" ||
     condition === "missing" ||
     condition === "wrong_item"
+  );
+}
+
+/**
+ * Quoted outside-purchase line whose item was received as missing. There is
+ * nothing to pay for and nothing to return, so customers only get a read-only
+ * preview of the product details, received photo, and receipt.
+ */
+export function isOutsidePurchaseMissingItem(
+  request: OutsidePurchaseDisplayRequest,
+): boolean {
+  if (!isOutsidePurchaseRequest(request) || request.status !== "quoted") {
+    return false;
+  }
+  return (
+    parseOutsidePurchaseReceivedCondition(
+      request.outsidePurchaseReceivedCondition,
+    ) === "missing"
   );
 }
 

@@ -370,6 +370,20 @@ export const itemRequests = pgTable(
     ),
     /** Physical condition when staff received the outside-purchase product at the warehouse. */
     outsidePurchaseReceivedCondition: text("outside_purchase_received_condition"),
+    /**
+     * Sub-reason when {@link outsidePurchaseReceivedCondition} is `missing`
+     * (`package_empty` | `package_not_received`).
+     */
+    outsidePurchaseMissingReason: text("outside_purchase_missing_reason"),
+    /**
+     * Set when the customer marks a `missing` outside-purchase as resolved (e.g.
+     * package later arrived / carrier dispute settled). Cleared when set back to
+     * unresolved. Drives the "Missing item : resolved" status label.
+     */
+    outsidePurchaseMissingResolvedAt: timestamp(
+      "outside_purchase_missing_resolved_at",
+      { withTimezone: true, mode: "string" },
+    ),
     /** Warehouse shelf / bin assigned at outside-purchase intake. */
     outsidePurchaseShelfLocation: text("outside_purchase_shelf_location"),
     /** Present while the line sits in Batch Quotes draft/submitted queues. Cleared once staff saves a batch estimate. */
@@ -681,6 +695,11 @@ export const orderItems = pgTable(
     }),
     warehouseReceivedQty: integer("warehouse_received_qty"),
     warehouseReceivedCondition: text("warehouse_received_condition"),
+    /**
+     * Sub-reason when {@link warehouseReceivedCondition} is `missing`
+     * (`package_empty` | `package_not_received`).
+     */
+    warehouseReceivedMissingReason: text("warehouse_received_missing_reason"),
     warehouseShelfLocation: text("warehouse_shelf_location"),
     warehouseReceivedBarcode: text("warehouse_received_barcode"),
     /** Photo of the package / SKU barcode stored as a public Vercel Blob URL. */
@@ -1262,6 +1281,8 @@ export const barrels = pgTable(
       .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
     status: barrelStatusEnum("status").notNull().default("filling"),
     capacityPercentage: integer("capacity_percentage").notNull().default(0),
+    /** Public Vercel Blob URL of the latest container load/progress photo (admin upload). */
+    progressImageUrl: text("progress_image_url"),
     /**
      * When this row was provisioned from a paid container checkout line, links back to that
      * snapshot so the shopper UI can show which purchased container slot this physical barrel is.
@@ -1280,6 +1301,25 @@ export const barrels = pgTable(
     index("barrels_clerk_user_id_idx").on(t.clerkUserId),
     index("barrels_order_container_item_id_idx").on(t.orderContainerItemId),
   ],
+);
+
+/** Append-only visual record of container load/progress photos (admin uploads). */
+export const barrelProgressSnapshots = pgTable(
+  "barrel_progress_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    barrelId: uuid("barrel_id")
+      .notNull()
+      .references(() => barrels.id, { onDelete: "cascade" }),
+    imageUrl: text("image_url").notNull(),
+    /** Container load percentage captured at the time the photo was taken. */
+    capacityPercentage: integer("capacity_percentage").notNull().default(0),
+    createdByClerkUserId: text("created_by_clerk_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("barrel_progress_snapshots_barrel_id_idx").on(t.barrelId)],
 );
 
 export const barrelItems = pgTable(

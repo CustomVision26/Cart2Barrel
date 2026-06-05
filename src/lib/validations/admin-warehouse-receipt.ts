@@ -9,10 +9,17 @@ export const warehouseReceiveConditionSchema = z.enum([
   "wrong_item",
 ]);
 
+export const warehouseMissingReasonSchema = z.enum([
+  "package_empty",
+  "package_not_received",
+]);
+
 export const warehouseReceiptLineInputSchema = z.object({
   orderItemId: z.string().uuid(),
   receivedQty: z.number().int().min(0).max(1_000_000),
   condition: warehouseReceiveConditionSchema,
+  /** Sub-reason captured only when `condition` is `missing`. */
+  missingReason: warehouseMissingReasonSchema.optional(),
   shelfLocation: z.string().max(500),
   proofPhotoCount: z.number().int().min(0).max(500),
   proofPhotoUrls: z
@@ -64,6 +71,7 @@ export const warehouseReceiptMemoV2Schema = z.object({
   orderedQty: z.number().int().min(0),
   receivedQty: z.number().int().min(0),
   condition: warehouseReceiveConditionSchema,
+  missingReason: warehouseMissingReasonSchema.optional(),
   shelfLocation: z.string(),
   proofPhotoCount: z.number().int().min(0),
   proofPhotoUrls: z.array(z.string().url()).max(RETAILER_RECEIPT_IMAGES_MAX).optional(),

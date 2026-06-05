@@ -181,6 +181,8 @@ export async function applyWarehouseReceiptLines(
       const receivedAt = new Date().toISOString();
       const shelfTrim = line.shelfLocation.trim();
       const barcodeTrim = line.barcodeValue?.trim();
+      const missingReason =
+        line.condition === "missing" ? line.missingReason : undefined;
       const proofUrls = line.proofPhotoUrls;
       const proofCount =
         proofUrls !== undefined ? proofUrls.length : line.proofPhotoCount;
@@ -238,6 +240,7 @@ export async function applyWarehouseReceiptLines(
         orderedQty,
         receivedQty: line.receivedQty,
         condition: line.condition,
+        missingReason,
         shelfLocation: shelfTrim,
         proofPhotoCount: proofCount,
         proofPhotoUrls:
@@ -250,6 +253,7 @@ export async function applyWarehouseReceiptLines(
         orderedQty,
         receivedQty: line.receivedQty,
         conditionKey: line.condition,
+        missingReason,
         shelfLocation: line.shelfLocation,
         proofPhotoCount: proofCount,
         barcodeValue: activeMemoPayload.barcodeValue,
@@ -285,6 +289,7 @@ export async function applyWarehouseReceiptLines(
           warehouseReceivedAt: receivedAt,
           warehouseReceivedQty: line.receivedQty,
           warehouseReceivedCondition: line.condition,
+          warehouseReceivedMissingReason: missingReason ?? null,
           warehouseShelfLocation: shelfTrim === "" ? null : shelfTrim,
           warehouseReceivedBarcode:
             barcodeTrim === undefined || barcodeTrim === "" ? null : barcodeTrim,

@@ -39,7 +39,14 @@ import {
   computeOutsidePurchaseCustomerQuoteCents,
 } from "@/lib/outside-purchase-service-quote";
 import { OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX } from "@/lib/outside-purchase-staff-note";
-import type { WarehouseReceiveCondition } from "@/lib/warehouse-receive-condition";
+import type {
+  WarehouseMissingReason,
+  WarehouseReceiveCondition,
+} from "@/lib/warehouse-receive-condition";
+import {
+  isWarehouseMissingReason,
+  WAREHOUSE_MISSING_REASON_OPTIONS,
+} from "@/lib/warehouse-receive-condition";
 
 function parseDollarsToCents(raw: string): number {
   const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");
@@ -77,6 +84,12 @@ export function AdminOutsidePurchaseEditDialog({
   const [receivedCondition, setReceivedCondition] = useState<WarehouseReceiveCondition>(
     (request.outsidePurchaseReceivedCondition as WarehouseReceiveCondition) ?? "good",
   );
+  const [receivedMissingReason, setReceivedMissingReason] =
+    useState<WarehouseMissingReason>(
+      isWarehouseMissingReason(request.outsidePurchaseMissingReason) ?
+        request.outsidePurchaseMissingReason
+      : "package_empty",
+    );
   const [receivedShelfLocation, setReceivedShelfLocation] = useState(
     request.outsidePurchaseShelfLocation ?? "",
   );
@@ -150,6 +163,11 @@ export function AdminOutsidePurchaseEditDialog({
     setReceivedCondition(
       (request.outsidePurchaseReceivedCondition as WarehouseReceiveCondition) ?? "good",
     );
+    setReceivedMissingReason(
+      isWarehouseMissingReason(request.outsidePurchaseMissingReason) ?
+        request.outsidePurchaseMissingReason
+      : "package_empty",
+    );
     setReceivedShelfLocation(request.outsidePurchaseShelfLocation ?? "");
     setStaffNote(quote?.staffNote?.trim() || OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX);
     setReturnFeeDollars(
@@ -182,6 +200,9 @@ export function AdminOutsidePurchaseEditDialog({
     if (productSize.trim()) fd.set("productSize", productSize.trim());
     if (productColor.trim()) fd.set("productColor", productColor.trim());
     fd.set("receivedCondition", receivedCondition);
+    if (receivedCondition === "missing") {
+      fd.set("receivedMissingReason", receivedMissingReason);
+    }
     fd.set("receivedShelfLocation", receivedShelfLocation.trim());
     if (staffNote.trim()) fd.set("staffNote", staffNote.trim());
     if (productImageFile) fd.set("productImage", productImageFile);
@@ -329,6 +350,28 @@ export function AdminOutsidePurchaseEditDialog({
                     </option>
                   ))}
                 </select>
+                {receivedCondition === "missing" ?
+                  <div className="mt-2 space-y-1.5">
+                    <span className="block text-xs font-medium text-muted-foreground">
+                      Missing details
+                    </span>
+                    <select
+                      value={receivedMissingReason}
+                      onChange={(e) =>
+                        setReceivedMissingReason(
+                          e.target.value as WarehouseMissingReason,
+                        )
+                      }
+                      className={receivingConditionSelectClassName}
+                    >
+                      {WAREHOUSE_MISSING_REASON_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                : null}
               </FieldContent>
             </Field>
             <Field>
@@ -356,7 +399,7 @@ export function AdminOutsidePurchaseEditDialog({
                 rows={3}
                 value={staffNote}
                 onChange={(e) => setStaffNote(e.target.value)}
-                className="border-input bg-transparent flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                className="border-input bg-muted flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:border-white/25 dark:bg-secondary"
               />
             </FieldContent>
           </Field>
@@ -496,7 +539,7 @@ export function AdminOutsidePurchaseEditDialog({
                     value={returnStaffNote}
                     onChange={(e) => setReturnStaffNote(e.target.value)}
                     placeholder="Shown in the customer’s Preview return dialog…"
-                    className="border-input bg-transparent flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                    className="border-input bg-muted flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:border-white/25 dark:bg-secondary"
                   />
                 </FieldContent>
               </Field>
@@ -520,7 +563,7 @@ export function AdminOutsidePurchaseEditDialog({
           : null}
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-secondary px-6 py-4 sm:gap-0">
+        <DialogFooter className="sticky bottom-0 z-10 gap-2 border-t border-border bg-secondary px-6 py-4 sm:gap-0">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>

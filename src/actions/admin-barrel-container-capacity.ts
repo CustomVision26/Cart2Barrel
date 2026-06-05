@@ -51,16 +51,23 @@ export async function adminUpdateBarrelCapacityAction(
       return { ok: false, message: "Container not found." };
     }
 
-    if (barrelRow.status !== "filling") {
+    if (barrelRow.status !== "filling" && barrelRow.status !== "ready_to_ship") {
       return {
         ok: false,
-        message: "Progress can only be edited while the container is open for packing.",
+        message: "Progress can only be edited before the container ships.",
       };
     }
 
+    /** Lowering a full (ready-to-ship) container below 100% reopens it for packing. */
+    const reopenForPacking =
+      barrelRow.status === "ready_to_ship" && capacityPercentage < 100;
+
     await db
       .update(barrels)
-      .set({ capacityPercentage })
+      .set({
+        capacityPercentage,
+        ...(reopenForPacking ? { status: "filling" as const } : {}),
+      })
       .where(eq(barrels.id, barrelId));
 
     const label = (await getBarrelLabelById(barrelId)) ?? barrelId;
@@ -68,7 +75,10 @@ export async function adminUpdateBarrelCapacityAction(
     revalidateBarrelAssignmentPaths();
     return {
       ok: true,
-      message: `${label} load set to ${capacityPercentage}%.`,
+      message:
+        reopenForPacking ?
+          `${label} load set to ${capacityPercentage}% and reopened for packing.`
+        : `${label} load set to ${capacityPercentage}%.`,
     };
   } catch {
     return {
