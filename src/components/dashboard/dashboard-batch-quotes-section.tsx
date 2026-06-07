@@ -40,7 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { OwnerBatchQuoteSessionBundle } from "@/data/batch-quote-sessions";
-import type { ItemRequest } from "@/db/schema";
+import type { ItemQuote, ItemRequest } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   batchQuoteSessionEventKindLabel,
@@ -67,6 +67,7 @@ const SELECT_CLASS =
 
 type DashboardBatchQuotesSectionProps = {
   bundles: OwnerBatchQuoteSessionBundle[];
+  quotesByRequestId?: Record<string, ItemQuote[]>;
 };
 
 function ownerBundleActivityMs(b: OwnerBatchQuoteSessionBundle): number {
@@ -111,6 +112,7 @@ function haystackForBundleSearch(b: OwnerBatchQuoteSessionBundle): string {
 
 export function DashboardBatchQuotesSection({
   bundles,
+  quotesByRequestId = {},
 }: DashboardBatchQuotesSectionProps) {
   const router = useRouter();
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -124,9 +126,9 @@ export function DashboardBatchQuotesSection({
   const [submitPending, submitStart] = useTransition();
   const [removePending, removeStart] = useTransition();
   const [withdrawPending, withdrawStart] = useTransition();
-  const [expandedBySessionId, setExpandedBySessionId] = useState<
-    Record<string, boolean>
-  >({});
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
+    null,
+  );
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("activity");
@@ -197,13 +199,10 @@ export function DashboardBatchQuotesSection({
   }, []);
 
   const isBodyExpanded = (sessionId: string) =>
-    expandedBySessionId[sessionId] !== false;
+    expandedSessionId === sessionId;
 
   const toggleBody = (sessionId: string) => {
-    setExpandedBySessionId((prev) => {
-      const open = prev[sessionId] !== false;
-      return { ...prev, [sessionId]: !open };
-    });
+    setExpandedSessionId((prev) => (prev === sessionId ? null : sessionId));
   };
 
   const toggleDraftRow = useCallback((sessionId: string, requestId: string) => {
@@ -705,6 +704,8 @@ export function DashboardBatchQuotesSection({
                           batchNumber={session.batchNumber}
                           siteKey={session.siteKey}
                           estimate={latestEstimate}
+                          requests={requests}
+                          quotesByRequestId={quotesByRequestId}
                         />
                         {session.status === "estimated" && !inCart ? (
                           <AcceptBatchQuoteButton batchSessionId={session.id} />

@@ -33,6 +33,7 @@ export async function reinstateCustomerProductRequestsAction(
     revalidatePath("/dashboard/items");
     revalidatePath("/dashboard/cart");
     revalidatePath("/dashboard");
+    revalidatePath("/admin/item-requests", "layout");
 
     const message =
       count === 1

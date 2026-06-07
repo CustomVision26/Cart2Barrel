@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, notInArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -29,7 +29,10 @@ export async function listOutsidePurchaseIntakesForAdmin(options?: {
   const db = getDb();
   const limit = options?.limit ?? 100;
 
-  const conditions = [eq(itemRequests.source, "outside_purchase")];
+  const conditions = [
+    eq(itemRequests.source, "outside_purchase"),
+    notInArray(itemRequests.status, ["withdrawn", "rejected"]),
+  ];
   if (options?.clerkUserId?.trim()) {
     conditions.push(eq(itemRequests.clerkUserId, options.clerkUserId.trim()));
   }

@@ -15,6 +15,7 @@ type ImageFileInputProps = {
   accept?: string;
   className?: string;
   selectedFileName?: string | null;
+  multiple?: boolean;
 };
 
 export function ImageFileInput({
@@ -23,6 +24,7 @@ export function ImageFileInput({
   accept = PRODUCT_IMAGE_ACCEPT,
   className,
   selectedFileName,
+  multiple = false,
 }: ImageFileInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -39,6 +41,7 @@ export function ImageFileInput({
         id={id}
         type="file"
         accept={accept}
+        multiple={multiple}
         className="sr-only"
         onChange={handleChange}
       />

@@ -24,16 +24,16 @@ function ChargesGrid({
   );
 }
 
-function SingleEstimateRecord({ quote }: { quote: ItemQuote }) {
+function SingleEstimateRecord({
+  quote,
+  batchCheckout,
+}: {
+  quote: ItemQuote;
+  batchCheckout?: boolean;
+}) {
   const operational = isOperationalQuoteRow(quote);
   const label =
-    quote.checkoutSnapshotKind === "paid" ?
-      "Checkout price snapshot"
-    : quote.checkoutSnapshotKind === "company_purchase" ?
-      "Company purchase price snapshot"
-    : quote.voidedAt ?
-      "Superseded single estimate"
-    : "Single estimate";
+    quote.voidedAt ? "Superseded single estimate" : "Single estimate";
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card p-3">
@@ -58,18 +58,35 @@ function SingleEstimateRecord({ quote }: { quote: ItemQuote }) {
           { label: "Total price", value: formatUsd(quote.totalPrice) },
         ]}
       />
-      <p className="text-xs text-muted-foreground">
-        {operational ?
-          "Operational estimate row."
-        : "Timeline snapshot row kept for checkout or purchase history."}
-      </p>
+      {operational && batchCheckout ?
+        <p className="text-xs text-muted-foreground">
+          This is the standalone single-product estimate breakdown, not the batch
+          bundle checkout breakdown. Open Batch Estimate for your line share of the batch
+          estimate.
+        </p>
+      : operational ?
+        <p className="text-xs text-muted-foreground">Operational estimate row.</p>
+      : null}
     </div>
   );
 }
 
-/** Image-4 style list of quote/checkout price snapshots for a single product. */
-export function SingleEstimateRecordsList({ quotes }: { quotes: ItemQuote[] }) {
-  if (quotes.length === 0) {
+/** Operational single-product quote rows (checkout timeline snapshots excluded). */
+export function filterSingleEstimateDisplayQuotes(quotes: ItemQuote[]): ItemQuote[] {
+  return quotes.filter(isOperationalQuoteRow);
+}
+
+/** List of operational single-product estimates for one line. */
+export function SingleEstimateRecordsList({
+  quotes,
+  batchCheckout = false,
+}: {
+  quotes: ItemQuote[];
+  batchCheckout?: boolean;
+}) {
+  const displayQuotes = filterSingleEstimateDisplayQuotes(quotes);
+
+  if (displayQuotes.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         No estimate records for this product yet.
@@ -78,8 +95,12 @@ export function SingleEstimateRecordsList({ quotes }: { quotes: ItemQuote[] }) {
   }
   return (
     <div className="space-y-3">
-      {quotes.map((quote) => (
-        <SingleEstimateRecord key={quote.id} quote={quote} />
+      {displayQuotes.map((quote) => (
+        <SingleEstimateRecord
+          key={quote.id}
+          quote={quote}
+          batchCheckout={batchCheckout}
+        />
       ))}
     </div>
   );

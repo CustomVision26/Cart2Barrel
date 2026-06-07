@@ -94,6 +94,10 @@ export const itemRequestLineSnapshotPhaseEnum = pgEnum(
     "outside_purchase_intake",
     /** Staff recorded that the customer was prompted to pay (add to cart). */
     "outside_purchase_payment_prompted",
+    /** Staff published the outside-purchase line to the customer's Active products. */
+    "outside_purchase_published",
+    /** Staff withdrew the outside-purchase line from the customer's Active products. */
+    "outside_purchase_unpublished",
     /** Customer accepted estimate (service & handling) into cart. */
     "outside_purchase_added_to_cart",
     /** Customer removed outside-purchase line from cart. */
@@ -362,12 +366,24 @@ export const itemRequests = pgTable(
       "outside_purchase_payment_prompted_at",
       { withTimezone: true, mode: "string" },
     ),
+    /**
+     * When staff published this outside-purchase line to the customer's Active products.
+     * Null = draft (admin pool only).
+     */
+    outsidePurchasePublishedAt: timestamp("outside_purchase_published_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     /** Proof-of-purchase receipt photo from outside-purchase intake. */
     outsidePurchaseReceiptImageUrl: text("outside_purchase_receipt_image_url"),
     /** Photo of the received product's physical condition at intake. */
     outsidePurchaseConditionImageUrl: text(
       "outside_purchase_condition_image_url",
     ),
+    /** All received-condition photos captured at outside-purchase intake. */
+    outsidePurchaseConditionImageUrls: text(
+      "outside_purchase_condition_image_urls",
+    ).array(),
     /** Physical condition when staff received the outside-purchase product at the warehouse. */
     outsidePurchaseReceivedCondition: text("outside_purchase_received_condition"),
     /**
@@ -391,6 +407,12 @@ export const itemRequests = pgTable(
       () => batchQuoteSessions.id,
       { onDelete: "set null" },
     ),
+    /** Optional staff explanation shown to the customer when marked out of stock. */
+    outOfStockStaffNote: text("out_of_stock_staff_note"),
+    /** Staff attachment images (screenshots, retailer pages) for out-of-stock lines. */
+    outOfStockAttachmentImageUrls: text(
+      "out_of_stock_attachment_image_urls",
+    ).array(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -499,6 +521,8 @@ export const batchQuoteEstimates = pgTable(
     siteSaleTaxTotalCents: integer("site_sale_tax_total_cents").notNull(),
     saleTaxDiscountCents: integer("sale_tax_discount_cents").notNull(),
     subtotalCents: integer("subtotal_cents").notNull(),
+    /** Optional staff-authored note shown with the batch estimate (customer + admin views). */
+    staffNote: text("staff_note"),
     voidedAt: timestamp("voided_at", { withTimezone: true, mode: "string" }),
     /** Clerk user id of staff who saved this estimate revision. */
     recordedByClerkUserId: text("recorded_by_clerk_user_id"),
@@ -1053,6 +1077,7 @@ export const userStatusUpdateKindEnum = pgEnum("user_status_update_kind", [
   "refund_rejected",
   "product_return_fulfilled",
   "outside_purchase_return_estimate_ready",
+  "outside_purchase_payment_prompt",
   "account_welcome",
   "account_suspended",
   "account_reinstated",

@@ -19,6 +19,7 @@ import {
   userStatusUpdateNavSection,
   type UserStatusNavSection,
 } from "@/lib/user-status-updates";
+import { formatUsd } from "@/lib/admin-markup";
 import { isMissingUserStatusUpdateTablesError } from "@/lib/db-column-missing";
 
 const FEED_LIMIT = 80;
@@ -132,13 +133,18 @@ export async function recordItemOutOfStockActivity(params: {
   clerkUserId: string;
   itemRequestId: string;
   productName: string | null;
+  staffNote?: string | null;
 }): Promise<void> {
   const label = params.productName?.trim() || "Product request";
+  const note = params.staffNote?.trim();
   await recordUserStatusUpdateEvent({
     clerkUserId: params.clerkUserId,
     kind: "item_out_of_stock",
     title: "Product out of stock",
-    body: `${label} is unavailable from the retailer.`,
+    body:
+      note ?
+        `${label} is unavailable from the retailer. ${note}`
+      : `${label} is unavailable from the retailer.`,
     href: userStatusHrefForActiveProduct(params.itemRequestId),
     entityType: "item_request",
     entityId: params.itemRequestId,
@@ -248,6 +254,28 @@ export async function recordOutsidePurchaseReturnEstimateReadyActivity(params: {
     kind: "outside_purchase_return_estimate_ready",
     title: "Return estimate ready",
     body: `${label} — review the return fee.`,
+    href: userStatusHrefForActiveProduct(params.itemRequestId),
+    entityType: "item_request",
+    entityId: params.itemRequestId,
+  });
+}
+
+export async function recordOutsidePurchasePaymentPromptActivity(params: {
+  clerkUserId: string;
+  itemRequestId: string;
+  productName: string | null;
+  totalPriceCents?: number | null;
+}): Promise<void> {
+  const label = params.productName?.trim() || "Outside purchase";
+  const priceHint =
+    params.totalPriceCents != null && params.totalPriceCents > 0 ?
+      ` Service & handling due: ${formatUsd(params.totalPriceCents)}.`
+    : "";
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "outside_purchase_payment_prompt",
+    title: "Payment reminder",
+    body: `${label} — add to cart and pay your quote.${priceHint}`,
     href: userStatusHrefForActiveProduct(params.itemRequestId),
     entityType: "item_request",
     entityId: params.itemRequestId,

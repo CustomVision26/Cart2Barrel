@@ -25,7 +25,12 @@ import {
   auditSnapshotChangeSummary,
   auditSnapshotStatusHeadline,
 } from "@/lib/item-request-line-audit-status";
+import { isHiddenTimelineSnapshotSummary } from "@/lib/audit-snapshot-duplicate-copy";
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
+import {
+  chronologicalPreviousSnapshot,
+  filterDuplicateFrozenCopySnapshots,
+} from "@/lib/snapshot-tracking-display";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import {
@@ -95,15 +100,23 @@ function orderLineTimelineEvents(
   row: AdminPaidOrderLineRow,
   snapshots: ItemRequestLineSnapshot[],
 ): TimelineEvent[] {
-  const filtered = snapshots.filter((snap) => POST_CHECKOUT_PHASES.has(snap.phase));
-  const events: TimelineEvent[] = filtered.map((snap, index) => ({
-    id: snap.id,
-    label: itemRequestLineSnapshotPhaseLabel(snap.phase),
-    headline: auditSnapshotStatusHeadline(snap),
-    detail: auditSnapshotChangeSummary(snap, index > 0 ? filtered[index - 1]! : null),
-    at: snap.createdAt,
-    kind: "snapshot",
-  }));
+  const filtered = filterDuplicateFrozenCopySnapshots(
+    snapshots.filter((snap) => POST_CHECKOUT_PHASES.has(snap.phase)),
+    snapshots,
+  );
+  const events: TimelineEvent[] = filtered
+    .map((snap) => {
+      const prev = chronologicalPreviousSnapshot(snap, snapshots);
+      return {
+        id: snap.id,
+        label: itemRequestLineSnapshotPhaseLabel(snap.phase),
+        headline: auditSnapshotStatusHeadline(snap),
+        detail: auditSnapshotChangeSummary(snap, prev),
+        at: snap.createdAt,
+        kind: "snapshot" as const,
+      };
+    })
+    .filter((event) => !isHiddenTimelineSnapshotSummary(event.detail));
 
   const hasCheckoutSnapshot = filtered.some(
     (snap) =>

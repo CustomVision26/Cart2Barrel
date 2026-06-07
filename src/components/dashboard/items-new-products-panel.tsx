@@ -62,7 +62,11 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ItemRequest, OutsidePurchaseReturnRequest } from "@/db/schema";
+import type {
+  ItemRequest,
+  ItemRequestLineSnapshot,
+  OutsidePurchaseReturnRequest,
+} from "@/db/schema";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import { validateQuotedFullSiteSelection } from "@/lib/batch-quote-validation";
 import { canonicalBatchSiteKey } from "@/lib/batch-site-key";
@@ -82,6 +86,7 @@ import {
   outsidePurchaseShowsPreviewEstimateInTable,
   outsidePurchaseShowsReturnPreviewAction,
   outsidePurchaseShowsReturnToRetailerAction,
+  parseOutsidePurchaseReceivedCondition,
 } from "@/lib/outside-purchase-display";
 import { isOutsidePurchaseRequest, outsidePurchaseReferenceDisplay } from "@/lib/outside-purchase";
 import { displayProductSiteName, displaySiteName } from "@/lib/site-name";
@@ -104,11 +109,33 @@ type SiteGroupMeta = {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
+/** Outside-purchase lines in an active return workflow use quoted actions even if status is stale. */
+function outsidePurchaseUsesQuotedActions(
+  request: ItemRequest,
+  returnRequest: OutsidePurchaseReturnRequest | null,
+): boolean {
+  if (!isOutsidePurchaseRequest(request)) {
+    return request.status === "quoted";
+  }
+  if (request.status === "quoted") {
+    return true;
+  }
+  if (request.status !== "pending") {
+    return false;
+  }
+  return (
+    returnRequest?.status === "submitted" ||
+    returnRequest?.status === "estimate_ready" ||
+    returnRequest?.status === "estimate_accepted"
+  );
+}
+
 function rowMatchesProductsSearch(
   r: ItemRequest,
   query: string,
   returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>,
   orderContextByRequestId: Record<string, ItemRequestOrderContext>,
+  snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>,
 ): boolean {
   if (!query) return true;
   const returnReq = returnRequestsByItemRequestId[r.id] ?? null;
@@ -117,6 +144,7 @@ function rowMatchesProductsSearch(
     returnReq,
     orderContextByRequestId[r.id],
     "customer",
+    snapshotsByRequestId[r.id],
   );
   const site = displayProductSiteName(r);
   const outsideRef = outsidePurchaseReferenceDisplay(r);
@@ -206,6 +234,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
     batchBundles,
     returnRequestsByItemRequestId,
     orderContextByRequestId,
+    snapshotsByRequestId,
   } = useAddItemPayload();
   const { batchSelectedIds, setBatchSelectedIds } = useBatchQuoteSelection();
 
@@ -264,6 +293,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
           normalizedProductsQuery,
           returnRequestsByItemRequestId,
           orderContextByRequestId,
+          snapshotsByRequestId,
         ),
       );
     }
@@ -322,7 +352,12 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
   const quotedRows = useMemo(
     () =>
       sortedActive.filter(
-        (r) => r.status === "quoted" && !isInBatchQuote(r)
+        (r) =>
+          r.status === "quoted" &&
+          !isInBatchQuote(r) &&
+          // Outside-purchase products are billed for service only and cannot
+          // be combined into a same-retailer batch quote.
+          !isOutsidePurchaseRequest(r)
       ),
     [sortedActive, isInBatchQuote]
   );
@@ -367,6 +402,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
   const toggleBatchRow = (row: ItemRequest) => {
     if (row.status !== "quoted") return;
     if (isInBatchQuote(row)) return;
+    if (isOutsidePurchaseRequest(row)) return;
 
     const key = canonicalBatchSiteKey(row.siteName, row.productUrl);
 
@@ -846,13 +882,18 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                       const isProblemOp =
                         isOutsidePurchaseRequest(r) &&
                         isOutsidePurchaseProblemReceiptCondition(r);
-                      const isOpQuoted =
-                        isOutsidePurchaseRequest(r) && r.status === "quoted";
                       const returnReqForRow =
                         returnRequestsByItemRequestId[r.id] ?? null;
+                      const isOpQuoted = outsidePurchaseUsesQuotedActions(
+                        r,
+                        returnReqForRow,
+                      );
                       const showTablePreviewEstimate =
-                        (r.status === "quoted" &&
-                          (outsidePurchaseShowsPreviewEstimateInTable(r) ||
+                        (isOpQuoted &&
+                          (outsidePurchaseShowsPreviewEstimateInTable(
+                            r,
+                            returnReqForRow,
+                          ) ||
                             outsidePurchaseShowsPreviewEstimateInReturnWorkflow(
                               r,
                               returnReqForRow,
@@ -877,18 +918,22 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                             <input
                               type="checkbox"
                               disabled={
-                                r.status !== "quoted" || inBundledBatch
+                                r.status !== "quoted" ||
+                                inBundledBatch ||
+                                isOutsidePurchaseRequest(r)
                               }
                               checked={inBatchSelection}
                               aria-label={`Select ${r.productName ?? "product"} for batch`}
                               title={
-                                inBundledBatch
-                                  ? "This product is in a batch quote — use Batch Quotes."
-                                  : r.status !== "quoted"
-                                    ? "Only quoted items can batch"
-                                    : inBatchSelection
-                                      ? "Uncheck to use this row as a single-quote line again."
-                                      : "Include in retailer batch quote"
+                                isOutsidePurchaseRequest(r)
+                                  ? "Outside purchase products can't be added to a batch quote."
+                                  : inBundledBatch
+                                    ? "This product is in a batch quote — use Batch Quotes."
+                                    : r.status !== "quoted"
+                                      ? "Only quoted items can batch"
+                                      : inBatchSelection
+                                        ? "Uncheck to use this row as a single-quote line again."
+                                        : "Include in retailer batch quote"
                               }
                               onChange={() => toggleBatchRow(r)}
                               className={cn(
@@ -989,12 +1034,14 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               const returnReq =
                                 returnRequestsByItemRequestId[r.id] ?? null;
                               const orderContext = orderContextByRequestId[r.id];
+                              const rowSnapshots = snapshotsByRequestId[r.id];
                               const badgeKind = isOutsidePurchaseRequest(r) ?
                                 itemRequestStatusBadgeKindForDisplay(
                                   r,
                                   returnReq,
                                   orderContext,
                                   "customer",
+                                  rowSnapshots,
                                 )
                               : itemRequestWorkflowBadgeKind(r.status);
                               return (
@@ -1004,6 +1051,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                     returnReq,
                                     orderContext,
                                     "customer",
+                                    rowSnapshots,
                                   )}
                                 </StatusBadge>
                               );
@@ -1015,7 +1063,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               inBatchSelection && "opacity-90"
                             )}
                           >
-                            {r.status === "quoted" ?
+                            {r.status === "quoted" || (isOutsidePurchaseRequest(r) && isOpQuoted) ?
                               (() => {
                                 const returnReq =
                                   returnRequestsByItemRequestId[r.id] ?? null;
@@ -1100,6 +1148,11 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                             productLabel={
                                               r.productName?.trim() || undefined
                                             }
+                                            receivedCondition={
+                                              parseOutsidePurchaseReceivedCondition(
+                                                r.outsidePurchaseReceivedCondition,
+                                              ) ?? undefined
+                                            }
                                             warning={isOutsidePurchaseProblemReceiptCondition(
                                               r,
                                             )}
@@ -1111,9 +1164,6 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                             returnRequest={returnReq}
                                           />
                                         : null}
-                                        {showAccept ?
-                                          <AcceptQuoteButton itemRequestId={r.id} />
-                                        : null}
                                         {showTablePreviewEstimate ?
                                           inBundledBatch ?
                                             <p className="text-center text-[11px] text-muted-foreground">
@@ -1123,6 +1173,9 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                               itemRequestId={r.id}
                                               label="Preview estimate"
                                             />
+                                        : null}
+                                        {showAccept ?
+                                          <AcceptQuoteButton itemRequestId={r.id} />
                                         : null}
                                         {showCancelReturn ?
                                           <OutsidePurchaseCancelReturnButton
@@ -1142,7 +1195,8 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                   : null;
                               })()
                             : null}
-                            {r.status === "pending" ? (
+                            {r.status === "pending" &&
+                            !(isOutsidePurchaseRequest(r) && isOpQuoted) ? (
                               <div className="flex items-center gap-1.5">
                               <AlertDialog>
                                 <AlertDialogTrigger

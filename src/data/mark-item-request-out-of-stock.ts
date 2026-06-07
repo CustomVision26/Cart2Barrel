@@ -16,9 +16,15 @@ import { recordItemOutOfStockActivity } from "@/data/user-status-update-events";
  * Staff marks a pending or quoted line as out of stock: voids operational quotes,
  * detaches draft batches, updates status, and records an audit snapshot.
  */
-export async function markItemRequestOutOfStockForAdmin(
-  itemRequestId: string
-): Promise<void> {
+export async function markItemRequestOutOfStockForAdmin(params: {
+  itemRequestId: string;
+  staffNote?: string | null;
+  attachmentImageUrls?: string[] | null;
+}): Promise<void> {
+  const itemRequestId = params.itemRequestId;
+  const staffNote = params.staffNote?.trim() || null;
+  const attachmentImageUrls =
+    params.attachmentImageUrls?.filter((url) => url.trim().length > 0) ?? [];
   const row = await getItemRequestById(itemRequestId);
   if (!row) {
     throw new Error("Product request not found.");
@@ -70,7 +76,12 @@ export async function markItemRequestOutOfStockForAdmin(
   const statusBefore = ready.status;
   const updated = await db
     .update(itemRequests)
-    .set({ status: "out_of_stock" })
+    .set({
+      status: "out_of_stock",
+      outOfStockStaffNote: staffNote,
+      outOfStockAttachmentImageUrls:
+        attachmentImageUrls.length > 0 ? attachmentImageUrls : null,
+    })
     .where(
       and(
         eq(itemRequests.id, itemRequestId),
@@ -85,10 +96,20 @@ export async function markItemRequestOutOfStockForAdmin(
 
   const after = await getItemRequestById(itemRequestId);
   if (after && after.status === "out_of_stock") {
+    const auditMemoParts = ["Staff marked this product as out of stock."];
+    if (staffNote) {
+      auditMemoParts.push(`Staff note: ${staffNote}`);
+    }
+    if (attachmentImageUrls.length > 0) {
+      auditMemoParts.push(
+        `Attachment images: ${attachmentImageUrls.length} uploaded.`,
+      );
+    }
+
     await insertItemRequestLineSnapshot({
       itemRequestId,
       phase: "post_admin_estimate_edit",
-      auditMemo: "Staff marked this product as out of stock.",
+      auditMemo: auditMemoParts.join(" "),
       line: lineSnapshotPayloadFromItemRequest(after),
     });
 
@@ -96,6 +117,7 @@ export async function markItemRequestOutOfStockForAdmin(
       clerkUserId: after.clerkUserId,
       itemRequestId: after.id,
       productName: after.productName,
+      staffNote,
     });
   }
 }

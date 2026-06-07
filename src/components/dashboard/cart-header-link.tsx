@@ -5,8 +5,13 @@ import { auth } from "@clerk/nextjs/server";
 
 import { getUserCartHeaderCount } from "@/data/cart-header-count";
 
-export async function CartHeaderLink() {
-  const { userId } = await auth();
+type CartHeaderLinkProps = {
+  /** When provided, skips a second Clerk `auth()` round-trip on pages that already resolved the user. */
+  userId?: string | null;
+};
+
+export async function CartHeaderLink({ userId: userIdProp }: CartHeaderLinkProps = {}) {
+  const userId = userIdProp ?? (await auth()).userId;
   const count = userId ? await getUserCartHeaderCount(userId) : 0;
 
   return (

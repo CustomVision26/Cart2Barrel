@@ -15,7 +15,7 @@ import { recordOutsidePurchaseReturnSubmittedActivity } from "@/data/admin-user-
 import { getItemRequestById } from "@/data/item-requests";
 import { getOutsidePurchaseReturnRequestByItemRequestId } from "@/data/outside-purchase-return-requests";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
-import { outsidePurchaseShowsReturnToRetailerAction } from "@/lib/outside-purchase-display";
+import { outsidePurchaseShowsReturnToRetailerAction, OUTSIDE_PURCHASE_RETURN_REQUESTED_STATUS_LABEL } from "@/lib/outside-purchase-display";
 import { isMissingOutsidePurchaseReturnRequestsTableError } from "@/lib/db-column-missing";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import {
@@ -85,7 +85,14 @@ export async function submitOutsidePurchaseReturnRequestAction(
     };
   }
 
-  if (labelFile && !getBlobReadWriteToken()) {
+  if (!labelFile) {
+    return {
+      ok: false,
+      message: "Upload your return shipping label for the carrier.",
+    };
+  }
+
+  if (!getBlobReadWriteToken()) {
     return { ok: false, message: blobReadWriteNotConfiguredMessage() };
   }
 
@@ -143,7 +150,7 @@ export async function submitOutsidePurchaseReturnRequestAction(
       itemRequestId: req.id,
       phase: "outside_purchase_return_requested",
       line: lineSnapshotPayloadFromItemRequest(req),
-      auditMemo: "Customer submitted return-to-retailer request.",
+      auditMemo: `${OUTSIDE_PURCHASE_RETURN_REQUESTED_STATUS_LABEL}.`,
     });
   } catch (e) {
     if (isMissingOutsidePurchaseReturnRequestsTableError(e)) {

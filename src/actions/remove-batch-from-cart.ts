@@ -203,6 +203,6 @@ export async function removeBatchFromCartAction(
     message:
       disposition === "withdraw_forever"
         ? "Batch removed from your cart."
-        : "Batch returned to quoted status. You can accept the estimate again from Batch history or Batch quotes.",
+        : "Batch returned to quoted status. You can accept the estimate again from Batch quotes.",
   };
 }

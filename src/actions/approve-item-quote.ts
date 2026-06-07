@@ -49,6 +49,16 @@ export async function approveItemQuoteAction(
     };
   }
 
+  if (
+    isOutsidePurchaseRequest(request) &&
+    !request.outsidePurchasePublishedAt
+  ) {
+    return {
+      ok: false,
+      message: "This outside purchase is not available yet. Contact support.",
+    };
+  }
+
   let quote = await getLatestQuoteForItemRequest(request.id);
   if (!quote) {
     quote = await restoreOrphanQuotedItemRequestQuote(request.id);

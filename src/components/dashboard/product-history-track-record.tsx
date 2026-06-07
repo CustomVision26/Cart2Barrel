@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ExternalLinkIcon } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import {
@@ -8,6 +8,7 @@ import {
   type ProductHistoryTimelinePreview,
 } from "@/components/dashboard/product-history-event-preview-dialog";
 import type { ReceivedProductPhoto } from "@/components/orders/item-request-line-snapshot-preview-panel";
+import { ReceivedPhotosViewer } from "@/components/orders/received-photos-viewer";
 import type {
   ItemQuote,
   ItemRequest,
@@ -15,8 +16,11 @@ import type {
   OutsidePurchaseReturnRequest,
 } from "@/db/schema";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
+import type { BatchLineShare } from "@/lib/batch-line-share";
+import { quoteForSnapshotPreview } from "@/lib/snapshot-tracking-display";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { outsidePurchaseReferenceLabel } from "@/lib/outside-purchase-lifecycle";
+import { outsidePurchaseConditionPhotosFromRequest } from "@/lib/outside-purchase-condition-images";
 import {
   buildProductHistoryTimelineEvents,
   type ProductHistoryTimelineEvent,
@@ -26,6 +30,9 @@ import {
   dashItemsTimelineCard,
 } from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
+
+const trackRecordHeaderLinkClassName =
+  "inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60 sm:text-sm";
 
 function ToggleSection({
   title,
@@ -77,30 +84,19 @@ function ToggleSection({
   );
 }
 
-/** Received product photos (condition + product) shown in the slideshow viewer. */
-function outsidePurchaseReceivedPhotos(
-  request: ItemRequest,
-): ReceivedProductPhoto[] {
-  const photos: ReceivedProductPhoto[] = [];
-  const condition = request.outsidePurchaseConditionImageUrl?.trim();
-  if (condition) {
-    photos.push({ url: condition, label: "Received condition photo" });
-  }
-  const product = request.productImageUrl?.trim();
-  if (product) {
-    photos.push({ url: product, label: "Product photo" });
-  }
-  return photos;
-}
-
 function eventPreview(
   event: ProductHistoryTimelineEvent,
   request: ItemRequest,
   statusLabel: string,
+  quotes: ItemQuote[],
+  batchShare: BatchLineShare | null,
+  batchEstimateNote: string | null,
   warehouseProofPhotoUrls?: string[] | null,
   receivedProductPhotos?: ReceivedProductPhoto[] | null,
+  snapshots?: readonly ItemRequestLineSnapshot[],
 ): ProductHistoryTimelinePreview {
   if (event.kind === "snapshot" && event.snapshot) {
+    const linkedQuote = quoteForSnapshotPreview(event.snapshot, quotes);
     return {
       kind: "snapshot",
       snapshot: event.snapshot,
@@ -109,6 +105,14 @@ function eventPreview(
       receivedProductPhotos,
       receiptPhotoUrl: request.outsidePurchaseReceiptImageUrl,
       productImageUrl: request.productImageUrl,
+      estimateNote: linkedQuote?.staffNote ?? null,
+      estimateTotalCents: linkedQuote?.totalPrice ?? null,
+      estimateQuote: linkedQuote,
+      batchShare,
+      batchEstimateNote,
+      isBatchedProduct: batchShare != null,
+      auditSnapshots: snapshots ?? null,
+      receivedConditionRaw: request.outsidePurchaseReceivedCondition,
     };
   }
   return { kind: "current", request, statusLabel };
@@ -118,6 +122,8 @@ export function ProductHistoryTrackRecord({
   request,
   snapshots,
   quotes,
+  batchShare = null,
+  batchEstimateNote = null,
   fulfillmentLabelOverride,
   returnRequest,
   orderContext,
@@ -127,6 +133,10 @@ export function ProductHistoryTrackRecord({
   request: ItemRequest;
   snapshots: ItemRequestLineSnapshot[];
   quotes: ItemQuote[];
+  /** This product's batch estimate share; replaces single estimate when batched. */
+  batchShare?: BatchLineShare | null;
+  /** Batch estimate note (staff) shown when this product is batched. */
+  batchEstimateNote?: string | null;
   fulfillmentLabelOverride?: string | null;
   returnRequest?: OutsidePurchaseReturnRequest | null;
   orderContext?: ItemRequestOrderContext | null;
@@ -144,20 +154,28 @@ export function ProductHistoryTrackRecord({
       returnRequest,
       orderContext,
       audience: "customer",
+      hidePreEstimateEditEvents: true,
+      isBatchedProduct: batchShare != null,
+      batchShare,
+      hideCurrentStatusEvent: true,
     });
     return [...built].reverse();
   }, [
       request,
       snapshots,
       quotesById,
+      batchShare,
       fulfillmentLabelOverride,
       returnRequest,
       orderContext,
   ]);
   const opRef = outsidePurchase ? outsidePurchaseReferenceLabel(request) : null;
-  const receivedProductPhotos = outsidePurchase
-    ? outsidePurchaseReceivedPhotos(request)
-    : null;
+  const conditionPhotos = outsidePurchase
+    ? outsidePurchaseConditionPhotosFromRequest(request)
+    : [];
+  const receivedProductPhotos = outsidePurchase ? conditionPhotos : null;
+  const receiptPhotoUrl = request.outsidePurchaseReceiptImageUrl?.trim() || null;
+  const productUrl = request.productUrl?.trim() || null;
 
   if (events.length === 0) {
     return (
@@ -171,7 +189,41 @@ export function ProductHistoryTrackRecord({
     <ToggleSection
       ariaLabel="Toggle track record log for this product"
       title={
-        <span className="text-sm font-semibold text-foreground">Track record log</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-sm font-semibold text-foreground">Track record log</span>
+          {outsidePurchase ?
+            <>
+              {receiptPhotoUrl ?
+                <ReceivedPhotosViewer
+                  photos={[{ url: receiptPhotoUrl, label: "Receipt" }]}
+                  triggerLabel="Receipt"
+                />
+              : null}
+              {conditionPhotos.length > 0 ?
+                <ReceivedPhotosViewer
+                  photos={conditionPhotos}
+                  triggerLabel="Received condition photo"
+                />
+              : null}
+            </>
+          : productUrl ?
+            <div className="inline-flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Product URL
+              </span>
+              <a
+                href={productUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={trackRecordHeaderLinkClassName}
+                title={productUrl}
+              >
+                Open link
+                <ExternalLinkIcon className="size-3.5 shrink-0 opacity-70" aria-hidden />
+              </a>
+            </div>
+          : null}
+        </div>
       }
       summary={
         outsidePurchase && opRef ?
@@ -182,7 +234,7 @@ export function ProductHistoryTrackRecord({
       bodyClassName="px-0 pb-0 pt-0"
       defaultOpen={defaultOpen}
     >
-      <div className="space-y-4">
+      <div className="space-y-3">
         {events.map((event, index) => (
           <div
             key={event.id}
@@ -191,37 +243,40 @@ export function ProductHistoryTrackRecord({
             <div className="relative flex justify-center">
               <span
                 className={cn(
-                  "mt-1 size-2.5 rounded-full",
-                  event.kind === "current" ? "bg-primary" : "bg-muted-foreground",
+                  "mt-1.5 size-2.5 rounded-full ring-2 ring-background",
+                  event.kind === "current" ? "bg-primary" : "bg-muted-foreground/70",
                   event.highlight && event.kind !== "current" && "bg-primary",
                 )}
                 aria-hidden
               />
               {index < events.length - 1 ?
                 <span
-                  className="absolute top-4 bottom-[-1rem] w-px bg-border"
+                  className="absolute top-4 bottom-[-0.75rem] w-px bg-border/80"
                   aria-hidden
                 />
               : null}
             </div>
             <div
               className={cn(
-                "rounded-lg border p-3",
+                "rounded-xl border p-3.5 sm:p-4",
                 event.highlight ?
-                  "border-primary/25 bg-primary/5"
-                : cn("border-border", dashItemsTimelineCard),
+                  "border-primary/20 bg-primary/[0.04]"
+                : cn("border-border/80", dashItemsTimelineCard),
               )}
             >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {event.label}
                   </p>
-                  <p className="mt-1 font-medium leading-snug text-foreground">
+                  <p className="font-semibold leading-snug text-foreground">
                     {event.headline}
                   </p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {event.detail}
+                  </p>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
+                <div className="flex shrink-0 flex-row items-center gap-2 sm:flex-col sm:items-end">
                   <time
                     dateTime={event.at}
                     className="text-xs tabular-nums text-muted-foreground"
@@ -231,21 +286,23 @@ export function ProductHistoryTrackRecord({
                   <ProductHistoryEventPreviewDialog
                     eventLabel={event.label}
                     eventHeadline={event.headline}
+                    modalTitle={event.modalTitle}
                     preview={eventPreview(
                       event,
                       request,
                       statusLabel,
+                      quotes,
+                      batchShare,
+                      batchEstimateNote,
                       event.snapshot?.phase === "warehouse_delivery_received" ?
                         orderContext?.orderItem.warehouseReceivedProofPhotoUrls ?? null
                       : null,
                       receivedProductPhotos,
+                      snapshots,
                     )}
                   />
                 </div>
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {event.detail}
-              </p>
             </div>
           </div>
         ))}

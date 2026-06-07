@@ -23,13 +23,25 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   computePackLineMerchandiseAndServiceCents,
+  formatUsd,
 } from "@/lib/admin-markup";
+import {
+  appTableStatusPanel,
+  dashItemsChargesCell,
+} from "@/lib/app-table-surfaces";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
 import { isRetailerPageFetchBlockedMessage } from "@/lib/ai/fetch-page-for-ai";
+import {
+  customerNoteWithoutReportedPrice,
+  parseCustomerReportedRetailerPriceFromNote,
+  type CustomerReportedRetailerPrice,
+} from "@/lib/customer-reported-retailer-price-note";
 import { persistStagedProductImage } from "@/lib/persist-staged-product-image";
 import { revokeBlobPreviewUrl } from "@/lib/staged-product-image";
+import { cn } from "@/lib/utils";
 
 function parseDollarsToCents(raw: string): number {
   const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");
@@ -47,6 +59,48 @@ function isBlobPreviewUrl(url: string | null | undefined): boolean {
   return typeof url === "string" && url.startsWith("blob:");
 }
 
+function CustomerSubmissionSummary({
+  reportedPrice,
+  customerNote,
+}: {
+  reportedPrice: CustomerReportedRetailerPrice | null;
+  customerNote: string | null;
+}) {
+  return (
+    <div className={cn(appTableStatusPanel, "space-y-3")}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Customer submission
+      </p>
+      {reportedPrice ?
+        <dl className="grid gap-2 sm:grid-cols-2">
+          <div className={dashItemsChargesCell}>
+            <dt className="text-xs text-muted-foreground">Unit price</dt>
+            <dd className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+              {formatUsd(reportedPrice.unitPriceCents)}
+            </dd>
+          </div>
+          <div className={dashItemsChargesCell}>
+            <dt className="text-xs text-muted-foreground">Merchandise subtotal</dt>
+            <dd className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+              {formatUsd(reportedPrice.merchandiseSubtotalCents)}
+            </dd>
+          </div>
+        </dl>
+      : null}
+      {customerNote ?
+        <div className="rounded-md border border-border bg-background px-3 py-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Customer note
+          </p>
+          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+            {customerNote}
+          </p>
+        </div>
+      : null}
+    </div>
+  );
+}
+
 type AdminAiEstimateDialogProps = {
   itemRequestId: string;
   productUrl: string;
@@ -54,6 +108,8 @@ type AdminAiEstimateDialogProps = {
   initialProductSize?: string | null;
   initialProductColor?: string | null;
   initialProductImageUrl?: string | null;
+  /** Full request note (customer price prefix + optional customer note). */
+  initialRequestNote?: string | null;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
 
@@ -64,9 +120,20 @@ export function AdminAiEstimateDialog({
   initialProductSize = null,
   initialProductColor = null,
   initialProductImageUrl = null,
+  initialRequestNote = null,
   merchantEstimateFees,
 }: AdminAiEstimateDialogProps) {
   const router = useRouter();
+  const customerReportedPrice = useMemo(
+    () => parseCustomerReportedRetailerPriceFromNote(initialRequestNote),
+    [initialRequestNote],
+  );
+  const customerNote = useMemo(
+    () => customerNoteWithoutReportedPrice(initialRequestNote),
+    [initialRequestNote],
+  );
+  const showCustomerSubmission =
+    customerReportedPrice != null || Boolean(customerNote);
   const [open, setOpen] = useState(false);
   const [quantity, setQuantity] = useState(String(initialQuantity));
   const [result, setResult] = useState<AdminAiEstimateResult | null>(null);
@@ -377,30 +444,38 @@ export function AdminAiEstimateDialog({
           AI estimate
         </span>
       </DialogTrigger>
-      <DialogContent className="max-h-[min(90vh,640px)] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-h-[min(90vh,680px)] overflow-y-auto sm:max-w-xl">
+        <DialogHeader className="space-y-2">
           <DialogTitle>AI product estimate</DialogTitle>
-          <DialogDescription>
-            Uses SerpApi (Walmart, Amazon, Google Shopping) with the product URL and
-            size/color fields below to load title, image, and pack price. When lookup
-            succeeds, the HTTPS image URL is saved on the request right away for cart
-            and shopper-facing lists. If SerpApi finds no image, use{" "}
-            <span className="font-medium text-foreground">Upload product image</span> to
-            pick a file (preview only).{" "}
-            <span className="font-medium text-foreground">Save quote</span> uploads the
-            image and saves it on the request.
+          <DialogDescription className="text-sm leading-relaxed">
+            Run SerpApi with the product URL and variant fields below, then review
+            and save the quote. Upload a product image if lookup does not return one.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {uploadedProductImageUrl && !result?.ok ?
-            <AdminProductImagePreview
-              imageUrl={uploadedProductImageUrl}
-              productUrl={productUrl}
-              imageClassName="max-h-40"
+            <div className="overflow-hidden rounded-lg border border-border bg-muted/40 p-3">
+              <AdminProductImagePreview
+                imageUrl={uploadedProductImageUrl}
+                productUrl={productUrl}
+                imageClassName="mx-auto max-h-36"
+              />
+            </div>
+          : null}
+          {showCustomerSubmission ?
+            <CustomerSubmissionSummary
+              reportedPrice={customerReportedPrice}
+              customerNote={customerNote}
             />
           : null}
-          <div className="space-y-3">
+          <div className="space-y-4 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
+            <div>
+              <p className="text-sm font-medium text-foreground">Variant &amp; quantity</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                Sent to SerpApi for lookup and saved on the quote when you finish.
+              </p>
+            </div>
             <Field>
               <FieldLabel htmlFor="ai-estimate-qty">Quantity (packs)</FieldLabel>
               <FieldContent>
@@ -413,62 +488,63 @@ export function AdminAiEstimateDialog({
                   onChange={(e) => setQuantity(e.target.value)}
                   className="max-w-28"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Number of packs at the listed pack price below—e.g.{" "}
-                  <span className="whitespace-nowrap">2 cases</span>,{" "}
-                  <span className="whitespace-nowrap">3 twin-packs</span>, or
-                  individual lines if each pack is one SKU.
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Packs at the listed pack price—e.g. 2 cases or 3 twin-packs.
                 </p>
               </FieldContent>
             </Field>
-            <Field>
-              <FieldLabel htmlFor="ai-estimate-size">Size (variant)</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="ai-estimate-size"
-                  value={variantSize}
-                  onChange={(e) => setVariantSize(e.target.value)}
-                  placeholder="e.g. XL"
-                  autoComplete="off"
-                />
-              </FieldContent>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="ai-estimate-color">Color (variant)</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="ai-estimate-color"
-                  value={variantColor}
-                  onChange={(e) => setVariantColor(e.target.value)}
-                  placeholder="e.g. Blue"
-                  autoComplete="off"
-                />
-              </FieldContent>
-            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="ai-estimate-size">Size (variant)</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="ai-estimate-size"
+                    value={variantSize}
+                    onChange={(e) => setVariantSize(e.target.value)}
+                    placeholder="e.g. XL"
+                    autoComplete="off"
+                  />
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="ai-estimate-color">Color (variant)</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="ai-estimate-color"
+                    value={variantColor}
+                    onChange={(e) => setVariantColor(e.target.value)}
+                    placeholder="e.g. Blue"
+                    autoComplete="off"
+                  />
+                </FieldContent>
+              </Field>
+            </div>
             <Button
               type="button"
-              className="gap-1.5"
+              className="w-full gap-1.5"
               disabled={isAiPending}
               onClick={runAi}
             >
-              {isAiPending ? (
+              {isAiPending ?
                 <>
                   <Loader2Icon className="size-4 animate-spin" />
-                  Running…
+                  Running SerpApi lookup…
                 </>
-              ) : (
-                <>
+              : <>
                   <SparklesIcon className="size-4" />
                   Run SerpApi lookup
                 </>
-              )}
+              }
             </Button>
           </div>
 
-          {result && !result.ok ? (
-            <div className="space-y-2" role="alert">
+          {result && !result.ok ?
+            <div
+              className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-3"
+              role="alert"
+            >
               <p className="text-sm text-destructive">{result.message}</p>
-              {isRetailerPageFetchBlockedMessage(result.message) ? (
+              {isRetailerPageFetchBlockedMessage(result.message) ?
                 <Button
                   type="button"
                   variant="secondary"
@@ -478,12 +554,13 @@ export function AdminAiEstimateDialog({
                 >
                   Enter quote manually
                 </Button>
-              ) : null}
+              : null}
             </div>
-          ) : null}
+          : null}
 
-          {result?.ok && derived ? (
+          {result?.ok && derived ?
             <>
+              <Separator />
               <AdminAiEstimateResultFields
                 result={result}
                 derived={derived}
@@ -543,7 +620,7 @@ export function AdminAiEstimateDialog({
                 )}
               </Button>
             </>
-          ) : null}
+          : null}
         </div>
       </DialogContent>
     </Dialog>

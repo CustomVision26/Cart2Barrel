@@ -66,6 +66,7 @@ export function resolveProductHistoryStatusDisplay(
       returnRequest,
       orderContext,
       audience,
+      snapshots,
     );
     return {
       label,
@@ -74,6 +75,7 @@ export function resolveProductHistoryStatusDisplay(
         returnRequest,
         orderContext,
         audience,
+        snapshots,
       ),
       title: orderContext ?
         label

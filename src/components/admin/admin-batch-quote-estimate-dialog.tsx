@@ -58,6 +58,7 @@ export function AdminBatchQuoteEstimateDialog({
   const [siteMerch$, setSiteMerch$] = useState("");
   const [siteShip$, setSiteShip$] = useState("");
   const [siteTax$, setSiteTax$] = useState("");
+  const [staffNote, setStaffNote] = useState("");
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -83,6 +84,7 @@ export function AdminBatchQuoteEstimateDialog({
       setSiteTax$(
         centsToDollarInput(res.existingSiteSaleTaxCents ?? res.batchSaleTaxTotalCents)
       );
+      setStaffNote(res.existingStaffNote ?? "");
     });
   }, [batchSessionId]);
 
@@ -92,6 +94,7 @@ export function AdminBatchQuoteEstimateDialog({
       setLoadError(null);
       setPreviewOpen(false);
       setBatchNumber("");
+      setStaffNote("");
       return;
     }
     load();
@@ -126,6 +129,7 @@ export function AdminBatchQuoteEstimateDialog({
         siteMerchandiseCents: siteMerchC,
         siteShippingCents: siteShipC,
         siteSaleTaxCents: siteTaxC,
+        staffNote: staffNote.trim() || undefined,
       });
       if (!res.ok) {
         setLoadError(res.message ?? "Save failed.");
@@ -253,6 +257,23 @@ export function AdminBatchQuoteEstimateDialog({
                 shipping.
               </p>
 
+              <Field className="gap-1">
+                <FieldLabel htmlFor="b-staff-note" className="text-xs">
+                  Batch estimate notes
+                </FieldLabel>
+                <FieldContent>
+                  <textarea
+                    id="b-staff-note"
+                    rows={3}
+                    value={staffNote}
+                    onChange={(e) => setStaffNote(e.target.value)}
+                    placeholder="Optional note shown with this batch estimate (e.g. price includes retailer shipping; allow 2-week lead time…)"
+                    className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50"
+                    autoComplete="off"
+                  />
+                </FieldContent>
+              </Field>
+
               <div className="flex flex-wrap gap-2 pt-2">
                 <Button
                   type="button"
@@ -302,6 +323,11 @@ export function AdminBatchQuoteEstimateDialog({
               <span>{formatUsd(subtotal)}</span>
             </li>
           </ul>
+          {staffNote.trim() ? (
+            <p className="whitespace-pre-wrap rounded-md border border-border bg-muted px-3 py-2 text-xs leading-relaxed text-foreground">
+              {staffNote.trim()}
+            </p>
+          ) : null}
         </DialogContent>
       </Dialog>
     </>

@@ -6,10 +6,9 @@ export const DASHBOARD_ADD_ITEM_ROUTES = {
   productsHistory: "/dashboard/items/new/add-item/products/history",
   /** Legacy path `/product-history` redirects here. */
   productHistory: "/dashboard/items/new/add-item/products/history",
-  /** Batch quotes index; redirects to `batchQuotesActive` (or `batchQuotesHistory` when `?tab=history`). */
+  /** Batch quotes index; redirects to `batchQuotesActive`. */
   batchQuotes: "/dashboard/items/new/add-item/batch-quotes",
   batchQuotesActive: "/dashboard/items/new/add-item/batch-quotes/active",
-  batchQuotesHistory: "/dashboard/items/new/add-item/batch-quotes/history",
-  /** Legacy `/batch-history` redirects here. */
-  batchHistory: "/dashboard/items/new/add-item/batch-quotes/history",
+  /** Legacy `/batch-history` redirects to active batch quotes. */
+  batchHistory: "/dashboard/items/new/add-item/batch-quotes/active",
 } as const;

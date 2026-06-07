@@ -62,6 +62,7 @@ export const saveAdminBatchQuoteEstimateSchema = z.object({
   siteMerchandiseCents: z.number().int().min(0).max(500_000_000),
   siteShippingCents: z.number().int().min(0).max(50_000_000),
   siteSaleTaxCents: z.number().int().min(0).max(50_000_000),
+  staffNote: z.string().trim().max(2000).optional(),
 });
 
 export type SaveAdminBatchQuoteEstimateInput = z.infer<

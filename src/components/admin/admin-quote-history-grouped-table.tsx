@@ -18,6 +18,7 @@ import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-hist
 import { AdminQuoteHistoryProductTimelineTable } from "@/components/admin/admin-quote-history-product-timeline-table";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import type { ReceivedProductPhoto } from "@/components/orders/received-photos-viewer";
+import { outsidePurchaseConditionPhotosFromRequest } from "@/lib/outside-purchase-condition-images";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { SortableTh, SortableThCompact } from "@/components/sortable-th";
 import { Button } from "@/components/ui/button";
@@ -32,8 +33,9 @@ import { Input } from "@/components/ui/input";
 import type { AdminQuoteHistoryGroup, AdminQuoteHistoryLine } from "@/data/admin-quote-history";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
-import type { ItemQuote, ItemRequestLineSnapshot } from "@/db/schema";
+import type { BatchQuoteEstimate, ItemQuote, ItemRequestLineSnapshot, OutsidePurchaseReturnRequest } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
+import type { BatchLineShare } from "@/lib/batch-line-share";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import {
   collapseQuoteHistoryToCurrentProducts,
@@ -60,10 +62,15 @@ const SELECT_CLASS =
 
 /** Received condition photo(s) captured at outside-purchase intake. */
 function outsidePurchaseConditionPhotos(r: {
+  outsidePurchaseConditionImageUrls?: string[] | null;
   outsidePurchaseConditionImageUrl?: string | null;
+  productImageUrl?: string | null;
 }): ReceivedProductPhoto[] {
-  const url = r.outsidePurchaseConditionImageUrl?.trim();
-  return url ? [{ url, label: "Received condition" }] : [];
+  return outsidePurchaseConditionPhotosFromRequest({
+    outsidePurchaseConditionImageUrls: r.outsidePurchaseConditionImageUrls ?? null,
+    outsidePurchaseConditionImageUrl: r.outsidePurchaseConditionImageUrl ?? null,
+    productImageUrl: r.productImageUrl ?? null,
+  });
 }
 
 function submitterDisplayName(
@@ -87,15 +94,37 @@ type QhLineSortKey =
   | "total"
   | "quoted";
 
+type QuoteHistoryStatusContext = {
+  orderContextByRequestId: Record<string, ItemRequestOrderContext>;
+  returnRequestsByItemRequestId: Record<string, OutsidePurchaseReturnRequest>;
+  snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+};
+
 function quoteHistoryLineStatusLabel(
   line: AdminQuoteHistoryLine,
-  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
+  ctx: QuoteHistoryStatusContext,
 ): string {
+  const { request: r } = line;
   return itemRequestStatusLabelForDisplay(
-    line.request,
-    null,
-    orderContextByRequestId[line.request.id],
+    r,
+    ctx.returnRequestsByItemRequestId[r.id] ?? null,
+    ctx.orderContextByRequestId[r.id],
     "admin",
+    ctx.snapshotsByRequestId[r.id],
+  );
+}
+
+function quoteHistoryLineStatusBadgeKind(
+  line: AdminQuoteHistoryLine,
+  ctx: QuoteHistoryStatusContext,
+) {
+  const { request: r } = line;
+  return itemRequestStatusBadgeKindForDisplay(
+    r,
+    ctx.returnRequestsByItemRequestId[r.id] ?? null,
+    ctx.orderContextByRequestId[r.id],
+    "admin",
+    ctx.snapshotsByRequestId[r.id],
   );
 }
 
@@ -106,7 +135,7 @@ function normalizeSearchQ(raw: string): string {
 function quoteHistoryLineMatchesQuery(
   line: AdminQuoteHistoryLine,
   q: string,
-  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
+  ctx: QuoteHistoryStatusContext,
 ): boolean {
   if (!q) return true;
   const { request: r, quote: quoteRow } = line;
@@ -117,7 +146,7 @@ function quoteHistoryLineMatchesQuery(
     r.productUrl,
     displaySiteName(r.siteName, r.productUrl),
     r.status,
-    quoteHistoryLineStatusLabel(line, orderContextByRequestId),
+    quoteHistoryLineStatusLabel(line, ctx),
   ];
   return chunks.some(
     (chunk) =>
@@ -133,7 +162,7 @@ function quoteHistoryLineMatchesQuery(
 function filterQuoteHistoryGroups(
   source: AdminQuoteHistoryGroup[],
   qRaw: string,
-  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
+  ctx: QuoteHistoryStatusContext,
 ): AdminQuoteHistoryGroup[] {
   const q = normalizeSearchQ(qRaw);
   if (!q) {
@@ -151,7 +180,7 @@ function filterQuoteHistoryGroups(
     const headerMatch =
       name.includes(q) || email.includes(q) || uid.includes(q);
     const lineHits = g.lines.filter((l) =>
-      quoteHistoryLineMatchesQuery(l, q, orderContextByRequestId),
+      quoteHistoryLineMatchesQuery(l, q, ctx),
     );
 
     if (headerMatch) {
@@ -173,7 +202,7 @@ function sortQuoteHistoryLines(
   lines: AdminQuoteHistoryLine[],
   key: QhLineSortKey,
   dir: SortDir,
-  orderContextByRequestId: Record<string, ItemRequestOrderContext>,
+  ctx: QuoteHistoryStatusContext,
 ): AdminQuoteHistoryLine[] {
   const copy = [...lines];
   copy.sort((a, b) => {
@@ -198,8 +227,8 @@ function sortQuoteHistoryLines(
         return compareLocale(ra.productUrl, rb.productUrl, dir);
       case "status":
         return compareLocale(
-          quoteHistoryLineStatusLabel(a, orderContextByRequestId),
-          quoteHistoryLineStatusLabel(b, orderContextByRequestId),
+          quoteHistoryLineStatusLabel(a, ctx),
+          quoteHistoryLineStatusLabel(b, ctx),
           dir,
         );
       case "total":
@@ -220,7 +249,12 @@ function sortQuoteHistoryLines(
 type AdminQuoteHistoryGroupedTableProps = {
   groups: AdminQuoteHistoryGroup[];
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
+  returnRequestsByItemRequestId?: Record<string, OutsidePurchaseReturnRequest>;
   quotesByRequestId?: Record<string, ItemQuote[]>;
+  batchShareByRequestId?: Record<string, BatchLineShare>;
+  batchEstimateNoteByRequestId?: Record<string, string>;
+  batchNumberByRequestId?: Record<string, string>;
+  batchEstimateByRequestId?: Record<string, BatchQuoteEstimate>;
   orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
   merchantEstimateFees?: MerchantPricingEstimateSnapshot;
 };
@@ -228,7 +262,12 @@ type AdminQuoteHistoryGroupedTableProps = {
 export function AdminQuoteHistoryGroupedTable({
   groups,
   snapshotsByRequestId,
+  returnRequestsByItemRequestId = {},
   quotesByRequestId = {},
+  batchShareByRequestId = {},
+  batchEstimateNoteByRequestId = {},
+  batchNumberByRequestId = {},
+  batchEstimateByRequestId = {},
   orderContextByRequestId = {},
   merchantEstimateFees,
 }: AdminQuoteHistoryGroupedTableProps) {
@@ -257,9 +296,18 @@ export function AdminQuoteHistoryGroupedTable({
 
   const customerExpanded = openClerkUserId !== null;
 
+  const statusContext = useMemo(
+    (): QuoteHistoryStatusContext => ({
+      orderContextByRequestId,
+      returnRequestsByItemRequestId,
+      snapshotsByRequestId,
+    }),
+    [orderContextByRequestId, returnRequestsByItemRequestId, snapshotsByRequestId],
+  );
+
   const filteredGroups = useMemo(
-    () => filterQuoteHistoryGroups(groups, search, orderContextByRequestId),
-    [groups, search, orderContextByRequestId],
+    () => filterQuoteHistoryGroups(groups, search, statusContext),
+    [groups, search, statusContext],
   );
 
   const sortedGroups = useMemo(() => {
@@ -342,13 +390,13 @@ export function AdminQuoteHistoryGroupedTable({
     if (!expandedGroup) return null;
 
     const lineFiltered = expandedGroup.lines.filter((line) =>
-      quoteHistoryLineMatchesQuery(line, lineSearch, orderContextByRequestId),
+      quoteHistoryLineMatchesQuery(line, lineSearch, statusContext),
     );
     const sortedLines = sortQuoteHistoryLines(
       lineFiltered,
       lineSortKey,
       lineSortDir,
-      orderContextByRequestId,
+      statusContext,
     );
     const quoteLineCount = sortedLines.length;
     const qlTotalPages = Math.max(1, Math.ceil(quoteLineCount / pageSize));
@@ -373,7 +421,7 @@ export function AdminQuoteHistoryGroupedTable({
     lineSearch,
     lineSortKey,
     lineSortDir,
-    orderContextByRequestId,
+    statusContext,
     pageSize,
     quoteLinePageByCustomerId,
   ]);
@@ -615,7 +663,7 @@ export function AdminQuoteHistoryGroupedTable({
                               <span className="font-medium text-foreground">Audit trail</span> is
                               only on the current row. Use{" "}
                               <span className="font-medium text-foreground">Edit quote</span> when
-                              status is still Quoted.
+                              status is still Quoted (in-app requests only).
                             </p>
 
                             {linePanel ? (
@@ -715,7 +763,9 @@ export function AdminQuoteHistoryGroupedTable({
                                   {quoteLineSlice.map((line) => {
                                     const { quote: q, request: r } = line;
                                     const canEditQuote =
-                                      r.status === "quoted" && isOperationalQuoteRow(q);
+                                      r.status === "quoted" &&
+                                      isOperationalQuoteRow(q) &&
+                                      !isOutsidePurchaseRequest(r);
                                     const productKey = `${g.clerkUserId}:${r.id}`;
                                     const historyOpen = expandedProductKey === productKey;
                                     return (
@@ -756,21 +806,19 @@ export function AdminQuoteHistoryGroupedTable({
                                         </td>
                                         <td className="max-w-[14rem] px-2 py-2 text-muted-foreground">
                                           <StatusBadge
-                                            kind={itemRequestStatusBadgeKindForDisplay(
-                                              r,
-                                              null,
-                                              orderContextByRequestId[r.id],
-                                              "admin",
+                                            kind={quoteHistoryLineStatusBadgeKind(
+                                              line,
+                                              statusContext,
                                             )}
                                             title={quoteHistoryLineStatusLabel(
                                               line,
-                                              orderContextByRequestId,
+                                              statusContext,
                                             )}
                                             className="whitespace-normal leading-snug"
                                           >
                                             {quoteHistoryLineStatusLabel(
                                               line,
-                                              orderContextByRequestId,
+                                              statusContext,
                                             )}
                                           </StatusBadge>
                                         </td>
@@ -791,6 +839,21 @@ export function AdminQuoteHistoryGroupedTable({
                                               isOutsidePurchase={isOutsidePurchaseRequest(r)}
                                               conditionPhotos={outsidePurchaseConditionPhotos(r)}
                                               quotes={quotesByRequestId[r.id] ?? []}
+                                              estimateQuote={q}
+                                              batchEstimateShare={
+                                                batchShareByRequestId[r.id] ?? null
+                                              }
+                                              batchEstimateNote={
+                                                batchEstimateNoteByRequestId[r.id] ?? null
+                                              }
+                                              batchNumber={
+                                                batchNumberByRequestId[r.id] ?? null
+                                              }
+                                              batchEstimate={
+                                                batchEstimateByRequestId[r.id] ?? null
+                                              }
+                                              receiptPhotoUrl={r.outsidePurchaseReceiptImageUrl}
+                                              productImageUrl={r.productImageUrl}
                                             />
                                             {canEditQuote ? (
                                               <Button
@@ -820,6 +883,9 @@ export function AdminQuoteHistoryGroupedTable({
                                                 request={r}
                                                 allGroupLines={fullGroupLines}
                                                 snapshots={snapshotsByRequestId[r.id] ?? []}
+                                                returnRequest={
+                                                  returnRequestsByItemRequestId[r.id] ?? null
+                                                }
                                                 orderContext={orderContextByRequestId[r.id]}
                                               />
                                             </td>

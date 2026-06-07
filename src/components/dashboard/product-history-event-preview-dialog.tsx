@@ -14,7 +14,8 @@ import {
   ItemRequestLineSnapshotPreviewPanel,
   type ReceivedProductPhoto,
 } from "@/components/orders/item-request-line-snapshot-preview-panel";
-import type { ItemRequest, ItemRequestLineSnapshot } from "@/db/schema";
+import type { ItemQuote, ItemRequest, ItemRequestLineSnapshot } from "@/db/schema";
+import type { BatchLineShare } from "@/lib/batch-line-share";
 import { displaySiteName } from "@/lib/site-name";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,19 @@ export type ProductHistoryTimelinePreview =
       receivedProductPhotos?: ReceivedProductPhoto[] | null;
       receiptPhotoUrl?: string | null;
       productImageUrl?: string | null;
+      /** Staff note from the linked estimate; shown in place of the customer note. */
+      estimateNote?: string | null;
+      /** Linked estimate total (cents); shown as an "Estimate total" block. */
+      estimateTotalCents?: number | null;
+      /** Linked quote row for single-product estimate breakdown. */
+      estimateQuote?: ItemQuote | null;
+      /** This product's batch estimate share; replaces the single estimate when batched. */
+      batchShare?: BatchLineShare | null;
+      /** Batch estimate note (staff); shown instead of the single estimate note when batched. */
+      batchEstimateNote?: string | null;
+      isBatchedProduct?: boolean;
+      auditSnapshots?: readonly ItemRequestLineSnapshot[] | null;
+      receivedConditionRaw?: string | null;
     }
   | { kind: "current"; request: ItemRequest; statusLabel: string };
 
@@ -75,14 +89,19 @@ function CurrentProductStatusPreviewPanel({
 export function ProductHistoryEventPreviewDialog({
   eventLabel,
   eventHeadline,
+  modalTitle,
   preview,
   triggerLabel = "View record",
 }: {
   eventLabel: string;
   eventHeadline: string;
+  modalTitle?: string;
   preview: ProductHistoryTimelinePreview;
   triggerLabel?: string;
 }) {
+  const dialogTitle = modalTitle ?? eventLabel;
+  const dialogDescription = eventHeadline;
+
   return (
     <Dialog>
       <DialogTrigger
@@ -91,26 +110,42 @@ export function ProductHistoryEventPreviewDialog({
       >
         {triggerLabel}
       </DialogTrigger>
-      <DialogContent className="max-h-[min(90vh,46rem)] w-[min(96vw,56rem)] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{eventHeadline}</DialogTitle>
-          <DialogDescription>{eventLabel}</DialogDescription>
+      <DialogContent className="max-h-[min(90vh,46rem)] w-[min(96vw,56rem)] gap-0 overflow-y-auto p-0 sm:max-w-3xl">
+        <DialogHeader className="space-y-1 border-b border-border/80 bg-muted/30 px-5 py-4 sm:px-6">
+          <DialogTitle className="text-base font-semibold leading-snug sm:text-lg">
+            {dialogTitle}
+          </DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
+            {dialogDescription}
+          </DialogDescription>
         </DialogHeader>
-        {preview.kind === "snapshot" ?
-          <ItemRequestLineSnapshotPreviewPanel
-            row={preview.snapshot}
-            prevRow={preview.prevSnapshot}
-            warehouseProofPhotoUrls={preview.warehouseProofPhotoUrls}
-            receivedProductPhotos={preview.receivedProductPhotos}
-            receiptPhotoUrl={preview.receiptPhotoUrl}
-            productImageUrl={preview.productImageUrl}
-          />
-        : <CurrentProductStatusPreviewPanel
-            request={preview.request}
-            statusLabel={preview.statusLabel}
-          />
-        }
-        <DialogFooter showCloseButton />
+        <div className="space-y-4 px-5 py-4 sm:px-6 sm:py-5">
+          {preview.kind === "snapshot" ?
+            <ItemRequestLineSnapshotPreviewPanel
+              row={preview.snapshot}
+              prevRow={preview.prevSnapshot}
+              warehouseProofPhotoUrls={preview.warehouseProofPhotoUrls}
+              receivedProductPhotos={preview.receivedProductPhotos}
+              receiptPhotoUrl={preview.receiptPhotoUrl}
+              productImageUrl={preview.productImageUrl}
+              replaceNoteWithEstimate
+              estimateNote={preview.estimateNote}
+              estimateTotalCents={preview.estimateTotalCents}
+              estimateQuote={preview.estimateQuote}
+              batchShare={preview.batchShare}
+              batchEstimateNote={preview.batchEstimateNote}
+              isBatchedProduct={preview.isBatchedProduct}
+              auditSnapshots={preview.auditSnapshots}
+              receivedConditionRaw={preview.receivedConditionRaw}
+              hideDuplicateChangeSummary
+            />
+          : <CurrentProductStatusPreviewPanel
+              request={preview.request}
+              statusLabel={preview.statusLabel}
+            />
+          }
+        </div>
+        <DialogFooter showCloseButton className="border-t border-border/80 px-5 py-3 sm:px-6" />
       </DialogContent>
     </Dialog>
   );

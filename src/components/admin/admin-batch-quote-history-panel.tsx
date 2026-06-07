@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { ItemQuote } from "@/db/schema";
+import { allocateCentsByWeight } from "@/lib/allocate-cents";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   adminCustomerDisplayLabel,
@@ -585,6 +586,38 @@ export function AdminBatchQuoteHistoryPanel({
                     ) : null}
                     {bundleSlice.map((b) => {
               const estimate = b.latestEstimate;
+              const lineQuotes = b.requests.map(
+                (r) => latestQuotesByRequestId[r.id] ?? null,
+              );
+              // Divide each saved batch-estimate component across the bundled
+              // lines, weighted by each line's saved single-quote contribution
+              // so the per-product shares sum back to the batch totals exactly.
+              const merchShares = estimate
+                ? allocateCentsByWeight(
+                    estimate.siteMerchandiseTotalCents,
+                    lineQuotes.map((q) => q?.itemCost ?? 0),
+                  )
+                : null;
+              const serviceShares = estimate
+                ? allocateCentsByWeight(
+                    estimate.serviceHandlingTotalCents,
+                    lineQuotes.map((q) => q?.serviceFee ?? 0),
+                  )
+                : null;
+              const shippingShares = estimate
+                ? allocateCentsByWeight(
+                    estimate.siteShippingTotalCents,
+                    lineQuotes.map((q) => q?.estimatedShipping ?? 0),
+                  )
+                : null;
+              const taxShares = estimate
+                ? allocateCentsByWeight(
+                    estimate.siteSaleTaxTotalCents,
+                    lineQuotes.map((q) =>
+                      q ? lineSaleTaxCentsFromQuote(q) : 0,
+                    ),
+                  )
+                : null;
               return (
                 <tr key={b.session.id}>
                   <td className="px-3 py-3 font-mono text-xs">{b.session.batchNumber}</td>
@@ -622,8 +655,25 @@ export function AdminBatchQuoteHistoryPanel({
                               Individual product estimates
                             </p>
                             <ul className="space-y-2 text-sm">
-                              {b.requests.map((r) => {
+                              {b.requests.map((r, lineIdx) => {
                                 const q = latestQuotesByRequestId[r.id];
+                                const merchShare = merchShares?.[lineIdx] ?? null;
+                                const serviceShare =
+                                  serviceShares?.[lineIdx] ?? null;
+                                const shippingShare =
+                                  shippingShares?.[lineIdx] ?? null;
+                                const taxShare = taxShares?.[lineIdx] ?? null;
+                                const lineTotalShare =
+                                  estimate &&
+                                  merchShare != null &&
+                                  serviceShare != null &&
+                                  shippingShare != null &&
+                                  taxShare != null
+                                    ? merchShare +
+                                      serviceShare +
+                                      shippingShare +
+                                      taxShare
+                                    : null;
                                 const quantity =
                                   q?.requestQuantity != null
                                     ? q.requestQuantity
@@ -663,7 +713,48 @@ export function AdminBatchQuoteHistoryPanel({
                                         </div>
                                       ) : null}
                                     </dl>
-                                    {q ? (
+                                    {lineTotalShare != null ? (
+                                      <div className="mt-3 rounded-md border border-border bg-secondary px-2.5 py-2.5">
+                                        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Batch estimate share (this product)
+                                        </p>
+                                        <ul className="space-y-1.5 text-xs tabular-nums text-muted-foreground">
+                                          <li className="flex justify-between gap-2">
+                                            <span>Merchandise total</span>
+                                            <span className="text-foreground">
+                                              {formatUsd(merchShare ?? 0)}
+                                            </span>
+                                          </li>
+                                          <li className="flex justify-between gap-2">
+                                            <span>Service &amp; handling</span>
+                                            <span className="text-foreground">
+                                              {formatUsd(serviceShare ?? 0)}
+                                            </span>
+                                          </li>
+                                          <li className="flex justify-between gap-2">
+                                            <span>Shipping (est.)</span>
+                                            <span className="text-foreground">
+                                              {formatUsd(shippingShare ?? 0)}
+                                            </span>
+                                          </li>
+                                          <li className="flex justify-between gap-2">
+                                            <span>Tax / sale tax</span>
+                                            <span className="text-foreground">
+                                              {formatUsd(taxShare ?? 0)}
+                                            </span>
+                                          </li>
+                                          <li className="flex justify-between gap-2 border-t border-border pt-2 font-medium text-foreground">
+                                            <span>Total</span>
+                                            <span>{formatUsd(lineTotalShare)}</span>
+                                          </li>
+                                        </ul>
+                                        <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+                                          The saved batch estimate divided across bundled products
+                                          by each line&apos;s quoted share, so every line adds up to
+                                          the batch subtotal.
+                                        </p>
+                                      </div>
+                                    ) : q ? (
                                       <div className="mt-3 rounded-md border border-border bg-secondary px-2.5 py-2.5">
                                         <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                                           If purchased alone (saved quote)
@@ -757,6 +848,14 @@ export function AdminBatchQuoteHistoryPanel({
                               <div className="grid gap-2 rounded-md border border-border/80 bg-muted p-3 text-sm tabular-nums">
                                 <div className="flex justify-between gap-2">
                                   <span className="text-muted-foreground">
+                                    Site price
+                                  </span>
+                                  <span className="text-foreground">
+                                    {formatUsd(estimate.siteMerchandiseTotalCents)}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                  <span className="text-muted-foreground">
                                     Service &amp; handling
                                   </span>
                                   <span className="text-foreground">
@@ -786,6 +885,16 @@ export function AdminBatchQuoteHistoryPanel({
                                   </span>
                                 </div>
                               </div>
+                              {estimate.staffNote?.trim() ? (
+                                <div className="rounded-md border border-border/80 bg-muted p-3">
+                                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    Batch estimate notes
+                                  </p>
+                                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                                    {estimate.staffNote.trim()}
+                                  </p>
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
                         </div>

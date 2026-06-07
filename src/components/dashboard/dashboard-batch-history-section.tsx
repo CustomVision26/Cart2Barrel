@@ -6,6 +6,8 @@ import { ChevronDown } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { BatchEstimatePreviewDialog } from "@/components/dashboard/batch-estimate-preview-dialog";
+import { ProductChargesPreviewDialog } from "@/components/dashboard/product-charges-preview-dialog";
+import { SingleEstimatePreviewDialog } from "@/components/orders/single-estimate-preview-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -18,14 +20,26 @@ import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { OwnerBatchQuoteSessionBundle } from "@/data/batch-quote-sessions";
-import type { BatchQuoteSessionStatusEvent, ItemRequest } from "@/db/schema";
+import type {
+  AdminBatchHistoryOwnerBundle,
+  OwnerBatchQuoteSessionBundle,
+} from "@/data/batch-quote-sessions";
+import type {
+  BatchQuoteSessionStatusEvent,
+  ItemQuote,
+  ItemRequest,
+} from "@/db/schema";
+import { allocateCentsByWeight } from "@/lib/allocate-cents";
 import { formatUsd } from "@/lib/admin-markup";
+import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
 import {
   batchQuoteSessionEventKindLabel,
   ownerBatchQuoteSessionStatusBadge,
 } from "@/lib/batch-quote-session-status-labels";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
+import { adminCustomerDisplayLabel, adminCustomerSortKey } from "@/lib/admin-customer-group";
 import {
   dashItemsTableFilterPanel,
   dashItemsTableHeadPlain,
@@ -50,15 +64,40 @@ type StatusFilter =
   | "all"
   | "submitted"
   | "estimated"
+  | "in_cart"
   | "paid_pending_staff_purchase";
-type SortKey = "sentAt" | "batchNumber" | "status" | "subtotal";
+type SortKey = "sentAt" | "batchNumber" | "status" | "subtotal" | "customer";
 
 const SELECT_CLASS =
   "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
-type DashboardBatchHistorySectionProps = {
-  bundles: OwnerBatchQuoteSessionBundle[];
+type BatchHistoryLinkTargets = {
+  batchQuotesActive: string;
+  orders: string;
+  cart: string;
 };
+
+const CUSTOMER_LINK_TARGETS: BatchHistoryLinkTargets = {
+  batchQuotesActive: DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive,
+  orders: "/dashboard/orders",
+  cart: "/dashboard/cart",
+};
+
+type BatchHistorySectionVariant = "customer" | "admin";
+
+type DashboardBatchHistorySectionProps = {
+  bundles: OwnerBatchQuoteSessionBundle[] | AdminBatchHistoryOwnerBundle[];
+  quotesByRequestId?: Record<string, ItemQuote[]>;
+  variant?: BatchHistorySectionVariant;
+  linkTargets?: BatchHistoryLinkTargets;
+};
+
+function isAdminHistoryBundle(
+  bundle: OwnerBatchQuoteSessionBundle | AdminBatchHistoryOwnerBundle,
+  variant: BatchHistorySectionVariant,
+): bundle is AdminBatchHistoryOwnerBundle {
+  return variant === "admin";
+}
 
 function ownerBundleSentMs(b: OwnerBatchQuoteSessionBundle): number {
   const submitted = b.session.submittedAt?.trim()
@@ -88,12 +127,18 @@ function parseBatchQuoteHistorySnapshot(
   return snap as BatchQuoteHistorySnapshot;
 }
 
-function haystackForOwnerBundleSearch(b: OwnerBatchQuoteSessionBundle): string {
+function haystackForOwnerBundleSearch(
+  b: OwnerBatchQuoteSessionBundle | AdminBatchHistoryOwnerBundle,
+  variant: BatchHistorySectionVariant = "customer",
+): string {
   const parts: string[] = [
     b.session.batchNumber,
     b.session.siteKey,
     b.session.status,
   ];
+  if (isAdminHistoryBundle(b, variant)) {
+    parts.push(b.userFullName ?? "", b.userEmail ?? "", b.session.clerkUserId);
+  }
   for (const r of b.requests) {
     parts.push(
       r.productName ?? "",
@@ -122,10 +167,16 @@ function haystackForOwnerBundleSearch(b: OwnerBatchQuoteSessionBundle): string {
 
 export function DashboardBatchHistorySection({
   bundles,
+  quotesByRequestId = {},
+  variant = "customer",
+  linkTargets = CUSTOMER_LINK_TARGETS,
 }: DashboardBatchHistorySectionProps) {
-  const [expandedBySessionId, setExpandedBySessionId] = useState<
-    Record<string, boolean>
-  >({});
+  const routes = linkTargets;
+  const idPrefix =
+    variant === "admin" ? "admin-batch-history" : "dashboard-batch-history";
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
+    null,
+  );
   const [expandedStageByEventId, setExpandedStageByEventId] = useState<
     Record<string, boolean>
   >({});
@@ -144,6 +195,7 @@ export function DashboardBatchHistorySection({
         (b) =>
           b.session.status === "submitted" ||
           b.session.status === "estimated" ||
+          b.session.status === "in_cart" ||
           b.session.status === "paid_pending_staff_purchase"
       ),
     [bundles]
@@ -156,9 +208,9 @@ export function DashboardBatchHistorySection({
         return false;
       }
       if (!q) return true;
-      return haystackForOwnerBundleSearch(b).includes(q);
+      return haystackForOwnerBundleSearch(b, variant).includes(q);
     });
-  }, [eligibleBundles, search, statusFilter]);
+  }, [eligibleBundles, search, statusFilter, variant]);
 
   const filteredSorted = useMemo(() => {
     const copy = [...filtered];
@@ -172,6 +224,30 @@ export function DashboardBatchHistorySection({
           );
         case "status":
           return compareLocale(a.session.status, b.session.status, sortDir);
+        case "customer": {
+          if (variant !== "admin") {
+            return compareNum(
+              ownerBundleSentMs(a),
+              ownerBundleSentMs(b),
+              sortDir,
+            );
+          }
+          const aBundle = a as AdminBatchHistoryOwnerBundle;
+          const bBundle = b as AdminBatchHistoryOwnerBundle;
+          return compareLocale(
+            adminCustomerSortKey({
+              clerkUserId: aBundle.session.clerkUserId,
+              fullName: aBundle.userFullName,
+              email: aBundle.userEmail,
+            }),
+            adminCustomerSortKey({
+              clerkUserId: bBundle.session.clerkUserId,
+              fullName: bBundle.userFullName,
+              email: bBundle.userEmail,
+            }),
+            sortDir,
+          );
+        }
         case "subtotal": {
           const ca = ownerBundleSubtotalCents(a);
           const cb = ownerBundleSubtotalCents(b);
@@ -187,7 +263,7 @@ export function DashboardBatchHistorySection({
       }
     });
     return copy;
-  }, [filtered, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir, variant]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / pageSize));
   const pageSafe = Math.min(Math.max(1, page), totalPages);
@@ -207,26 +283,37 @@ export function DashboardBatchHistorySection({
   }, []);
 
   const isBodyExpanded = (sessionId: string) =>
-    expandedBySessionId[sessionId] !== false;
+    expandedSessionId === sessionId;
 
   const toggleBody = (sessionId: string) => {
-    setExpandedBySessionId((prev) => {
-      const open = prev[sessionId] !== false;
-      return { ...prev, [sessionId]: !open };
-    });
+    setExpandedSessionId((prev) => (prev === sessionId ? null : sessionId));
   };
 
   if (eligibleBundles.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No submitted, quoted, or paid batches yet. When you send a bundle from{" "}
-        <Link
-          href={DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive}
-          className="font-medium text-foreground underline-offset-2 hover:underline"
-        >
-          Batch Quotes
-        </Link>
-        , it appears here with any estimate staff send back.
+        {variant === "admin" ?
+          <>
+            No submitted, quoted, or paid batches yet. When a shopper sends a bundle from{" "}
+            <Link
+              href={routes.batchQuotesActive}
+              className="font-medium text-foreground underline-offset-2 hover:underline"
+            >
+              Submitted batches
+            </Link>
+            , it appears here with any estimate staff save.
+          </>
+        : <>
+            No submitted, quoted, or paid batches yet. When you send a bundle from{" "}
+            <Link
+              href={routes.batchQuotesActive}
+              className="font-medium text-foreground underline-offset-2 hover:underline"
+            >
+              Batch Quotes
+            </Link>
+            , it appears here with any estimate staff send back.
+          </>
+        }
       </p>
     );
   }
@@ -238,13 +325,13 @@ export function DashboardBatchHistorySection({
           <p className="text-xs font-medium text-foreground">Find & organize</p>
           <div className="flex items-center gap-2">
             <Label
-              htmlFor="dashboard-batch-history-find-organize"
+              htmlFor={`${idPrefix}-find-organize`}
               className="cursor-pointer text-xs font-normal text-muted-foreground"
             >
               Show filters and sort
             </Label>
             <Switch
-              id="dashboard-batch-history-find-organize"
+              id={`${idPrefix}-find-organize`}
               checked={findOrganizeVisible}
               onCheckedChange={setFindOrganizeVisible}
             />
@@ -256,15 +343,23 @@ export function DashboardBatchHistorySection({
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Field className="gap-1.5">
                 <FieldLabelWithHelp
-                  htmlFor="dashboard-batch-history-search"
+                  htmlFor={`${idPrefix}-search`}
                   label="Search"
-                  help="Matches batch number, site, status, and any line item fields."
+                  help={
+                    variant === "admin" ?
+                      "Matches batch number, site, status, customer, and any line item fields."
+                    : "Matches batch number, site, status, and any line item fields."
+                  }
                   helpLabel="About Search"
                 />
                 <FieldContent>
                   <Input
-                    id="dashboard-batch-history-search"
-                    placeholder="Batch #, site key, product name…"
+                    id={`${idPrefix}-search`}
+                    placeholder={
+                      variant === "admin" ?
+                        "Batch #, customer, site key, product name…"
+                      : "Batch #, site key, product name…"
+                    }
                     value={search}
                     onChange={(e) => {
                       setPage(1);
@@ -277,14 +372,14 @@ export function DashboardBatchHistorySection({
 
               <Field className="gap-1.5">
                 <FieldLabel
-                  htmlFor="dashboard-batch-history-status"
+                  htmlFor={`${idPrefix}-status`}
                   className="text-xs"
                 >
                   Status
                 </FieldLabel>
                 <FieldContent>
                   <select
-                    id="dashboard-batch-history-status"
+                    id={`${idPrefix}-status`}
                     className={SELECT_CLASS}
                     value={statusFilter}
                     onChange={(e) => {
@@ -295,6 +390,7 @@ export function DashboardBatchHistorySection({
                     <option value="all">All</option>
                     <option value="submitted">Submitted</option>
                     <option value="estimated">Quoted (batch)</option>
+                    <option value="in_cart">In Cart</option>
                     <option value="paid_pending_staff_purchase">
                       Paid : Awaiting staff purchase
                     </option>
@@ -304,7 +400,7 @@ export function DashboardBatchHistorySection({
 
               <Field className="gap-1.5">
                 <FieldLabel
-                  htmlFor="dashboard-batch-history-sort"
+                  htmlFor={`${idPrefix}-sort`}
                   className="text-xs"
                 >
                   Sort by
@@ -312,7 +408,7 @@ export function DashboardBatchHistorySection({
                 <FieldContent>
                   <div className="flex flex-wrap gap-2">
                     <select
-                      id="dashboard-batch-history-sort"
+                      id={`${idPrefix}-sort`}
                       className={cn(SELECT_CLASS, "min-w-[11rem] flex-1")}
                       value={sortKey}
                       onChange={(e) => {
@@ -322,6 +418,9 @@ export function DashboardBatchHistorySection({
                     >
                       <option value="sentAt">Sent / last activity</option>
                       <option value="batchNumber">Batch number</option>
+                      {variant === "admin" ? (
+                        <option value="customer">Customer</option>
+                      ) : null}
                       <option value="status">Status</option>
                       <option value="subtotal">Estimate subtotal</option>
                     </select>
@@ -345,14 +444,14 @@ export function DashboardBatchHistorySection({
 
               <Field className="gap-1.5 sm:col-span-2 lg:col-span-1">
                 <FieldLabel
-                  htmlFor="dashboard-batch-history-page-size"
+                  htmlFor={`${idPrefix}-page-size`}
                   className="text-xs"
                 >
                   Per page
                 </FieldLabel>
                 <FieldContent>
                   <select
-                    id="dashboard-batch-history-page-size"
+                    id={`${idPrefix}-page-size`}
                     className={SELECT_CLASS}
                     value={pageSize}
                     onChange={(e) => {
@@ -407,8 +506,85 @@ export function DashboardBatchHistorySection({
         </p>
       ) : null}
 
-      {pageSlice.map(({ session, requests, latestEstimate, statusEvents }) => {
+      {pageSlice.map((bundle) => {
+        const { session, requests, latestEstimate, statusEvents } = bundle;
+        const adminBundle =
+          isAdminHistoryBundle(bundle, variant) ? bundle : null;
         const bodyOpen = isBodyExpanded(session.id);
+        const requestByUrl = new Map<string, ItemRequest>();
+        for (const r of requests) {
+          if (!requestByUrl.has(r.productUrl)) requestByUrl.set(r.productUrl, r);
+        }
+        const latestQuoteForRequest = (requestId: string): ItemQuote | null => {
+          const list = quotesByRequestId[requestId] ?? [];
+          if (list.length === 0) return null;
+          return (
+            [...list].sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime(),
+            )[0] ?? null
+          );
+        };
+        const latestOperationalQuoteForRequest = (
+          requestId: string,
+        ): ItemQuote | null => {
+          const operational = (quotesByRequestId[requestId] ?? []).filter(
+            isOperationalQuoteRow,
+          );
+          if (operational.length === 0) return null;
+          return (
+            [...operational].sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime(),
+            )[0] ?? null
+          );
+        };
+        // Divide the saved batch estimate across bundled products, weighted by
+        // each line's latest quote, so per-product shares sum to the subtotal.
+        const lineQuotes = requests.map((r) => latestQuoteForRequest(r.id));
+        const shareByRequestId = new Map<
+          string,
+          {
+            merchandise: number;
+            serviceFee: number;
+            shipping: number;
+            tax: number;
+            total: number;
+          }
+        >();
+        if (latestEstimate) {
+          const merch = allocateCentsByWeight(
+            latestEstimate.siteMerchandiseTotalCents,
+            lineQuotes.map((q) => q?.itemCost ?? 0),
+          );
+          const service = allocateCentsByWeight(
+            latestEstimate.serviceHandlingTotalCents,
+            lineQuotes.map((q) => q?.serviceFee ?? 0),
+          );
+          const shipping = allocateCentsByWeight(
+            latestEstimate.siteShippingTotalCents,
+            lineQuotes.map((q) => q?.estimatedShipping ?? 0),
+          );
+          const tax = allocateCentsByWeight(
+            latestEstimate.siteSaleTaxTotalCents,
+            lineQuotes.map((q) => (q ? lineSaleTaxCentsFromQuote(q) : 0)),
+          );
+          requests.forEach((r, i) => {
+            shareByRequestId.set(r.id, {
+              merchandise: merch[i] ?? 0,
+              serviceFee: service[i] ?? 0,
+              shipping: shipping[i] ?? 0,
+              tax: tax[i] ?? 0,
+              total:
+                (merch[i] ?? 0) +
+                (service[i] ?? 0) +
+                (shipping[i] ?? 0) +
+                (tax[i] ?? 0),
+            });
+          });
+        }
         const submittedLabel = session.submittedAt?.trim()
           ? new Date(session.submittedAt).toLocaleString()
           : "—";
@@ -423,6 +599,7 @@ export function DashboardBatchHistorySection({
 
         const hasEstimateRow =
           session.status === "estimated" ||
+          session.status === "in_cart" ||
           session.status === "paid_pending_staff_purchase";
 
         return (
@@ -466,6 +643,18 @@ export function DashboardBatchHistorySection({
                       {ownerBatchQuoteSessionStatusBadge(session.status)}
                     </StatusBadge>
                   </p>
+                  {adminBundle ?
+                    <p className="text-xs text-muted-foreground">
+                      Customer{" "}
+                      <span className="font-medium text-foreground">
+                        {adminCustomerDisplayLabel({
+                          clerkUserId: adminBundle.session.clerkUserId,
+                          fullName: adminBundle.userFullName,
+                          email: adminBundle.userEmail,
+                        })}
+                      </span>
+                    </p>
+                  : null}
                   <p className="text-xs text-muted-foreground">
                     Sent to staff:{" "}
                     <time dateTime={session.submittedAt ?? undefined} className="text-foreground">
@@ -495,14 +684,19 @@ export function DashboardBatchHistorySection({
                   ) : null}
                   {session.status === "paid_pending_staff_purchase" ? (
                     <p className="text-xs text-muted-foreground">
-                      Checkout completed — staff will purchase this bundle. Open{" "}
+                      Checkout completed —{" "}
+                      {variant === "admin" ?
+                        "purchase this bundle from "
+                      : "staff will purchase this bundle. Open "}
                       <Link
-                        href="/dashboard/orders"
+                        href={routes.orders}
                         className="font-medium text-foreground underline-offset-2 hover:underline"
                       >
-                        Orders
-                      </Link>{" "}
-                      for payment details and updates.
+                        {variant === "admin" ? "Orders" : "Orders"}
+                      </Link>
+                      {variant === "admin" ?
+                        " when ready."
+                      : " for payment details and updates."}
                     </p>
                   ) : null}
                 </div>
@@ -515,46 +709,68 @@ export function DashboardBatchHistorySection({
                       batchNumber={session.batchNumber}
                       siteKey={session.siteKey}
                       estimate={latestEstimate}
+                      requests={requests}
+                      quotesByRequestId={quotesByRequestId}
                     />
                   </div>
-                  {session.status === "estimated" && !inCart ? (
-                    <p className="text-right text-xs text-muted-foreground">
-                      Bundled checkout only after you accept staff&apos;s estimate on{" "}
-                      <Link
-                        href={DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive}
-                        className="font-medium text-foreground underline-offset-2 hover:underline"
-                      >
-                        Batch Quotes
-                      </Link>{" "}
-                      (Active).
-                    </p>
-                  ) : null}
-                  {session.status === "estimated" && inCart ? (
-                    <p className="text-right text-xs text-muted-foreground">
-                      This batch is in your{" "}
-                      <Link
-                        href="/dashboard/cart"
-                        className="font-medium text-foreground underline-offset-2 hover:underline"
-                      >
-                        Cart
-                      </Link>{" "}
-                      as a combined bundle. Remove it there if you need to undo acceptance.
-                    </p>
-                  ) : null}
+                  {session.status === "estimated" && !inCart ?
+                    variant === "admin" ?
+                      <p className="text-right text-xs text-muted-foreground">
+                        Shopper accepts bundled checkout from their Batch Quotes (Active)
+                        tab after reviewing this estimate.
+                      </p>
+                    : <p className="text-right text-xs text-muted-foreground">
+                        Bundled checkout only after you accept staff&apos;s estimate on{" "}
+                        <Link
+                          href={routes.batchQuotesActive}
+                          className="font-medium text-foreground underline-offset-2 hover:underline"
+                        >
+                          Batch Quotes
+                        </Link>{" "}
+                        (Active).
+                      </p>
+                  : null}
+                  {session.status === "estimated" && inCart ?
+                    variant === "admin" ?
+                      <p className="text-right text-xs text-muted-foreground">
+                        This batch is in the customer&apos;s cart awaiting checkout.
+                      </p>
+                    : <p className="text-right text-xs text-muted-foreground">
+                        This batch is in your{" "}
+                        <Link
+                          href={routes.cart}
+                          className="font-medium text-foreground underline-offset-2 hover:underline"
+                        >
+                          Cart
+                        </Link>{" "}
+                        as a combined bundle. Remove it there if you need to undo acceptance.
+                      </p>
+                  : null}
                 </div>
-              ) : session.status === "submitted" ? (
-                <p className="max-w-xs text-xs text-muted-foreground sm:text-right">
-                  Staff will bundle every line listed below before you receive a quoted
-                  subtotal—when it arrives, preview here and accept the estimate under{" "}
-                  <Link
-                    href={DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive}
-                    className="font-medium text-foreground underline-offset-2 hover:underline"
-                  >
-                    Batch Quotes
-                  </Link>{" "}
-                  (Active).
-                </p>
-              ) : null}
+              ) : session.status === "submitted" ?
+                variant === "admin" ?
+                  <p className="max-w-xs text-xs text-muted-foreground sm:text-right">
+                    Awaiting staff bundled estimate — save from{" "}
+                    <Link
+                      href={routes.batchQuotesActive}
+                      className="font-medium text-foreground underline-offset-2 hover:underline"
+                    >
+                      Submitted batches
+                    </Link>
+                    .
+                  </p>
+                : <p className="max-w-xs text-xs text-muted-foreground sm:text-right">
+                    Staff will bundle every line listed below before you receive a quoted
+                    subtotal—when it arrives, preview here and accept the estimate under{" "}
+                    <Link
+                      href={routes.batchQuotesActive}
+                      className="font-medium text-foreground underline-offset-2 hover:underline"
+                    >
+                      Batch Quotes
+                    </Link>{" "}
+                    (Active).
+                  </p>
+              : null}
             </div>
 
             <div
@@ -614,7 +830,13 @@ export function DashboardBatchHistorySection({
                     state
                   </p>
                   <ul className="space-y-3">
-                    {statusEvents.map((ev) => {
+                    {[...statusEvents]
+                      .sort(
+                        (a, b) =>
+                          new Date(b.createdAt).getTime() -
+                          new Date(a.createdAt).getTime(),
+                      )
+                      .map((ev) => {
                       const snap = parseBatchQuoteHistorySnapshot(ev.detail);
                       const stageOpen = expandedStageByEventId[ev.id] === true;
                       const stageLabel =
@@ -702,7 +924,7 @@ export function DashboardBatchHistorySection({
                                   {(snap.orderId ?? ev.detail?.orderId) ?
                                     <p className="text-xs text-muted-foreground">
                                       <Link
-                                        href="/dashboard/orders"
+                                        href={routes.orders}
                                         className="font-medium text-primary underline-offset-2 hover:underline"
                                       >
                                         View orders
@@ -759,14 +981,64 @@ export function DashboardBatchHistorySection({
                                             )}
                                           </td>
                                           <td className="whitespace-nowrap px-3 py-2">
-                                            <a
-                                              href={line.productUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                                            >
-                                              Product url
-                                            </a>
+                                            <div className="flex items-center gap-3">
+                                              <a
+                                                href={line.productUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                                              >
+                                                Product url
+                                              </a>
+                                              {(() => {
+                                                const req = requestByUrl.get(
+                                                  line.productUrl,
+                                                );
+                                                if (!req) return null;
+
+                                                if (ev.kind === "new_batch_request") {
+                                                  const quote =
+                                                    latestOperationalQuoteForRequest(
+                                                      req.id,
+                                                    );
+                                                  if (!quote) return null;
+                                                  return (
+                                                    <SingleEstimatePreviewDialog
+                                                      quote={quote}
+                                                      request={req}
+                                                    />
+                                                  );
+                                                }
+
+                                                const share = shareByRequestId.get(
+                                                  req.id,
+                                                );
+                                                if (!share) return null;
+                                                const note =
+                                                  latestEstimate?.staffNote ??
+                                                  null;
+                                                return (
+                                                  <ProductChargesPreviewDialog
+                                                    productLabel={
+                                                      line.productName ?? ""
+                                                    }
+                                                    merchandise={
+                                                      share.merchandise
+                                                    }
+                                                    serviceFee={share.serviceFee}
+                                                    shipping={share.shipping}
+                                                    tax={share.tax}
+                                                    total={share.total}
+                                                    note={note}
+                                                    isOutsidePurchase={
+                                                      isOutsidePurchaseRequest(
+                                                        req,
+                                                      )
+                                                    }
+                                                  />
+                                                );
+                                              })()}
+                                            </div>
                                           </td>
                                         </tr>
                                       ))}
@@ -790,8 +1062,9 @@ export function DashboardBatchHistorySection({
               ) : null}
               {requests.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  Line retention may be unavailable for legacy batches—open Batch Quotes if
-                  the product grid is incomplete.
+                  Line retention may be unavailable for legacy batches—open{" "}
+                  {variant === "admin" ? "Submitted batches" : "Batch Quotes"} if the
+                  product grid is incomplete.
                 </p>
               ) : null}
             </div>

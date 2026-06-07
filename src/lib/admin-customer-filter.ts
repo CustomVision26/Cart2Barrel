@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { AdminQuoteHistoryGroup } from "@/data/admin-quote-history";
 import type {
   AdminBatchHistoryBundle,
+  AdminBatchHistoryOwnerBundle,
   AdminSubmittedBatchBundle,
 } from "@/data/batch-quote-sessions";
 import type { AdminItemRequestGroup } from "@/lib/admin-item-requests-group";
@@ -151,6 +152,14 @@ export function filterAdminBatchHistoryBundles(
   bundles: AdminBatchHistoryBundle[],
   clerkUserId?: string,
 ): AdminBatchHistoryBundle[] {
+  if (!clerkUserId) return bundles;
+  return bundles.filter((b) => b.session.clerkUserId === clerkUserId);
+}
+
+export function filterAdminBatchHistoryOwnerBundles(
+  bundles: AdminBatchHistoryOwnerBundle[],
+  clerkUserId?: string,
+): AdminBatchHistoryOwnerBundle[] {
   if (!clerkUserId) return bundles;
   return bundles.filter((b) => b.session.clerkUserId === clerkUserId);
 }

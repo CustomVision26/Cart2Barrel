@@ -211,14 +211,24 @@ export function QuoteEstimatePreviewDialog({
           : null}
           {label}
         </DialogTrigger>
-        <DialogContent className="z-[60] flex max-h-[min(90vh,42rem)] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="shrink-0 space-y-1.5 border-b border-border px-4 py-3 pr-10">
-          <DialogTitle>
+        <DialogContent
+          className={cn(
+            "z-[60] flex max-h-[min(90vh,42rem)] min-w-0 flex-col gap-0 overflow-hidden p-0",
+            outsidePurchaseServiceOnly ? "sm:max-w-lg" : "sm:max-w-md",
+          )}
+        >
+        <DialogHeader
+          className={cn(
+            "shrink-0 space-y-1.5 border-b border-border px-4 py-3 pr-10",
+            outsidePurchaseServiceOnly && "bg-muted/30 px-5 py-4",
+          )}
+        >
+          <DialogTitle className={outsidePurchaseServiceOnly ? "text-lg tracking-tight" : undefined}>
             {outsidePurchaseServiceOnly ? "Service & handling" : "Quote estimate"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="leading-relaxed">
             {outsidePurchaseServiceOnly ?
-              "Outside purchase — customer pays service & handling only (per unit × quantity)."
+              "Outside purchase — you pay service and handling only (per unit × quantity). Merchandise was purchased elsewhere."
             : "Item details and the latest saved quote (merchandise, fees, shipping, tax, total) when available."}
           </DialogDescription>
           {outsidePurchaseServiceOnly && outsidePurchaseReceiptUrl ? (
@@ -446,8 +456,8 @@ export function QuoteEstimatePreviewDialog({
               <>
                 {showProductDetails ? <Separator /> : null}
                 {outsidePurchaseServiceOnly ? (
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3.5 ring-1 ring-primary/10">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Your charges
                     </p>
                     <ul className="space-y-2.5 tabular-nums">
@@ -613,7 +623,9 @@ export function QuoteEstimatePreviewDialog({
                     </li>
                   </ul>
                 ) : null}
-                <AdminStaffNotesBlock staffNote={quote.staffNote} />
+                {!outsidePurchaseServiceOnly && quote.staffNote?.trim() ?
+                  <AdminStaffNotesBlock staffNote={quote.staffNote} />
+                : null}
                 <p className="text-xs text-muted-foreground">
                   Quoted{" "}
                   <time dateTime={quote.quotedAt}>

@@ -17,19 +17,148 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import type { BatchQuoteEstimate } from "@/db/schema";
+import type { BatchQuoteEstimate, ItemQuote, ItemRequest } from "@/db/schema";
+import { allocateCentsByWeight } from "@/lib/allocate-cents";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   dashItemsTableStatusPanel,
   dashItemsTimelineCard,
 } from "@/lib/app-table-surfaces";
+import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
+import { displaySiteName } from "@/lib/site-name";
 import { cn } from "@/lib/utils";
+
+type BatchLineEstimate = {
+  productName: string | null;
+  siteName: string | null;
+  productUrl: string;
+  quantity: number;
+  size: string | null;
+  color: string | null;
+  merchandise: number;
+  serviceFee: number;
+  shipping: number;
+  tax: number;
+  total: number;
+};
+
+function latestQuoteForList(quotes: ItemQuote[]): ItemQuote | null {
+  if (quotes.length === 0) return null;
+  return (
+    [...quotes].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )[0] ?? null
+  );
+}
+
+/** Divide the saved batch estimate across bundled products, weighted by each line's latest quote. */
+function buildBatchLineEstimates(
+  estimate: BatchQuoteEstimate,
+  requests: ItemRequest[],
+  quotesByRequestId: Record<string, ItemQuote[]>,
+): BatchLineEstimate[] {
+  if (requests.length === 0) return [];
+  const lineQuotes = requests.map((r) =>
+    latestQuoteForList(quotesByRequestId[r.id] ?? []),
+  );
+  const merch = allocateCentsByWeight(
+    estimate.siteMerchandiseTotalCents,
+    lineQuotes.map((q) => q?.itemCost ?? 0),
+  );
+  const service = allocateCentsByWeight(
+    estimate.serviceHandlingTotalCents,
+    lineQuotes.map((q) => q?.serviceFee ?? 0),
+  );
+  const shipping = allocateCentsByWeight(
+    estimate.siteShippingTotalCents,
+    lineQuotes.map((q) => q?.estimatedShipping ?? 0),
+  );
+  const tax = allocateCentsByWeight(
+    estimate.siteSaleTaxTotalCents,
+    lineQuotes.map((q) => (q ? lineSaleTaxCentsFromQuote(q) : 0)),
+  );
+  return requests.map((r, i) => ({
+    productName: r.productName,
+    siteName: r.siteName,
+    productUrl: r.productUrl,
+    quantity: r.quantity,
+    size: r.productSize?.trim() || null,
+    color: r.productColor?.trim() || null,
+    merchandise: merch[i] ?? 0,
+    serviceFee: service[i] ?? 0,
+    shipping: shipping[i] ?? 0,
+    tax: tax[i] ?? 0,
+    total:
+      (merch[i] ?? 0) + (service[i] ?? 0) + (shipping[i] ?? 0) + (tax[i] ?? 0),
+  }));
+}
+
+function BatchLineEstimateCard({ line }: { line: BatchLineEstimate }) {
+  return (
+    <li className="rounded-md border border-border bg-muted px-3 py-2.5">
+      <p className="font-medium text-foreground">
+        {line.productName?.trim() || "Product"}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {displaySiteName(line.siteName, line.productUrl)}
+      </p>
+      <dl className="mt-2 grid gap-1 border-t border-border pt-2 text-xs tabular-nums">
+        <div className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">Qty</dt>
+          <dd className="text-foreground">{line.quantity}</dd>
+        </div>
+        {line.size ? (
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Size</dt>
+            <dd className="text-end text-foreground">{line.size}</dd>
+          </div>
+        ) : null}
+        {line.color ? (
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Color</dt>
+            <dd className="text-end text-foreground">{line.color}</dd>
+          </div>
+        ) : null}
+      </dl>
+      <div className="mt-3 rounded-md border border-border bg-card px-2.5 py-2.5">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Batch estimate share (this product)
+        </p>
+        <ul className="space-y-1.5 text-xs tabular-nums text-muted-foreground">
+          <li className="flex justify-between gap-2">
+            <span>Merchandise total</span>
+            <span className="text-foreground">{formatUsd(line.merchandise)}</span>
+          </li>
+          <li className="flex justify-between gap-2">
+            <span>Service &amp; handling</span>
+            <span className="text-foreground">{formatUsd(line.serviceFee)}</span>
+          </li>
+          <li className="flex justify-between gap-2">
+            <span>Shipping (est.)</span>
+            <span className="text-foreground">{formatUsd(line.shipping)}</span>
+          </li>
+          <li className="flex justify-between gap-2">
+            <span>Tax / sale tax</span>
+            <span className="text-foreground">{formatUsd(line.tax)}</span>
+          </li>
+          <li className="flex justify-between gap-2 border-t border-border pt-2 font-medium text-foreground">
+            <span>Total</span>
+            <span>{formatUsd(line.total)}</span>
+          </li>
+        </ul>
+      </div>
+    </li>
+  );
+}
 
 type BatchEstimatePreviewDialogProps = {
   batchSessionId: string;
   batchNumber: string;
   siteKey: string;
   estimate: BatchQuoteEstimate;
+  requests?: ItemRequest[];
+  quotesByRequestId?: Record<string, ItemQuote[]>;
 };
 
 export function BatchEstimatePreviewDialog({
@@ -37,6 +166,8 @@ export function BatchEstimatePreviewDialog({
   batchNumber,
   siteKey,
   estimate,
+  requests = [],
+  quotesByRequestId = {},
 }: BatchEstimatePreviewDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -48,6 +179,12 @@ export function BatchEstimatePreviewDialog({
     estimate.serviceHandlingTotalCents +
     estimate.siteSaleTaxTotalCents +
     estimate.siteShippingTotalCents;
+
+  const lineEstimates = buildBatchLineEstimates(
+    estimate,
+    requests,
+    quotesByRequestId,
+  );
 
   const cancelRevisionConfirm = () => {
     setConfirmRevisionOpen(false);
@@ -95,70 +232,19 @@ export function BatchEstimatePreviewDialog({
           </DialogHeader>
 
           <div className="space-y-4 text-sm tabular-nums">
-            <div className={cn("grid gap-2", dashItemsTableStatusPanel)}>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Batch merchandise total</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.batchMerchandiseTotalCents)}
-                </span>
+            {lineEstimates.length > 0 ? (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Individual product estimates
+                </p>
+                <ul className="space-y-2 text-sm">
+                  {lineEstimates.map((line) => (
+                    <BatchLineEstimateCard key={line.productUrl} line={line} />
+                  ))}
+                </ul>
+                <Separator />
               </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Site merchandise</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.siteMerchandiseTotalCents)}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2 text-xs">
-                <span className="text-muted-foreground">Item discount</span>
-                <span className="text-foreground">{formatUsd(estimate.itemDiscountCents)}</span>
-              </div>
-              <div className="flex justify-between gap-2 border-t border-border pt-2">
-                <span className="text-muted-foreground">Service &amp; handling</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.serviceHandlingTotalCents)}
-                </span>
-              </div>
-            </div>
-
-            <div className={cn("grid gap-2", dashItemsTableStatusPanel)}>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Batch shipping</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.batchShippingTotalCents)}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Site shipping</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.siteShippingTotalCents)}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2 text-xs">
-                <span className="text-muted-foreground">Shipping discount</span>
-                <span className="text-foreground">{formatUsd(estimate.shippingDiscountCents)}</span>
-              </div>
-            </div>
-
-            <div className={cn("grid gap-2", dashItemsTableStatusPanel)}>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Batch sale tax</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.batchSaleTaxTotalCents)}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Site sale tax</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.siteSaleTaxTotalCents)}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2 text-xs">
-                <span className="text-muted-foreground">Sale tax discount</span>
-                <span className="text-foreground">{formatUsd(estimate.saleTaxDiscountCents)}</span>
-              </div>
-            </div>
-
-            <Separator />
+            ) : null}
 
             <ul className="space-y-2 text-muted-foreground">
               <li className="flex justify-between gap-2">
@@ -208,6 +294,17 @@ export function BatchEstimatePreviewDialog({
               </time>
               .
             </p>
+
+            {estimate.staffNote?.trim() ? (
+              <div className={cn(dashItemsTimelineCard)}>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Batch estimate notes
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                  {estimate.staffNote.trim()}
+                </p>
+              </div>
+            ) : null}
 
             <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:justify-end">
               <Button

@@ -187,6 +187,11 @@ async function enrichWithSnapshotsAndQuotes(
   for (const bundle of base.batchQuoteHistoryBundles) {
     for (const r of bundle.requests) batchHistoryQuoteReqIds.add(r.id);
   }
+  for (const bundle of base.batchHistoryBundles) {
+    for (const line of bundle.lines) {
+      batchHistoryQuoteReqIds.add(line.itemRequestId);
+    }
+  }
 
   const quotedActiveRequestIds = base.rows
     .filter((row) => row.request.status === "quoted")

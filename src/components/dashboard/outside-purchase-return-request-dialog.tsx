@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CalendarRangeIcon, Loader2Icon } from "lucide-react";
+import {
+  CalendarClockIcon,
+  Loader2Icon,
+  PackageIcon,
+  TruckIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { submitOutsidePurchaseReturnRequestAction } from "@/actions/submit-outside-purchase-return-request";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -19,12 +23,36 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { parseOutsidePurchaseReceivedCondition } from "@/lib/outside-purchase-display";
+import {
+  warehouseReceiveConditionLabel,
+  type WarehouseReceiveCondition,
+} from "@/lib/warehouse-receive-condition";
+
+const FORM_TEXTAREA_CLASS = cn(
+  "border-input bg-background placeholder:text-muted-foreground",
+  "focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30",
+  "flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm outline-none focus-visible:ring-3",
+);
+
+const RETURN_STEPS = [
+  "Submit your return window and shipping label.",
+  "Review and accept the return service estimate from staff.",
+  "Pay, then drop the package at your carrier during the return window.",
+] as const;
 
 type OutsidePurchaseReturnRequestDialogProps = {
   itemRequestId: string;
   productLabel?: string;
+  receivedCondition?: WarehouseReceiveCondition | null;
   /** When true, uses amber warning styling for problem-receipt lines. */
   warning?: boolean;
 };
@@ -32,6 +60,7 @@ type OutsidePurchaseReturnRequestDialogProps = {
 export function OutsidePurchaseReturnRequestDialog({
   itemRequestId,
   productLabel,
+  receivedCondition = null,
   warning = false,
 }: OutsidePurchaseReturnRequestDialogProps) {
   const router = useRouter();
@@ -43,6 +72,9 @@ export function OutsidePurchaseReturnRequestDialog({
   const [ackPolicy, setAckPolicy] = useState(false);
   const [labelFile, setLabelFile] = useState<File | null>(null);
 
+  const conditionLabel =
+    receivedCondition ? warehouseReceiveConditionLabel(receivedCondition) : null;
+
   const reset = () => {
     setWindowStart("");
     setWindowEnd("");
@@ -52,12 +84,24 @@ export function OutsidePurchaseReturnRequestDialog({
   };
 
   const onSubmit = () => {
-    if (!windowStart || !windowEnd) {
-      toast.error("Enter the return window start and end.");
+    if (!windowEnd.trim()) {
+      toast.error("Enter the date and time you must return the item by.");
+      return;
+    }
+    if (!windowStart.trim()) {
+      toast.error("Enter the earliest date you can ship the return.");
+      return;
+    }
+    if (new Date(windowEnd).getTime() < new Date(windowStart).getTime()) {
+      toast.error("Return-by date must be on or after the earliest ship date.");
+      return;
+    }
+    if (!labelFile) {
+      toast.error("Upload your return shipping label for the carrier.");
       return;
     }
     if (!ackPolicy) {
-      toast.error("Confirm the discard policy to continue.");
+      toast.error("Confirm the return policy to continue.");
       return;
     }
 
@@ -67,7 +111,7 @@ export function OutsidePurchaseReturnRequestDialog({
     fd.set("returnWindowEnd", new Date(windowEnd).toISOString());
     if (customerNotes.trim()) fd.set("customerNotes", customerNotes.trim());
     fd.set("acknowledgeDiscardPolicy", "true");
-    if (labelFile) fd.set("returnLabelImage", labelFile);
+    fd.set("returnLabelImage", labelFile);
 
     startTransition(async () => {
       const res = await submitOutsidePurchaseReturnRequestAction(fd);
@@ -99,123 +143,183 @@ export function OutsidePurchaseReturnRequestDialog({
             "border-amber-600/60 bg-amber-500/15 font-medium text-amber-950 hover:bg-amber-500/25 dark:border-amber-500/55 dark:bg-amber-500/20 dark:text-amber-50",
         )}
       >
-        Return to retailer request
+        Return to retailer
       </DialogTrigger>
-      <DialogContent className="max-h-[min(90vh,40rem)] gap-0 overflow-y-auto p-0 sm:max-w-lg">
-        <DialogHeader className="space-y-1 border-b border-border px-6 py-4">
-          <DialogTitle>Return to retailer</DialogTitle>
+      <DialogContent className="flex max-h-[min(92vh,44rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogHeader className="shrink-0 space-y-3 border-b border-border bg-muted/30 px-6 py-5">
+          <div className="space-y-1">
+            <DialogTitle className="text-lg tracking-tight">
+              Return to retailer
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed">
+              Send this outside-purchase item back to the retailer. Provide when
+              you must ship the return and your carrier label so staff can prepare
+              your return estimate.
+            </DialogDescription>
+          </div>
           {productLabel ?
-            <div className="space-y-1.5 text-sm text-muted-foreground">
-              <p>
-                Request a return workflow for{" "}
-                <span className="font-medium text-foreground">{productLabel}</span>
-                {" · "}
+            <div className="rounded-xl border border-border/80 bg-background px-3.5 py-3 ring-1 ring-foreground/5">
+              <div className="flex items-start gap-3">
+                <PackageIcon
+                  className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium leading-snug text-foreground">
+                    {productLabel}
+                  </p>
+                  {conditionLabel ?
+                    <p className="text-xs text-muted-foreground">
+                      Received condition:{" "}
+                      <span className="font-medium text-foreground">
+                        {conditionLabel}
+                      </span>
+                    </p>
+                  : null}
+                </div>
+              </div>
+              <div className="mt-3 border-t border-border/70 pt-3">
                 <QuoteEstimatePreviewDialog
                   itemRequestId={itemRequestId}
-                  label="Preview estimate"
-                  triggerVariant="link"
+                  label="Preview service estimate"
+                  triggerVariant="button"
                 />
-              </p>
-              <p>
-                You will receive a return estimate to accept and pay before drop-off at the
-                carrier.
-              </p>
+              </div>
             </div>
-          : <DialogDescription>
-              Submit return details for staff review. You will receive a return estimate to
-              accept and pay before drop-off at the carrier.
-            </DialogDescription>
-          }
+          : null}
         </DialogHeader>
 
-        <div className="space-y-4 px-6 py-4">
-          <div className="flex gap-3 rounded-lg border border-border bg-secondary p-3">
-            <CalendarRangeIcon
-              className="mt-0.5 size-5 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-            <p className="text-sm leading-snug text-muted-foreground">
-              Enter when the retailer or marketplace allows you to ship the return.
-              Staff will publish return service &amp; handling charges for you to accept.
-            </p>
-          </div>
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 py-5">
+          <ol className="space-y-2.5 rounded-xl border border-border/80 bg-background/60 px-4 py-3.5 text-sm text-muted-foreground">
+            {RETURN_STEPS.map((step, index) => (
+              <li key={step} className="flex gap-3 leading-snug">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary">
+                  {index + 1}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor={`return-start-${itemRequestId}`}>
-                Return window start
-              </FieldLabel>
-              <FieldContent>
-                <Input
-                  id={`return-start-${itemRequestId}`}
-                  type="datetime-local"
-                  value={windowStart}
-                  onChange={(e) => setWindowStart(e.target.value)}
-                />
-              </FieldContent>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={`return-end-${itemRequestId}`}>
-                Return window end
-              </FieldLabel>
-              <FieldContent>
-                <Input
-                  id={`return-end-${itemRequestId}`}
-                  type="datetime-local"
-                  value={windowEnd}
-                  onChange={(e) => setWindowEnd(e.target.value)}
-                />
-              </FieldContent>
-            </Field>
-          </div>
+          <section className="space-y-4 rounded-xl border border-border/80 bg-background/50 p-4 ring-1 ring-foreground/5">
+            <div className="flex gap-3">
+              <CalendarClockIcon
+                className="mt-0.5 size-5 shrink-0 text-primary"
+                aria-hidden
+              />
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Return window
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Enter the period the retailer or marketplace allows you to ship
+                  this return. Staff uses these dates when publishing your return
+                  service estimate.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor={`return-start-${itemRequestId}`}>
+                  Earliest ship date
+                </FieldLabel>
+                <FieldContent>
+                  <FieldDescription>
+                    When you can first drop the package at the carrier.
+                  </FieldDescription>
+                  <Input
+                    id={`return-start-${itemRequestId}`}
+                    type="datetime-local"
+                    value={windowStart}
+                    onChange={(e) => setWindowStart(e.target.value)}
+                    className="mt-1.5"
+                  />
+                </FieldContent>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`return-end-${itemRequestId}`}>
+                  Return by (deadline)
+                </FieldLabel>
+                <FieldContent>
+                  <FieldDescription>
+                    Last date and time the return must be shipped.
+                  </FieldDescription>
+                  <Input
+                    id={`return-end-${itemRequestId}`}
+                    type="datetime-local"
+                    value={windowEnd}
+                    onChange={(e) => setWindowEnd(e.target.value)}
+                    className="mt-1.5"
+                  />
+                </FieldContent>
+              </Field>
+            </div>
+          </section>
 
-          <CollapsibleFieldSection
-            title="Optional details"
-            description="Return label image and notes for staff"
-            defaultOpen={false}
-          >
+          <section className="space-y-4 rounded-xl border border-border/80 bg-background/50 p-4 ring-1 ring-foreground/5">
+            <div className="flex gap-3">
+              <TruckIcon
+                className="mt-0.5 size-5 shrink-0 text-primary"
+                aria-hidden
+              />
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Return shipping label
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Upload the label your retailer or marketplace provided. The
+                  shipping company needs a scannable copy to print the label at
+                  drop-off.
+                </p>
+              </div>
+            </div>
             <Field>
               <FieldLabel htmlFor={`return-label-${itemRequestId}`}>
-                Return label / receipt copy
+                Label image <span className="text-destructive">*</span>
               </FieldLabel>
               <FieldContent>
-                <FieldDescription>
-                  Upload a copy the shipping company can scan to print the return label.
-                </FieldDescription>
                 <Input
                   id={`return-label-${itemRequestId}`}
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
-                  className="mt-1.5"
                   onChange={(e) => setLabelFile(e.target.files?.[0] ?? null)}
                 />
                 {labelFile ?
                   <p className="mt-1.5 text-xs text-muted-foreground">
                     Selected: {labelFile.name}
                   </p>
-                : null}
+                : <p className="mt-1.5 text-xs text-muted-foreground">
+                    JPEG, PNG, WebP, or GIF.
+                  </p>
+                }
               </FieldContent>
             </Field>
-            <Field>
-              <FieldLabel htmlFor={`return-notes-${itemRequestId}`}>
-                Notes for staff
-              </FieldLabel>
-              <FieldContent>
-                <textarea
-                  id={`return-notes-${itemRequestId}`}
-                  rows={3}
-                  value={customerNotes}
-                  onChange={(e) => setCustomerNotes(e.target.value)}
-                  placeholder="Retailer name, RMA number, or special instructions…"
-                  className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm outline-none focus-visible:ring-3"
-                />
-              </FieldContent>
-            </Field>
-          </CollapsibleFieldSection>
+          </section>
+
+          <Field>
+            <FieldLabel htmlFor={`return-notes-${itemRequestId}`}>
+              Notes for staff <span className="font-normal text-muted-foreground">(optional)</span>
+            </FieldLabel>
+            <FieldContent>
+              <FieldDescription>
+                RMA number, retailer name, or special drop-off instructions.
+              </FieldDescription>
+              <textarea
+                id={`return-notes-${itemRequestId}`}
+                rows={3}
+                value={customerNotes}
+                onChange={(e) => setCustomerNotes(e.target.value)}
+                placeholder="Example: Walmart RMA #12345 — return window closes Friday."
+                className={cn(FORM_TEXTAREA_CLASS, "mt-1.5")}
+              />
+            </FieldContent>
+          </Field>
+
+          <Separator className="bg-border/80" />
 
           <label
             className={cn(
-              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors",
+              "flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-sm transition-colors",
               ackPolicy ?
                 "border-primary/30 bg-primary/5"
               : "border-amber-500/35 bg-amber-500/10",
@@ -228,19 +332,23 @@ export function OutsidePurchaseReturnRequestDialog({
               className="mt-0.5 size-4 shrink-0 rounded border-input"
             />
             <span className="leading-snug text-muted-foreground">
-              I understand unpaid problem receipts (damaged, wrong item, missing) may be
-              discarded if I do not accept and pay the return estimate in time.
+              I understand return service and handling must be paid before I can
+              drop off at the carrier. Problem-receipt items that are not returned
+              in time may be discarded per Cart2Barrel policy.
             </span>
           </label>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-secondary px-6 py-4 sm:gap-0">
+        <DialogFooter className="shrink-0 gap-2 border-t border-border bg-muted/30 px-6 py-4 sm:justify-between">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
           <Button type="button" disabled={pending} onClick={onSubmit}>
             {pending ?
-              <Loader2Icon className="size-4 animate-spin" />
+              <>
+                <Loader2Icon className="size-4 animate-spin" aria-hidden />
+                Submitting…
+              </>
             : "Submit return request"}
           </Button>
         </DialogFooter>

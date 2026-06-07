@@ -1,4 +1,8 @@
 import type { ItemRequestLineSnapshot } from "@/db/schema";
+import {
+  OUTSIDE_PURCHASE_RETURN_ESTIMATE_PUBLISHED_PHASE_LABEL,
+  OUTSIDE_PURCHASE_RETURN_REQUESTED_PHASE_LABEL,
+} from "@/lib/outside-purchase-display";
 
 export function itemRequestLineSnapshotPhaseLabel(
   phase: ItemRequestLineSnapshot["phase"]
@@ -36,6 +40,10 @@ export function itemRequestLineSnapshotPhaseLabel(
       return "Customer refund request submitted";
     case "outside_purchase_intake":
       return "Outside purchase intake (staff)";
+    case "outside_purchase_published":
+      return "Published to customer";
+    case "outside_purchase_unpublished":
+      return "Withdrawn from customer";
     case "outside_purchase_payment_prompted":
       return "Customer prompted to pay";
     case "outside_purchase_added_to_cart":
@@ -47,15 +55,15 @@ export function itemRequestLineSnapshotPhaseLabel(
     case "outside_purchase_reinstated_to_active":
       return "Reinstated to Active";
     case "outside_purchase_return_requested":
-      return "Return to retailer requested";
+      return OUTSIDE_PURCHASE_RETURN_REQUESTED_PHASE_LABEL;
     case "outside_purchase_return_estimate_ready":
-      return "Return estimate ready";
+      return OUTSIDE_PURCHASE_RETURN_ESTIMATE_PUBLISHED_PHASE_LABEL;
     case "outside_purchase_return_estimate_accepted":
       return "Return estimate accepted";
     case "outside_purchase_return_cancelled":
       return "Return request cancelled";
     case "outside_purchase_checkout_paid":
-      return "Checkout paid · service fee";
+      return "Checkout";
     default: {
       const _exhaustive: never = phase;
       return _exhaustive;

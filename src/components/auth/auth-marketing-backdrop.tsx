@@ -1,16 +1,8 @@
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
-import { HomeStorefront } from "@/components/marketing/home-storefront";
-import { listActiveSpotlightProductsByCategory } from "@/data/spotlight-category-products";
+import { HomeMarketingHero } from "@/components/marketing/home-marketing-hero";
 
-/** Static marketing shell shown behind sign-in / sign-up (non-interactive). */
-export async function AuthMarketingBackdrop() {
-  let productsByCategory = {};
-  try {
-    productsByCategory = await listActiveSpotlightProductsByCategory();
-  } catch {
-    productsByCategory = {};
-  }
-
+/** Static marketing shell shown behind sign-in / sign-up (non-interactive, no DB reads). */
+export function AuthMarketingBackdrop() {
   return (
     <div
       className="flex min-h-full flex-1 flex-col bg-background"
@@ -22,7 +14,9 @@ export async function AuthMarketingBackdrop() {
           <BrandLogoLink className="pointer-events-none" />
         </div>
       </header>
-      <HomeStorefront isSignedIn={false} productsByCategory={productsByCategory} />
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-10 md:py-14">
+        <HomeMarketingHero />
+      </main>
     </div>
   );
 }

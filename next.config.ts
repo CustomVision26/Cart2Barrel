@@ -3,7 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
-      bodySizeLimit: "4mb",
+      // Out-of-stock / receipt uploads allow up to 8 MB per image (see lib validators).
+      bodySizeLimit: "52mb",
     },
   },
   images: {

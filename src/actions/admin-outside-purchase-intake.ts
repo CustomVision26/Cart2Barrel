@@ -12,10 +12,13 @@ import {
   lineSnapshotPayloadFromItemRequest,
 } from "@/data/item-request-line-snapshots";
 import { getItemRequestById } from "@/data/item-requests";
+import { getOrderContextByItemRequestIds } from "@/data/item-request-order-context";
+import { insertOutsidePurchaseLifecycleSnapshot } from "@/data/outside-purchase-lifecycle-snapshot";
 import { getOutsidePurchaseReturnRequestByItemRequestId } from "@/data/outside-purchase-return-requests";
 import { getOutsidePurchaseServiceTiersForEstimates } from "@/data/merchant-pricing-settings";
 import {
   insertItemQuoteForRequest,
+  getLatestQuoteForItemRequest,
   itemRequestSnapshotForQuote,
   voidActiveQuotesForItemRequest,
 } from "@/data/item-quotes";
@@ -31,10 +34,19 @@ import {
   outsidePurchaseProductUrl,
 } from "@/lib/outside-purchase";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
+import { ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT } from "@/lib/item-quote-void-reason";
+import { adminOutsidePurchaseDeleteEligibility } from "@/lib/outside-purchase-published";
 import {
   isMissingOutsidePurchaseConditionImageUrlColumnError,
+  isMissingOutsidePurchaseConditionImageUrlsColumnError,
   isMissingOutsidePurchaseReceiptImageUrlColumnError,
 } from "@/lib/db-column-missing";
+import {
+  OUTSIDE_PURCHASE_CONDITION_IMAGES_MAX,
+  parseOutsidePurchaseConditionPhotoPlan,
+  productDisplayImageIndexFromFormData,
+  type OutsidePurchaseConditionPhotoPlanEntry,
+} from "@/lib/outside-purchase-condition-images";
 import {
   isRetailerReceiptImageMime,
   retailerReceiptExtensionForMime,
@@ -50,6 +62,8 @@ import {
   parseAdminOutsidePurchaseIntakeInput,
 } from "@/lib/validations/admin-outside-purchase-intake";
 import { recordOutsidePurchasePaymentPromptSchema } from "@/lib/validations/record-outside-purchase-payment-prompt";
+import { recordOutsidePurchasePaymentPromptActivity } from "@/data/user-status-update-events";
+import { outsidePurchasePublishActionSchema } from "@/lib/validations/outside-purchase-publish";
 import {
   blobReadWriteNotConfiguredMessage,
   getBlobReadWriteToken,
@@ -92,6 +106,144 @@ function imageFileFromFormData(formData: FormData, field: string): File | null {
   return raw instanceof File && raw.size > 0 ? raw : null;
 }
 
+function imageFilesFromFormData(formData: FormData, field: string): File[] {
+  return formData
+    .getAll(field)
+    .filter((raw): raw is File => raw instanceof File && raw.size > 0);
+}
+
+function conditionPhotoPlanFromFormData(
+  formData: FormData,
+  isCreate: boolean,
+  newFiles: File[],
+): OutsidePurchaseConditionPhotoPlanEntry[] {
+  if (isCreate) {
+    return newFiles.map(() => ({ type: "new" }));
+  }
+  const parsed = parseOutsidePurchaseConditionPhotoPlan(
+    formData.get("conditionPhotoPlan"),
+  );
+  if (parsed) return parsed;
+  const legacyFile = imageFileFromFormData(formData, "conditionImage");
+  if (legacyFile) {
+    return [{ type: "new" }];
+  }
+  return [];
+}
+
+async function buildOutsidePurchaseConditionImageUrls(
+  itemRequestId: string,
+  formData: FormData,
+  options: { isCreate: boolean },
+): Promise<string[]> {
+  let newFiles = imageFilesFromFormData(formData, "conditionImages");
+  const legacyFile = imageFileFromFormData(formData, "conditionImage");
+  if (newFiles.length === 0 && legacyFile) {
+    newFiles = [legacyFile];
+  }
+
+  const plan = conditionPhotoPlanFromFormData(formData, options.isCreate, newFiles);
+  if (plan.length === 0) return [];
+
+  if (plan.length > OUTSIDE_PURCHASE_CONDITION_IMAGES_MAX) {
+    throw new Error(
+      `At most ${OUTSIDE_PURCHASE_CONDITION_IMAGES_MAX} received condition photos.`,
+    );
+  }
+
+  let fileIndex = 0;
+  const urls: string[] = [];
+  for (const entry of plan) {
+    if (entry.type === "existing") {
+      urls.push(entry.url);
+      continue;
+    }
+    const file = newFiles[fileIndex++];
+    if (!file) continue;
+    const url = await uploadIntakeImageForRequest(
+      itemRequestId,
+      file,
+      "outside-purchase-condition",
+    );
+    if (url) urls.push(url);
+  }
+  return urls;
+}
+
+async function persistOutsidePurchaseConditionPhotos(
+  db: ReturnType<typeof getDb>,
+  itemRequestId: string,
+  formData: FormData,
+  options: { isCreate: boolean },
+): Promise<
+  | {
+      outsidePurchaseConditionImageUrls: string[];
+      outsidePurchaseConditionImageUrl: string | null;
+      productImageUrl: string | null;
+    }
+  | { error: string }
+> {
+  const urls = await buildOutsidePurchaseConditionImageUrls(
+    itemRequestId,
+    formData,
+    options,
+  );
+  if (urls.length === 0) {
+    return {
+      outsidePurchaseConditionImageUrls: [],
+      outsidePurchaseConditionImageUrl: null,
+      productImageUrl: null,
+    };
+  }
+
+  const displayIndex = productDisplayImageIndexFromFormData(formData, 0);
+  const safeIndex = Math.min(
+    Math.max(0, displayIndex),
+    urls.length - 1,
+  );
+  const payload = {
+    outsidePurchaseConditionImageUrls: urls,
+    outsidePurchaseConditionImageUrl: urls[0] ?? null,
+    productImageUrl: urls[safeIndex] ?? urls[0] ?? null,
+  };
+
+  try {
+    await db
+      .update(itemRequests)
+      .set(payload)
+      .where(eq(itemRequests.id, itemRequestId));
+    return payload;
+  } catch (e) {
+    if (isMissingOutsidePurchaseConditionImageUrlsColumnError(e)) {
+      try {
+        await db
+          .update(itemRequests)
+          .set({
+            outsidePurchaseConditionImageUrl: payload.outsidePurchaseConditionImageUrl,
+            productImageUrl: payload.productImageUrl,
+          })
+          .where(eq(itemRequests.id, itemRequestId));
+        return payload;
+      } catch (inner) {
+        if (isMissingOutsidePurchaseConditionImageUrlColumnError(inner)) {
+          return {
+            error:
+              "Condition photos uploaded but could not be saved — run npm run db:push to apply migration 0072_outside_purchase_condition_image_urls.",
+          };
+        }
+        throw inner;
+      }
+    }
+    if (isMissingOutsidePurchaseConditionImageUrlColumnError(e)) {
+      return {
+        error:
+          "Condition photos uploaded but could not be saved — run npm run db:push to apply migration 0066_outside_purchase_condition_image.",
+      };
+    }
+    throw e;
+  }
+}
+
 async function uploadIntakeImageForRequest(
   itemRequestId: string,
   file: File,
@@ -130,11 +282,11 @@ export async function saveAdminOutsidePurchaseIntakeAction(
     return { ok: false, message: "Admin access required." };
   }
 
-  const productImageFile =
-    raw instanceof FormData ? imageFileFromFormData(raw, "productImage") : null;
   const receiptImageFile =
     raw instanceof FormData ? imageFileFromFormData(raw, "receiptImage") : null;
-  const conditionImageFile =
+  const conditionImageFiles =
+    raw instanceof FormData ? imageFilesFromFormData(raw, "conditionImages") : [];
+  const legacyConditionImageFile =
     raw instanceof FormData ? imageFileFromFormData(raw, "conditionImage") : null;
   const fields =
     raw instanceof FormData ? intakeFieldsFromFormData(raw) : raw;
@@ -168,13 +320,14 @@ export async function saveAdminOutsidePurchaseIntakeAction(
   });
 
   if (
-    (productImageFile || receiptImageFile || conditionImageFile) &&
+    (receiptImageFile ||
+      conditionImageFiles.length > 0 ||
+      legacyConditionImageFile) &&
     !getBlobReadWriteToken()
   ) {
     return { ok: false, message: blobReadWriteNotConfiguredMessage() };
   }
 
-  const promptedAt = new Date().toISOString();
   const db = getDb();
   let created;
   try {
@@ -196,7 +349,6 @@ export async function saveAdminOutsidePurchaseIntakeAction(
         outsidePurchaseMissingReason: missingReason,
         outsidePurchaseShelfLocation:
           d.receivedShelfLocation === "" ? null : d.receivedShelfLocation,
-        outsidePurchasePaymentPromptedAt: promptedAt,
       })
       .returning();
   } catch (e) {
@@ -216,21 +368,6 @@ export async function saveAdminOutsidePurchaseIntakeAction(
   }
 
   try {
-    if (productImageFile) {
-      const imageUrl = await uploadIntakeImageForRequest(
-        created.id,
-        productImageFile,
-        "product-images",
-      );
-      if (imageUrl) {
-        await db
-          .update(itemRequests)
-          .set({ productImageUrl: imageUrl })
-          .where(eq(itemRequests.id, created.id));
-        created = { ...created, productImageUrl: imageUrl };
-      }
-    }
-
     if (receiptImageFile) {
       const receiptUrl = await uploadIntakeImageForRequest(
         created.id,
@@ -258,34 +395,33 @@ export async function saveAdminOutsidePurchaseIntakeAction(
       }
     }
 
-    if (conditionImageFile) {
-      const conditionUrl = await uploadIntakeImageForRequest(
+    if (
+      conditionImageFiles.length > 0 ||
+      legacyConditionImageFile ||
+      (raw instanceof FormData &&
+        parseOutsidePurchaseConditionPhotoPlan(raw.get("conditionPhotoPlan"))?.length)
+    ) {
+      const conditionResult = await persistOutsidePurchaseConditionPhotos(
+        db,
         created.id,
-        conditionImageFile,
-        "outside-purchase-condition",
+        raw instanceof FormData ? raw : new FormData(),
+        { isCreate: true },
       );
-      if (conditionUrl) {
-        try {
-          await db
-            .update(itemRequests)
-            .set({ outsidePurchaseConditionImageUrl: conditionUrl })
-            .where(eq(itemRequests.id, created.id));
-          created = {
-            ...created,
-            outsidePurchaseConditionImageUrl: conditionUrl,
-          };
-        } catch (e) {
-          if (isMissingOutsidePurchaseConditionImageUrlColumnError(e)) {
-            return {
-              ok: false,
-              message:
-                "Condition photo uploaded but could not be saved — run npm run db:push to apply migration 0066_outside_purchase_condition_image.",
-              itemRequestId: created.id,
-            };
-          }
-          throw e;
-        }
+      if ("error" in conditionResult) {
+        return {
+          ok: false,
+          message: conditionResult.error,
+          itemRequestId: created.id,
+        };
       }
+      created = {
+        ...created,
+        outsidePurchaseConditionImageUrls:
+          conditionResult.outsidePurchaseConditionImageUrls,
+        outsidePurchaseConditionImageUrl:
+          conditionResult.outsidePurchaseConditionImageUrl,
+        productImageUrl: conditionResult.productImageUrl,
+      };
     }
 
     const snap = itemRequestSnapshotForQuote(created);
@@ -326,14 +462,6 @@ export async function saveAdminOutsidePurchaseIntakeAction(
       line: lineSnapshotPayloadFromItemRequest(created),
       auditMemo: `Outside purchase intake · ${reference} · ${warehouseReceiveConditionLabel(d.receivedCondition)} · ${formatUsd(pricing.totalPriceCents)} service & handling`,
     });
-
-    await insertItemRequestLineSnapshot({
-      itemRequestId: created.id,
-      phase: "outside_purchase_payment_prompted",
-      itemQuoteId: quote.id,
-      line: lineSnapshotPayloadFromItemRequest(created),
-      auditMemo: "Customer prompted to pay service & handling (intake).",
-    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to save estimate.";
     return { ok: false, message: msg, itemRequestId: created.id };
@@ -345,7 +473,7 @@ export async function saveAdminOutsidePurchaseIntakeAction(
 
   return {
     ok: true,
-    message: `Saved ${reference}. Customer owes ${formatUsd(pricing.totalPriceCents)} (service & handling only).`,
+    message: `Saved ${reference} as draft. Publish when the customer should see it in Active products (${formatUsd(pricing.totalPriceCents)} service & handling).`,
     itemRequestId: created.id,
     outsidePurchaseReference: reference,
   };
@@ -361,12 +489,16 @@ export async function updateAdminOutsidePurchaseIntakeAction(
     return { ok: false, message: "Admin access required." };
   }
 
-  const productImageFile =
-    raw instanceof FormData ? imageFileFromFormData(raw, "productImage") : null;
   const receiptImageFile =
     raw instanceof FormData ? imageFileFromFormData(raw, "receiptImage") : null;
-  const conditionImageFile =
+  const conditionImageFiles =
+    raw instanceof FormData ? imageFilesFromFormData(raw, "conditionImages") : [];
+  const legacyConditionImageFile =
     raw instanceof FormData ? imageFileFromFormData(raw, "conditionImage") : null;
+  const conditionPhotoPlan =
+    raw instanceof FormData ?
+      parseOutsidePurchaseConditionPhotoPlan(raw.get("conditionPhotoPlan"))
+    : null;
   const fields =
     raw instanceof FormData ?
       { ...intakeFieldsFromFormData(raw), itemRequestId: raw.get("itemRequestId") }
@@ -390,6 +522,12 @@ export async function updateAdminOutsidePurchaseIntakeAction(
       message: "Only quoted outside-purchase lines can be edited here.",
     };
   }
+  if (existing.outsidePurchasePublishedAt) {
+    return {
+      ok: false,
+      message: "Withdraw this line from the customer before editing.",
+    };
+  }
 
   const reference =
     d.outsidePurchaseReference ?? existing.outsidePurchaseReference ?? formatOutsidePurchaseReference();
@@ -403,7 +541,10 @@ export async function updateAdminOutsidePurchaseIntakeAction(
   });
 
   if (
-    (productImageFile || receiptImageFile || conditionImageFile) &&
+    (receiptImageFile ||
+      conditionImageFiles.length > 0 ||
+      legacyConditionImageFile ||
+      (conditionPhotoPlan && conditionPhotoPlan.length > 0)) &&
     !getBlobReadWriteToken()
   ) {
     return { ok: false, message: blobReadWriteNotConfiguredMessage() };
@@ -435,20 +576,6 @@ export async function updateAdminOutsidePurchaseIntakeAction(
 
   let row = updated;
   try {
-    if (productImageFile) {
-      const imageUrl = await uploadIntakeImageForRequest(
-        row.id,
-        productImageFile,
-        "product-images",
-      );
-      if (imageUrl) {
-        await db
-          .update(itemRequests)
-          .set({ productImageUrl: imageUrl })
-          .where(eq(itemRequests.id, row.id));
-        row = { ...row, productImageUrl: imageUrl };
-      }
-    }
     if (receiptImageFile) {
       const receiptUrl = await uploadIntakeImageForRequest(
         row.id,
@@ -463,19 +590,32 @@ export async function updateAdminOutsidePurchaseIntakeAction(
         row = { ...row, outsidePurchaseReceiptImageUrl: receiptUrl };
       }
     }
-    if (conditionImageFile) {
-      const conditionUrl = await uploadIntakeImageForRequest(
+    if (
+      conditionImageFiles.length > 0 ||
+      legacyConditionImageFile ||
+      (raw instanceof FormData && raw.has("conditionPhotoPlan"))
+    ) {
+      const conditionResult = await persistOutsidePurchaseConditionPhotos(
+        db,
         row.id,
-        conditionImageFile,
-        "outside-purchase-condition",
+        raw instanceof FormData ? raw : new FormData(),
+        { isCreate: false },
       );
-      if (conditionUrl) {
-        await db
-          .update(itemRequests)
-          .set({ outsidePurchaseConditionImageUrl: conditionUrl })
-          .where(eq(itemRequests.id, row.id));
-        row = { ...row, outsidePurchaseConditionImageUrl: conditionUrl };
+      if ("error" in conditionResult) {
+        return {
+          ok: false,
+          message: conditionResult.error,
+          itemRequestId: row.id,
+        };
       }
+      row = {
+        ...row,
+        outsidePurchaseConditionImageUrls:
+          conditionResult.outsidePurchaseConditionImageUrls,
+        outsidePurchaseConditionImageUrl:
+          conditionResult.outsidePurchaseConditionImageUrl,
+        productImageUrl: conditionResult.productImageUrl,
+      };
     }
 
     await voidActiveQuotesForItemRequest(row.id, "staff_replacement");
@@ -568,6 +708,12 @@ export async function recordOutsidePurchasePaymentPromptAction(
           : "Only unpaid outside-purchase lines can be prompted.",
     };
   }
+  if (!req.outsidePurchasePublishedAt) {
+    return {
+      ok: false,
+      message: "Publish this line to the customer before recording a payment prompt.",
+    };
+  }
 
   const promptedAt = new Date().toISOString();
   const db = getDb();
@@ -583,11 +729,209 @@ export async function recordOutsidePurchasePaymentPromptAction(
     auditMemo: "Staff recorded: customer prompted to add to cart and pay.",
   });
 
+  const quote = await getLatestQuoteForItemRequest(req.id);
+  await recordOutsidePurchasePaymentPromptActivity({
+    clerkUserId: req.clerkUserId,
+    itemRequestId: req.id,
+    productName: req.productName,
+    totalPriceCents: quote?.totalPrice ?? null,
+  });
+
   revalidatePath("/admin/item-requests", "layout");
   revalidateDashboardAddItem();
 
   return {
     ok: true,
-    message: "Recorded — customer should add this line to cart from Products → Active.",
+    message:
+      "Prompt to pay sent — the customer was notified to add this line to cart from Products → Active.",
+  };
+}
+
+export type OutsidePurchasePublishState = {
+  ok: boolean;
+  message?: string;
+};
+
+export async function publishOutsidePurchaseAction(
+  raw: unknown,
+): Promise<OutsidePurchasePublishState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = outsidePurchasePublishActionSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid request." };
+  }
+  const { itemRequestId } = parsed.data;
+
+  const req = await getItemRequestById(itemRequestId);
+  if (!req || !isOutsidePurchaseRequest(req)) {
+    return { ok: false, message: "Outside-purchase product not found." };
+  }
+  if (req.status !== "quoted") {
+    return {
+      ok: false,
+      message: "Only quoted outside-purchase lines can be published.",
+    };
+  }
+  if (req.outsidePurchasePublishedAt) {
+    return { ok: false, message: "Already published to the customer." };
+  }
+
+  const publishedAt = new Date().toISOString();
+  const db = getDb();
+  await db
+    .update(itemRequests)
+    .set({ outsidePurchasePublishedAt: publishedAt })
+    .where(eq(itemRequests.id, req.id));
+
+  await insertItemRequestLineSnapshot({
+    itemRequestId: req.id,
+    phase: "outside_purchase_published",
+    line: lineSnapshotPayloadFromItemRequest(req),
+    auditMemo: "Staff published this outside purchase to the customer's Active products.",
+  });
+
+  revalidatePath("/admin/item-requests", "layout");
+  revalidateDashboardAddItem();
+
+  return {
+    ok: true,
+    message: "Published — customer can see this line under Products → Active.",
+  };
+}
+
+export async function withdrawOutsidePurchaseFromCustomerAction(
+  raw: unknown,
+): Promise<OutsidePurchasePublishState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = outsidePurchasePublishActionSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid request." };
+  }
+  const { itemRequestId } = parsed.data;
+
+  const req = await getItemRequestById(itemRequestId);
+  if (!req || !isOutsidePurchaseRequest(req)) {
+    return { ok: false, message: "Outside-purchase product not found." };
+  }
+  if (req.status !== "quoted") {
+    return {
+      ok: false,
+      message:
+        req.status === "approved"
+          ? "Customer already added this to cart — cannot withdraw."
+          : "Only unpublished pool lines can be withdrawn from the customer.",
+    };
+  }
+  if (!req.outsidePurchasePublishedAt) {
+    return { ok: false, message: "This line is not published to the customer." };
+  }
+
+  const db = getDb();
+  await db
+    .update(itemRequests)
+    .set({
+      outsidePurchasePublishedAt: null,
+      outsidePurchasePaymentPromptedAt: null,
+    })
+    .where(eq(itemRequests.id, req.id));
+
+  await insertItemRequestLineSnapshot({
+    itemRequestId: req.id,
+    phase: "outside_purchase_unpublished",
+    line: lineSnapshotPayloadFromItemRequest(req),
+    auditMemo:
+      "Staff withdrew this outside purchase from the customer's Active products.",
+  });
+
+  revalidatePath("/admin/item-requests", "layout");
+  revalidateDashboardAddItem();
+
+  return {
+    ok: true,
+    message: "Withdrawn — customer no longer sees this line until you publish again.",
+  };
+}
+
+export type DeleteAdminOutsidePurchaseIntakeState = OutsidePurchasePublishState;
+
+export async function deleteAdminOutsidePurchaseIntakeAction(
+  raw: unknown,
+): Promise<DeleteAdminOutsidePurchaseIntakeState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = outsidePurchasePublishActionSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid request." };
+  }
+  const { itemRequestId } = parsed.data;
+
+  const req = await getItemRequestById(itemRequestId);
+  if (!req || !isOutsidePurchaseRequest(req)) {
+    return { ok: false, message: "Outside-purchase product not found." };
+  }
+
+  const orderContextMap = await getOrderContextByItemRequestIds([itemRequestId]);
+  const eligibility = adminOutsidePurchaseDeleteEligibility(
+    req,
+    orderContextMap.get(itemRequestId) ?? null,
+  );
+  if (!eligibility.allowed) {
+    return { ok: false, message: eligibility.reason };
+  }
+
+  const wasPublished = Boolean(req.outsidePurchasePublishedAt);
+  const reference =
+    req.outsidePurchaseReference?.trim() || formatOutsidePurchaseReference();
+
+  if (req.status === "quoted") {
+    await voidActiveQuotesForItemRequest(
+      itemRequestId,
+      ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT,
+    );
+  }
+
+  const db = getDb();
+  const [updated] = await db
+    .update(itemRequests)
+    .set({
+      status: "withdrawn",
+      outsidePurchasePublishedAt: null,
+      outsidePurchasePaymentPromptedAt: null,
+    })
+    .where(eq(itemRequests.id, itemRequestId))
+    .returning();
+
+  if (!updated) {
+    return { ok: false, message: "Could not delete this outside purchase." };
+  }
+
+  await insertOutsidePurchaseLifecycleSnapshot({
+    request: updated,
+    phase: "outside_purchase_withdrawn_from_active",
+    auditMemo: wasPublished
+      ? `Staff deleted outside purchase ${reference} — removed from the customer's Active products and admin intake pool.`
+      : `Staff deleted outside purchase intake ${reference} from the admin pool.`,
+  });
+
+  revalidatePath("/admin/item-requests", "layout");
+  revalidatePath("/admin/overview");
+  revalidateDashboardAddItem();
+
+  return {
+    ok: true,
+    message: wasPublished
+      ? "Deleted — customer no longer sees this line in Active products."
+      : "Deleted outside purchase intake record.",
   };
 }

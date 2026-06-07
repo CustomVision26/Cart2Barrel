@@ -16,6 +16,7 @@ import { getLatestQuoteForItemRequest } from "@/data/item-quotes";
 import { formatUsd } from "@/lib/admin-markup";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import { stripSupersededReturnEstimateNoteContent } from "@/lib/outside-purchase-staff-note-display";
 import { isMissingOutsidePurchaseReturnRequestsTableError } from "@/lib/db-column-missing";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { recordOutsidePurchaseReturnEstimateReadyActivity } from "@/data/user-status-update-events";
@@ -66,7 +67,10 @@ export async function publishAdminOutsidePurchaseReturnEstimateAction(
     returnTransitFeeCents > 0 ?
       `Return service & handling: ${formatUsd(baseFeeCents)} + transit ${formatUsd(returnTransitFeeCents)} = ${formatUsd(returnServiceFeeCents)} (customer pays before carrier drop-off).`
     : `Return service & handling: ${formatUsd(returnServiceFeeCents)} (customer pays before carrier drop-off).`;
-  const mergedStaffNote = [quote.staffNote?.trim(), returnStaffNote, feeLine]
+  const baseStaffNote = stripSupersededReturnEstimateNoteContent(
+    quote.staffNote?.trim() ?? "",
+  );
+  const mergedStaffNote = [baseStaffNote, returnStaffNote, feeLine]
     .filter(Boolean)
     .join("\n\n");
 

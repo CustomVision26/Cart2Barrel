@@ -27,7 +27,11 @@ export async function adminMarkItemRequestOutOfStockAction(
   }
 
   try {
-    await markItemRequestOutOfStockForAdmin(parsed.data.itemRequestId);
+    await markItemRequestOutOfStockForAdmin({
+      itemRequestId: parsed.data.itemRequestId,
+      staffNote: parsed.data.staffNote,
+      attachmentImageUrls: parsed.data.attachmentImageUrls,
+    });
     revalidateDashboardAddItem();
     revalidatePath("/admin/item-requests", "layout");
     revalidatePath("/admin/overview");

@@ -5,8 +5,11 @@ import { itemRequests, type ItemRequest } from "@/db/schema";
 import {
   isMissingBatchQuoteSessionIdColumnError,
   isMissingItemRequestOutOfStockStatusError,
+  isMissingOutsidePurchasePublishedAtColumnError,
   isMissingOutsidePurchaseReceiptImageUrlColumnError,
 } from "@/lib/db-column-missing";
+import { isOutsidePurchasePublishedToCustomer } from "@/lib/outside-purchase-published";
+import { repairOutsidePurchaseActiveVisibility } from "@/data/outside-purchase-customer-visibility";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 
 /**
@@ -31,6 +34,7 @@ export const itemRequestsRowLegacySelect = {
   outsidePurchasePaymentPromptedAt: itemRequests.outsidePurchasePaymentPromptedAt,
   outsidePurchaseReceiptImageUrl: itemRequests.outsidePurchaseReceiptImageUrl,
   outsidePurchaseConditionImageUrl: itemRequests.outsidePurchaseConditionImageUrl,
+  outsidePurchaseConditionImageUrls: itemRequests.outsidePurchaseConditionImageUrls,
   outsidePurchaseReceivedCondition: itemRequests.outsidePurchaseReceivedCondition,
   outsidePurchaseMissingReason: itemRequests.outsidePurchaseMissingReason,
   outsidePurchaseMissingResolvedAt: itemRequests.outsidePurchaseMissingResolvedAt,
@@ -63,14 +67,26 @@ export const itemRequestsRowSelectWithoutReceiptImage = {
   batchQuoteSessionId: itemRequests.batchQuoteSessionId,
 } as const;
 
-type ItemRequestLegacyRow = Omit<ItemRequest, "batchQuoteSessionId">;
+type ItemRequestLegacyRow = Omit<
+  ItemRequest,
+  | "batchQuoteSessionId"
+  | "outsidePurchasePublishedAt"
+  | "outOfStockStaffNote"
+  | "outOfStockAttachmentImageUrls"
+> & {
+  outsidePurchasePublishedAt?: ItemRequest["outsidePurchasePublishedAt"];
+  outOfStockStaffNote?: ItemRequest["outOfStockStaffNote"];
+  outOfStockAttachmentImageUrls?: ItemRequest["outOfStockAttachmentImageUrls"];
+};
 type OutsidePurchaseIntakeOptionalColumns =
   | "outsidePurchaseReceiptImageUrl"
   | "outsidePurchaseConditionImageUrl"
+  | "outsidePurchaseConditionImageUrls"
   | "outsidePurchaseReceivedCondition"
   | "outsidePurchaseMissingReason"
   | "outsidePurchaseMissingResolvedAt"
-  | "outsidePurchaseShelfLocation";
+  | "outsidePurchaseShelfLocation"
+  | "outsidePurchasePublishedAt";
 type ItemRequestLegacyRowWithoutReceipt = Omit<
   ItemRequestLegacyRow,
   OutsidePurchaseIntakeOptionalColumns
@@ -90,6 +106,10 @@ export function withLegacyItemRequestDefaults(
       "outsidePurchaseConditionImageUrl" in row ?
         (row.outsidePurchaseConditionImageUrl ?? null)
       : null,
+    outsidePurchaseConditionImageUrls:
+      "outsidePurchaseConditionImageUrls" in row ?
+        (row.outsidePurchaseConditionImageUrls ?? null)
+      : null,
     outsidePurchaseReceivedCondition:
       "outsidePurchaseReceivedCondition" in row ?
         (row.outsidePurchaseReceivedCondition ?? null)
@@ -106,12 +126,29 @@ export function withLegacyItemRequestDefaults(
       "outsidePurchaseShelfLocation" in row ?
         (row.outsidePurchaseShelfLocation ?? null)
       : null,
+    outsidePurchasePublishedAt:
+      "outsidePurchasePublishedAt" in row ?
+        (row.outsidePurchasePublishedAt ?? null)
+      : "createdAt" in row ?
+        row.createdAt
+      : null,
+    outOfStockStaffNote:
+      "outOfStockStaffNote" in row ? (row.outOfStockStaffNote ?? null) : null,
+    outOfStockAttachmentImageUrls:
+      "outOfStockAttachmentImageUrls" in row ?
+        (row.outOfStockAttachmentImageUrls ?? null)
+      : null,
   };
 }
 
 export function itemRequestFromRowWithoutReceiptImage(
-  row: Omit<ItemRequest, OutsidePurchaseIntakeOptionalColumns> & {
+  row: Omit<
+    ItemRequest,
+    OutsidePurchaseIntakeOptionalColumns | "outOfStockStaffNote" | "outOfStockAttachmentImageUrls"
+  > & {
     batchQuoteSessionId?: string | null;
+    outOfStockStaffNote?: ItemRequest["outOfStockStaffNote"];
+    outOfStockAttachmentImageUrls?: ItemRequest["outOfStockAttachmentImageUrls"];
   },
 ): ItemRequest {
   return {
@@ -119,10 +156,14 @@ export function itemRequestFromRowWithoutReceiptImage(
     batchQuoteSessionId: row.batchQuoteSessionId ?? null,
     outsidePurchaseReceiptImageUrl: null,
     outsidePurchaseConditionImageUrl: null,
+    outsidePurchaseConditionImageUrls: null,
     outsidePurchaseReceivedCondition: null,
     outsidePurchaseMissingReason: null,
     outsidePurchaseMissingResolvedAt: null,
     outsidePurchaseShelfLocation: null,
+    outsidePurchasePublishedAt: row.createdAt,
+    outOfStockStaffNote: row.outOfStockStaffNote ?? null,
+    outOfStockAttachmentImageUrls: row.outOfStockAttachmentImageUrls ?? null,
   };
 }
 
@@ -208,7 +249,12 @@ async function listActiveItemRequestsForUserQuery(
           )
         )
         .orderBy(desc(itemRequests.createdAt));
-      return rows.map(withLegacyItemRequestDefaults);
+      return filterCustomerVisibleActiveRequests(
+        await prepareCustomerActiveItemRequests(
+          clerkUserId,
+          rows.map(withLegacyItemRequestDefaults),
+        ),
+      );
     } catch (e) {
       if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) throw e;
       const rows = await db
@@ -221,10 +267,15 @@ async function listActiveItemRequestsForUserQuery(
           )
         )
         .orderBy(desc(itemRequests.createdAt));
-      return rows.map(withLegacyItemRequestDefaults);
+      return filterCustomerVisibleActiveRequests(
+        await prepareCustomerActiveItemRequests(
+          clerkUserId,
+          rows.map(withLegacyItemRequestDefaults),
+        ),
+      );
     }
   }
-  return db
+  const rows = await db
     .select()
     .from(itemRequests)
     .where(
@@ -234,6 +285,20 @@ async function listActiveItemRequestsForUserQuery(
       )
     )
     .orderBy(desc(itemRequests.createdAt));
+  return filterCustomerVisibleActiveRequests(
+    await prepareCustomerActiveItemRequests(clerkUserId, rows),
+  );
+}
+
+function filterCustomerVisibleActiveRequests(rows: ItemRequest[]): ItemRequest[] {
+  return rows.filter(isOutsidePurchasePublishedToCustomer);
+}
+
+async function prepareCustomerActiveItemRequests(
+  clerkUserId: string,
+  rows: ItemRequest[],
+): Promise<ItemRequest[]> {
+  return repairOutsidePurchaseActiveVisibility(clerkUserId, rows);
 }
 
 /** In-flight requests (not in cart, not closed). Includes rows attached to a batch quote
@@ -261,7 +326,19 @@ export async function listActiveItemRequestsForUser(
           )
         )
         .orderBy(desc(itemRequests.createdAt));
-      return rows.map(itemRequestFromRowWithoutReceiptImage);
+      return filterCustomerVisibleActiveRequests(
+        await prepareCustomerActiveItemRequests(
+          clerkUserId,
+          rows.map(itemRequestFromRowWithoutReceiptImage),
+        ),
+      );
+    }
+    if (isMissingOutsidePurchasePublishedAtColumnError(e)) {
+      return listActiveItemRequestsForUserQuery(
+        clerkUserId,
+        ACTIVE_REQUEST_STATUSES,
+        true,
+      );
     }
     if (isMissingItemRequestOutOfStockStatusError(e)) {
       try {

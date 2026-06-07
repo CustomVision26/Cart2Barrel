@@ -1,11 +1,17 @@
 import type { ItemRequest, ItemRequestLineSnapshot } from "@/db/schema";
 import { isOutsidePurchaseRequest, outsidePurchaseReferenceDisplay } from "@/lib/outside-purchase";
 import { itemRequestStatusLabelForDisplay } from "@/lib/item-request-status-label";
+import {
+  OUTSIDE_PURCHASE_RETURN_ESTIMATE_PUBLISHED_PHASE_LABEL,
+  OUTSIDE_PURCHASE_RETURN_REQUESTED_PHASE_LABEL,
+} from "@/lib/outside-purchase-display";
 import { PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL } from "@/lib/outside-purchase-paid-status";
 
 /** Snapshot phases that belong on the outside-purchase customer status track. */
 export const OUTSIDE_PURCHASE_LIFECYCLE_PHASES = [
   "outside_purchase_intake",
+  "outside_purchase_published",
+  "outside_purchase_unpublished",
   "outside_purchase_payment_prompted",
   "outside_purchase_added_to_cart",
   "outside_purchase_removed_from_cart",
@@ -79,7 +85,11 @@ export function outsidePurchaseLifecycleEventTitle(
 ): string {
   switch (phase) {
     case "outside_purchase_intake":
-      return "Sent to customer by staff";
+      return "Recorded by staff (draft)";
+    case "outside_purchase_published":
+      return "Published to customer · Active products";
+    case "outside_purchase_unpublished":
+      return "Withdrawn from customer · admin pool";
     case "outside_purchase_payment_prompted":
       return "Payment due · staff prompted customer";
     case "outside_purchase_added_to_cart":
@@ -93,9 +103,9 @@ export function outsidePurchaseLifecycleEventTitle(
     case "outside_purchase_reinstated_to_active":
       return "Reinstated to Active";
     case "outside_purchase_return_requested":
-      return "Return to retailer requested";
+      return OUTSIDE_PURCHASE_RETURN_REQUESTED_PHASE_LABEL;
     case "outside_purchase_return_estimate_ready":
-      return "Return estimate ready";
+      return OUTSIDE_PURCHASE_RETURN_ESTIMATE_PUBLISHED_PHASE_LABEL;
     case "outside_purchase_return_estimate_accepted":
       return "Return estimate accepted · payment due";
     case "outside_purchase_return_cancelled":

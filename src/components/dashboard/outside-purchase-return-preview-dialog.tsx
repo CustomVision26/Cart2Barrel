@@ -24,25 +24,12 @@ import {
   OUTSIDE_PURCHASE_RETURN_POLICY_NOTES,
   outsidePurchaseReturnPreviewTitle,
 } from "@/lib/outside-purchase-return-preview-copy";
-import type { WarehouseReceiveCondition } from "@/lib/warehouse-receive-condition";
+import { parseOutsidePurchaseReceivedCondition } from "@/lib/outside-purchase-display";
 
 type OutsidePurchaseReturnPreviewDialogProps = {
   request: ItemRequest;
   returnRequest: OutsidePurchaseReturnRequest | null;
 };
-
-function parseCondition(raw: string | null): WarehouseReceiveCondition | null {
-  const v = raw?.trim();
-  if (
-    v === "good" ||
-    v === "damaged" ||
-    v === "missing" ||
-    v === "wrong_item"
-  ) {
-    return v;
-  }
-  return null;
-}
 
 export function OutsidePurchaseReturnPreviewDialog({
   request,
@@ -50,7 +37,9 @@ export function OutsidePurchaseReturnPreviewDialog({
 }: OutsidePurchaseReturnPreviewDialogProps) {
   const [open, setOpen] = useState(false);
   const [accepting, startAccept] = useTransition();
-  const condition = parseCondition(request.outsidePurchaseReceivedCondition);
+  const condition = parseOutsidePurchaseReceivedCondition(
+    request.outsidePurchaseReceivedCondition,
+  );
   const canAccept = returnRequest?.status === "estimate_ready";
   const feePublished = returnRequest?.returnServiceFeeCents != null;
 

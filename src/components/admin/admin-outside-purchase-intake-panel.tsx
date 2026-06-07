@@ -3,26 +3,46 @@
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useRouter } from "next/navigation";
 import { ChevronDownIcon, ChevronRightIcon, Loader2Icon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useId, useMemo, useState, useTransition } from "react";
+import { useCallback, useId, useMemo, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import {
+  deleteAdminOutsidePurchaseIntakeAction,
   recordOutsidePurchasePaymentPromptAction,
+  publishOutsidePurchaseAction,
   saveAdminOutsidePurchaseIntakeAction,
+  withdrawOutsidePurchaseFromCustomerAction,
 } from "@/actions/admin-outside-purchase-intake";
 import { AdminOutsidePurchaseEditDialog } from "@/components/admin/admin-outside-purchase-edit-dialog";
+import {
+  appendOutsidePurchaseConditionPhotosToFormData,
+  displayPhotoPreviewUrl,
+  OutsidePurchaseConditionPhotosField,
+  type OutsidePurchaseConditionPhotoDraft,
+} from "@/components/admin/outside-purchase-condition-photos-field";
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { CartLinePriceBreakdown } from "@/components/dashboard/cart-line-price-breakdown";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
 import { HelpBalloon } from "@/components/ui/help-balloon";
+import { ReceivedPhotosViewer } from "@/components/orders/received-photos-viewer";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { SectionTitleWithHelp } from "@/components/ui/section-title-with-help";
-import { ImageFileInput } from "@/components/ui/image-file-input";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
@@ -38,6 +58,7 @@ import {
   formatOutsidePurchaseReference,
   outsidePurchaseReferenceDisplay,
 } from "@/lib/outside-purchase";
+import { outsidePurchaseShowsPublishedWorkflowWhileLimited } from "@/lib/outside-purchase-display";
 import { OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX } from "@/lib/outside-purchase-staff-note";
 import {
   itemRequestStatusBadgeKindForDisplay,
@@ -45,6 +66,7 @@ import {
 } from "@/lib/item-request-status-label";
 import type { OutsidePurchaseReturnRequest } from "@/db/schema";
 import { displayProductSiteName } from "@/lib/site-name";
+import { outsidePurchaseConditionPhotosFromRequest } from "@/lib/outside-purchase-condition-images";
 import {
   adminCustomerDisplayLabel,
   adminCustomerSortKey,
@@ -64,6 +86,63 @@ import type {
 } from "@/lib/warehouse-receive-condition";
 import { WAREHOUSE_MISSING_REASON_OPTIONS } from "@/lib/warehouse-receive-condition";
 import { cn } from "@/lib/utils";
+import {
+  appTableEmpty,
+  appTableHead,
+  appTableScroll,
+  appTableShell,
+} from "@/lib/app-table-surfaces";
+import {
+  adminOutsidePurchaseDeleteEligibility,
+  isOutsidePurchaseAdminActionsLimited,
+  isOutsidePurchaseAdminDraft,
+  outsidePurchaseAllowsAdminIntakeEdit,
+  outsidePurchaseAdminNeedsPublishToCustomer,
+  outsidePurchaseAdminShowsWorkflowSection,
+} from "@/lib/outside-purchase-published";
+import { Separator } from "@/components/ui/separator";
+
+const FORM_SELECT_CLASS = cn(
+  "h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm text-foreground",
+  "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+  "dark:bg-input/30",
+);
+
+const FORM_TEXTAREA_CLASS = cn(
+  "border-input bg-background placeholder:text-muted-foreground",
+  "focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30",
+  "flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm outline-none focus-visible:ring-3",
+);
+
+const SECTION_HEADING_CLASS =
+  "border-b border-border/80 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+
+const ACTION_GROUP_LABEL_CLASS =
+  "text-[10px] font-semibold uppercase tracking-wider text-muted-foreground";
+
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-4 rounded-xl border border-border/80 bg-background/50 p-4 ring-1 ring-foreground/5">
+      <div>
+        <h3 className={SECTION_HEADING_CLASS}>{title}</h3>
+        {description ?
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            {description}
+          </p>
+        : null}
+      </div>
+      <div className="space-y-4">{children}</div>
+    </div>
+  );
+}
 
 function parseDollarsToCents(raw: string): number {
   const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");
@@ -142,7 +221,13 @@ type OutsidePurchaseProductRowProps = {
   outsidePurchaseServiceTiers: MerchantServiceTierRow[];
   saving: boolean;
   promptingId: string | null;
+  publishingId: string | null;
+  withdrawingId: string | null;
+  deletingId: string | null;
   onRecordPrompt: (itemRequestId: string) => void;
+  onPublish: (itemRequestId: string) => void;
+  onWithdraw: (itemRequestId: string) => void;
+  onDelete: (itemRequestId: string) => void;
 };
 
 function OutsidePurchaseProductRow({
@@ -154,125 +239,290 @@ function OutsidePurchaseProductRow({
   outsidePurchaseServiceTiers,
   saving,
   promptingId,
+  publishingId,
+  withdrawingId,
+  deletingId,
   onRecordPrompt,
+  onPublish,
+  onWithdraw,
+  onDelete,
 }: OutsidePurchaseProductRowProps) {
   const ref =
     outsidePurchaseReferenceDisplay(r) ?? r.outsidePurchaseReference ?? "—";
   const prompted = Boolean(r.outsidePurchasePaymentPromptedAt);
+  const published = Boolean(r.outsidePurchasePublishedAt);
+  const isDraft = isOutsidePurchaseAdminDraft(r);
+  const limitedActions = isOutsidePurchaseAdminActionsLimited(r, orderContext);
+  const showPublishedReturnEstimateWorkflow =
+    outsidePurchaseShowsPublishedWorkflowWhileLimited(r, returnReq);
+  const needsPublishToCustomer = outsidePurchaseAdminNeedsPublishToCustomer(r);
+  const showWorkflowSection = outsidePurchaseAdminShowsWorkflowSection(
+    r,
+    limitedActions,
+    { showPublishedReturnEstimateWorkflow },
+  );
+  const chargeLabel = limitedActions ? "Review charges" : "Preview charges";
+  const conditionPhotos = outsidePurchaseConditionPhotosFromRequest(r);
+  const deleteEligibility = adminOutsidePurchaseDeleteEligibility(r, orderContext);
+  const isDeleting = saving && deletingId === r.id;
+  const statusLabel = itemRequestStatusLabelForDisplay(
+    r,
+    returnReq,
+    orderContext,
+    "admin",
+    snapshots,
+  );
+  const actionsDescription =
+    needsPublishToCustomer && limitedActions ?
+      "Unpublished — publish so the customer sees this on Active."
+    : isDraft ?
+      "Draft — not visible to the customer until published."
+    : showPublishedReturnEstimateWorkflow ?
+      "Published — customer can view this line in Active products."
+    : limitedActions ?
+      "Checkout in progress — limited actions available."
+    : published ?
+      "Published — customer can view this line in Active products."
+    : "Ready for review and publication.";
 
   return (
-    <tr className="align-top">
-      <td className="px-3 py-3 font-mono text-xs text-primary">{ref}</td>
-      <td className="max-w-[12rem] px-3 py-3">
-        <div className="flex gap-2">
+    <tr className="align-top transition-colors hover:bg-muted/40">
+      <td className="whitespace-nowrap px-3 py-3.5">
+        <span className="inline-flex rounded-md border border-primary/20 bg-primary/5 px-2 py-1 font-mono text-[11px] font-medium text-primary">
+          {ref}
+        </span>
+      </td>
+      <td className="max-w-[14rem] px-3 py-3.5">
+        <div className="flex gap-3">
           <ProductRequestThumbnail
             variant="admin"
             imageUrl={r.productImageUrl}
             productLabel={r.productName}
+            className="size-14 shrink-0"
           />
-          <div className="min-w-0">
-            <p className="line-clamp-2 font-medium text-foreground">
+          <div className="min-w-0 space-y-1">
+            <p className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
               {r.productName?.trim() || "—"}
             </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {displayProductSiteName(r)}
             </p>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-              {r.outsidePurchaseReceiptImageUrl ?
-                <a
-                  href={r.outsidePurchaseReceiptImageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block text-xs text-primary hover:underline"
-                >
-                  View receipt
-                </a>
-              : null}
-              {r.outsidePurchaseConditionImageUrl ?
-                <a
-                  href={r.outsidePurchaseConditionImageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block text-xs text-primary hover:underline"
-                >
-                  View condition photo
-                </a>
-              : null}
-            </div>
+            {(r.outsidePurchaseReceiptImageUrl || conditionPhotos.length > 0) ?
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {r.outsidePurchaseReceiptImageUrl ?
+                  <a
+                    href={r.outsidePurchaseReceiptImageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center rounded-md border border-border/70 bg-background px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-muted/60"
+                  >
+                    Receipt
+                  </a>
+                : null}
+                {conditionPhotos.length > 0 ?
+                  <ReceivedPhotosViewer
+                    photos={conditionPhotos}
+                    triggerLabel="Condition"
+                    triggerClassName="inline-flex h-auto items-center rounded-md border border-border/70 bg-background px-2 py-0.5 text-[11px] font-medium text-primary shadow-none hover:bg-muted/60"
+                  />
+                : null}
+              </div>
+            : null}
           </div>
         </div>
       </td>
-      <td className="px-3 py-3 tabular-nums">
-        {quote ? formatUsd(quote.totalPrice) : "—"}
+      <td className="px-3 py-3.5 tabular-nums">
+        <span className="text-sm font-medium text-foreground">
+          {quote ? formatUsd(quote.totalPrice) : "—"}
+        </span>
+        {quote ?
+          <p className="mt-0.5 text-[10px] text-muted-foreground">Service due</p>
+        : null}
       </td>
-      <td className="px-3 py-3">
+      <td className="px-3 py-3.5">
         <StatusBadge
           kind={itemRequestStatusBadgeKindForDisplay(
             r,
             returnReq,
             orderContext,
             "admin",
+            snapshots,
           )}
-          title={
-            orderContext ?
-              itemRequestStatusLabelForDisplay(
-                r,
-                returnReq,
-                orderContext,
-                "admin",
-              )
-            : r.status
-          }
+          title={statusLabel}
         >
-          {itemRequestStatusLabelForDisplay(
-            r,
-            returnReq,
-            orderContext,
-            "admin",
-          )}
+          {statusLabel}
         </StatusBadge>
-        {prompted ?
-          <p className="mt-1 text-[10px] text-muted-foreground">Prompt recorded</p>
+        {isDraft ?
+          <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+            Not visible to customer
+          </p>
+        : prompted ?
+          <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+            Payment prompt recorded
+          </p>
         : null}
       </td>
-      <td className="px-3 py-3">
-        <div className="flex flex-col gap-2">
-          {r.status === "quoted" ?
-            <AdminOutsidePurchaseEditDialog
-              request={r}
-              quote={quote ?? null}
-              outsidePurchaseServiceTiers={outsidePurchaseServiceTiers}
-              returnRequest={returnReq}
-            />
-          : null}
-          <ItemRequestLineAuditDialog
-            itemRequestId={r.id}
-            productLabel={r.productName?.trim() || ""}
-            snapshots={snapshots}
-            triggerLabel="Status records"
-          />
-          {quote ?
-            <QuoteEstimatePreviewDialog
-              itemRequestId={r.id}
-              label="Preview charges"
-            />
-          : null}
-          {r.status === "quoted" ?
-            <Button
-              type="button"
-              size="sm"
-              variant={prompted ? "outline" : "default"}
-              disabled={saving && promptingId === r.id}
-              onClick={() => onRecordPrompt(r.id)}
-            >
-              {saving && promptingId === r.id ?
-                <Loader2Icon className="size-3.5 animate-spin" />
-              : prompted ?
-                "Re-record prompt"
-              : "Record payment prompt"}
-            </Button>
-          : null}
-        </div>
+      <td className="min-w-[13rem] px-3 py-3.5">
+        <CollapsibleFieldSection
+          compact
+          title="Actions"
+          description={actionsDescription}
+          defaultOpen={
+            isDraft ||
+            showPublishedReturnEstimateWorkflow ||
+            needsPublishToCustomer ||
+            (!limitedActions && !published)
+          }
+          className="bg-background"
+        >
+          <div className="space-y-3">
+            {showWorkflowSection ?
+              <div className="space-y-2">
+                <p className={ACTION_GROUP_LABEL_CLASS}>Workflow</p>
+                <div className="flex flex-col gap-1.5">
+                  {showPublishedReturnEstimateWorkflow ?
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="w-full justify-center"
+                      disabled
+                      aria-label="Published to customer"
+                    >
+                      Published
+                    </Button>
+                  : published ?
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full justify-center"
+                      disabled={saving && withdrawingId === r.id}
+                      onClick={() => onWithdraw(r.id)}
+                    >
+                      {saving && withdrawingId === r.id ?
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                      : "Withdraw from customer"}
+                    </Button>
+                  : <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      className="w-full justify-center"
+                      disabled={saving && publishingId === r.id}
+                      onClick={() => onPublish(r.id)}
+                    >
+                      {saving && publishingId === r.id ?
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                      : "Publish to customer"}
+                    </Button>
+                  }
+                  {published && !showPublishedReturnEstimateWorkflow ?
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={prompted ? "outline" : "secondary"}
+                      className="w-full justify-center"
+                      disabled={saving && promptingId === r.id}
+                      onClick={() => onRecordPrompt(r.id)}
+                    >
+                      {saving && promptingId === r.id ?
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                      : "Record payment prompt"}
+                    </Button>
+                  : null}
+                </div>
+              </div>
+            : null}
+
+            <div className="space-y-2">
+              <p className={ACTION_GROUP_LABEL_CLASS}>Review &amp; edit</p>
+              <div className="flex flex-col gap-1.5">
+                {!limitedActions && outsidePurchaseAllowsAdminIntakeEdit(r) ?
+                  <AdminOutsidePurchaseEditDialog
+                    request={r}
+                    quote={quote ?? null}
+                    outsidePurchaseServiceTiers={outsidePurchaseServiceTiers}
+                    returnRequest={returnReq}
+                  />
+                : null}
+                <ItemRequestLineAuditDialog
+                  itemRequestId={r.id}
+                  productLabel={r.productName?.trim() || ""}
+                  snapshots={snapshots}
+                  triggerLabel="Status records"
+                  isOutsidePurchase
+                  conditionPhotos={outsidePurchaseConditionPhotosFromRequest(r)}
+                  receiptPhotoUrl={r.outsidePurchaseReceiptImageUrl}
+                  productImageUrl={r.productImageUrl}
+                  quotes={quote ? [quote] : []}
+                  estimateQuote={quote ?? null}
+                />
+                {quote ?
+                  <QuoteEstimatePreviewDialog
+                    itemRequestId={r.id}
+                    label={chargeLabel}
+                  />
+                : null}
+              </div>
+            </div>
+
+            {outsidePurchaseAllowsAdminIntakeEdit(r) ?
+              <>
+                <Separator className="bg-border/80" />
+                <AlertDialog>
+                  <AlertDialogTrigger
+                    render={
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!deleteEligibility.allowed || isDeleting}
+                        title={
+                          deleteEligibility.allowed ?
+                            "Permanently remove this intake record"
+                          : deleteEligibility.reason
+                        }
+                        className="w-full justify-center border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      />
+                    }
+                  >
+                    {isDeleting ?
+                      <>
+                        <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
+                        Removing…
+                      </>
+                    : "Delete record"}
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this outside purchase?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This permanently removes{" "}
+                        <span className="font-medium text-foreground">{ref}</span>{" "}
+                        from the intake pool. The line is archived in Product history
+                        and cannot be restored from this screen.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel
+                        render={<Button type="button" variant="outline" />}
+                      >
+                        Cancel
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        render={<Button type="button" variant="destructive" />}
+                        onClick={() => onDelete(r.id)}
+                      >
+                        Delete record
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            : null}
+          </div>
+        </CollapsibleFieldSection>
       </td>
     </tr>
   );
@@ -301,10 +551,18 @@ export function AdminOutsidePurchaseIntakePanel({
   const recentGroupsPanelId = useId();
   const [saving, startSave] = useTransition();
   const [promptingId, setPromptingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openClerkUserId, setOpenClerkUserId] = useState<string | null>(null);
 
   const customerGroups = useMemo(
     () => groupOutsidePurchaseRowsByCustomer(recentRows),
+    [recentRows],
+  );
+  const draftCount = useMemo(
+    () =>
+      recentRows.filter((row) => isOutsidePurchaseAdminDraft(row.request)).length,
     [recentRows],
   );
 
@@ -324,16 +582,18 @@ export function AdminOutsidePurchaseIntakePanel({
   const [receivedShelfLocation, setReceivedShelfLocation] = useState("");
   const [receiptNote, setReceiptNote] = useState("");
   const [staffNote, setStaffNote] = useState(OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [receiptImageFile, setReceiptImageFile] = useState<File | null>(null);
   const [receiptImagePreview, setReceiptImagePreview] = useState<string | null>(
     null,
   );
-  const [conditionImageFile, setConditionImageFile] = useState<File | null>(null);
-  const [conditionImagePreview, setConditionImagePreview] = useState<
-    string | null
-  >(null);
+  const [conditionPhotos, setConditionPhotos] = useState<
+    OutsidePurchaseConditionPhotoDraft[]
+  >([]);
+  const [displayPhotoId, setDisplayPhotoId] = useState<string | null>(null);
+  const displayImagePreview = displayPhotoPreviewUrl(
+    conditionPhotos,
+    displayPhotoId,
+  );
 
   const pricingPreview = useMemo(() => {
     return computeOutsidePurchaseCustomerQuoteCents({
@@ -372,32 +632,15 @@ export function AdminOutsidePurchaseIntakePanel({
     setReceivedShelfLocation("");
     setReceiptNote("");
     setStaffNote(OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX);
-    setImageFile(null);
-    revokeBlobPreviewUrl(imagePreview);
-    setImagePreview(null);
     setReceiptImageFile(null);
     revokeBlobPreviewUrl(receiptImagePreview);
     setReceiptImagePreview(null);
-    setConditionImageFile(null);
-    revokeBlobPreviewUrl(conditionImagePreview);
-    setConditionImagePreview(null);
-  }, [imagePreview, receiptImagePreview, conditionImagePreview]);
-
-  const onPickProductImage = useCallback(
-    (fileList: FileList | null) => {
-      const file = fileList?.[0];
-      if (!file) return;
-      const err = validateProductImageFile(file);
-      if (err) {
-        toast.error(err);
-        return;
-      }
-      setImageFile(file);
-      revokeBlobPreviewUrl(imagePreview);
-      setImagePreview(URL.createObjectURL(file));
-    },
-    [imagePreview],
-  );
+    for (const photo of conditionPhotos) {
+      if (photo.file) revokeBlobPreviewUrl(photo.previewUrl);
+    }
+    setConditionPhotos([]);
+    setDisplayPhotoId(null);
+  }, [conditionPhotos, receiptImagePreview]);
 
   const onPickReceiptImage = useCallback(
     (fileList: FileList | null) => {
@@ -413,22 +656,6 @@ export function AdminOutsidePurchaseIntakePanel({
       setReceiptImagePreview(URL.createObjectURL(file));
     },
     [receiptImagePreview],
-  );
-
-  const onPickConditionImage = useCallback(
-    (fileList: FileList | null) => {
-      const file = fileList?.[0];
-      if (!file) return;
-      const err = validateProductImageFile(file);
-      if (err) {
-        toast.error(err);
-        return;
-      }
-      setConditionImageFile(file);
-      revokeBlobPreviewUrl(conditionImagePreview);
-      setConditionImagePreview(URL.createObjectURL(file));
-    },
-    [conditionImagePreview],
   );
 
   const onSubmit = () => {
@@ -460,9 +687,12 @@ export function AdminOutsidePurchaseIntakePanel({
     fd.set("receivedShelfLocation", receivedShelfLocation.trim());
     if (receiptNote.trim()) fd.set("note", receiptNote.trim());
     if (staffNote.trim()) fd.set("staffNote", staffNote.trim());
-    if (imageFile) fd.set("productImage", imageFile);
     if (receiptImageFile) fd.set("receiptImage", receiptImageFile);
-    if (conditionImageFile) fd.set("conditionImage", conditionImageFile);
+    appendOutsidePurchaseConditionPhotosToFormData(
+      fd,
+      conditionPhotos,
+      displayPhotoId,
+    );
 
     startSave(async () => {
       const res = await saveAdminOutsidePurchaseIntakeAction(fd);
@@ -490,370 +720,409 @@ export function AdminOutsidePurchaseIntakePanel({
     });
   };
 
+  const onPublish = (itemRequestId: string) => {
+    setPublishingId(itemRequestId);
+    startSave(async () => {
+      const res = await publishOutsidePurchaseAction({ itemRequestId });
+      setPublishingId(null);
+      if (res.ok) {
+        toast.success(res.message ?? "Published.");
+        router.refresh();
+      } else {
+        toast.error(res.message ?? "Could not publish.");
+      }
+    });
+  };
+
+  const onWithdraw = (itemRequestId: string) => {
+    setWithdrawingId(itemRequestId);
+    startSave(async () => {
+      const res = await withdrawOutsidePurchaseFromCustomerAction({ itemRequestId });
+      setWithdrawingId(null);
+      if (res.ok) {
+        toast.success(res.message ?? "Withdrawn.");
+        router.refresh();
+      } else {
+        toast.error(res.message ?? "Could not withdraw.");
+      }
+    });
+  };
+
+  const onDelete = (itemRequestId: string) => {
+    setDeletingId(itemRequestId);
+    startSave(async () => {
+      const res = await deleteAdminOutsidePurchaseIntakeAction({ itemRequestId });
+      setDeletingId(null);
+      if (res.ok) {
+        toast.success(res.message ?? "Deleted.");
+        router.refresh();
+      } else {
+        toast.error(res.message ?? "Could not delete.");
+      }
+    });
+  };
+
   return (
     <div className="space-y-8">
-      <section className="rounded-lg border border-border bg-card p-4 sm:p-6">
-        <div className="space-y-1">
+      <section className={cn(appTableShell, "overflow-hidden")}>
+        <div className="border-b border-border bg-muted/60 px-4 py-5 sm:px-6">
           <SectionTitleWithHelp
             title="Outside purchase intake"
-            titleClassName="text-lg font-semibold text-foreground"
+            titleClassName="text-lg font-semibold tracking-tight text-foreground"
             help={
               <>
-                Record products the customer bought elsewhere and shipped to your address.
-                Each line gets a unique{" "}
-                <span className="font-mono text-xs">OP-YYYYMMDD-XXXX</span> reference. The
-                customer pays{" "}
+                Record products the customer bought elsewhere and shipped to your
+                address. Each line receives a unique{" "}
+                <span className="font-mono text-xs">OP-YYYYMMDD-XXXX</span>{" "}
+                reference. The customer pays{" "}
                 <span className="font-medium text-foreground">
                   outside purchase service &amp; handling only
                 </span>
-                , calculated from your outside-purchase fee tiers and the listed unit price ×
-                quantity. In-app service &amp; handling fees do not apply. Merchandise, shipping,
-                and tax from their receipt are not billed here.
+                , calculated from your outside-purchase fee tiers and the listed
+                unit price × quantity. Merchandise, shipping, and tax from their
+                receipt are not billed here.
               </>
             }
             helpLabel="About outside purchase intake"
             tooltipClassName="w-[28rem]"
           />
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+            Complete the form below to create a draft product line. Publish the
+            record when the customer should see it under Active products.
+          </p>
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
-          <div className="space-y-4">
-            <Field>
-              <FieldLabelWithHelp
-                htmlFor="op-customer"
-                label="Customer account"
-                help="The shopper who bought this item elsewhere and shipped it to you. The line and its service charge are billed to this account."
-                helpLabel="About customer account"
-              />
-              <FieldContent>
-                <select
-                  id="op-customer"
-                  value={clerkUserId}
-                  onChange={(e) => setClerkUserId(e.target.value)}
-                  className={cn(
-                    "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm",
-                    "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-                    "dark:bg-input/30",
-                  )}
-                >
-                  <option value="">Select customer…</option>
-                  {customers.map((c) => (
-                    <option key={c.clerkUserId} value={c.clerkUserId}>
-                      {c.displayName}
-                      {c.email ? ` · ${c.email}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </FieldContent>
-            </Field>
-
-            {clerkUserId.trim() ?
-              <p className="text-xs text-muted-foreground">
-                Charges use the global outside-purchase service &amp; handling tiers from
-                Fees &amp; rates (not in-app tiers or customer package overrides).
-              </p>
-            : null}
-
-            <div className="flex flex-wrap items-end gap-2">
-              <Field className="min-w-[14rem] flex-1">
-                <FieldLabelWithHelp
-                  htmlFor="op-ref"
-                  label="Reference number"
-                  help="Unique staff-facing tracking id (OP-YYYYMMDD-XXXX) for this outside purchase. Used on the customer's product line and in status records."
-                  helpLabel="About reference number"
-                />
-                <FieldContent>
-                  <Input
-                    id="op-ref"
-                    value={reference}
-                    onChange={(e) => setReference(e.target.value.toUpperCase())}
-                    className="font-mono"
-                    autoComplete="off"
-                  />
-                </FieldContent>
-              </Field>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setReference(formatOutsidePurchaseReference())}
-                >
-                  <RefreshCwIcon className="mr-1.5 size-3.5" aria-hidden />
-                  New ID
-                </Button>
-                <HelpBalloon label="About New ID">
-                  Generates a fresh unique reference number. Use it if the current
-                  id is already taken or you want a new one for this intake.
-                </HelpBalloon>
-              </div>
-            </div>
-
-            <Field>
-              <FieldLabelWithHelp
-                htmlFor="op-name"
-                label="Product name"
-                help="Name shown to the customer on their product line and order. Use the retailer's product title so the shopper recognizes the item."
-                helpLabel="About product name"
-              />
-              <FieldContent>
-                <Input
-                  id="op-name"
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                />
-              </FieldContent>
-            </Field>
-
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/80 bg-muted px-3 py-2.5 text-sm">
-              <input
-                type="checkbox"
-                checked={isPackLine}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setIsPackLine(checked);
-                  if (!checked) {
-                    setUnitsPerPack("1");
-                  } else if (parseUnitsPerPackInput(unitsPerPack) < 2) {
-                    setUnitsPerPack("2");
-                  }
-                }}
-                className="mt-0.5 size-4 rounded border-input"
-              />
-              <span>
-                <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-                  Pack / bundle / case
-                  <HelpBalloon label="About pack pricing">
-                    Charge outside-purchase service &amp; handling per consumer unit: units in
-                    each pack × per-unit fee × number of packs.
-                  </HelpBalloon>
-                </span>
-              </span>
-            </label>
-
-            <div
-              className={cn(
-                "grid gap-4",
-                isPackLine ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3",
-              )}
+        <div className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,17rem)] lg:gap-8">
+          <div className="space-y-5">
+            <FormSection
+              title="Customer & reference"
+              description="Assign the line to the correct account and confirm the intake reference."
             >
               <Field>
                 <FieldLabelWithHelp
-                  htmlFor="op-qty"
-                  label={isPackLine ? "Received Qty (packs)" : "Received Qty"}
-                  help={
-                    isPackLine ?
-                      "Number of packs/cases/bundles received. Service & handling is charged per consumer unit (units per pack × this count)."
-                    : "Number of individual items received. Service & handling is charged per unit."
-                  }
-                  helpLabel="About received quantity"
-                />
-                <FieldContent>
-                  <Input
-                    id="op-qty"
-                    type="number"
-                    min={1}
-                    max={999}
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                  />
-                </FieldContent>
-              </Field>
-              {isPackLine ?
-                <Field>
-                  <FieldLabelWithHelp
-                    htmlFor="op-units-per-pack"
-                    label="Units per pack"
-                    help="Consumer units in one pack (e.g. 12 for a case, 2 for a twin-pack)."
-                    helpLabel="About units per pack"
-                  />
-                  <FieldContent>
-                    <Input
-                      id="op-units-per-pack"
-                      type="number"
-                      min={2}
-                      max={9999}
-                      value={unitsPerPack}
-                      onChange={(e) => setUnitsPerPack(e.target.value)}
-                    />
-                  </FieldContent>
-                </Field>
-              : null}
-              <Field className={isPackLine ? undefined : "sm:col-span-2"}>
-                <FieldLabelWithHelp
-                  htmlFor="op-unit-price"
-                  label="Listed unit price (USD, for tier only)"
-                  help={`Single-item price used to pick the outside-purchase service & handling tier${isPackLine ? " (not pack price)." : "."}`}
-                  helpLabel="About listed unit price"
-                />
-                <FieldContent>
-                  <Input
-                    id="op-unit-price"
-                    inputMode="decimal"
-                    value={unitPriceDollars}
-                    onChange={(e) => setUnitPriceDollars(e.target.value)}
-                    className="tabular-nums"
-                    placeholder="0.00"
-                  />
-                </FieldContent>
-              </Field>
-            </div>
-
-            {isPackLine && pricingPreview.consumerUnits > 0 ?
-              <p className="text-xs text-muted-foreground">
-                Total consumer units:{" "}
-                <span className="font-medium tabular-nums text-foreground">
-                  {pricingPreview.consumerUnits}
-                </span>{" "}
-                ({pricingPreview.unitsPerPack} × {pricingPreview.quantity} pack
-                {pricingPreview.quantity === 1 ? "" : "s"})
-              </p>
-            : null}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabelWithHelp
-                  htmlFor="op-size"
-                  label="Received Size"
-                  help="Size/variant of the item as it actually arrived (optional). Shown to the customer for confirmation."
-                  helpLabel="About received size"
-                />
-                <FieldContent>
-                  <Input
-                    id="op-size"
-                    value={productSize}
-                    onChange={(e) => setProductSize(e.target.value)}
-                  />
-                </FieldContent>
-              </Field>
-              <Field>
-                <FieldLabelWithHelp
-                  htmlFor="op-color"
-                  label="Received Color"
-                  help="Color/variant of the item as it actually arrived (optional). Shown to the customer for confirmation."
-                  helpLabel="About received color"
-                />
-                <FieldContent>
-                  <Input
-                    id="op-color"
-                    value={productColor}
-                    onChange={(e) => setProductColor(e.target.value)}
-                  />
-                </FieldContent>
-              </Field>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabelWithHelp
-                  htmlFor="op-condition"
-                  label="Condition product received in"
-                  help="Physical state of the item when it arrived at your warehouse (e.g. good, damaged, wrong item). Drives the customer status and any return-to-retailer flow."
-                  helpLabel="About received condition"
+                  htmlFor="op-customer"
+                  label="Customer account"
+                  help="The shopper who bought this item elsewhere and shipped it to you. The line and its service charge are billed to this account."
+                  helpLabel="About customer account"
                 />
                 <FieldContent>
                   <select
-                    id="op-condition"
-                    value={receivedCondition}
-                    onChange={(e) =>
-                      setReceivedCondition(e.target.value as WarehouseReceiveCondition)
-                    }
-                    className={receivingConditionSelectClassName}
+                    id="op-customer"
+                    value={clerkUserId}
+                    onChange={(e) => setClerkUserId(e.target.value)}
+                    className={FORM_SELECT_CLASS}
                   >
-                    {CONDITION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                    <option value="">Select customer…</option>
+                    {customers.map((c) => (
+                      <option key={c.clerkUserId} value={c.clerkUserId}>
+                        {c.displayName}
+                        {c.email ? ` · ${c.email}` : ""}
                       </option>
                     ))}
                   </select>
-                  {receivedCondition === "missing" ?
-                    <div className="mt-2 space-y-1.5">
-                      <label
-                        htmlFor="op-missing-reason"
-                        className="text-xs font-medium text-muted-foreground"
-                      >
-                        Missing details
-                      </label>
-                      <select
-                        id="op-missing-reason"
-                        value={receivedMissingReason}
-                        onChange={(e) =>
-                          setReceivedMissingReason(
-                            e.target.value as WarehouseMissingReason,
-                          )
-                        }
-                        className={receivingConditionSelectClassName}
-                      >
-                        {WAREHOUSE_MISSING_REASON_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  : null}
                 </FieldContent>
               </Field>
+
+              {clerkUserId.trim() ?
+                <p className="rounded-md border border-border/70 bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                  Service &amp; handling uses the global outside-purchase tiers
+                  from Fees &amp; rates (not in-app tiers or customer package
+                  overrides).
+                </p>
+              : null}
+
+              <div className="flex flex-wrap items-end gap-2">
+                <Field className="min-w-[14rem] flex-1">
+                  <FieldLabelWithHelp
+                    htmlFor="op-ref"
+                    label="Reference number"
+                    help="Unique staff-facing tracking id (OP-YYYYMMDD-XXXX) for this outside purchase. Used on the customer's product line and in status records."
+                    helpLabel="About reference number"
+                  />
+                  <FieldContent>
+                    <Input
+                      id="op-ref"
+                      value={reference}
+                      onChange={(e) => setReference(e.target.value.toUpperCase())}
+                      className="font-mono"
+                      autoComplete="off"
+                    />
+                  </FieldContent>
+                </Field>
+                <div className="flex items-center gap-1.5 pb-0.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setReference(formatOutsidePurchaseReference())}
+                  >
+                    <RefreshCwIcon className="mr-1.5 size-3.5" aria-hidden />
+                    New ID
+                  </Button>
+                  <HelpBalloon label="About New ID">
+                    Generates a fresh unique reference number. Use it if the
+                    current id is already taken or you want a new one for this
+                    intake.
+                  </HelpBalloon>
+                </div>
+              </div>
+            </FormSection>
+
+            <FormSection
+              title="Product details"
+              description="Describe the item as received and enter pricing used to determine the service tier."
+            >
               <Field>
                 <FieldLabelWithHelp
-                  htmlFor="op-shelf"
-                  label="Shelf location"
-                  help="Where the item is stored in your warehouse (aisle, shelf, or bin). Internal only — helps staff find it when packing the barrel."
-                  helpLabel="About shelf location"
+                  htmlFor="op-name"
+                  label="Product name"
+                  help="Name shown to the customer on their product line and order. Use the retailer's product title so the shopper recognizes the item."
+                  helpLabel="About product name"
                 />
                 <FieldContent>
                   <Input
-                    id="op-shelf"
-                    value={receivedShelfLocation}
-                    onChange={(e) => setReceivedShelfLocation(e.target.value)}
-                    placeholder="Aisle, shelf, bin…"
-                    autoComplete="off"
+                    id="op-name"
+                    value={productName}
+                    onChange={(e) => setProductName(e.target.value)}
                   />
                 </FieldContent>
               </Field>
-            </div>
 
-            <Field>
-              <FieldLabelWithHelp
-                htmlFor="op-condition-image"
-                label="Received condition photo"
-                help="Photo showing the physical condition the product arrived in (packaging, damage, defects). JPEG, PNG, WebP, or GIF."
-                helpLabel="About received condition photo"
-              />
-              <FieldContent>
-                <ImageFileInput
-                  id="op-condition-image"
-                  onFiles={onPickConditionImage}
-                  selectedFileName={conditionImageFile?.name ?? null}
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/80 bg-muted/40 px-3 py-2.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={isPackLine}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsPackLine(checked);
+                    if (!checked) {
+                      setUnitsPerPack("1");
+                    } else if (parseUnitsPerPackInput(unitsPerPack) < 2) {
+                      setUnitsPerPack("2");
+                    }
+                  }}
+                  className="mt-0.5 size-4 rounded border-input"
                 />
-                {conditionImagePreview ?
-                  <div className="mt-3 flex items-start gap-3">
-                    <ProductRequestThumbnail
-                      variant="admin"
-                      imageUrl={conditionImagePreview}
-                      productLabel="Received condition"
-                      className="size-24 shrink-0"
+                <span>
+                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                    Pack / bundle / case
+                    <HelpBalloon label="About pack pricing">
+                      Charge outside-purchase service &amp; handling per consumer
+                      unit: units in each pack × per-unit fee × number of packs.
+                    </HelpBalloon>
+                  </span>
+                </span>
+              </label>
+
+              <div
+                className={cn(
+                  "grid gap-4",
+                  isPackLine ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3",
+                )}
+              >
+                <Field>
+                  <FieldLabelWithHelp
+                    htmlFor="op-qty"
+                    label={isPackLine ? "Received Qty (packs)" : "Received Qty"}
+                    help={
+                      isPackLine ?
+                        "Number of packs/cases/bundles received. Service & handling is charged per consumer unit (units per pack × this count)."
+                      : "Number of individual items received. Service & handling is charged per unit."
+                    }
+                    helpLabel="About received quantity"
+                  />
+                  <FieldContent>
+                    <Input
+                      id="op-qty"
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setConditionImageFile(null);
-                        revokeBlobPreviewUrl(conditionImagePreview);
-                        setConditionImagePreview(null);
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </div>
+                  </FieldContent>
+                </Field>
+                {isPackLine ?
+                  <Field>
+                    <FieldLabelWithHelp
+                      htmlFor="op-units-per-pack"
+                      label="Units per pack"
+                      help="Consumer units in one pack (e.g. 12 for a case, 2 for a twin-pack)."
+                      helpLabel="About units per pack"
+                    />
+                    <FieldContent>
+                      <Input
+                        id="op-units-per-pack"
+                        type="number"
+                        min={2}
+                        max={9999}
+                        value={unitsPerPack}
+                        onChange={(e) => setUnitsPerPack(e.target.value)}
+                      />
+                    </FieldContent>
+                  </Field>
                 : null}
-              </FieldContent>
-            </Field>
+                <Field className={isPackLine ? undefined : "sm:col-span-2"}>
+                  <FieldLabelWithHelp
+                    htmlFor="op-unit-price"
+                    label="Listed unit price (USD, for tier only)"
+                    help={`Single-item price used to pick the outside-purchase service & handling tier${isPackLine ? " (not pack price)." : "."}`}
+                    helpLabel="About listed unit price"
+                  />
+                  <FieldContent>
+                    <Input
+                      id="op-unit-price"
+                      inputMode="decimal"
+                      value={unitPriceDollars}
+                      onChange={(e) => setUnitPriceDollars(e.target.value)}
+                      className="tabular-nums"
+                      placeholder="0.00"
+                    />
+                  </FieldContent>
+                </Field>
+              </div>
+
+              {isPackLine && pricingPreview.consumerUnits > 0 ?
+                <p className="text-xs text-muted-foreground">
+                  Total consumer units:{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {pricingPreview.consumerUnits}
+                  </span>{" "}
+                  ({pricingPreview.unitsPerPack} × {pricingPreview.quantity} pack
+                  {pricingPreview.quantity === 1 ? "" : "s"})
+                </p>
+              : null}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabelWithHelp
+                    htmlFor="op-size"
+                    label="Received size"
+                    help="Size/variant of the item as it actually arrived (optional). Shown to the customer for confirmation."
+                    helpLabel="About received size"
+                  />
+                  <FieldContent>
+                    <Input
+                      id="op-size"
+                      value={productSize}
+                      onChange={(e) => setProductSize(e.target.value)}
+                    />
+                  </FieldContent>
+                </Field>
+                <Field>
+                  <FieldLabelWithHelp
+                    htmlFor="op-color"
+                    label="Received color"
+                    help="Color/variant of the item as it actually arrived (optional). Shown to the customer for confirmation."
+                    helpLabel="About received color"
+                  />
+                  <FieldContent>
+                    <Input
+                      id="op-color"
+                      value={productColor}
+                      onChange={(e) => setProductColor(e.target.value)}
+                    />
+                  </FieldContent>
+                </Field>
+              </div>
+            </FormSection>
+
+            <FormSection
+              title="Warehouse intake"
+              description="Record physical condition, storage location, and photographic evidence."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabelWithHelp
+                    htmlFor="op-condition"
+                    label="Condition received"
+                    help="Physical state of the item when it arrived at your warehouse (e.g. good, damaged, wrong item). Drives the customer status and any return-to-retailer flow."
+                    helpLabel="About received condition"
+                  />
+                  <FieldContent>
+                    <select
+                      id="op-condition"
+                      value={receivedCondition}
+                      onChange={(e) =>
+                        setReceivedCondition(e.target.value as WarehouseReceiveCondition)
+                      }
+                      className={receivingConditionSelectClassName}
+                    >
+                      {CONDITION_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    {receivedCondition === "missing" ?
+                      <div className="mt-2 space-y-1.5">
+                        <label
+                          htmlFor="op-missing-reason"
+                          className="text-xs font-medium text-muted-foreground"
+                        >
+                          Missing details
+                        </label>
+                        <select
+                          id="op-missing-reason"
+                          value={receivedMissingReason}
+                          onChange={(e) =>
+                            setReceivedMissingReason(
+                              e.target.value as WarehouseMissingReason,
+                            )
+                          }
+                          className={receivingConditionSelectClassName}
+                        >
+                          {WAREHOUSE_MISSING_REASON_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    : null}
+                  </FieldContent>
+                </Field>
+                <Field>
+                  <FieldLabelWithHelp
+                    htmlFor="op-shelf"
+                    label="Shelf location"
+                    help="Where the item is stored in your warehouse (aisle, shelf, or bin). Internal only — helps staff find it when packing the barrel."
+                    helpLabel="About shelf location"
+                  />
+                  <FieldContent>
+                    <Input
+                      id="op-shelf"
+                      value={receivedShelfLocation}
+                      onChange={(e) => setReceivedShelfLocation(e.target.value)}
+                      placeholder="Aisle, shelf, bin…"
+                      autoComplete="off"
+                    />
+                  </FieldContent>
+                </Field>
+              </div>
+
+              <Field>
+                <FieldLabelWithHelp
+                  htmlFor="op-condition-images"
+                  label="Received condition photos"
+                  help="Upload one or more photos of the received product. Mark one as the customer-facing display image."
+                  helpLabel="About received condition photos"
+                />
+                <FieldContent>
+                  <OutsidePurchaseConditionPhotosField
+                    inputId="op-condition-images"
+                    photos={conditionPhotos}
+                    displayPhotoId={displayPhotoId}
+                    onPhotosChange={setConditionPhotos}
+                    onDisplayPhotoIdChange={setDisplayPhotoId}
+                  />
+                </FieldContent>
+              </Field>
+            </FormSection>
 
             <CollapsibleFieldSection
               title="Receipt details"
-              description="Optional inbound note and receipt photo"
+              description="Optional inbound note and proof-of-purchase image"
               defaultOpen={false}
             >
               <Field>
@@ -870,7 +1139,7 @@ export function AdminOutsidePurchaseIntakePanel({
                     value={receiptNote}
                     onChange={(e) => setReceiptNote(e.target.value)}
                     placeholder="Retailer, order number, or handling notes…"
-                    className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm outline-none focus-visible:ring-3"
+                    className={FORM_TEXTAREA_CLASS}
                   />
                 </FieldContent>
               </Field>
@@ -882,55 +1151,55 @@ export function AdminOutsidePurchaseIntakePanel({
                   helpLabel="About receipt image"
                 />
                 <FieldContent>
-                <p className="mb-1 text-xs text-muted-foreground">
-                  Photo of the retailer receipt or proof of purchase (JPEG, PNG, WebP, or GIF).
-                </p>
-                <Input
-                  id="op-receipt-image"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={(e) => onPickReceiptImage(e.target.files)}
-                />
-                {receiptImagePreview ?
-                  <div className="mt-3 flex items-start gap-3">
-                    <ProductRequestThumbnail
-                      variant="admin"
-                      imageUrl={receiptImagePreview}
-                      productLabel="Receipt"
-                      className="size-24 shrink-0"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setReceiptImageFile(null);
-                        revokeBlobPreviewUrl(receiptImagePreview);
-                        setReceiptImagePreview(null);
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                : null}
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    JPEG, PNG, WebP, or GIF.
+                  </p>
+                  <Input
+                    id="op-receipt-image"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={(e) => onPickReceiptImage(e.target.files)}
+                  />
+                  {receiptImagePreview ?
+                    <div className="mt-3 flex items-start gap-3 rounded-lg border border-border/80 bg-muted/30 p-3">
+                      <ProductRequestThumbnail
+                        variant="admin"
+                        imageUrl={receiptImagePreview}
+                        productLabel="Receipt"
+                        className="size-24 shrink-0"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setReceiptImageFile(null);
+                          revokeBlobPreviewUrl(receiptImagePreview);
+                          setReceiptImagePreview(null);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  : null}
                 </FieldContent>
               </Field>
             </CollapsibleFieldSection>
 
-            <div className="space-y-2 rounded-lg border border-border/80 bg-muted p-3">
+            <div className="space-y-2 rounded-xl border border-border/80 bg-muted/40 p-4 ring-1 ring-foreground/5">
               <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Customer charge preview
                 <HelpBalloon label="About customer charge preview">
-                  Outside purchase service &amp; handling only — in-app merchandise, shipping,
-                  tax, and in-app service fees are not included.
+                  Outside purchase service &amp; handling only — in-app merchandise,
+                  shipping, tax, and in-app service fees are not included.
                 </HelpBalloon>
               </p>
               <CartLinePriceBreakdown rows={previewRows} />
             </div>
 
             <CollapsibleFieldSection
-              title="Staff note & product photo"
-              description="Optional message for the customer and catalog image"
+              title="Staff note"
+              description="Optional message shown to the customer on this product line"
               defaultOpen={false}
             >
               <Field>
@@ -940,112 +1209,124 @@ export function AdminOutsidePurchaseIntakePanel({
                   help="Short message shown to the customer on this product line — e.g. a note about substitutions or condition. Leave blank if none."
                   helpLabel="About staff note"
                 />
-              <FieldContent>
-                <textarea
-                  id="op-staff-note"
-                  rows={2}
-                  value={staffNote}
-                  onChange={(e) => setStaffNote(e.target.value)}
-                  className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex w-full resize-y rounded-lg border px-2.5 py-2 text-sm outline-none focus-visible:ring-3"
-                />
-              </FieldContent>
-            </Field>
-
-            <Field>
-              <FieldLabelWithHelp
-                htmlFor="op-image"
-                label="Product photo"
-                help="Catalog image shown to the customer for this product line. Use a clear photo of the actual item or the retailer's product image."
-                helpLabel="About product photo"
-              />
-              <FieldContent>
-                <p className="mb-2 text-xs text-muted-foreground">
-                  JPEG, PNG, WebP, or GIF — choose from your device or take a photo with the
-                  camera.
-                </p>
-                <ImageFileInput
-                  id="op-image"
-                  onFiles={onPickProductImage}
-                  selectedFileName={imageFile?.name ?? null}
-                />
-              </FieldContent>
-            </Field>
+                <FieldContent>
+                  <textarea
+                    id="op-staff-note"
+                    rows={3}
+                    value={staffNote}
+                    onChange={(e) => setStaffNote(e.target.value)}
+                    className={FORM_TEXTAREA_CLASS}
+                  />
+                </FieldContent>
+              </Field>
             </CollapsibleFieldSection>
 
-            <div className="flex items-center gap-2">
-              <Button type="button" disabled={saving} onClick={onSubmit} className="w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/80 pt-4">
+              <Button
+                type="button"
+                disabled={saving}
+                onClick={onSubmit}
+                className="w-full sm:w-auto"
+              >
                 {saving ?
                   <>
                     <Loader2Icon className="mr-2 size-4 animate-spin" aria-hidden />
-                    Saving…
+                    Saving intake…
                   </>
-                : "Save product & estimate"}
+                : "Save draft & estimate"}
               </Button>
-              <HelpBalloon label="About save product & estimate">
-                Creates the customer&apos;s product line, uploads any photos, and publishes
-                the outside-purchase service &amp; handling estimate so the customer can pay.
+              <HelpBalloon label="About save draft & estimate">
+                Creates the product line as an unpublished draft, uploads any
+                photos, and calculates the outside-purchase service &amp; handling
+                estimate. Publish the record when the customer should see it.
               </HelpBalloon>
             </div>
           </div>
 
-          <div className="flex flex-col items-center gap-3">
-            <ProductRequestThumbnail
-              variant="admin"
-              imageUrl={imagePreview}
-              productLabel={productName || "Product"}
-              className="size-36"
-            />
-            {receiptImagePreview ?
-              <div className="flex flex-col items-center gap-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Receipt
-                </p>
+          <aside className="lg:sticky lg:top-4 lg:self-start">
+            <div className="rounded-xl border border-border/80 bg-muted/30 p-4 ring-1 ring-foreground/5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Intake preview
+              </p>
+              <div className="mt-4 flex flex-col items-center gap-4">
                 <ProductRequestThumbnail
                   variant="admin"
-                  imageUrl={receiptImagePreview}
-                  productLabel="Receipt"
-                  className="size-20"
+                  imageUrl={displayImagePreview}
+                  productLabel={productName || "Product"}
+                  className="size-40"
                 />
+                {displayImagePreview ?
+                  <p className="text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Customer display image
+                  </p>
+                : <p className="text-center text-xs text-muted-foreground">
+                    Display image appears when condition photos are uploaded
+                  </p>
+                }
+                {receiptImagePreview ?
+                  <div className="flex w-full flex-col items-center gap-2 border-t border-border/80 pt-4">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Receipt preview
+                    </p>
+                    <ProductRequestThumbnail
+                      variant="admin"
+                      imageUrl={receiptImagePreview}
+                      productLabel="Receipt"
+                      className="size-20"
+                    />
+                  </div>
+                : null}
+                <div className="w-full border-t border-border/80 pt-4 text-center">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Reference
+                  </p>
+                  <p className="mt-1 font-mono text-sm font-medium text-primary">
+                    {reference}
+                  </p>
+                </div>
               </div>
-            : null}
-            {conditionImagePreview ?
-              <div className="flex flex-col items-center gap-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Condition
-                </p>
-                <ProductRequestThumbnail
-                  variant="admin"
-                  imageUrl={conditionImagePreview}
-                  productLabel="Received condition"
-                  className="size-20"
-                />
-              </div>
-            : null}
-            <p className="text-center font-mono text-xs text-primary">{reference}</p>
-          </div>
+            </div>
+          </aside>
         </div>
       </section>
 
-      <section className="space-y-3">
-        <SectionTitleWithHelp
-          as="h3"
-          title="Recent outside purchases"
-          titleClassName="text-sm font-semibold text-foreground"
-          help="Grouped by customer. Expand an account to see each product with its current fulfillment status. Superseded estimates voided when a customer requests a new quote are omitted here; open Active requests to see those lines."
-          helpLabel="About recent outside purchases"
-          tooltipClassName="w-80"
-        />
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="space-y-1">
+            <SectionTitleWithHelp
+              as="h3"
+              title="Recent outside purchases"
+              titleClassName="text-base font-semibold tracking-tight text-foreground"
+              help="Grouped by customer account. Expand a row to review each product, its service charge, and available actions."
+              helpLabel="About recent outside purchases"
+              tooltipClassName="w-80"
+            />
+            <p className="text-sm text-muted-foreground">
+              Manage published and draft intake records from this queue.
+            </p>
+          </div>
+          {recentRows.length > 0 ?
+            <p className="rounded-md border border-border/70 bg-muted/50 px-3 py-1.5 text-xs tabular-nums text-muted-foreground">
+              {recentRows.length} record{recentRows.length === 1 ? "" : "s"}
+              {draftCount > 0 ?
+                ` · ${draftCount} draft${draftCount === 1 ? "" : "s"}`
+              : ""}
+            </p>
+          : null}
+        </div>
         {recentRows.length === 0 ?
-          <p className="rounded-lg border border-border/80 bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-            No outside-purchase lines yet.
+          <p className={appTableEmpty}>
+            No outside-purchase intake records yet. Save a product above to begin.
           </p>
-        : <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
+        : <FloatingHorizontalScroll
+            viewportClassName={cn(appTableScroll, "overflow-hidden")}
+          >
             <table className="w-full min-w-[48rem] text-left text-sm">
-              <thead className="border-b border-border bg-muted">
+              <thead className={appTableHead}>
                 <tr>
-                  <th className="w-10 px-2 py-2.5" aria-hidden />
-                  <th className="px-3 py-2.5 font-medium">Customer</th>
-                  <th className="px-3 py-2.5 font-medium">Products</th>
+                  <th className="w-10 px-2 py-3" aria-hidden />
+                  <th className="px-3 py-3 font-medium">Customer account</th>
+                  <th className="px-3 py-3 font-medium text-right">Products</th>
                 </tr>
               </thead>
               {customerGroups.map((group) => {
@@ -1064,8 +1345,8 @@ export function AdminOutsidePurchaseIntakePanel({
                   >
                     <tr
                       className={cn(
-                        "bg-background transition-colors hover:bg-accent",
-                        expanded && "bg-accent",
+                        "cursor-pointer border-b border-border/80 bg-background transition-colors hover:bg-muted/50",
+                        expanded && "bg-muted/40",
                       )}
                       role="button"
                       tabIndex={0}
@@ -1098,27 +1379,27 @@ export function AdminOutsidePurchaseIntakePanel({
                           primaryClassName="text-sm font-medium"
                         />
                       </td>
-                      <td className="px-3 py-2.5 align-middle tabular-nums text-muted-foreground">
+                      <td className="px-3 py-3 align-middle tabular-nums text-right text-muted-foreground">
                         {group.rows.length}
                       </td>
                     </tr>
                     {expanded ?
                       <tr>
-                        <td colSpan={3} className="bg-secondary p-0">
+                        <td colSpan={3} className="bg-muted/20 p-0">
                           <div
                             id={panelId}
-                            className="border-t border-border px-3 py-4"
+                            className="border-t border-border px-4 py-4"
                             role="region"
                             aria-label={`Outside purchases for ${customerLabel}`}
                           >
-                            <table className="w-full min-w-[44rem] text-left text-sm">
-                              <thead className="border-b border-border/80 text-xs text-muted-foreground">
+                            <table className="w-full min-w-[44rem] overflow-hidden rounded-lg border border-border/80 bg-card text-left text-sm ring-1 ring-foreground/5">
+                              <thead className={cn(appTableHead, "text-[11px]")}>
                                 <tr>
-                                  <th className="px-3 py-2 font-medium">Ref</th>
-                                  <th className="px-3 py-2 font-medium">Product</th>
-                                  <th className="px-3 py-2 font-medium">Service due</th>
-                                  <th className="px-3 py-2 font-medium">Status</th>
-                                  <th className="px-3 py-2 font-medium">Actions</th>
+                                  <th className="px-3 py-2.5 font-medium">Reference</th>
+                                  <th className="px-3 py-2.5 font-medium">Product</th>
+                                  <th className="px-3 py-2.5 font-medium">Service due</th>
+                                  <th className="px-3 py-2.5 font-medium">Status</th>
+                                  <th className="px-3 py-2.5 font-medium">Actions</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-border/80">
@@ -1142,7 +1423,13 @@ export function AdminOutsidePurchaseIntakePanel({
                                     }
                                     saving={saving}
                                     promptingId={promptingId}
+                                    publishingId={publishingId}
+                                    withdrawingId={withdrawingId}
+                                    deletingId={deletingId}
                                     onRecordPrompt={onRecordPrompt}
+                                    onPublish={onPublish}
+                                    onWithdraw={onWithdraw}
+                                    onDelete={onDelete}
                                   />
                                 ))}
                               </tbody>

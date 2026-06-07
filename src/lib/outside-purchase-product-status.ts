@@ -1,4 +1,4 @@
-import type { ItemRequest, OrderItem, OutsidePurchaseReturnRequest } from "@/db/schema";
+import type { ItemRequest, OrderItem, OutsidePurchaseReturnRequest, ItemRequestLineSnapshot } from "@/db/schema";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import {
   effectiveOrderItemFulfillmentStatus,
@@ -6,11 +6,18 @@ import {
 } from "@/lib/order-item-read-compat";
 import { effectiveOutsidePurchasePaidFulfillment } from "@/lib/outside-purchase-order-fulfillment";
 import {
+  outsidePurchaseActiveReturnStatusLabel,
+  outsidePurchaseReturnStatusSuppressedAfterReinstate,
+  outsidePurchaseReturnWorkflowSupersededByCheckout,
   outsidePurchaseStatusLabelForDisplay,
   outsidePurchaseWorkflowBadgeKind,
+  isOutsidePurchaseActiveReturnPhase,
+  OUTSIDE_PURCHASE_RETURN_REQUESTED_STATUS_LABEL,
   type OutsidePurchaseDisplayRequest,
 } from "@/lib/outside-purchase-display";
+import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import { PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL } from "@/lib/outside-purchase-paid-status";
 import {
   adminOrderLineStatusLabel,
   dashboardOrderLineStatusLabel,
@@ -28,6 +35,7 @@ export type ResolveItemRequestProductStatusOptions = {
   returnRequest?: Pick<OutsidePurchaseReturnRequest, "status"> | null;
   orderContext?: ItemRequestOrderContext | null;
   audience?: ItemRequestProductStatusAudience;
+  snapshots?: readonly Pick<ItemRequestLineSnapshot, "phase" | "createdAt">[];
 };
 
 export type ItemRequestProductStatusDisplay = {
@@ -102,14 +110,81 @@ export function resolveOutsidePurchaseProductStatusDisplay(
   const audience = options?.audience ?? "admin";
 
   if (orderContext) {
+    const fulfillment = effectiveOutsidePurchasePaidFulfillment(
+      request,
+      orderContext.orderItem,
+      orderContext.order,
+    );
+    if (fulfillment === BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID) {
+      return orderContextFulfillmentDisplay(request, orderContext, audience);
+    }
+  }
+
+  if (outsidePurchaseReturnWorkflowSupersededByCheckout(options?.snapshots)) {
+    return {
+      label: PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL,
+      badgeKind: "fullyReceived",
+      title: PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL,
+    };
+  }
+
+  const activeReturnLabel = outsidePurchaseActiveReturnStatusLabel(
+    returnRequest,
+    options?.snapshots,
+    audience,
+  );
+  if (activeReturnLabel) {
+    const returnForBadge =
+      returnRequest && isOutsidePurchaseActiveReturnPhase(returnRequest.status) ?
+        returnRequest
+      : activeReturnLabel === "Return estimate ready" ?
+        ({ status: "estimate_ready" } as const)
+      : activeReturnLabel === OUTSIDE_PURCHASE_RETURN_REQUESTED_STATUS_LABEL ?
+        ({ status: "submitted" } as const)
+      : activeReturnLabel === "Payment due · return to retailer prompted" ?
+        ({ status: "estimate_accepted" } as const)
+      : null;
+    return {
+      label: activeReturnLabel,
+      badgeKind: outsidePurchaseWorkflowBadgeKind(request, returnForBadge),
+      title: activeReturnLabel,
+    };
+  }
+
+  if (
+    audience === "admin" &&
+    request.status === "quoted" &&
+    request.outsidePurchasePublishedAt === null
+  ) {
+    return {
+      label: "Unpublished · draft",
+      badgeKind: "awaitingPurchase",
+      title: "Not visible to customer until published",
+    };
+  }
+
+  if (orderContext) {
     return orderContextFulfillmentDisplay(request, orderContext, audience);
   }
 
   return {
     label:
-      outsidePurchaseStatusLabelForDisplay(request, returnRequest) ??
-      request.status,
-    badgeKind: outsidePurchaseWorkflowBadgeKind(request, returnRequest),
+      outsidePurchaseStatusLabelForDisplay(
+        request,
+        returnRequest,
+        options?.snapshots,
+        audience,
+      ) ?? request.status,
+    badgeKind: outsidePurchaseWorkflowBadgeKind(
+      request,
+      outsidePurchaseReturnStatusSuppressedAfterReinstate(
+        returnRequest,
+        options?.snapshots,
+        audience,
+      ) ?
+        null
+      : returnRequest,
+    ),
     title: request.status,
   };
 }
@@ -122,6 +197,7 @@ export function resolveItemRequestProductStatusDisplay(
     | "outsidePurchaseReference"
     | "productUrl"
     | "outsidePurchasePaymentPromptedAt"
+    | "outsidePurchasePublishedAt"
     | "outsidePurchaseReceivedCondition"
   > & {
     outsidePurchaseMissingResolvedAt?: ItemRequest["outsidePurchaseMissingResolvedAt"];

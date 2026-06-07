@@ -17,7 +17,6 @@ import { AdminItemRequestPreviewDialog } from "@/components/admin/admin-item-req
 import { AdminItemRequestUrlOrReceipt } from "@/components/admin/admin-item-request-url-or-receipt";
 import { AdminProductUrlDialog } from "@/components/admin/admin-product-url-dialog";
 import { AdminQuoteHistoryEditDialog } from "@/components/admin/admin-quote-history-edit-dialog";
-import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { SortableTh, SortableThCompact } from "@/components/sortable-th";
@@ -99,7 +98,7 @@ const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
 const ACTIVE_QUEUE_GROUP_COL_SPAN = 7;
 
 /** Flat queue-line table columns (account + email + line cells). */
-const ACTIVE_QUEUE_FLAT_COL_SPAN = 13;
+const ACTIVE_QUEUE_FLAT_COL_SPAN = 12;
 
 const SELECT_CLASS =
   "h-8 min-w-[9rem] rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
@@ -250,7 +249,6 @@ function sortActiveQueueLineEntries(
 function ActiveQueueLineTableRow({
   group,
   row,
-  snapshotsByRequestId,
   latestQuotesByRequestId,
   returnRequestsByItemRequestId = {},
   orderContextByRequestId = {},
@@ -261,7 +259,6 @@ function ActiveQueueLineTableRow({
 }: {
   group: AdminItemRequestGroup;
   row: AdminItemRequestWithUserRow;
-  snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   latestQuotesByRequestId: Record<string, ItemQuote>;
   returnRequestsByItemRequestId?: Record<string, OutsidePurchaseReturnRequest>;
   orderContextByRequestId?: Record<string, ItemRequestOrderContext>;
@@ -359,6 +356,7 @@ function ActiveQueueLineTableRow({
             initialProductSize={r.productSize}
             initialProductColor={r.productColor}
             initialProductImageUrl={r.productImageUrl}
+            initialRequestNote={r.note}
             merchantEstimateFees={merchantEstimateFees}
           />
         ) : canEditQuote && latestQuote ? (
@@ -401,16 +399,11 @@ function ActiveQueueLineTableRow({
       </td>
       <td className="px-2 py-2 align-top">
         <div className="flex flex-col items-start gap-2">
-          <QuoteEstimatePreviewDialog itemRequestId={r.id} />
+          {isOutside ? null : (
+            <QuoteEstimatePreviewDialog itemRequestId={r.id} />
+          )}
           <AdminItemRequestPreviewDialog request={r} />
         </div>
-      </td>
-      <td className="px-2 py-2 align-top">
-        <ItemRequestLineAuditDialog
-          itemRequestId={r.id}
-          productLabel={r.productName?.trim() || ""}
-          snapshots={snapshotsByRequestId[r.id] ?? []}
-        />
       </td>
       <td className="min-w-[9rem] max-w-[11rem] px-2 py-2 align-top">
         <AdminUpdatedByCell
@@ -439,7 +432,6 @@ type AdminItemRequestsGroupedTableProps = {
 
 export function AdminItemRequestsGroupedTable({
   groups,
-  snapshotsByRequestId,
   latestQuotesByRequestId = {},
   staffProfilesByClerkUserId = {},
   returnRequestsByItemRequestId = {},
@@ -1049,9 +1041,6 @@ export function AdminItemRequestsGroupedTable({
                                 <th className="px-2 py-2 font-medium text-foreground">
                                   Quote preview
                                 </th>
-                                <th className="px-2 py-2 font-medium text-foreground">
-                                  Audit
-                                </th>
                                 <th className="min-w-[9rem] px-2 py-2 font-medium text-foreground">
                                   Updated by
                                 </th>
@@ -1068,7 +1057,7 @@ export function AdminItemRequestsGroupedTable({
                               {lineSlice.length === 0 ? (
                                 <tr>
                                   <td
-                                    colSpan={11}
+                                    colSpan={10}
                                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                                   >
                                     {lineSearch.trim()
@@ -1082,7 +1071,6 @@ export function AdminItemRequestsGroupedTable({
                                   key={row.request.id}
                                   group={g}
                                   row={row}
-                                  snapshotsByRequestId={snapshotsByRequestId}
                                   latestQuotesByRequestId={latestQuotesByRequestId}
                                   returnRequestsByItemRequestId={
                                     returnRequestsByItemRequestId
@@ -1207,9 +1195,6 @@ export function AdminItemRequestsGroupedTable({
                   <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
                     Quote preview
                   </th>
-                  <th className="px-2 py-2.5 text-left text-xs font-medium text-foreground">
-                    Audit
-                  </th>
                   <th className="min-w-[9rem] px-2 py-2.5 text-left text-xs font-medium text-foreground">
                     Updated by
                   </th>
@@ -1252,7 +1237,6 @@ export function AdminItemRequestsGroupedTable({
                       group={g}
                       row={row}
                       showAccountColumns
-                      snapshotsByRequestId={snapshotsByRequestId}
                       latestQuotesByRequestId={latestQuotesByRequestId}
                       returnRequestsByItemRequestId={returnRequestsByItemRequestId}
                       orderContextByRequestId={orderContextByRequestId}

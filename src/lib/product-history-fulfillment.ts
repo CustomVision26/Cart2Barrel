@@ -85,7 +85,7 @@ export function productHistoryLabelFromSnapshot(
     case "company_purchase_pending_delivery":
       return "Company Purchase: Pending Delivery";
     case "checkout_paid_pending_delivery":
-      return "Pending Delivery";
+      return "Checkout complete · awaiting company purchase";
     case "product_return_requested":
     case "product_return_tracking_saved":
     case "customer_refund_request_submitted":

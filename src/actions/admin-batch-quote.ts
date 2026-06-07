@@ -52,6 +52,7 @@ export type GetAdminBatchQuoteEstimateDraftResult =
       existingSiteMerchandiseCents: number | null;
       existingSiteShippingCents: number | null;
       existingSiteSaleTaxCents: number | null;
+      existingStaffNote: string | null;
     }
   | { ok: false; message: string };
 
@@ -126,6 +127,7 @@ export async function getAdminBatchQuoteEstimateDraftAction(
     existingSiteShippingCents:
       latestSavedEstimate?.siteShippingTotalCents ?? null,
     existingSiteSaleTaxCents: latestSavedEstimate?.siteSaleTaxTotalCents ?? null,
+    existingStaffNote: latestSavedEstimate?.staffNote ?? null,
   };
 }
 
@@ -147,8 +149,13 @@ export async function saveAdminBatchQuoteEstimateAction(
     return { ok: false, message: "Invalid estimate payload." };
   }
 
-  const { batchSessionId, siteMerchandiseCents, siteShippingCents, siteSaleTaxCents } =
-    parsed.data;
+  const {
+    batchSessionId,
+    siteMerchandiseCents,
+    siteShippingCents,
+    siteSaleTaxCents,
+    staffNote,
+  } = parsed.data;
   const adminClerkUserId = user!.id;
 
   const db = getDb();
@@ -207,6 +214,7 @@ export async function saveAdminBatchQuoteEstimateAction(
       siteSaleTaxTotalCents: siteSaleTaxCents,
       saleTaxDiscountCents,
       subtotalCents,
+      staffNote: staffNote ?? null,
       recordedByClerkUserId: adminClerkUserId,
     });
 

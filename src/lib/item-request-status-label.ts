@@ -33,6 +33,7 @@ export function itemRequestStatusLabelForDisplay(
     | "outsidePurchaseReference"
     | "productUrl"
     | "outsidePurchasePaymentPromptedAt"
+    | "outsidePurchasePublishedAt"
     | "outsidePurchaseReceivedCondition"
   > & {
     outsidePurchaseMissingResolvedAt?: ItemRequest["outsidePurchaseMissingResolvedAt"];
@@ -40,11 +41,13 @@ export function itemRequestStatusLabelForDisplay(
   returnRequest?: Pick<OutsidePurchaseReturnRequest, "status"> | null,
   orderContext?: ItemRequestOrderContext | null,
   audience?: ItemRequestProductStatusAudience,
+  snapshots?: ItemRequestStatusDisplayOptions["snapshots"],
 ): string {
   return resolveItemRequestProductStatusDisplay(request, {
     returnRequest,
     orderContext,
     audience,
+    snapshots,
   }).label;
 }
 
@@ -56,16 +59,19 @@ export function itemRequestStatusBadgeKindForDisplay(
     | "outsidePurchaseReference"
     | "productUrl"
     | "outsidePurchasePaymentPromptedAt"
+    | "outsidePurchasePublishedAt"
     | "outsidePurchaseReceivedCondition"
   >,
   returnRequest?: Pick<OutsidePurchaseReturnRequest, "status"> | null,
   orderContext?: ItemRequestOrderContext | null,
   audience?: ItemRequestProductStatusAudience,
+  snapshots?: ItemRequestStatusDisplayOptions["snapshots"],
 ): StatusBadgeKind {
   return resolveItemRequestProductStatusDisplay(request, {
     returnRequest,
     orderContext,
     audience,
+    snapshots,
   }).badgeKind;
 }
 

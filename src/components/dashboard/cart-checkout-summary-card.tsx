@@ -156,6 +156,11 @@ export function CartCheckoutSummaryCard({
                             </span>
                           : null}
                         </p>
+                        {line.chargeCaption ?
+                          <p className="text-[13px] leading-relaxed text-muted-foreground">
+                            {line.chargeCaption}
+                          </p>
+                        : null}
                         {line.productUrl ?
                           <CartLineUrlOrReceipt
                             lineId={line.itemRequestId}

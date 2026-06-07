@@ -14,6 +14,7 @@ import { getDb } from "@/db";
 import type { ItemRequest } from "@/db/schema";
 import { itemRequests } from "@/db/schema";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import { republishOutsidePurchaseForCustomerActive } from "@/data/outside-purchase-customer-visibility";
 import {
   ITEM_QUOTE_VOID_REASON_CUSTOMER_REVISION,
   ITEM_QUOTE_VOID_REASON_STAFF_OUT_OF_STOCK,
@@ -41,6 +42,10 @@ async function resolveReinstateStatus(
   const active = await getLatestQuoteForItemRequest(row.id);
   if (active) {
     return outsidePurchase ? "quoted" : "out_of_stock";
+  }
+
+  if (outsidePurchase && row.outsidePurchaseReference?.trim()) {
+    return "quoted";
   }
 
   return "pending";
@@ -105,11 +110,22 @@ export async function reinstateCustomerWithdrawnItemRequestsForOwner(params: {
     const after = await getItemRequestById(id);
     if (after) {
       if (isOutsidePurchaseRequest(after)) {
-        const paymentNote = after.outsidePurchasePaymentPromptedAt
-          ? "Payment due · prompted — customer has not paid yet."
+        if (!after.outsidePurchasePublishedAt) {
+          await republishOutsidePurchaseForCustomerActive({
+            clerkUserId,
+            itemRequestId: id,
+            auditMemo:
+              "Republished after customer reinstated this outside purchase to Active from Product history.",
+          });
+        }
+
+        const republished = await getItemRequestById(id);
+        const paymentNote =
+          republished?.outsidePurchasePaymentPromptedAt ?
+            "Payment due · prompted — customer has not paid yet."
           : "Payment due — staff has not recorded a payment prompt yet.";
         await insertOutsidePurchaseLifecycleSnapshot({
-          request: after,
+          request: republished ?? after,
           phase: "outside_purchase_reinstated_to_active",
           auditMemo: `Customer reinstated this outside purchase to Active from Product history. ${paymentNote}`,
         });

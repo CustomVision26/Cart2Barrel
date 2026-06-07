@@ -11,10 +11,14 @@ import {
   CONDITION_OPTIONS,
   receivingConditionSelectClassName,
 } from "@/components/admin/receiving-row-actions";
+import {
+  appendOutsidePurchaseConditionPhotosToFormData,
+  createOutsidePurchaseConditionDraftFromUrl,
+  OutsidePurchaseConditionPhotosField,
+  type OutsidePurchaseConditionPhotoDraft,
+} from "@/components/admin/outside-purchase-condition-photos-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
-import { ImageFileInput } from "@/components/ui/image-file-input";
-import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -31,12 +35,13 @@ import { HelpBalloon } from "@/components/ui/help-balloon";
 import { Input } from "@/components/ui/input";
 import {
   revokeBlobPreviewUrl,
-  validateProductImageFile,
 } from "@/lib/staged-product-image";
+import { outsidePurchaseConditionImageUrlsFromRequest } from "@/lib/outside-purchase-condition-images";
 import type { ItemQuote, ItemRequest, OutsidePurchaseReturnRequest } from "@/db/schema";
 import { formatUsd, type MerchantServiceTierRow } from "@/lib/admin-markup";
 import {
   computeOutsidePurchaseCustomerQuoteCents,
+  parseListedUnitPriceCentsFromOutsidePurchaseStaffNote,
 } from "@/lib/outside-purchase-service-quote";
 import { OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX } from "@/lib/outside-purchase-staff-note";
 import type {
@@ -58,6 +63,13 @@ function parseDollarsToCents(raw: string): number {
 
 function centsToDollarsInput(cents: number): string {
   return (cents / 100).toFixed(2);
+}
+
+function listedUnitPriceDollarsFromQuote(quote: ItemQuote | null): string {
+  const cents = parseListedUnitPriceCentsFromOutsidePurchaseStaffNote(
+    quote?.staffNote,
+  );
+  return cents != null ? centsToDollarsInput(cents) : "0.00";
 }
 
 type AdminOutsidePurchaseEditDialogProps = {
@@ -93,7 +105,9 @@ export function AdminOutsidePurchaseEditDialog({
   const [receivedShelfLocation, setReceivedShelfLocation] = useState(
     request.outsidePurchaseShelfLocation ?? "",
   );
-  const [unitPriceDollars, setUnitPriceDollars] = useState("0.00");
+  const [unitPriceDollars, setUnitPriceDollars] = useState(() =>
+    listedUnitPriceDollarsFromQuote(quote),
+  );
   const [staffNote, setStaffNote] = useState(
     quote?.staffNote?.trim() || OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX,
   );
@@ -105,55 +119,28 @@ export function AdminOutsidePurchaseEditDialog({
   const [returnStaffNote, setReturnStaffNote] = useState(
     returnRequest?.returnStaffNote ?? "",
   );
-  const [productImageFile, setProductImageFile] = useState<File | null>(null);
-  const [productImagePreview, setProductImagePreview] = useState<string | null>(
-    null,
-  );
-  const [conditionImageFile, setConditionImageFile] = useState<File | null>(null);
-  const [conditionImagePreview, setConditionImagePreview] = useState<
-    string | null
-  >(null);
+  const [conditionPhotos, setConditionPhotos] = useState<
+    OutsidePurchaseConditionPhotoDraft[]
+  >([]);
+  const [displayPhotoId, setDisplayPhotoId] = useState<string | null>(null);
 
-  const clearStagedImages = useCallback(() => {
-    setProductImageFile(null);
-    revokeBlobPreviewUrl(productImagePreview);
-    setProductImagePreview(null);
-    setConditionImageFile(null);
-    revokeBlobPreviewUrl(conditionImagePreview);
-    setConditionImagePreview(null);
-  }, [productImagePreview, conditionImagePreview]);
-
-  const onPickProductImage = useCallback(
-    (fileList: FileList | null) => {
-      const file = fileList?.[0];
-      if (!file) return;
-      const err = validateProductImageFile(file);
-      if (err) {
-        toast.error(err);
-        return;
+  const loadConditionPhotosFromRequest = useCallback(() => {
+    const drafts = outsidePurchaseConditionImageUrlsFromRequest(request).map(
+      createOutsidePurchaseConditionDraftFromUrl,
+    );
+    setConditionPhotos((current) => {
+      for (const photo of current) {
+        if (photo.file) revokeBlobPreviewUrl(photo.previewUrl);
       }
-      setProductImageFile(file);
-      revokeBlobPreviewUrl(productImagePreview);
-      setProductImagePreview(URL.createObjectURL(file));
-    },
-    [productImagePreview],
-  );
-
-  const onPickConditionImage = useCallback(
-    (fileList: FileList | null) => {
-      const file = fileList?.[0];
-      if (!file) return;
-      const err = validateProductImageFile(file);
-      if (err) {
-        toast.error(err);
-        return;
-      }
-      setConditionImageFile(file);
-      revokeBlobPreviewUrl(conditionImagePreview);
-      setConditionImagePreview(URL.createObjectURL(file));
-    },
-    [conditionImagePreview],
-  );
+      return drafts;
+    });
+    const displayUrl = request.productImageUrl?.trim();
+    const displayDraft =
+      drafts.find((draft) => draft.existingUrl === displayUrl) ??
+      drafts[0] ??
+      null;
+    setDisplayPhotoId(displayDraft?.id ?? null);
+  }, [request]);
 
   const resetFromProps = useCallback(() => {
     setProductName(request.productName ?? "");
@@ -169,6 +156,7 @@ export function AdminOutsidePurchaseEditDialog({
       : "package_empty",
     );
     setReceivedShelfLocation(request.outsidePurchaseShelfLocation ?? "");
+    setUnitPriceDollars(listedUnitPriceDollarsFromQuote(quote));
     setStaffNote(quote?.staffNote?.trim() || OUTSIDE_PURCHASE_STAFF_NOTE_PREFIX);
     setReturnFeeDollars(
       returnRequest?.returnServiceFeeCents != null ?
@@ -176,8 +164,8 @@ export function AdminOutsidePurchaseEditDialog({
       : "",
     );
     setReturnStaffNote(returnRequest?.returnStaffNote ?? "");
-    clearStagedImages();
-  }, [request, quote, returnRequest, clearStagedImages]);
+    loadConditionPhotosFromRequest();
+  }, [request, quote, returnRequest, loadConditionPhotosFromRequest]);
 
   const pricingPreview = useMemo(() => {
     return computeOutsidePurchaseCustomerQuoteCents({
@@ -205,8 +193,11 @@ export function AdminOutsidePurchaseEditDialog({
     }
     fd.set("receivedShelfLocation", receivedShelfLocation.trim());
     if (staffNote.trim()) fd.set("staffNote", staffNote.trim());
-    if (productImageFile) fd.set("productImage", productImageFile);
-    if (conditionImageFile) fd.set("conditionImage", conditionImageFile);
+    appendOutsidePurchaseConditionPhotosToFormData(
+      fd,
+      conditionPhotos,
+      displayPhotoId,
+    );
 
     startSave(async () => {
       const res = await updateAdminOutsidePurchaseIntakeAction(fd);
@@ -407,104 +398,22 @@ export function AdminOutsidePurchaseEditDialog({
             Service preview (good condition): {formatUsd(pricingPreview.totalPriceCents)}
           </p>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabelWithHelp
-                label="Product display photo"
-                help="Catalog image shown to the customer. JPEG, PNG, WebP, or GIF."
-                helpLabel="About product display photo"
+          <Field>
+            <FieldLabelWithHelp
+              label="Received condition photos"
+              help="Upload, remove, or choose which photo is the customer-facing product display image."
+              helpLabel="About received condition photos"
+            />
+            <FieldContent>
+              <OutsidePurchaseConditionPhotosField
+                inputId={`op-edit-condition-images-${request.id}`}
+                photos={conditionPhotos}
+                displayPhotoId={displayPhotoId}
+                onPhotosChange={setConditionPhotos}
+                onDisplayPhotoIdChange={setDisplayPhotoId}
               />
-              <FieldContent>
-                <ImageFileInput
-                  id={`op-edit-product-image-${request.id}`}
-                  onFiles={onPickProductImage}
-                  selectedFileName={productImageFile?.name ?? null}
-                />
-                {productImagePreview || request.productImageUrl ?
-                  <div className="mt-3 flex items-start gap-3">
-                    <ProductRequestThumbnail
-                      variant="admin"
-                      imageUrl={productImagePreview ?? request.productImageUrl}
-                      productLabel={request.productName ?? "Product"}
-                      className="size-20 shrink-0"
-                    />
-                    {productImagePreview ?
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                          New photo
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setProductImageFile(null);
-                            revokeBlobPreviewUrl(productImagePreview);
-                            setProductImagePreview(null);
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    : <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Current
-                      </span>
-                    }
-                  </div>
-                : null}
-              </FieldContent>
-            </Field>
-
-            <Field>
-              <FieldLabelWithHelp
-                label="Received condition photo"
-                help="Photo showing the physical condition the product arrived in. JPEG, PNG, WebP, or GIF."
-                helpLabel="About received condition photo"
-              />
-              <FieldContent>
-                <ImageFileInput
-                  id={`op-edit-condition-image-${request.id}`}
-                  onFiles={onPickConditionImage}
-                  selectedFileName={conditionImageFile?.name ?? null}
-                />
-                {conditionImagePreview || request.outsidePurchaseConditionImageUrl ?
-                  <div className="mt-3 flex items-start gap-3">
-                    <ProductRequestThumbnail
-                      variant="admin"
-                      imageUrl={
-                        conditionImagePreview ??
-                        request.outsidePurchaseConditionImageUrl
-                      }
-                      productLabel="Received condition"
-                      className="size-20 shrink-0"
-                    />
-                    {conditionImagePreview ?
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                          New photo
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setConditionImageFile(null);
-                            revokeBlobPreviewUrl(conditionImagePreview);
-                            setConditionImagePreview(null);
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    : <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Current
-                      </span>
-                    }
-                  </div>
-                : null}
-              </FieldContent>
-            </Field>
-          </div>
+            </FieldContent>
+          </Field>
 
           {returnRequest && returnRequest.status !== "cancelled" ?
             <CollapsibleFieldSection

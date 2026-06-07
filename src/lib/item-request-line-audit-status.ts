@@ -1,4 +1,8 @@
 import type { ItemRequestLineSnapshot } from "@/db/schema";
+import {
+  AUDIT_BASELINE_SNAPSHOT_SUMMARY,
+  AUDIT_NO_LINE_FIELD_DIFF_SUMMARY,
+} from "@/lib/audit-snapshot-duplicate-copy";
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
 import {
   parseProductReturnTrackingMemo,
@@ -9,6 +13,15 @@ import {
   refundRequestReasonKindLabel,
 } from "@/lib/refund-request-audit-memo";
 import { parseWarehouseReceiptMemo } from "@/lib/warehouse-receipt-snapshot-memo";
+import {
+  outsidePurchaseIntakeDraftStatusLabel,
+  outsidePurchasePublishedStatusLabel,
+  type AuditSnapshotStatusContext,
+} from "@/lib/outside-purchase-intake-audit-memo";
+import {
+  OUTSIDE_PURCHASE_RETURN_ESTIMATE_ACCEPTED_STATUS_LABEL,
+  OUTSIDE_PURCHASE_RETURN_REQUESTED_STATUS_LABEL,
+} from "@/lib/outside-purchase-display";
 import { PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL } from "@/lib/outside-purchase-paid-status";
 import { PRODUCT_RETURN_REQUEST_PENDING_LABEL } from "@/lib/product-return-request-labels";
 import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
@@ -23,6 +36,7 @@ function trimEq(
 /** One-line shopper/ops-facing headline for this snapshot row. */
 export function auditSnapshotStatusHeadline(
   row: ItemRequestLineSnapshot,
+  context?: AuditSnapshotStatusContext,
 ): string {
   switch (row.phase) {
     case "warehouse_delivery_received":
@@ -71,11 +85,20 @@ export function auditSnapshotStatusHeadline(
     case "batch_estimate_customer_copy":
       return "Batch estimate · customer-facing copy";
     case "batch_estimate_admin_copy":
-      return "Batch estimate · admin copy";
+      return "quoted for batch";
     case "batch_request_submitted_to_staff":
-      return "Batch sent to staff for pricing";
+      return "new request in batch";
     case "outside_purchase_intake":
-      return row.auditMemo?.trim() || "Outside purchase recorded by staff";
+      return outsidePurchaseIntakeDraftStatusLabel(row.auditMemo);
+    case "outside_purchase_published":
+      return outsidePurchasePublishedStatusLabel({
+        row,
+        snapshots: context?.snapshots,
+        quoteStaffNote: context?.quoteStaffNote,
+        receivedConditionRaw: context?.receivedConditionRaw,
+      });
+    case "outside_purchase_unpublished":
+      return "Withdrawn from customer · admin pool only";
     case "outside_purchase_payment_prompted":
       return "Staff recorded payment prompt · add to cart";
     case "outside_purchase_added_to_cart":
@@ -87,22 +110,26 @@ export function auditSnapshotStatusHeadline(
     case "outside_purchase_reinstated_to_active":
       return row.auditMemo?.trim() || "Back on Active · payment still due if unpaid";
     case "outside_purchase_return_requested":
-      return row.auditMemo?.trim() || "Customer submitted return-to-retailer request";
+      return OUTSIDE_PURCHASE_RETURN_REQUESTED_STATUS_LABEL;
     case "outside_purchase_return_estimate_ready":
-      return row.auditMemo?.trim() || "Staff published return service & handling estimate";
+      return "Return estimate ready";
     case "outside_purchase_return_estimate_accepted":
-      return (
-        row.auditMemo?.trim() ||
-        "Customer accepted return estimate · payment due before drop-off"
-      );
+      return OUTSIDE_PURCHASE_RETURN_ESTIMATE_ACCEPTED_STATUS_LABEL;
     case "outside_purchase_return_cancelled":
       return row.auditMemo?.trim() || "Return request cancelled";
     case "outside_purchase_checkout_paid":
-      return row.auditMemo?.trim() || PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL;
+      return PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL;
     default:
       return itemRequestLineSnapshotPhaseLabel(row.phase);
   }
 }
+
+export {
+  AUDIT_NO_LINE_FIELD_DIFF_SUMMARY,
+  isDuplicateFrozenCopySnapshotSummary,
+} from "@/lib/audit-snapshot-duplicate-copy";
+
+export type { AuditSnapshotStatusContext } from "@/lib/outside-purchase-intake-audit-memo";
 
 /**
  * Describes how this row differs from the prior snapshot (same request line, chronological).
@@ -112,7 +139,7 @@ export function auditSnapshotChangeSummary(
   prev: ItemRequestLineSnapshot | null,
 ): string {
   if (!prev) {
-    return "First event on this timeline — baseline snapshot.";
+    return AUDIT_BASELINE_SNAPSHOT_SUMMARY;
   }
 
   const parts: string[] = [];
@@ -188,7 +215,7 @@ export function auditSnapshotChangeSummary(
   }
 
   if (parts.length === 0) {
-    return "No differences in captured line fields vs prior row (same frozen copy).";
+    return AUDIT_NO_LINE_FIELD_DIFF_SUMMARY;
   }
   return parts.join(" · ");
 }

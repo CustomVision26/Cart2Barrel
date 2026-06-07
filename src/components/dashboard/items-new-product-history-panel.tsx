@@ -17,6 +17,7 @@ import type {
 } from "@/db/schema";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import { formatUsd } from "@/lib/admin-markup";
+import { isBatchCheckoutBundle } from "@/lib/batch-checkout";
 import { auditSnapshotStatusHeadline } from "@/lib/item-request-line-audit-status";
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
 import { itemRequestStatusLabel } from "@/lib/item-request-status-label";
@@ -120,15 +121,6 @@ type ProductHistorySort =
   | "created_desc"
   | "name_asc"
   | "quote_total_desc";
-
-function isBatchCheckoutBundle(bundle: OwnerBatchQuoteSessionBundle | undefined) {
-  return (
-    bundle != null &&
-    (bundle.session.cartAcceptanceAcceptedAt != null ||
-      bundle.session.status === "in_cart" ||
-      bundle.session.status === "paid_pending_staff_purchase")
-  );
-}
 
 function highestQuoteTotal(quotes: ItemQuote[]): number {
   return Math.max(0, ...quotes.map((quote) => quote.totalPrice ?? 0));
@@ -317,7 +309,6 @@ function ProductHistoryPagination({
 
 export function ItemsNewProductHistoryPanel() {
   const {
-    customer,
     activeRequests,
     historyRequests,
     batchBundles,
@@ -818,23 +809,7 @@ export function ItemsNewProductHistoryPanel() {
       ) : null}
 
       {filteredSorted.length > 0 ? (
-        <ToggleBlock
-          title={
-            <span className="flex flex-wrap items-center gap-2">
-              <span>Customer</span>
-              <span className="text-primary">{customer.name}</span>
-              {customer.email && customer.email !== customer.name ? (
-                <span className="text-xs font-normal text-muted-foreground">
-                  {customer.email}
-                </span>
-              ) : null}
-            </span>
-          }
-          summary={`Showing ${pageStart}-${pageEnd} of ${filteredSorted.length} matching product${
-            filteredSorted.length === 1 ? "" : "s"
-          }`}
-        >
-          <div className="space-y-4">
+        <div className="space-y-4">
             {groupedProducts.map((group) => (
               <ToggleBlock
                 key={group.key}
@@ -854,9 +829,6 @@ export function ItemsNewProductHistoryPanel() {
                           Status
                         </th>
                         <th className="px-3 py-2 font-medium" scope="col">
-                          Records
-                        </th>
-                        <th className="px-3 py-2 font-medium" scope="col">
                           Last activity
                         </th>
                         <th className="px-3 py-2 font-medium" scope="col">
@@ -871,6 +843,7 @@ export function ItemsNewProductHistoryPanel() {
                           request={request}
                           snapshots={snapshotsByRequestId[request.id] ?? []}
                           quotes={quotesByRequestId[request.id] ?? []}
+                          quotesByRequestId={quotesByRequestId}
                           bundle={batchBundleByRequestId.get(request.id)}
                           fulfillmentLabelOverride={
                             fulfillmentLabelByRequestId[request.id]
@@ -888,8 +861,7 @@ export function ItemsNewProductHistoryPanel() {
                 </FloatingHorizontalScroll>
               </ToggleBlock>
             ))}
-          </div>
-        </ToggleBlock>
+        </div>
       ) : null}
 
       {filteredSorted.length > 0 ? (

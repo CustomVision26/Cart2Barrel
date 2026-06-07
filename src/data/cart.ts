@@ -24,7 +24,9 @@ import {
   withLegacyItemRequestDefaults,
 } from "@/data/item-requests";
 import { itemQuoteCoreSelect, itemQuoteCoreSelectPreMerchandiseSavings } from "@/data/item-quotes";
+import { listOutsidePurchaseReturnRequestsByItemRequestIds } from "@/data/outside-purchase-return-requests";
 import { orderListSelect } from "@/data/order-list-select";
+import { outsidePurchaseReturnTransitCheckoutCaption } from "@/lib/outside-purchase-display";
 import type { ContainerCheckoutLine } from "@/data/user-container-cart";
 import { allocateBundleSubtotalAcrossLineTotalsCents } from "@/lib/batch-cart-allocation";
 import type {
@@ -849,6 +851,8 @@ export type CartCheckoutSummaryLine = {
   quantity: number;
   lineTotalCents: number;
   outsidePurchaseReceiptImageUrl: string | null;
+  /** Explains return-transit fees on checkout (outside-purchase return workflow). */
+  chargeCaption: string | null;
 };
 
 export type CartCheckoutBatchBundleSummary = {
@@ -905,6 +909,7 @@ export async function getCartCheckoutOrderSummaryForUser(
     price: orderItems.price,
     productName: itemRequests.productName,
     productUrl: itemRequests.productUrl,
+    source: itemRequests.source,
     outsidePurchaseReceiptImageUrl: itemRequests.outsidePurchaseReceiptImageUrl,
     linkBatchSessionId: batchQuoteSessionLines.batchQuoteSessionId,
     requestBatchSessionId: itemRequests.batchQuoteSessionId,
@@ -916,6 +921,7 @@ export async function getCartCheckoutOrderSummaryForUser(
     price: orderItems.price,
     productName: itemRequests.productName,
     productUrl: itemRequests.productUrl,
+    source: itemRequests.source,
     linkBatchSessionId: batchQuoteSessionLines.batchQuoteSessionId,
     requestBatchSessionId: itemRequests.batchQuoteSessionId,
   } as const;
@@ -926,6 +932,7 @@ export async function getCartCheckoutOrderSummaryForUser(
     price: number;
     productName: string | null;
     productUrl: string;
+    source: ItemRequest["source"];
     outsidePurchaseReceiptImageUrl?: string | null;
     linkBatchSessionId: string | null;
     requestBatchSessionId: string | null;
@@ -971,6 +978,14 @@ export async function getCartCheckoutOrderSummaryForUser(
     }));
   }
 
+  const returnRequestsByItemRequestId = new Map(
+    (
+      await listOutsidePurchaseReturnRequestsByItemRequestIds(
+        rows.map((row) => row.itemRequestId),
+      )
+    ).map((row) => [row.itemRequestId, row]),
+  );
+
   function toLine(r: CheckoutLineRow): CartCheckoutSummaryLine {
     return {
       itemRequestId: r.itemRequestId,
@@ -979,6 +994,10 @@ export async function getCartCheckoutOrderSummaryForUser(
       quantity: r.quantity,
       lineTotalCents: r.price,
       outsidePurchaseReceiptImageUrl: r.outsidePurchaseReceiptImageUrl ?? null,
+      chargeCaption: outsidePurchaseReturnTransitCheckoutCaption(
+        r.source,
+        returnRequestsByItemRequestId.get(r.itemRequestId),
+      ),
     };
   }
 

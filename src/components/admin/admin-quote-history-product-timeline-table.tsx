@@ -9,7 +9,7 @@ import {
 } from "@/components/dashboard/product-history-event-preview-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
-import type { ItemQuote, ItemRequest, ItemRequestLineSnapshot } from "@/db/schema";
+import type { ItemQuote, ItemRequest, ItemRequestLineSnapshot, OutsidePurchaseReturnRequest } from "@/db/schema";
 import { quotesForRequestFromHistoryLines } from "@/lib/admin-quote-history-display";
 import type { AdminQuoteHistoryLine } from "@/data/admin-quote-history";
 import {
@@ -79,18 +79,21 @@ export function AdminQuoteHistoryProductTimelineTable({
   request,
   allGroupLines,
   snapshots,
+  returnRequest = null,
   orderContext,
 }: {
   request: ItemRequest;
   allGroupLines: AdminQuoteHistoryLine[];
   snapshots: ItemRequestLineSnapshot[];
+  returnRequest?: OutsidePurchaseReturnRequest | null;
   orderContext?: ItemRequestOrderContext | null;
 }) {
   const statusLabel = itemRequestStatusLabelForDisplay(
     request,
-    null,
+    returnRequest,
     orderContext,
     "admin",
+    snapshots,
   );
   const quotes = useMemo(
     () => quotesForRequestFromHistoryLines(allGroupLines, request.id),
@@ -102,11 +105,12 @@ export function AdminQuoteHistoryProductTimelineTable({
   );
   const events = useMemo(() => {
     const built = buildProductHistoryTimelineEvents(request, snapshots, quotesById, {
+      returnRequest,
       orderContext,
       audience: "admin",
     });
     return [...built].reverse();
-  }, [request, snapshots, quotesById, orderContext]);
+  }, [request, snapshots, quotesById, returnRequest, orderContext]);
 
   if (events.length === 0) {
     return (
@@ -117,53 +121,67 @@ export function AdminQuoteHistoryProductTimelineTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-sky-500/35 bg-sky-950/20 shadow-sm ring-1 ring-sky-500/20 dark:bg-sky-500/[0.07]">
-      <p className="border-b border-sky-500/25 bg-sky-500/12 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-sky-100">
+    <div className="overflow-hidden rounded-xl border border-sky-500/30 bg-sky-950/15 shadow-sm ring-1 ring-sky-500/15 dark:bg-sky-500/[0.06]">
+      <p className="border-b border-sky-500/20 bg-sky-500/10 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-100">
         Status history — newest to oldest
       </p>
-      <table className="w-full min-w-[36rem] text-left text-xs">
-        <thead className="border-b border-sky-500/20 bg-sky-500/[0.08]">
+      <table className="w-full min-w-[36rem] text-left text-xs sm:text-sm">
+        <thead className="border-b border-sky-500/15 bg-sky-500/[0.06]">
           <tr>
-            <th className="px-3 py-2 font-medium text-sky-100/90">Stage</th>
-            <th className="px-3 py-2 font-medium text-sky-100/90">Status</th>
-            <th className="px-3 py-2 font-medium text-sky-100/90">When</th>
-            <th className="px-3 py-2 font-medium text-sky-100/90">Preview</th>
+            <th className="px-4 py-2.5 font-medium text-muted-foreground">Stage</th>
+            <th className="px-4 py-2.5 font-medium text-muted-foreground">Status</th>
+            <th className="whitespace-nowrap px-4 py-2.5 font-medium text-muted-foreground">
+              When
+            </th>
+            <th className="px-4 py-2.5 font-medium text-muted-foreground">Preview</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-sky-500/15">
+        <tbody className="divide-y divide-sky-500/10">
           {events.map((event) => (
             <tr
               key={event.id}
               className={cn(
                 event.kind === "current" &&
-                  "bg-sky-500/12 shadow-[inset_3px_0_0_rgb(56_189_248_/_0.75)]",
-                event.kind !== "current" && "hover:bg-sky-500/[0.05]",
+                  "bg-sky-500/10 shadow-[inset_3px_0_0_rgb(56_189_248_/_0.75)]",
+                event.kind !== "current" && "hover:bg-sky-500/[0.04]",
               )}
             >
-              <td className="px-3 py-2 text-muted-foreground">{event.label}</td>
-              <td className="max-w-[16rem] px-3 py-2">
+              <td className="px-4 py-3 align-top text-muted-foreground">{event.label}</td>
+              <td className="max-w-[18rem] px-4 py-3 align-top">
                 {event.kind === "current" ?
                   <StatusBadge
                     kind={itemRequestStatusBadgeKindForDisplay(
                       request,
-                      null,
+                      returnRequest,
                       orderContext,
                       "admin",
+                      snapshots,
                     )}
                     className="whitespace-normal leading-snug"
                   >
                     {event.headline}
                   </StatusBadge>
-                : <span className="font-medium leading-snug text-foreground">
-                    {event.headline}
-                  </span>
+                : <div className="space-y-1">
+                    <p className="font-semibold leading-snug text-foreground">
+                      {event.headline}
+                    </p>
+                    {event.detail ?
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {event.detail}
+                      </p>
+                    : null}
+                  </div>
                 }
-                <p className="mt-1 text-muted-foreground">{event.detail}</p>
+                {event.kind === "current" ?
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {event.detail}
+                  </p>
+                : null}
               </td>
-              <td className="whitespace-nowrap px-3 py-2 tabular-nums text-muted-foreground">
+              <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground">
                 <time dateTime={event.at}>{new Date(event.at).toLocaleString()}</time>
               </td>
-              <td className="px-3 py-2">
+              <td className="px-4 py-3 align-top">
                 <QuoteHistoryTimelinePreviewButton
                   event={event}
                   request={request}

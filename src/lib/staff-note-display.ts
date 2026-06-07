@@ -1,3 +1,5 @@
+import { noteWithLatestReturnEstimateOnly } from "@/lib/outside-purchase-staff-note-display";
+
 /** Machine-readable pack metadata appended to outside-purchase staff notes. */
 const OP_PACK_META_LINE_RE = /^\s*\[op-pack\]\s*unitsPerPack=\d+\s*$/i;
 
@@ -11,7 +13,9 @@ export function formatStaffNoteParagraphsForDisplay(
 ): string[] {
   if (!staffNote?.trim()) return [];
 
-  const paragraphs = staffNote
+  const normalized = noteWithLatestReturnEstimateOnly(staffNote.trim());
+
+  const paragraphs = normalized
     .split(/\n{2,}/)
     .map((block) =>
       block

@@ -53,6 +53,7 @@ function eventIcon(kind: UserStatusUpdateKind) {
       return RotateCcw;
     case "product_return_fulfilled":
     case "outside_purchase_return_estimate_ready":
+    case "outside_purchase_payment_prompt":
       return ShoppingBag;
     case "account_welcome":
       return PartyPopper;

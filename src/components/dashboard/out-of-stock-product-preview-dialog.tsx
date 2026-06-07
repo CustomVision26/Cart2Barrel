@@ -76,6 +76,48 @@ export function OutOfStockProductPreviewDialog({
           />
           <OutOfStockProductSummary request={request} productName={productName} />
         </div>
+        {request.outOfStockStaffNote?.trim() ?
+          <div className="rounded-md border border-border bg-secondary/40 px-3 py-2.5">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Note from Cart2Barrel
+            </p>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+              {request.outOfStockStaffNote.trim()}
+            </p>
+          </div>
+        : null}
+        {(request.outOfStockAttachmentImageUrls ?? []).filter(Boolean).length > 0 ?
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Attachment images
+            </p>
+            <ul className="flex flex-wrap gap-2">
+              {(request.outOfStockAttachmentImageUrls ?? [])
+                .filter((url) => url.trim().length > 0)
+                .map((url) => (
+                  <li
+                    key={url}
+                    className="overflow-hidden rounded-md border border-border bg-background"
+                  >
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open attachment image"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- staff-uploaded blob URLs */}
+                      <img
+                        src={url}
+                        alt=""
+                        className="size-20 object-cover"
+                        loading="lazy"
+                      />
+                    </a>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        : null}
         <p className="text-sm text-muted-foreground">
           After you remove this line, it moves to Product history. To request a
           different product, use{" "}
@@ -102,7 +144,12 @@ export function OutOfStockProductPreviewDialog({
               </>
             : "Remove from product record"}
           </Button>
-          <Button type="button" variant="outline" className="w-full" render={<Link href={DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE} />}>
+          <Button
+            variant="outline"
+            className="w-full"
+            nativeButton={false}
+            render={<Link href={DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE} />}
+          >
             Request a new product
           </Button>
         </DialogFooter>

@@ -17,8 +17,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 export type ReceivedProductPhoto = { url: string; label: string };
+
+const defaultTriggerClassName =
+  "inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60 sm:text-sm";
 
 /**
  * Opens received product photos in a dialog. With more than one photo, the
@@ -27,9 +31,11 @@ export type ReceivedProductPhoto = { url: string; label: string };
 export function ReceivedPhotosViewer({
   photos,
   triggerLabel,
+  triggerClassName,
 }: {
   photos: ReceivedProductPhoto[];
   triggerLabel: string;
+  triggerClassName?: string;
 }) {
   const validPhotos = photos.filter((photo) => photo.url.trim().length > 0);
   if (validPhotos.length === 0) return null;
@@ -39,7 +45,7 @@ export function ReceivedPhotosViewer({
     <Dialog>
       <DialogTrigger
         type="button"
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary underline-offset-4 hover:underline sm:text-sm"
+        className={cn(defaultTriggerClassName, triggerClassName)}
         title={`View ${triggerLabel.toLowerCase()}`}
       >
         <ImageIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />

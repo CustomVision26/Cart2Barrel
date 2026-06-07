@@ -39,6 +39,7 @@ import {
   shouldUseBatchQuoteSchemaFallback,
 } from "@/lib/db-column-missing";
 import { validateQuotedFullSiteSelection } from "@/lib/batch-quote-validation";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
 import {
   getLatestQuoteForItemRequest,
@@ -308,6 +309,150 @@ export async function listBatchSessionsWithDetailsForOwner(
     }
 
     return bundles;
+  } catch (e) {
+    if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
+    console.warn(
+      "[Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
+    );
+    return [];
+  }
+}
+
+export type AdminBatchHistoryOwnerBundle = OwnerBatchQuoteSessionBundle & {
+  userFullName: string | null;
+  userEmail: string | null;
+};
+
+/** Cross-customer batch history in the same shape as the shopper dashboard history UI. */
+export async function listBatchHistoryOwnerBundlesForAdmin(): Promise<
+  AdminBatchHistoryOwnerBundle[]
+> {
+  try {
+    const db = getDb();
+    const sessions = await db
+      .select()
+      .from(batchQuoteSessions)
+      .where(ne(batchQuoteSessions.status, "draft"))
+      .orderBy(
+        desc(
+          sql`COALESCE(${batchQuoteSessions.submittedAt}, ${batchQuoteSessions.createdAt})`,
+        ),
+      );
+
+    if (sessions.length === 0) return [];
+
+    const sessionIds = sessions.map((s) => s.id);
+    const links =
+      sessionIds.length === 0
+        ? []
+        : await db
+            .select()
+            .from(batchQuoteSessionLines)
+            .where(inArray(batchQuoteSessionLines.batchQuoteSessionId, sessionIds));
+
+    const requestIds = [...new Set(links.map((l) => l.itemRequestId))];
+    const requestsRows = await selectItemRequestsByIds(requestIds);
+    const requestMap = new Map(requestsRows.map((r) => [r.id, r]));
+
+    const estimates =
+      sessionIds.length === 0
+        ? []
+        : await db
+            .select()
+            .from(batchQuoteEstimates)
+            .where(
+              and(
+                inArray(batchQuoteEstimates.batchQuoteSessionId, sessionIds),
+                isNull(batchQuoteEstimates.voidedAt),
+              ),
+            )
+            .orderBy(desc(batchQuoteEstimates.createdAt));
+
+    const estimateBySession = new Map<string, BatchQuoteEstimate>();
+    for (const e of estimates) {
+      if (!estimateBySession.has(e.batchQuoteSessionId)) {
+        estimateBySession.set(e.batchQuoteSessionId, e);
+      }
+    }
+
+    const statusEventRows = await listBatchQuoteSessionStatusEventsForSessions({
+      sessionIds,
+    });
+    const statusEventsBySessionId = new Map<
+      string,
+      BatchQuoteSessionStatusEvent[]
+    >();
+    for (const ev of statusEventRows) {
+      const sid = ev.batchQuoteSessionId;
+      const prev = statusEventsBySessionId.get(sid) ?? [];
+      prev.push(ev);
+      statusEventsBySessionId.set(sid, prev);
+    }
+
+    const linksBySession = new Map<string, BatchQuoteSessionLine[]>();
+    for (const l of links) {
+      const prev = linksBySession.get(l.batchQuoteSessionId);
+      if (prev) prev.push(l);
+      else linksBySession.set(l.batchQuoteSessionId, [l]);
+    }
+
+    const clerkUserIds = [...new Set(sessions.map((s) => s.clerkUserId))];
+    const profileRows =
+      clerkUserIds.length === 0
+        ? []
+        : await db
+            .select({
+              clerkUserId: profiles.clerkUserId,
+              fullName: profiles.fullName,
+              email: profiles.email,
+            })
+            .from(profiles)
+            .where(inArray(profiles.clerkUserId, clerkUserIds));
+    const profileByClerk = new Map(profileRows.map((p) => [p.clerkUserId, p]));
+
+    const out: AdminBatchHistoryOwnerBundle[] = [];
+    for (const session of sessions) {
+      const lr = linksBySession.get(session.id) ?? [];
+      let reqs: ItemRequest[];
+
+      if (lr.length > 0) {
+        reqs = lr
+          .map((row) => requestMap.get(row.itemRequestId))
+          .filter((r): r is ItemRequest => Boolean(r));
+      } else if (
+        session.status === "estimated" ||
+        session.status === "in_cart" ||
+        session.status === "paid_pending_staff_purchase"
+      ) {
+        const snapshotIds =
+          await itemRequestIdsFromBatchEstimateSnapshots(session.id);
+        reqs =
+          snapshotIds.length === 0
+            ? []
+            : await selectItemRequestsByIds(snapshotIds);
+      } else {
+        reqs = [];
+      }
+
+      reqs.sort((a, b) => {
+        const ta = new Date(a.createdAt).getTime();
+        const tb = new Date(b.createdAt).getTime();
+        return tb - ta;
+      });
+
+      const profile = profileByClerk.get(session.clerkUserId);
+      out.push({
+        session,
+        lineRows: lr,
+        requests: reqs,
+        latestEstimate: estimateBySession.get(session.id) ?? null,
+        statusEvents: statusEventsBySessionId.get(session.id) ?? [],
+        userFullName: profile?.fullName ?? null,
+        userEmail: profile?.email ?? null,
+      });
+    }
+
+    return out;
   } catch (e) {
     if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
     console.warn(
@@ -850,9 +995,14 @@ export async function createDraftBatchSessionForOwner(params: {
 
   await reconcileOwnedItemsForFreshBatchAttachment(clerkUserId, itemRequestIds);
 
-  const unbatchedQuoted = await listQuotedActiveItemRequestsForBatching(
-    clerkUserId
-  );
+  const unbatchedQuoted = (
+    await listQuotedActiveItemRequestsForBatching(clerkUserId)
+  ).filter((r) => !isOutsidePurchaseRequest(r));
+  if (unbatchedQuoted.length === 0 && itemRequestIds.length > 0) {
+    throw new Error(
+      "Outside purchase products can't be added to a batch quote."
+    );
+  }
   const chk = validateQuotedFullSiteSelection(unbatchedQuoted, itemRequestIds);
   if (!chk.ok) throw new Error(chk.message);
 
@@ -1037,6 +1187,7 @@ export async function insertBatchEstimateRow(params: {
   siteSaleTaxTotalCents: number;
   saleTaxDiscountCents: number;
   subtotalCents: number;
+  staffNote?: string | null;
   recordedByClerkUserId?: string | null;
 }): Promise<BatchQuoteEstimate> {
   const db = getDb();
@@ -1055,6 +1206,7 @@ export async function insertBatchEstimateRow(params: {
       siteSaleTaxTotalCents: params.siteSaleTaxTotalCents,
       saleTaxDiscountCents: params.saleTaxDiscountCents,
       subtotalCents: params.subtotalCents,
+      staffNote: params.staffNote?.trim() || null,
       recordedByClerkUserId: params.recordedByClerkUserId?.trim() || null,
     })
     .returning();
