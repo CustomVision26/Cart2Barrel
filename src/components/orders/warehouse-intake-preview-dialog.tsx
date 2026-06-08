@@ -61,12 +61,29 @@ function WarehouseIntakeFromOrderItem({
       orderItem.warehouseReceivedCondition
     : "good";
   const proofUrls = orderItem.warehouseReceivedProofPhotoUrls ?? [];
+  const missingReason =
+    isWarehouseMissingReason(orderItem.warehouseReceivedMissingReason) ?
+      orderItem.warehouseReceivedMissingReason
+    : null;
+  const recordedLabel = (() => {
+    const date = new Date(receivedAt);
+    if (!Number.isFinite(date.getTime())) return receivedAt;
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  })();
 
   return (
     <dl className="grid gap-3 text-sm sm:grid-cols-2">
       <div>
         <dt className="text-xs font-medium text-muted-foreground">Recorded</dt>
-        <dd>{new Date(receivedAt).toLocaleString()}</dd>
+        <dd>
+          <time dateTime={receivedAt}>{recordedLabel}</time>
+        </dd>
       </div>
       <div>
         <dt className="text-xs font-medium text-muted-foreground">Ordered qty</dt>
