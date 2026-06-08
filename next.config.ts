@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
         pathname: "/amani-cart2barrel-logo.png",
         search: "",
       },
+      {
+        pathname: "/homepage-img-cart2barrel.png",
+        search: "",
+      },
     ],
   },
   /** Dev-only: allow HMR / _next when loading the app via a tunnel host. */
