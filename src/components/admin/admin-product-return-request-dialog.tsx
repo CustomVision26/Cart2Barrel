@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 
 import { adminFulfillProductReturnRequestAction } from "@/actions/admin-fulfill-product-return-request";
 import { AdminRetailerReceiptImagesField } from "@/components/admin/admin-retailer-receipt-images-field";
@@ -19,6 +19,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProductReturnDesiredOutcomeSummary } from "@/components/dashboard/product-return-desired-outcome-options";
 import type { PendingProductReturnRequestBrief } from "@/data/order-item-product-return-requests";
+import type { OrderItem } from "@/db/schema";
+import { resolveProductReturnDesiredOutcomeContext } from "@/lib/product-return-desired-outcome";
+import { defaultProductReturnStaffCustomerNote } from "@/lib/product-return-staff-customer-note";
 import { cn } from "@/lib/utils";
 
 function formatWhen(iso: string | null | undefined): string {
@@ -31,20 +34,37 @@ export function AdminProductReturnRequestDialog({
   productLabel,
   returnRequest,
   initialReceiptImageUrls,
+  fulfillmentStatus,
+  warehouseReceivedCondition,
 }: {
   orderItemId: string;
   productLabel: string;
   returnRequest: PendingProductReturnRequestBrief;
   initialReceiptImageUrls?: string[] | null;
+  fulfillmentStatus?: OrderItem["fulfillmentStatus"];
+  warehouseReceivedCondition?: string | null;
 }) {
+  const outcomeContext = resolveProductReturnDesiredOutcomeContext({
+    fulfillmentStatus,
+    warehouseReceivedCondition,
+  });
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState("");
   const [retailerTrackingCompany, setRetailerTrackingCompany] = useState("");
   const [retailerTrackingNumber, setRetailerTrackingNumber] = useState("");
+  const [notesForCustomer, setNotesForCustomer] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackOk, setFeedbackOk] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (open) {
+      setNotesForCustomer(
+        defaultProductReturnStaffCustomerNote(returnRequest.desiredOutcome),
+      );
+    }
+  }, [open, returnRequest.desiredOutcome]);
 
   const submit = useCallback(() => {
     setFeedback(null);
@@ -60,6 +80,7 @@ export function AdminProductReturnRequestDialog({
           retailerTrackingNumber.trim() === "" ?
             undefined
           : retailerTrackingNumber.trim(),
+        customerNotes: notesForCustomer.trim(),
       });
       setFeedbackOk(res.ok);
       setFeedback(res.message);
@@ -72,6 +93,7 @@ export function AdminProductReturnRequestDialog({
     orderItemId,
     retailerTrackingCompany,
     retailerTrackingNumber,
+    notesForCustomer,
     router,
     trackingUrl,
   ]);
@@ -114,6 +136,7 @@ export function AdminProductReturnRequestDialog({
                 <dd className="text-foreground">
                   <ProductReturnDesiredOutcomeSummary
                     outcome={returnRequest.desiredOutcome}
+                    context={outcomeContext}
                   />
                 </dd>
               </div>
@@ -166,6 +189,23 @@ export function AdminProductReturnRequestDialog({
                 disabled={pending}
               />
             </fieldset>
+            <div className="space-y-2">
+              <Label htmlFor={`admin-return-customer-note-${orderItemId}`}>
+                Notes for customer
+              </Label>
+              <textarea
+                id={`admin-return-customer-note-${orderItemId}`}
+                className="min-h-[6rem] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
+                value={notesForCustomer}
+                onChange={(e) => setNotesForCustomer(e.target.value)}
+                disabled={pending}
+                maxLength={2000}
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown to the customer on their order when return tracking is saved. You
+                can edit this before saving.
+              </p>
+            </div>
           </div>
 
           {feedback ?

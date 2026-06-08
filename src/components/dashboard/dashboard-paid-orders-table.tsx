@@ -44,6 +44,7 @@ import {
   partitionPaidLinesIntoBatchBuckets,
 } from "@/lib/partition-paid-order-batch-groups";
 import { orderItemFulfillmentBadgeKind } from "@/lib/status-badge-map";
+import { WarehouseIntakePreviewDialog } from "@/components/orders/warehouse-intake-preview-dialog";
 import { displaySiteName } from "@/lib/site-name";
 
 function subgroupColSpan(): number {
@@ -544,6 +545,14 @@ export function DashboardOrderDataRow(props: {
           </p>
         : null}
         <DashboardAcceptDeliveryConditionDialog row={row} />
+        {fulfillment === "delivery_received_item_missing" &&
+        row.orderItem.warehouseReceivedAt ?
+          <WarehouseIntakePreviewDialog
+            productLabel={r.productName?.trim() || "Unnamed product"}
+            orderItem={row.orderItem}
+            snapshots={snapshotsByRequestId[r.id] ?? []}
+          />
+        : null}
       </td>
       <td className="px-3 py-3 align-top">
         <ItemRequestLineAuditDialog

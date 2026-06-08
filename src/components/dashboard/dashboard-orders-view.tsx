@@ -20,6 +20,7 @@ import {
   listDashboardPaidOrderLinesPage,
 } from "@/data/dashboard-order-lines";
 import { orderSlideLaneNamesList } from "@/lib/admin-orders-slide-filters";
+import { parseOrderHighlightId } from "@/lib/order-notification-highlight";
 import { parsePaidOrdersQuery } from "@/lib/paid-orders-list-params";
 
 type DashboardOrdersViewMode = "orders" | "history";
@@ -72,6 +73,7 @@ export async function DashboardOrdersView({
   const copy = viewCopy[mode];
   const rawSp = (await searchParams) ?? {};
   const query = parsePaidOrdersQuery(rawSp);
+  const highlightOrderId = parseOrderHighlightId(rawSp.highlight);
   const pagePack =
     mode === "history"
       ? await listDashboardPaidOrderHistoryLinesPage(userId, query)
@@ -167,6 +169,7 @@ export async function DashboardOrdersView({
             <DashboardOrdersCarouselView
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
+              highlightOrderId={highlightOrderId}
             />
           ) : null}
         </>

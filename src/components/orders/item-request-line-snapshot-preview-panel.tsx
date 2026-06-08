@@ -31,6 +31,7 @@ import {
 } from "@/lib/item-request-line-audit-status";
 import { isDuplicateFrozenCopySnapshotSummary } from "@/lib/audit-snapshot-duplicate-copy";
 import { parseProductReturnTrackingMemo } from "@/lib/product-return-tracking-memo";
+import { productReturnRequestNoteForSnapshot } from "@/lib/product-return-request-snapshot-note";
 import {
   parseRefundRequestAuditMemo,
   refundRequestReasonKindLabel,
@@ -39,7 +40,10 @@ import {
   parseWarehouseReceiptMemo,
   warehouseReceiptIntakePhotoUrls,
 } from "@/lib/warehouse-receipt-snapshot-memo";
-import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
+import {
+  warehouseMissingReasonLabel,
+  warehouseReceiveConditionLabel,
+} from "@/lib/warehouse-receive-condition";
 import { SnapshotAuditMemoDisplay } from "@/components/orders/audit-memo-display";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { displaySiteName } from "@/lib/site-name";
@@ -182,6 +186,16 @@ function hasStructuredAuditMemo(row: ItemRequestLineSnapshot): boolean {
   return false;
 }
 
+function ProductReturnRequestNotesPanel({ note }: { note: string | null }) {
+  return (
+    <PreviewSectionCard title="Return request notes">
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+        {note?.trim() || "No return request notes were recorded for this product."}
+      </p>
+    </PreviewSectionCard>
+  );
+}
+
 function ProductReturnTrackingSnapshotPanel({
   row,
 }: {
@@ -223,6 +237,19 @@ function ProductReturnTrackingSnapshotPanel({
   );
 }
 
+function formatWarehouseRecordedAt(iso: string | null | undefined): string {
+  if (!iso?.trim()) return "Not available";
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "Not available";
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function WarehouseReceiptSnapshotPanel({
   row,
   warehouseProofPhotoUrls,
@@ -233,6 +260,8 @@ function WarehouseReceiptSnapshotPanel({
   const wr = parseWarehouseReceiptMemo(row.auditMemo);
   if (!wr) return null;
   const intakePhotoUrls = warehouseReceiptIntakePhotoUrls(wr, warehouseProofPhotoUrls);
+  const missingReportedAt = wr.recordedAt?.trim() || row.createdAt;
+  const missingReasonLabel = warehouseMissingReasonLabel(wr.missingReason);
   const panelTitle =
     wr.intakeRole === "prior" ?
       "Prior warehouse intake (archived)"
@@ -274,6 +303,34 @@ function WarehouseReceiptSnapshotPanel({
           <dt className="text-xs font-medium text-muted-foreground">Condition</dt>
           <dd>{warehouseReceiveConditionLabel(wr.condition)}</dd>
         </div>
+        {wr.condition === "missing" ?
+          <>
+            {missingReasonLabel ?
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">
+                  Missing detail
+                </dt>
+                <dd>{missingReasonLabel}</dd>
+              </div>
+            : null}
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">
+                Missing reported
+              </dt>
+              <dd>
+                <time dateTime={missingReportedAt}>
+                  {formatWarehouseRecordedAt(missingReportedAt)}
+                </time>
+              </dd>
+            </div>
+          </>
+        : null}
+        {wr.conditionNotes?.trim() ?
+          <div className="sm:col-span-2">
+            <dt className="text-xs font-medium text-muted-foreground">Condition notes</dt>
+            <dd className="whitespace-pre-wrap">{wr.conditionNotes.trim()}</dd>
+          </div>
+        : null}
         <div>
           <dt className="text-xs font-medium text-muted-foreground">Shelf / bin</dt>
           <dd>{wr.shelfLocation.trim() || "—"}</dd>
@@ -644,6 +701,10 @@ export function ItemRequestLineSnapshotPreviewPanel({
   const linkedQuote = estimateQuote ?? null;
   const hideProductLine = showBatchShare || showSingleQuoteBreakdown;
   const isOutsidePurchase = isOutsidePurchaseProductUrl(row.productUrl ?? "");
+  const returnRequestNote = productReturnRequestNoteForSnapshot(row, auditSnapshots);
+  const showReturnRequestNotes =
+    row.phase === "product_return_tracking_saved" ||
+    row.phase === "product_return_requested";
   const auditStatusContext: AuditSnapshotStatusContext | undefined =
     auditSnapshots || receivedConditionRaw || estimateNote || linkedQuote?.staffNote ?
       {
@@ -712,6 +773,9 @@ export function ItemRequestLineSnapshotPreviewPanel({
       : null}
       {row.phase === "product_return_tracking_saved" ?
         <ProductReturnTrackingSnapshotPanel row={row} />
+      : null}
+      {showReturnRequestNotes ?
+        <ProductReturnRequestNotesPanel note={returnRequestNote} />
       : null}
       {row.phase === "customer_refund_request_submitted" ?
         <CustomerRefundRequestSnapshotPanel row={row} />

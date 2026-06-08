@@ -10,6 +10,11 @@ export type ProductAssignmentFilter = "all" | "awaiting" | "assigned";
 
 export type ProductContainerFilter = "all" | "unassigned" | string;
 
+export type ProductSortField = "assigned" | "product" | "container" | "fulfillment";
+
+export type ProductSortDir = "asc" | "desc";
+
+/** @deprecated Use ProductSortField + ProductSortDir */
 export type ProductSortKey =
   | "product_asc"
   | "product_desc"
@@ -23,7 +28,8 @@ export type ProductToBarrelFilterState = {
   assignment: ProductAssignmentFilter;
   container: ProductContainerFilter;
   fulfillment: string;
-  sort: ProductSortKey;
+  sortField: ProductSortField;
+  sortDir: ProductSortDir;
 };
 
 export const DEFAULT_PRODUCT_TO_BARREL_FILTERS: ProductToBarrelFilterState = {
@@ -31,7 +37,8 @@ export const DEFAULT_PRODUCT_TO_BARREL_FILTERS: ProductToBarrelFilterState = {
   assignment: "all",
   container: "all",
   fulfillment: "all",
-  sort: "assigned_newest",
+  sortField: "assigned",
+  sortDir: "desc",
 };
 
 /** Fields shared by dashboard and admin pipeline product rows. */
@@ -104,43 +111,55 @@ export function filterAndSortPipelineLines<T extends PipelineFilterableRow>(
   });
 
   rows = [...rows];
-  rows.sort((a, b) => comparePipelineLines(a, b, filters.sort));
+  rows.sort((a, b) => comparePipelineLines(a, b, filters.sortField, filters.sortDir));
   return rows;
 }
 
 function comparePipelineLines(
   a: PipelineFilterableRow,
   b: PipelineFilterableRow,
-  sort: ProductSortKey,
+  sortField: ProductSortField,
+  sortDir: ProductSortDir,
 ): number {
-  switch (sort) {
-    case "product_asc":
-      return a.productName.localeCompare(b.productName);
-    case "product_desc":
-      return b.productName.localeCompare(a.productName);
+  let result = 0;
+  switch (sortField) {
+    case "product":
+      result = a.productName.localeCompare(b.productName);
+      break;
     case "container": {
       const aa = a.assignedContainerAlias?.trim() ?? "\uffff";
       const bb = b.assignedContainerAlias?.trim() ?? "\uffff";
-      return aa.localeCompare(bb) || a.productName.localeCompare(b.productName);
+      result = aa.localeCompare(bb);
+      break;
     }
-    case "assigned_newest": {
-      const at = a.assignedAt ? Date.parse(a.assignedAt) : 0;
-      const bt = b.assignedAt ? Date.parse(b.assignedAt) : 0;
-      return bt - at || a.productName.localeCompare(b.productName);
-    }
-    case "assigned_oldest": {
-      const at = a.assignedAt ? Date.parse(a.assignedAt) : Number.MAX_SAFE_INTEGER;
-      const bt = b.assignedAt ? Date.parse(b.assignedAt) : Number.MAX_SAFE_INTEGER;
-      return at - bt || a.productName.localeCompare(b.productName);
+    case "assigned": {
+      if (sortDir === "desc") {
+        const at = a.assignedAt ? Date.parse(a.assignedAt) : 0;
+        const bt = b.assignedAt ? Date.parse(b.assignedAt) : 0;
+        result = at - bt;
+      } else {
+        const at = a.assignedAt ? Date.parse(a.assignedAt) : Number.MAX_SAFE_INTEGER;
+        const bt = b.assignedAt ? Date.parse(b.assignedAt) : Number.MAX_SAFE_INTEGER;
+        result = at - bt;
+      }
+      break;
     }
     case "fulfillment":
-      return (
-        a.fulfillmentLabel.localeCompare(b.fulfillmentLabel) ||
-        a.productName.localeCompare(b.productName)
-      );
+      result = a.fulfillmentLabel.localeCompare(b.fulfillmentLabel);
+      break;
     default:
-      return 0;
+      result = 0;
   }
+
+  if (result === 0) {
+    result = a.productName.localeCompare(b.productName);
+  }
+
+  if (sortField === "assigned") {
+    return sortDir === "desc" ? -result : result;
+  }
+
+  return sortDir === "desc" ? -result : result;
 }
 
 export function uniqueFulfillmentStatuses(

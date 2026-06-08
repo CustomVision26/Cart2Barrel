@@ -3,9 +3,23 @@
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
-import { ChevronDownIcon, ChevronRightIcon, PackageCheck, TruckIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ExternalLink,
+  PackageCheck,
+  TruckIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { saveWarehouseReceiptSnapshotsAction } from "@/actions/save-warehouse-receipt-snapshots";
@@ -23,6 +37,7 @@ import {
   receivingConditionSelectClassName,
   ReceivingRowActions,
 } from "@/components/admin/receiving-row-actions";
+import { WarehouseIntakePreviewDialog } from "@/components/orders/warehouse-intake-preview-dialog";
 import { WarehouseProofPhotosField } from "@/components/orders/warehouse-proof-photos-field";
 import { WarehouseBarcodeImageField } from "@/components/orders/warehouse-barcode-image-field";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
@@ -49,13 +64,17 @@ import {
   isMoneyBackProductReturn,
   isMoneyBackReturnAwaitingRefund,
 } from "@/lib/order-line-product-return-display";
-import { canSubmitWarehouseReceiptForFulfillment } from "@/lib/warehouse-receipt-queue";
+import {
+  canSubmitWarehouseReceiptForFulfillment,
+  DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES,
+} from "@/lib/warehouse-receipt-queue";
 import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
 import type { WarehouseMissingReason } from "@/lib/warehouse-receive-condition";
 import {
   isWarehouseMissingReason,
   WAREHOUSE_MISSING_REASON_OPTIONS,
 } from "@/lib/warehouse-receive-condition";
+import { isOutsidePurchaseProductUrl } from "@/lib/outside-purchase";
 import { displaySiteName } from "@/lib/site-name";
 import {
   adminCustomerDisplayLabel,
@@ -145,6 +164,9 @@ function receiptSelectableRow(row: PurchaseQueueLineRow): boolean {
   ) {
     return false;
   }
+  if (DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES.includes(fulfillment)) {
+    return false;
+  }
   return canSubmitWarehouseReceiptForFulfillment(fulfillment) && net > 0;
 }
 
@@ -160,6 +182,7 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
       proofPhotoUrls: [],
       proofFileCount: 0,
       barcodeValue: "",
+      conditionNotes: "",
     };
   }
   if (oi.warehouseReceivedAt) {
@@ -181,6 +204,7 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
           proofPhotoUrls.length
         : (oi.warehouseReceivedProofPhotoCount ?? 0),
       barcodeValue: oi.warehouseReceivedBarcode ?? "",
+      conditionNotes: oi.warehouseReceivedConditionNotes ?? "",
     };
   }
   return {
@@ -191,6 +215,7 @@ function receiveDraftFromRow(row: PurchaseQueueLineRow): ReceiveDraft {
     proofPhotoUrls: [],
     proofFileCount: 0,
     barcodeValue: "",
+    conditionNotes: "",
   };
 }
 
@@ -202,16 +227,19 @@ type ReceiveDraft = {
   proofFileCount: number;
   proofPhotoUrls: string[];
   barcodeValue: string;
+  conditionNotes: string;
 };
 
 export function AdminPurchaseOrdersTable({
   rows,
   snapshotsByRequestId = {},
   staffProfilesByClerkUserId = {},
+  highlightOrderItemId = null,
 }: {
   rows: PurchaseQueueLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
+  highlightOrderItemId?: string | null;
 }) {
   const baseId = useId();
   const { setNestedPanelActive } = useAdminNestedPanelFocus();
@@ -230,6 +258,23 @@ export function AdminPurchaseOrdersTable({
   const [saveError, setSaveError] = useState<string | null>(null);
   const router = useRouter();
   const [savePending, startSave] = useTransition();
+  const highlightConsumedRef = useRef(false);
+
+  useEffect(() => {
+    if (!highlightOrderItemId || highlightConsumedRef.current || rows.length === 0) {
+      return;
+    }
+    const row = rows.find((r) => r.orderItem.id === highlightOrderItemId);
+    if (!row) return;
+    highlightConsumedRef.current = true;
+    setPanelChoiceMade(true);
+    setOpenClerkUserId(row.order.clerkUserId);
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`po-line-${highlightOrderItemId}`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [highlightOrderItemId, rows]);
 
   const selectableIds = useMemo(() => {
     const s = new Set<string>();
@@ -386,7 +431,7 @@ export function AdminPurchaseOrdersTable({
             : null}
           </Button>
           <HelpBalloon label="About Received delivery" tooltipClassName="w-[28rem]">
-            Select lines (including problem receipts), then use{" "}
+            Select inbound lines, then use{" "}
             <span className="font-medium text-foreground">Received delivery</span> to log
             or correct quantities, condition, and shelf. Condition{" "}
             <span className="font-medium text-foreground">Good</span> sets{" "}
@@ -601,6 +646,7 @@ export function AdminPurchaseOrdersTable({
                       selected={selected.has(row.orderItem.id)}
                       receiveSelectable={receiptSelectableRow(row)}
                       onToggleSelect={() => toggleRow(row.orderItem.id)}
+                      highlightOrderItemId={highlightOrderItemId}
                     />
                   ))}
                 </>
@@ -634,6 +680,9 @@ export function AdminPurchaseOrdersTable({
               if (!row || !draft) return null;
               const r = row.request;
               const lineLabel = receiveLineLabel(row);
+              const productUrl = r.productUrl?.trim() || "";
+              const showProductUrl =
+                productUrl.length > 0 && !isOutsidePurchaseProductUrl(productUrl);
               return (
                 <div
                   key={orderItemId}
@@ -646,6 +695,17 @@ export function AdminPurchaseOrdersTable({
                     <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                       {lineLabel}
                     </p>
+                    {showProductUrl ?
+                      <a
+                        href={productUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-2 hover:underline"
+                      >
+                        Open product page
+                        <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+                      </a>
+                    : null}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
@@ -722,6 +782,23 @@ export function AdminPurchaseOrdersTable({
                     : null}
                   </div>
                   <div className="space-y-1">
+                    <Label htmlFor={`recv-${orderItemId}-condition-notes`}>
+                      Received condition notes
+                    </Label>
+                    <textarea
+                      id={`recv-${orderItemId}-condition-notes`}
+                      className="min-h-[5rem] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
+                      value={draft.conditionNotes}
+                      onChange={(e) =>
+                        updateDraft(orderItemId, {
+                          conditionNotes: e.target.value,
+                        })
+                      }
+                      placeholder="Scratches, seal broken, wrong color received, etc."
+                      maxLength={2000}
+                    />
+                  </div>
+                  <div className="space-y-1">
                     <Label htmlFor={`recv-${orderItemId}-shelf`}>
                       Shelf location
                     </Label>
@@ -736,6 +813,22 @@ export function AdminPurchaseOrdersTable({
                       placeholder="e.g. A-12-03 / BIN-4421"
                     />
                   </div>
+                  <WarehouseProofPhotosField
+                    orderItemId={orderItemId}
+                    imageUrls={draft.proofPhotoUrls}
+                    disabled={savePending}
+                    title="Received product receipt"
+                    description="Upload photos of the retailer receipt, delivery slip, package label, or received item — up to 12 images (JPEG, PNG, WebP, GIF)."
+                    addButtonLabel="Add receipt images"
+                    emptyLabel="No receipt images uploaded yet."
+                    imageAlt="Received product receipt"
+                    onUrlsChange={(urls) =>
+                      updateDraft(orderItemId, {
+                        proofPhotoUrls: urls,
+                        proofFileCount: urls.length,
+                      })
+                    }
+                  />
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">
                       Actions
@@ -754,17 +847,6 @@ export function AdminPurchaseOrdersTable({
                       }
                     />
                   </div>
-                  <WarehouseProofPhotosField
-                    orderItemId={orderItemId}
-                    imageUrls={draft.proofPhotoUrls}
-                    disabled={savePending}
-                    onUrlsChange={(urls) =>
-                      updateDraft(orderItemId, {
-                        proofPhotoUrls: urls,
-                        proofFileCount: urls.length,
-                      })
-                    }
-                  />
                   <WarehouseBarcodeImageField
                     orderItemId={orderItemId}
                     imageUrl={row.orderItem.warehouseReceivedBarcodeImageUrl}
@@ -810,6 +892,10 @@ export function AdminPurchaseOrdersTable({
                       proofPhotoUrls: d.proofPhotoUrls,
                       barcodeValue:
                         d.barcodeValue.trim() === "" ? undefined : d.barcodeValue,
+                      conditionNotes:
+                        d.conditionNotes.trim() === "" ?
+                          undefined
+                        : d.conditionNotes.trim(),
                     },
                   ];
                 });
@@ -853,6 +939,7 @@ function PurchaseQueueRow(props: {
   selected: boolean;
   receiveSelectable: boolean;
   onToggleSelect: () => void;
+  highlightOrderItemId?: string | null;
 }) {
   const {
     row,
@@ -861,6 +948,7 @@ function PurchaseQueueRow(props: {
     selected,
     receiveSelectable,
     onToggleSelect,
+    highlightOrderItemId = null,
   } = props;
   const r = row.request;
   const fulfillment = effectiveOrderItemFulfillmentStatus(row.orderItem, row.order);
@@ -868,9 +956,7 @@ function PurchaseQueueRow(props: {
     fulfillment === "company_purchase_pending_delivery" ||
     fulfillment === "delivery_requested_pending_fulfillment";
   const needsReceiptCorrection =
-    fulfillment === "delivery_received_item_missing" ||
-    fulfillment === "delivery_received_item_damaged" ||
-    fulfillment === "delivery_received_wrong_item";
+    DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES.includes(fulfillment);
   const awaitingBarrelGood =
     fulfillment === "delivery_received_good_awaiting_barrel";
   const refundable = Math.max(0, row.orderItem.price - row.refundedCents);
@@ -896,10 +982,16 @@ function PurchaseQueueRow(props: {
   const productTitle = r.productName?.trim() || "Unnamed product";
   const inboundReceiptTip = inboundReceiptSavedTooltip(row);
 
+  const notificationHighlight =
+    highlightOrderItemId != null && row.orderItem.id === highlightOrderItemId;
+
   return (
     <tr
+      id={`po-line-${row.orderItem.id}`}
       className={cn(
         "border-b border-border align-top",
+        notificationHighlight &&
+          "ring-2 ring-inset ring-primary/60 bg-primary/[0.06]",
         highlightInbound &&
           "bg-sky-500/[0.04] shadow-[inset_3px_0_0_rgb(56_189_248_/_0.55)]",
         highlightCorrection &&
@@ -915,11 +1007,21 @@ function PurchaseQueueRow(props: {
       <td className="px-2 py-3 align-top">
         <input
           type="checkbox"
-          className="size-4 rounded border-input accent-primary disabled:opacity-40"
+          className={cn(
+            "size-4 rounded border-input accent-primary disabled:cursor-not-allowed",
+            needsReceiptCorrection ?
+              "disabled:border-muted-foreground/30 disabled:bg-muted/50 disabled:opacity-35"
+            : "disabled:opacity-40",
+          )}
           checked={selected}
           disabled={!receiveSelectable}
           onChange={onToggleSelect}
           aria-label={`Select ${productTitle} for receiving`}
+          title={
+            needsReceiptCorrection ?
+              "Needs correction — use line actions to update this receipt."
+            : undefined
+          }
         />
       </td>
       <td className="px-3 py-3 align-top">
@@ -1062,27 +1164,38 @@ function PurchaseQueueRow(props: {
         </StatusBadge>
       </td>
       <td className="px-3 py-3 align-top">
-        <AdminOrderLineActions
-          orderItemId={row.orderItem.id}
-          fulfillmentStatus={fulfillment}
-          linePriceCents={row.orderItem.price}
-          refundedCents={row.refundedCents}
-          productLabel={r.productName?.trim() || "Item"}
-          orderNumber={row.order.id}
-          batchNumber={row.resolvedBatchNumber}
-          batchSessionId={row.resolvedBatchSessionId}
-          purchaseTracking={{
-            trackingUrl: row.orderItem.companyPurchaseTrackingUrl,
-            retailerTrackingCompany:
-              row.orderItem.companyPurchaseRetailerTrackingCompany,
-            retailerTrackingNumber:
-              row.orderItem.companyPurchaseRetailerTrackingNumber,
-          }}
-          retailerReceiptImageUrls={row.orderItem.companyPurchaseReceiptImageUrls}
-          pendingRefundRequest={row.pendingRefundRequest}
-          pendingProductReturnRequest={row.pendingProductReturnRequest}
-          fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
-        />
+        <div className="flex flex-col items-start gap-2">
+          <AdminOrderLineActions
+            orderItemId={row.orderItem.id}
+            fulfillmentStatus={fulfillment}
+            linePriceCents={row.orderItem.price}
+            refundedCents={row.refundedCents}
+            productLabel={r.productName?.trim() || "Item"}
+            orderNumber={row.order.id}
+            batchNumber={row.resolvedBatchNumber}
+            batchSessionId={row.resolvedBatchSessionId}
+            purchaseTracking={{
+              trackingUrl: row.orderItem.companyPurchaseTrackingUrl,
+              retailerTrackingCompany:
+                row.orderItem.companyPurchaseRetailerTrackingCompany,
+              retailerTrackingNumber:
+                row.orderItem.companyPurchaseRetailerTrackingNumber,
+            }}
+            retailerReceiptImageUrls={row.orderItem.companyPurchaseReceiptImageUrls}
+            pendingRefundRequest={row.pendingRefundRequest}
+            pendingProductReturnRequest={row.pendingProductReturnRequest}
+            fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
+            warehouseReceivedCondition={row.orderItem.warehouseReceivedCondition}
+          />
+          {fulfillment === "delivery_received_item_missing" &&
+          row.orderItem.warehouseReceivedAt ?
+            <WarehouseIntakePreviewDialog
+              productLabel={productTitle}
+              orderItem={row.orderItem}
+              snapshots={snapshotsByRequestId[r.id] ?? []}
+            />
+          : null}
+        </div>
       </td>
       <td className="min-w-[9rem] max-w-[11rem] px-3 py-3 align-top">
         <AdminUpdatedByCell

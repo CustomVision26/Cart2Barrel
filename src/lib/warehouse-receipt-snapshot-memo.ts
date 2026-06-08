@@ -23,6 +23,7 @@ export type ParsedWarehouseReceiptMemo = {
   receivedQty: number;
   condition: WarehouseReceiveCondition;
   missingReason?: WarehouseMissingReason;
+  conditionNotes?: string;
   shelfLocation: string;
   proofPhotoCount: number;
   proofPhotoUrls?: string[];
@@ -59,6 +60,7 @@ export function parseWarehouseReceiptMemo(
       receivedQty: data.receivedQty,
       condition: data.condition,
       missingReason: data.missingReason,
+      conditionNotes: data.conditionNotes,
       shelfLocation: data.shelfLocation,
       proofPhotoCount: data.proofPhotoCount,
       proofPhotoUrls: data.proofPhotoUrls,
@@ -106,6 +108,7 @@ export function warehouseReceiptHumanNote(params: {
   receivedQty: number;
   conditionKey: WarehouseReceiveCondition;
   missingReason?: WarehouseMissingReason;
+  conditionNotes?: string;
   shelfLocation: string;
   proofPhotoCount: number;
   barcodeValue?: string;
@@ -129,6 +132,9 @@ export function warehouseReceiptHumanNote(params: {
     `Ordered qty: ${params.orderedQty}`,
     `Received qty: ${params.receivedQty}`,
     `Condition: ${conditionLabel}${missingReasonLabel ? ` (${missingReasonLabel})` : ""}`,
+    ...(params.conditionNotes?.trim() ?
+      [`Condition notes: ${params.conditionNotes.trim()}`]
+    : []),
     `Shelf / bin: ${params.shelfLocation.trim() || "—"}`,
     `Proof photos: ${params.proofPhotoCount}`,
   ];
@@ -146,6 +152,7 @@ export type OrderItemWarehouseReceiptSnapshotSource = Pick<
   | "warehouseReceivedQty"
   | "warehouseReceivedCondition"
   | "warehouseReceivedMissingReason"
+  | "warehouseReceivedConditionNotes"
   | "warehouseShelfLocation"
   | "warehouseReceivedBarcode"
   | "warehouseReceivedBarcodeImageUrl"
@@ -192,6 +199,7 @@ export function warehouseReceiptV2FromOrderItemRow(
     isWarehouseMissingReason(orderItem.warehouseReceivedMissingReason) ?
       orderItem.warehouseReceivedMissingReason
     : undefined;
+  const conditionNotes = orderItem.warehouseReceivedConditionNotes?.trim();
   const payload: WarehouseReceiptMemoV2 = {
     kind: "warehouse_receipt_v2",
     orderItemId: orderItem.id,
@@ -220,6 +228,7 @@ export function warehouseReceiptV2FromOrderItemRow(
     receivedQty: payload.receivedQty,
     conditionKey: payload.condition,
     missingReason: payload.missingReason,
+    conditionNotes: payload.conditionNotes,
     shelfLocation: payload.shelfLocation,
     proofPhotoCount: payload.proofPhotoCount,
     barcodeValue: payload.barcodeValue,

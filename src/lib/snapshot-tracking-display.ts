@@ -3,6 +3,20 @@ import { isDuplicateFrozenCopySnapshotSummary } from "@/lib/audit-snapshot-dupli
 import { auditSnapshotChangeSummary } from "@/lib/item-request-line-audit-status";
 import { itemRequestLineSnapshotPhaseLabel } from "@/lib/item-request-line-snapshot-phase-label";
 
+const PRODUCT_PHOTO_UPLOAD_AUDIT_MEMO =
+  /uploaded a product photo \(stored on Vercel Blob\)/i;
+
+/** Image-only uploads must not appear as quote/estimate events on product history. */
+export function isProductPhotoUploadSnapshot(
+  snap: ItemRequestLineSnapshot,
+): boolean {
+  const memo = snap.auditMemo?.trim() ?? "";
+  if (!memo || !PRODUCT_PHOTO_UPLOAD_AUDIT_MEMO.test(memo)) {
+    return false;
+  }
+  return !snap.itemQuoteId;
+}
+
 /** Customer-facing copy is a duplicate of the admin batch estimate row. */
 export function shouldHideSnapshotFromProductTracking(
   phase: ItemRequestLineSnapshot["phase"],
@@ -50,6 +64,9 @@ export function filterSnapshotsForProductTracking(
   },
 ): ItemRequestLineSnapshot[] {
   let filtered = snapshots.filter((snap) => {
+    if (isProductPhotoUploadSnapshot(snap)) {
+      return false;
+    }
     if (options?.hidePreEstimateEditEvents && snap.phase === "pre_admin_estimate_edit") {
       return false;
     }
@@ -105,8 +122,6 @@ export function shouldShowBatchEstimateShareForSnapshotPhase(
     case "company_purchase_pending_delivery":
     case "warehouse_delivery_received":
     case "warehouse_delivery_received_prior":
-    case "product_return_requested":
-    case "product_return_tracking_saved":
     case "customer_refund_request_submitted":
       return true;
     default:
@@ -121,6 +136,8 @@ export function shouldShowStaffEstimatePreviewForSnapshotPhase(
   switch (phase) {
     case "customer_submission":
     case "customer_line_edit":
+    case "product_return_requested":
+    case "product_return_tracking_saved":
       return false;
     default:
       return true;

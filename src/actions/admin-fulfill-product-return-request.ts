@@ -21,6 +21,7 @@ import {
   buildProductReturnTrackingAuditMemo,
   productReturnTrackingHumanNote,
 } from "@/lib/product-return-tracking-memo";
+import { defaultProductReturnStaffCustomerNote } from "@/lib/product-return-staff-customer-note";
 import { PRODUCT_RETURN_AWAITING_REFUND_LABEL } from "@/lib/product-return-request-labels";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { recordProductReturnFulfilledActivity } from "@/data/user-status-update-events";
@@ -45,6 +46,7 @@ export async function adminFulfillProductReturnRequestAction(
       parsed.error.flatten().fieldErrors.trackingUrl?.[0] ??
       parsed.error.flatten().fieldErrors.retailerTrackingCompany?.[0] ??
       parsed.error.flatten().fieldErrors.retailerTrackingNumber?.[0] ??
+      parsed.error.flatten().fieldErrors.customerNotes?.[0] ??
       parsed.error.flatten().fieldErrors.orderItemId?.[0];
     return { ok: false, message: first ?? "Invalid return fulfillment data." };
   }
@@ -120,6 +122,9 @@ export async function adminFulfillProductReturnRequestAction(
   const url = trackingUrl ?? null;
   const company = retailerTrackingCompany ?? null;
   const number = retailerTrackingNumber ?? null;
+  const customerNotes =
+    parsed.data.customerNotes.trim() ||
+    defaultProductReturnStaffCustomerNote(returnRequest.desiredOutcome);
   const now = new Date().toISOString();
 
   await db
@@ -136,6 +141,7 @@ export async function adminFulfillProductReturnRequestAction(
     .update(orderItemProductReturnRequests)
     .set({
       status: "fulfilled",
+      customerNotes,
       fulfilledAt: now,
       fulfilledByClerkUserId: cu.user.id,
       updatedAt: now,

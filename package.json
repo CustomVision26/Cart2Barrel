@@ -16,6 +16,7 @@
     "db:ensure-support": "node scripts/ensure-support-schema.mjs",
     "db:ensure-missing-resolved": "node scripts/ensure-missing-resolved-column.mjs",
     "db:ensure-outside-purchase-published": "node scripts/ensure-outside-purchase-published.mjs",
+    "db:ensure-packages-order-item-unique": "node scripts/ensure-packages-order-item-unique.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

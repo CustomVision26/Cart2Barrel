@@ -36,6 +36,8 @@ export type ProductToBarrelLineRow = BarrelPipelineProductDisplayRow & {
 };
 
 export type AdminBarrelPipelineRow = BarrelPipelineProductDisplayRow & {
+  itemRequestId: string;
+  productUrl: string;
   ownerClerkUserId: string;
   fulfillmentStatus: string;
   assignedBarrelId: string | null;

@@ -9,6 +9,7 @@ export function userStatusUpdateNavSection(
   switch (kind) {
     case "company_purchase_confirmed":
     case "purchase_tracking_updated":
+    case "warehouse_delivery_received":
     case "refund_approved":
     case "refund_rejected":
     case "product_return_fulfilled":

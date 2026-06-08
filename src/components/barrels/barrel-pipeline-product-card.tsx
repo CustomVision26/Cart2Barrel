@@ -11,6 +11,7 @@ type BarrelPipelineProductCardProps = {
   className?: string;
   footer?: ReactNode;
   orderIdHint?: boolean;
+  onDoubleClick?: () => void;
 };
 
 export function BarrelPipelineProductCard({
@@ -19,6 +20,7 @@ export function BarrelPipelineProductCard({
   className,
   footer,
   orderIdHint = false,
+  onDoubleClick,
 }: BarrelPipelineProductCardProps) {
   const assignedShort = formatBarrelAssignmentWhenShort(row.assignedAt);
 
@@ -26,8 +28,18 @@ export function BarrelPipelineProductCard({
     <article
       className={cn(
         "group flex gap-2.5 overflow-hidden rounded-lg border border-border/80 bg-card/90 p-2 shadow-sm transition-[border-color,box-shadow,background-color] hover:border-border hover:bg-card hover:shadow-md",
+        onDoubleClick && "cursor-pointer",
         className,
       )}
+      onDoubleClick={
+        onDoubleClick ?
+          (e) => {
+            e.preventDefault();
+            onDoubleClick();
+          }
+        : undefined
+      }
+      title={onDoubleClick ? "Double-click for product details" : undefined}
     >
       <div className="relative shrink-0 self-start">
         <ProductRequestThumbnail

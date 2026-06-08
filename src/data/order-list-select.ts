@@ -53,6 +53,7 @@ export const orderItemWarehouseReceiptNulls = {
   warehouseReceivedQty: null,
   warehouseReceivedCondition: null,
   warehouseReceivedMissingReason: null,
+  warehouseReceivedConditionNotes: null,
   warehouseShelfLocation: null,
   warehouseReceivedBarcode: null,
   warehouseReceivedBarcodeImageUrl: null,
@@ -69,6 +70,7 @@ export const orderItemWarehouseReceiptSelect = {
   warehouseReceivedQty: orderItems.warehouseReceivedQty,
   warehouseReceivedCondition: orderItems.warehouseReceivedCondition,
   warehouseReceivedMissingReason: orderItems.warehouseReceivedMissingReason,
+  warehouseReceivedConditionNotes: orderItems.warehouseReceivedConditionNotes,
   warehouseShelfLocation: orderItems.warehouseShelfLocation,
   warehouseReceivedBarcode: orderItems.warehouseReceivedBarcode,
   warehouseReceivedBarcodeImageUrl: orderItems.warehouseReceivedBarcodeImageUrl,
@@ -135,6 +137,7 @@ export type OrderItemFulfillmentCore = Pick<
       | "warehouseReceivedQty"
       | "warehouseReceivedCondition"
       | "warehouseReceivedMissingReason"
+      | "warehouseReceivedConditionNotes"
       | "warehouseShelfLocation"
       | "warehouseReceivedBarcode"
       | "warehouseReceivedBarcodeImageUrl"

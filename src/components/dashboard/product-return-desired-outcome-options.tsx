@@ -2,9 +2,12 @@
 
 import {
   productReturnDesiredOutcomeDescription,
+  productReturnDesiredOutcomeFieldIntro,
+  productReturnDesiredOutcomeFieldLegend,
   productReturnDesiredOutcomeLabel,
   productReturnDesiredOutcomeValues,
   type ProductReturnDesiredOutcome,
+  type ProductReturnDesiredOutcomeContext,
 } from "@/lib/product-return-desired-outcome";
 import { cn } from "@/lib/utils";
 
@@ -13,24 +16,28 @@ export function ProductReturnDesiredOutcomeOptions({
   onChange,
   disabled,
   namePrefix,
+  context = "default",
 }: {
   value: ProductReturnDesiredOutcome | null;
   onChange: (next: ProductReturnDesiredOutcome) => void;
   disabled?: boolean;
   namePrefix: string;
+  context?: ProductReturnDesiredOutcomeContext;
 }) {
   return (
-    <fieldset className="space-y-2" disabled={disabled}>
+    <fieldset className="space-y-3" disabled={disabled}>
       <legend className="text-sm font-medium text-foreground">
-        What do you want after the return?
+        {productReturnDesiredOutcomeFieldLegend(context)}
       </legend>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Cart2Barrel staff handle the physical return and shipping. Additional
-        service, shipping, or price-difference charges may or may not apply
-        depending on the retailer and your choice below — staff will confirm
-        before any extra charge.
+        {productReturnDesiredOutcomeFieldIntro(context)}
       </p>
-      <div className="grid gap-2">
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Additional service, shipping, or price-difference charges may apply
+        depending on the retailer. Our team will confirm any extra charges before
+        billing.
+      </p>
+      <div className="grid gap-2.5">
         {productReturnDesiredOutcomeValues.map((outcome) => {
           const selected = value === outcome;
           const id = `${namePrefix}-outcome-${outcome}`;
@@ -39,10 +46,10 @@ export function ProductReturnDesiredOutcomeOptions({
               key={outcome}
               htmlFor={id}
               className={cn(
-                "flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors",
+                "flex cursor-pointer gap-3 rounded-lg border p-3.5 transition-colors",
                 selected ?
-                  "border-primary bg-primary/10 ring-1 ring-primary/40"
-                : "border-border bg-muted hover:border-primary/40",
+                  "border-primary/60 bg-primary/8 ring-1 ring-primary/30"
+                : "border-border/80 bg-background hover:border-primary/35 hover:bg-muted/40",
                 disabled && "cursor-not-allowed opacity-60",
               )}
             >
@@ -56,11 +63,11 @@ export function ProductReturnDesiredOutcomeOptions({
                 disabled={disabled}
               />
               <span className="min-w-0 space-y-1">
-                <span className="block text-sm font-medium text-foreground">
-                  {productReturnDesiredOutcomeLabel(outcome)}
+                <span className="block text-sm font-medium leading-snug text-foreground">
+                  {productReturnDesiredOutcomeLabel(outcome, context)}
                 </span>
                 <span className="block text-xs leading-relaxed text-muted-foreground">
-                  {productReturnDesiredOutcomeDescription(outcome)}
+                  {productReturnDesiredOutcomeDescription(outcome, context)}
                 </span>
               </span>
             </label>
@@ -73,8 +80,10 @@ export function ProductReturnDesiredOutcomeOptions({
 
 export function ProductReturnDesiredOutcomeSummary({
   outcome,
+  context = "default",
 }: {
   outcome: ProductReturnDesiredOutcome | null | undefined;
+  context?: ProductReturnDesiredOutcomeContext;
 }) {
   if (!outcome) {
     return (
@@ -83,7 +92,7 @@ export function ProductReturnDesiredOutcomeSummary({
   }
   return (
     <span className="text-foreground">
-      {productReturnDesiredOutcomeLabel(outcome)}
+      {productReturnDesiredOutcomeLabel(outcome, context)}
     </span>
   );
 }

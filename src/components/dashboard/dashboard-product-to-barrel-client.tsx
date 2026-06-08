@@ -9,6 +9,7 @@ import type {
   ProductToBarrelLineRow,
   UserBarrelOptionRow,
 } from "@/lib/barrel-container-types";
+import type { BarrelPipelineProductDetail } from "@/lib/barrel-pipeline-product-detail";
 import {
   containerFilterOptionsByAlias,
   DEFAULT_PRODUCT_TO_BARREL_FILTERS,
@@ -21,11 +22,13 @@ import {
 export type DashboardProductToBarrelClientProps = {
   lines: ProductToBarrelLineRow[];
   barrels: UserBarrelOptionRow[];
+  detailsByOrderItemId: Record<string, BarrelPipelineProductDetail>;
 };
 
 export function DashboardProductToBarrelClient({
   lines,
   barrels,
+  detailsByOrderItemId,
 }: DashboardProductToBarrelClientProps) {
   const [filters, setFilters] = useState<ProductToBarrelFilterState>(
     DEFAULT_PRODUCT_TO_BARREL_FILTERS,
@@ -77,6 +80,7 @@ export function DashboardProductToBarrelClient({
         lines={filteredLines}
         isAssigned={(row) => isPipelineLineAssigned(row as ProductToBarrelLineRow)}
         orderIdHint
+        detailsByOrderItemId={detailsByOrderItemId}
         emptyMessage={
           lines.length === 0 ?
             "Nothing is in the barrel packing queue right now. Outside purchases paid at checkout and warehouse receipts in good condition appear here when staff are ready to assign containers."

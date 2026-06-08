@@ -46,6 +46,7 @@ function eventIcon(kind: UserStatusUpdateKind) {
       return XCircle;
     case "company_purchase_confirmed":
     case "purchase_tracking_updated":
+    case "warehouse_delivery_received":
       return Package;
     case "refund_approved":
       return CreditCard;

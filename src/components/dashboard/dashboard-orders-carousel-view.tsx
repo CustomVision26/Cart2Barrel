@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardOrderLinesDetailDialog } from "@/components/dashboard/dashboard-order-lines-detail-dialog";
 import { DashboardOrderSlideCard } from "@/components/dashboard/dashboard-order-slide-card";
@@ -25,6 +25,10 @@ import {
   ORDER_CAROUSEL_NAV_NEXT_CLASS,
   ORDER_CAROUSEL_NAV_PREV_CLASS,
 } from "@/lib/order-carousel-nav";
+import {
+  orderLinesForOrderId,
+  resolveOrderIdFromHighlight,
+} from "@/lib/order-notification-highlight";
 
 const LANES: OrdersSlideLane[] = [
   "awaiting_purchase",
@@ -39,13 +43,31 @@ type DashboardOrderSlideGroup = OrderSlideGroup & {
 export function DashboardOrdersCarouselView({
   rows,
   snapshotsByRequestId = {},
+  highlightOrderId = null,
 }: {
   rows: DashboardPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
+  highlightOrderId?: string | null;
 }) {
   const [detailGroup, setDetailGroup] = useState<DashboardOrderSlideGroup | null>(
     null,
   );
+  const highlightConsumedRef = useRef(false);
+
+  useEffect(() => {
+    if (!highlightOrderId || highlightConsumedRef.current || rows.length === 0) {
+      return;
+    }
+    const orderId = resolveOrderIdFromHighlight(rows, highlightOrderId);
+    if (!orderId) return;
+    const lines = orderLinesForOrderId(rows, orderId);
+    if (lines.length === 0) return;
+    highlightConsumedRef.current = true;
+    setDetailGroup({
+      order: lines[0]!.order,
+      lines,
+    });
+  }, [highlightOrderId, rows]);
 
   useEffect(() => {
     if (!detailGroup) return;
@@ -70,6 +92,7 @@ export function DashboardOrdersCarouselView({
         groups: groupOrdersForSlideLane(
           rows,
           lane,
+          ORDER_SLIDE_LANE_AUDIENCE,
         ) as DashboardOrderSlideGroup[],
       })),
     [rows],

@@ -169,6 +169,25 @@ export async function recordCompanyPurchaseConfirmedActivity(params: {
   });
 }
 
+export async function recordWarehouseDeliveryReceivedActivity(params: {
+  clerkUserId: string;
+  orderId: string;
+  orderItemId: string;
+  productName: string | null;
+  statusLabel: string;
+}): Promise<void> {
+  const label = params.productName?.trim() || "Order line";
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "warehouse_delivery_received",
+    title: "Delivery intake recorded",
+    body: `${label} — ${params.statusLabel}`,
+    href: userStatusHrefForOrders(params.orderItemId),
+    entityType: "order_item",
+    entityId: params.orderItemId,
+  });
+}
+
 export async function recordPurchaseTrackingUpdatedActivity(params: {
   clerkUserId: string;
   orderId: string;

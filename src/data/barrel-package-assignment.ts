@@ -42,6 +42,8 @@ import {
   parseContainerOfferingKind,
 } from "@/lib/validations/container-offering";
 import { ensureInboundPackageForOrderItem } from "@/data/ensure-inbound-package-for-order-item";
+import { reconcilePendingReturnBarrelHolds } from "@/data/product-return-barrel-hold";
+import { excludePendingProductReturnRequestSql } from "@/lib/exclude-pending-product-return-request";
 import { ensureBarrelsProvisionedForUser } from "@/data/ensure-paid-order-barrels";
 import {
   orderItemBarrelPipelineSelect,
@@ -418,6 +420,38 @@ type BarrelPipelineQueryRow = {
   };
 };
 
+type PipelinePackageDedupeRow = {
+  orderItem: { id: string };
+  pkg: { id: string; createdAt: string };
+  biBarrelId?: string | null;
+};
+
+function pickPreferredPipelinePackageRow<T extends PipelinePackageDedupeRow>(
+  a: T,
+  b: T,
+): T {
+  const aAssigned = a.biBarrelId != null;
+  const bAssigned = b.biBarrelId != null;
+  if (aAssigned !== bAssigned) {
+    return aAssigned ? a : b;
+  }
+  return a.pkg.createdAt <= b.pkg.createdAt ? a : b;
+}
+
+function dedupePipelineRowsByOrderItem<T extends PipelinePackageDedupeRow>(
+  rows: T[],
+): T[] {
+  const byOrderItem = new Map<string, T>();
+  for (const row of rows) {
+    const existing = byOrderItem.get(row.orderItem.id);
+    byOrderItem.set(
+      row.orderItem.id,
+      existing ? pickPreferredPipelinePackageRow(existing, row) : row,
+    );
+  }
+  return [...byOrderItem.values()];
+}
+
 async function selectBarrelPipelineOrderItems<
   T extends BarrelPipelineQueryRow,
 >(
@@ -459,6 +493,7 @@ async function selectBarrelPipelineOrderItems<
 export async function listProductToBarrelLinesForUser(
   clerkUserId: string,
 ): Promise<ProductToBarrelLineRow[]> {
+  await reconcilePendingReturnBarrelHolds();
   await backfillOutsidePurchasePaidServiceFeeFulfillment();
   await ensureBarrelsProvisionedForUser(clerkUserId);
   await ensurePackagesForAwaitingBarrelOwner(clerkUserId);
@@ -471,26 +506,29 @@ export async function listProductToBarrelLinesForUser(
     [...PRODUCT_TO_BARREL_FULFILLMENT_STATUSES]
   : [BARREL_PIPELINE_AWAITING_ASSIGNMENT, BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID];
 
-  const base = await selectBarrelPipelineOrderItems(async (orderItemSelect) =>
-    db
-      .select({
-        orderItem: orderItemSelect,
-        order: orders,
-        request: itemRequests,
-        pkg: packages,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
-      .innerJoin(packages, eq(packages.orderItemId, orderItems.id))
-      .where(
-        and(
-          eq(orders.clerkUserId, clerkUserId),
-          eq(orders.status, "paid"),
-          inArray(orderItems.fulfillmentStatus, pipelineStatuses),
-        )!,
-      )
-      .orderBy(desc(orders.createdAt)),
+  const base = dedupePipelineRowsByOrderItem(
+    await selectBarrelPipelineOrderItems(async (orderItemSelect) =>
+      db
+        .select({
+          orderItem: orderItemSelect,
+          order: orders,
+          request: itemRequests,
+          pkg: packages,
+        })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
+        .innerJoin(packages, eq(packages.orderItemId, orderItems.id))
+        .where(
+          and(
+            eq(orders.clerkUserId, clerkUserId),
+            eq(orders.status, "paid"),
+            inArray(orderItems.fulfillmentStatus, pipelineStatuses),
+            excludePendingProductReturnRequestSql(),
+          )!,
+        )
+        .orderBy(desc(orders.createdAt)),
+    ),
   );
 
   if (base.length === 0) {
@@ -547,7 +585,7 @@ export async function listProductToBarrelLinesForUser(
   });
 }
 
-async function ensurePackagesForOutsidePurchasePaidAllOwners(): Promise<void> {
+export async function ensurePackagesForOutsidePurchasePaidAllOwners(): Promise<void> {
   await ensurePaidOutsidePurchaseFulfillmentEnums();
   const db = getDb();
   const owners = await db
@@ -569,6 +607,7 @@ async function ensurePackagesForOutsidePurchasePaidAllOwners(): Promise<void> {
 export async function listAdminBarrelPipelineLines(): Promise<
   AdminBarrelPipelineRow[]
 > {
+  await reconcilePendingReturnBarrelHolds();
   await backfillOutsidePurchasePaidServiceFeeFulfillment();
   await ensurePackagesForOutsidePurchasePaidAllOwners();
 
@@ -579,30 +618,33 @@ export async function listAdminBarrelPipelineLines(): Promise<
 
   const db = getDb();
 
-  const base = await selectBarrelPipelineOrderItems(async (orderItemSelect) =>
-    db
-      .select({
-        orderItem: orderItemSelect,
-        order: orders,
-        request: itemRequests,
-        pkg: packages,
-        biBarrelId: barrelItems.barrelId,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
-      .innerJoin(packages, eq(packages.orderItemId, orderItems.id))
-      .leftJoin(barrelItems, eq(barrelItems.packageId, packages.id))
-      .where(
-        and(
-          eq(orders.status, "paid"),
-          or(
-            inArray(orderItems.fulfillmentStatus, pipelineStatuses),
-            isNotNull(barrelItems.barrelId),
-          ),
-        )!,
-      )
-      .orderBy(desc(orders.createdAt)),
+  const base = dedupePipelineRowsByOrderItem(
+    await selectBarrelPipelineOrderItems(async (orderItemSelect) =>
+      db
+        .select({
+          orderItem: orderItemSelect,
+          order: orders,
+          request: itemRequests,
+          pkg: packages,
+          biBarrelId: barrelItems.barrelId,
+        })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
+        .innerJoin(packages, eq(packages.orderItemId, orderItems.id))
+        .leftJoin(barrelItems, eq(barrelItems.packageId, packages.id))
+        .where(
+          and(
+            eq(orders.status, "paid"),
+            or(
+              inArray(orderItems.fulfillmentStatus, pipelineStatuses),
+              isNotNull(barrelItems.barrelId),
+            ),
+            excludePendingProductReturnRequestSql(),
+          )!,
+        )
+        .orderBy(desc(orders.createdAt)),
+    ),
   );
 
   if (base.length === 0) {
@@ -648,6 +690,8 @@ export async function listAdminBarrelPipelineLines(): Promise<
     return {
       packageId: r.pkg.id,
       orderItemId: r.orderItem.id,
+      itemRequestId: r.request.id,
+      productUrl: r.request.productUrl,
       orderId: r.order.id,
       ownerClerkUserId: r.order.clerkUserId,
       productName: r.request.productName?.trim() || "Unnamed product",

@@ -17,6 +17,7 @@ export type OrderItemReadCore = Pick<
   warehouseReceivedQty?: OrderItem["warehouseReceivedQty"];
   warehouseReceivedCondition?: OrderItem["warehouseReceivedCondition"];
   warehouseReceivedMissingReason?: OrderItem["warehouseReceivedMissingReason"];
+  warehouseReceivedConditionNotes?: OrderItem["warehouseReceivedConditionNotes"];
   warehouseShelfLocation?: OrderItem["warehouseShelfLocation"];
   warehouseReceivedBarcode?: OrderItem["warehouseReceivedBarcode"];
   warehouseReceivedBarcodeImageUrl?: OrderItem["warehouseReceivedBarcodeImageUrl"];
@@ -27,8 +28,8 @@ export type OrderItemReadCore = Pick<
 };
 
 export function effectiveOrderItemFulfillmentStatus(
-  row: OrderItemReadCore,
-  order: Pick<Order, "status">
+  row: Pick<OrderItemReadCore, "fulfillmentStatus">,
+  order: Pick<Order, "status">,
 ): OrderItem["fulfillmentStatus"] {
   /** Lines still on the default after checkout if fulfillment update failed or lagged. */
   if (

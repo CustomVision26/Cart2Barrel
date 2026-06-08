@@ -13,6 +13,7 @@ import { validateProductImageFile } from "@/lib/staged-product-image";
 export function AdminItemRequestProductImageUpload({
   itemRequestId,
   disabled = false,
+  compact = false,
   /** When true, only stage a local preview until the parent saves the quote. */
   deferPersist = false,
   onUploaded,
@@ -20,6 +21,7 @@ export function AdminItemRequestProductImageUpload({
 }: {
   itemRequestId: string;
   disabled?: boolean;
+  compact?: boolean;
   deferPersist?: boolean;
   onUploaded?: (imageUrl: string) => void;
   onStaged?: (file: File, previewUrl: string) => void;
@@ -72,7 +74,13 @@ export function AdminItemRequestProductImageUpload({
   const maxMb = Math.round(RETAILER_RECEIPT_IMAGE_MAX_BYTES / (1024 * 1024));
 
   return (
-    <div className="flex flex-col items-center gap-3 py-1">
+    <div
+      className={
+        compact ?
+          "flex flex-col items-stretch gap-1.5"
+        : "flex flex-col items-center gap-3 py-1"
+      }
+    >
       <input
         ref={fileRef}
         id={inputId}
@@ -86,28 +94,31 @@ export function AdminItemRequestProductImageUpload({
         type="button"
         variant="secondary"
         size="sm"
-        className="gap-1.5"
+        className={compact ? "h-7 gap-1 text-xs" : "gap-1.5"}
         disabled={disabled || pending}
         onClick={() => fileRef.current?.click()}
       >
         {pending ? (
           <>
-            <Loader2Icon className="size-4 animate-spin" aria-hidden />
+            <Loader2Icon className={compact ? "size-3.5 animate-spin" : "size-4 animate-spin"} aria-hidden />
             Uploading…
           </>
         ) : (
           <>
-            <ImagePlusIcon className="size-4" aria-hidden />
-            Upload product image
+            <ImagePlusIcon className={compact ? "size-3.5" : "size-4"} aria-hidden />
+            {compact ? "Upload photo" : "Upload product image"}
           </>
         )}
       </Button>
-      <p className="text-center text-[11px] text-muted-foreground">
-        JPEG, PNG, WebP, or GIF up to {maxMb} MB.
-        {deferPersist ?
-          " Preview only until you save the quote."
-        : " Saved on Vercel Blob for cart and shopper lists."}
-      </p>
+      {compact ?
+        null
+      : <p className="text-center text-[11px] text-muted-foreground">
+          JPEG, PNG, WebP, or GIF up to {maxMb} MB.
+          {deferPersist ?
+            " Preview only until you save the quote."
+          : " Saved on Vercel Blob for cart and shopper lists."}
+        </p>
+      }
     </div>
   );
 }

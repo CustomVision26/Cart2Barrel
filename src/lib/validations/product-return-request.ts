@@ -44,6 +44,11 @@ export const adminFulfillProductReturnRequestSchema = z
       .max(200)
       .optional()
       .transform((v) => (v === "" ? undefined : v)),
+    customerNotes: z
+      .string()
+      .trim()
+      .min(1, "Add a note for the customer.")
+      .max(2000),
   })
   .superRefine((data, ctx) => {
     const hasCompany = Boolean(data.retailerTrackingCompany);
@@ -76,4 +81,12 @@ export const adminFulfillProductReturnRequestSchema = z
 
 export type AdminFulfillProductReturnRequestInput = z.infer<
   typeof adminFulfillProductReturnRequestSchema
+>;
+
+export const cancelProductReturnRequestSchema = z.object({
+  orderItemId: z.string().uuid(),
+});
+
+export type CancelProductReturnRequestInput = z.infer<
+  typeof cancelProductReturnRequestSchema
 >;

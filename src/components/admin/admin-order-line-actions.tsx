@@ -50,6 +50,8 @@ export function AdminOrderLineActions({
   pendingRefundRequest,
   pendingProductReturnRequest,
   fulfilledProductReturnRequest,
+  warehouseReceivedCondition,
+  isOutsidePurchase = false,
 }: {
   orderItemId: string;
   fulfillmentStatus: OrderItem["fulfillmentStatus"];
@@ -66,6 +68,9 @@ export function AdminOrderLineActions({
   pendingRefundRequest?: PendingRefundRequestBrief | null;
   pendingProductReturnRequest?: PendingProductReturnRequestBrief | null;
   fulfilledProductReturnRequest?: FulfilledProductReturnRequestBrief | null;
+  warehouseReceivedCondition?: string | null;
+  /** Outside purchases use the return-to-retailer workflow — no Stripe refund line. */
+  isOutsidePurchase?: boolean;
 }) {
   const refundableCents = Math.max(0, linePriceCents - refundedCents);
   const returnRefundContext = {
@@ -87,6 +92,8 @@ export function AdminOrderLineActions({
           productLabel={productLabel}
           returnRequest={pendingProductReturnRequest}
           initialReceiptImageUrls={retailerReceiptImageUrls}
+          fulfillmentStatus={fulfillmentStatus}
+          warehouseReceivedCondition={warehouseReceivedCondition}
         />
       </div>
     );
@@ -158,6 +165,7 @@ export function AdminOrderLineActions({
       fulfillmentStatus === "delivery_received_item_missing" ||
       fulfillmentStatus === "product_return_awaiting_delivery";
     const showRefundLine =
+      !isOutsidePurchase &&
       !pendingRefundRequest &&
       !problemReceipt &&
       adminMayRefundLineAfterProductReturn(returnRefundContext);

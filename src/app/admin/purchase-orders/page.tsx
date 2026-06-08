@@ -17,6 +17,7 @@ import {
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { parseAdminListQuery } from "@/lib/admin-customer-filter";
 import { PRODUCT_RETURN_AWAITING_REFUND_LABEL } from "@/lib/product-return-request-labels";
+import { parseOrderHighlightId } from "@/lib/order-notification-highlight";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 type PageProps = {
@@ -43,6 +44,7 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
   const admin = isClerkAdmin(cu.user);
   const rawSp = (await searchParams) ?? {};
   const query = parseAdminListQuery(rawSp);
+  const highlightOrderItemId = parseOrderHighlightId(rawSp.highlight);
 
   const pagePack =
     !admin ?
@@ -160,6 +162,7 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
               staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+              highlightOrderItemId={highlightOrderItemId}
             />
           : null}
           </AdminNestedPanelFocusProvider>

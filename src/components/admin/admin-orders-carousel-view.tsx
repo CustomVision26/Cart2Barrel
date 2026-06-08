@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminOrderLinesDetailDialog } from "@/components/admin/admin-order-lines-detail-dialog";
 import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
@@ -32,6 +32,10 @@ import {
   ORDER_CAROUSEL_NAV_NEXT_CLASS,
   ORDER_CAROUSEL_NAV_PREV_CLASS,
 } from "@/lib/order-carousel-nav";
+import {
+  orderLinesForOrderId,
+  resolveOrderIdFromHighlight,
+} from "@/lib/order-notification-highlight";
 
 const LANES: AdminOrdersSlideLane[] = [
   "awaiting_purchase",
@@ -46,6 +50,7 @@ export function AdminOrdersCarouselView({
   batchEstimatesBySessionId = {},
   orderContainerLinesByOrderId = {},
   staffProfilesByClerkUserId = {},
+  highlightOrderId = null,
 }: {
   rows: AdminPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
@@ -53,21 +58,38 @@ export function AdminOrdersCarouselView({
   batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
+  highlightOrderId?: string | null;
 }) {
   const [detailGroup, setDetailGroup] = useState<AdminOrderSlideGroup | null>(
     null,
   );
+  const highlightConsumedRef = useRef(false);
   const { setNestedPanelActive } = useAdminNestedPanelFocus();
 
   useEffect(() => {
     setNestedPanelActive(detailGroup != null);
   }, [detailGroup, setNestedPanelActive]);
 
+  useEffect(() => {
+    if (!highlightOrderId || highlightConsumedRef.current || rows.length === 0) {
+      return;
+    }
+    const orderId = resolveOrderIdFromHighlight(rows, highlightOrderId);
+    if (!orderId) return;
+    const lines = orderLinesForOrderId(rows, orderId);
+    if (lines.length === 0) return;
+    highlightConsumedRef.current = true;
+    setDetailGroup({
+      order: lines[0]!.order,
+      lines,
+    });
+  }, [highlightOrderId, rows]);
+
   const lanes = useMemo(
     () =>
       LANES.map((lane) => ({
         lane,
-        groups: groupOrdersForSlideLane(rows, lane),
+        groups: groupOrdersForSlideLane(rows, lane, "admin"),
       })),
     [rows],
   );

@@ -27,6 +27,7 @@ export const warehouseReceiptLineInputSchema = z.object({
     .max(RETAILER_RECEIPT_IMAGES_MAX)
     .optional(),
   barcodeValue: z.string().max(500).optional(),
+  conditionNotes: z.string().max(2000).optional(),
 });
 
 export const saveWarehouseReceiptSnapshotsSchema = z
@@ -77,6 +78,7 @@ export const warehouseReceiptMemoV2Schema = z.object({
   proofPhotoUrls: z.array(z.string().url()).max(RETAILER_RECEIPT_IMAGES_MAX).optional(),
   barcodeValue: z.string().optional(),
   barcodeImageUrl: z.string().url().optional(),
+  conditionNotes: z.string().max(2000).optional(),
 });
 
 export type WarehouseReceiptMemoV2 = z.infer<typeof warehouseReceiptMemoV2Schema>;

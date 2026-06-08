@@ -23,6 +23,7 @@ import {
   orderSlideLaneNamesList,
   ORDER_SLIDE_LANE_AUDIENCE,
 } from "@/lib/admin-orders-slide-filters";
+import { parseOrderHighlightId } from "@/lib/order-notification-highlight";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
@@ -48,6 +49,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const admin = isClerkAdmin(cu.user);
   const rawSp = (await searchParams) ?? {};
   const query = parseAdminListQuery(rawSp);
+  const highlightOrderId = parseOrderHighlightId(rawSp.highlight);
 
   const pagePack = !admin ?
     {
@@ -174,6 +176,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
               batchEstimatesBySessionId={batchEstimatesBySessionId}
               orderContainerLinesByOrderId={orderContainerLinesByOrderId}
               staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+              highlightOrderId={highlightOrderId}
             />
           : null}
           </AdminNestedPanelFocusProvider>

@@ -1,5 +1,8 @@
 import type { OrderItem } from "@/db/schema";
-import { BARREL_PIPELINE_IN_CONTAINER } from "@/lib/barrel-pipeline-fulfillment";
+import {
+  BARREL_PIPELINE_IN_CONTAINER,
+  BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID,
+} from "@/lib/barrel-pipeline-fulfillment";
 
 /** All hub “delivery received” outcomes on `order_items.fulfillment_status`. */
 export const DELIVERY_RECEIVED_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
@@ -26,9 +29,13 @@ export const DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES: OrderItem["fulfillm
  * Customer-accepted damaged/wrong receipts also appear on `/admin/packages` and assign-to-barrel.
  */
 
-/** `/admin/packages`: good receipt awaiting barrel (any warehouse condition) and packed in container. */
+/** `/admin/packages`: outside-purchase paid, good receipt awaiting barrel, and in-container. */
 export const ADMIN_PACKAGES_QUEUE_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
-  ["delivery_received_good_awaiting_barrel", BARREL_PIPELINE_IN_CONTAINER];
+  [
+    BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID,
+    "delivery_received_good_awaiting_barrel",
+    BARREL_PIPELINE_IN_CONTAINER,
+  ];
 /** Purchase queue statuses excluding replacement return (handled via separate SQL branch). */
 export const ADMIN_PURCHASE_ORDERS_QUEUE_BASE_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
   [

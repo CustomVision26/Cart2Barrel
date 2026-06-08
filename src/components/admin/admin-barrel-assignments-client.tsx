@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, ExternalLinkIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { ProductToBarrelFiltersToolbar } from "@/components/barrels/product-to-barrel-filters-toolbar";
@@ -20,7 +20,9 @@ import {
   formatBarrelAssignmentWhenShort,
 } from "@/lib/barrel-pipeline-product-display";
 import { ContainerSlotsInventorySection } from "@/components/barrels/container-slots-inventory-section";
+import { AdminItemRequestProductImageUpload } from "@/components/admin/admin-item-request-product-image-upload";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
+import { isOutsidePurchaseProductUrl } from "@/lib/outside-purchase";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -634,12 +636,15 @@ function AdminPipelineAssignDialog({
 
   const [toBarrelId, setToBarrelId] = useState(defaultBarrelId);
   const [adminNote, setAdminNote] = useState("");
+  const [displayImageUrl, setDisplayImageUrl] = useState(row.productImageUrl);
+  const showProductUrl = !isOutsidePurchaseProductUrl(row.productUrl);
 
   useEffect(() => {
     if (!open) return;
     setToBarrelId(defaultBarrelId);
     setAdminNote("");
-  }, [open, defaultBarrelId]);
+    setDisplayImageUrl(row.productImageUrl);
+  }, [open, defaultBarrelId, row.productImageUrl]);
 
   useEffect(() => {
     if (!toBarrelId || !assignableBarrels.some((b) => b.barrelId === toBarrelId)) {
@@ -663,15 +668,36 @@ function AdminPipelineAssignDialog({
         </DialogHeader>
 
         <div className="flex gap-3">
-          <ProductRequestThumbnail
-            variant="dialog"
-            imageUrl={row.productImageUrl}
-            productLabel={row.productName}
-          />
-          <div className="min-w-0 flex-1 space-y-1 text-sm">
+          <div className="flex shrink-0 flex-col gap-2">
+            <ProductRequestThumbnail
+              variant="dialog"
+              imageUrl={displayImageUrl}
+              productLabel={row.productName}
+            />
+            {!displayImageUrl?.trim() ?
+              <AdminItemRequestProductImageUpload
+                itemRequestId={row.itemRequestId}
+                compact
+                disabled={pending}
+                onUploaded={setDisplayImageUrl}
+              />
+            : null}
+          </div>
+          <div className="min-w-0 flex-1 space-y-2 text-sm">
             <p className="text-muted-foreground">{row.fulfillmentLabel}</p>
             {row.quantity > 1 ?
               <p className="text-xs text-muted-foreground">Quantity: {row.quantity}</p>
+            : null}
+            {showProductUrl ?
+              <a
+                href={row.productUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex max-w-full items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+              >
+                <span className="truncate">Open product page</span>
+                <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
+              </a>
             : null}
           </div>
         </div>

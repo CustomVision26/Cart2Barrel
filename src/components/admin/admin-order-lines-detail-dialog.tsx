@@ -35,6 +35,7 @@ import type { AdminOrderSlideGroup } from "@/lib/admin-orders-slide-filters";
 import { formatUsd } from "@/lib/admin-markup";
 import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
+import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { effectiveOutsidePurchasePaidFulfillment } from "@/lib/outside-purchase-order-fulfillment";
 import { partitionPaidLinesIntoBatchBuckets } from "@/lib/partition-paid-order-batch-groups";
 import { displaySiteName } from "@/lib/site-name";
@@ -69,6 +70,7 @@ function DetailLineRow({
   );
   const outsidePurchasePaidServiceFee =
     fulfillment === BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID;
+  const isOutsidePurchase = isOutsidePurchaseRequest(r);
   const pendingProductReturn = row.pendingProductReturnRequest != null;
 
   const purchaseReviewContext =
@@ -170,6 +172,7 @@ function DetailLineRow({
             pendingRefundRequest={row.pendingRefundRequest}
             pendingProductReturnRequest={row.pendingProductReturnRequest}
             fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
+            isOutsidePurchase={isOutsidePurchase}
           />
         }
       </td>

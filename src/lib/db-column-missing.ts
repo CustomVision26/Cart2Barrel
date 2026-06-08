@@ -197,6 +197,24 @@ export function isMissingOrderItemProductReturnRequestsTableError(
   return /does not exist|relation\b/i.test(msg);
 }
 
+/** Barrel hold columns on return requests — migration `0073_product_return_barrel_hold` or `npm run db:push`. */
+export function isMissingProductReturnBarrelHoldColumnsError(
+  e: unknown,
+): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("order_item_product_return_requests")) return false;
+  if (
+    !msg.includes("held_barrel_id") &&
+    !msg.includes("held_package_id") &&
+    !msg.includes("held_fulfillment_status")
+  ) {
+    return false;
+  }
+  const code = getPgErrorCode(e);
+  if (code === "42703") return true;
+  return /column\b.*does not exist|undefined column/i.test(msg);
+}
+
 /** `desired_outcome` on return requests — migration `0051_product_return_desired_outcome` or `npm run db:push`. */
 export function isMissingProductReturnDesiredOutcomeColumnError(
   e: unknown,
@@ -240,7 +258,8 @@ export function isMissingOrderItemWarehouseReceiptColumnsError(
   return (
     isUndefinedColumnError(e, "warehouse_received_at") ||
     isUndefinedColumnError(e, "warehouse_received_proof_photo_urls") ||
-    isUndefinedColumnError(e, "warehouse_received_missing_reason")
+    isUndefinedColumnError(e, "warehouse_received_missing_reason") ||
+    isUndefinedColumnError(e, "warehouse_received_condition_notes")
   );
 }
 

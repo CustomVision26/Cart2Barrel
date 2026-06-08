@@ -10,6 +10,7 @@ import {
 import { getItemRequestById } from "@/data/item-requests";
 import { fulfilledProductReturnRequestsByOrderItemIds } from "@/data/order-item-product-return-requests";
 import { lineSnapshotPayloadFromItemRequest } from "@/data/item-request-line-snapshots";
+import { recordWarehouseDeliveryReceivedActivity } from "@/data/user-status-update-events";
 import { sumRefundedCentsByOrderItemIds } from "@/data/order-item-refunds";
 import {
   isInvalidOrderItemFulfillmentStatusEnumError,
@@ -26,6 +27,7 @@ import {
 import type { WarehouseReceiptMemoV2 } from "@/lib/validations/admin-warehouse-receipt";
 import { fulfillmentStatusFromWarehouseReceiveCondition } from "@/lib/warehouse-receive-fulfillment";
 import { isMoneyBackProductReturn } from "@/lib/order-line-product-return-display";
+import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { canSubmitWarehouseReceiptForFulfillment } from "@/lib/warehouse-receipt-queue";
 
 export type ApplyWarehouseReceiptAuthz =
@@ -79,6 +81,14 @@ export async function applyWarehouseReceiptLines(
       await fulfilledProductReturnRequestsByOrderItemIds(
         parsed.lines.map((l) => l.orderItemId),
       );
+
+    const customerNotifications: {
+      clerkUserId: string;
+      orderId: string;
+      orderItemId: string;
+      productName: string | null;
+      statusLabel: string;
+    }[] = [];
 
     for (const line of parsed.lines) {
       const [row] = await db
@@ -180,6 +190,7 @@ export async function applyWarehouseReceiptLines(
 
       const receivedAt = new Date().toISOString();
       const shelfTrim = line.shelfLocation.trim();
+      const conditionNotesTrim = line.conditionNotes?.trim() ?? "";
       const barcodeTrim = line.barcodeValue?.trim();
       const missingReason =
         line.condition === "missing" ? line.missingReason : undefined;
@@ -241,6 +252,8 @@ export async function applyWarehouseReceiptLines(
         receivedQty: line.receivedQty,
         condition: line.condition,
         missingReason,
+        conditionNotes:
+          conditionNotesTrim === "" ? undefined : conditionNotesTrim,
         shelfLocation: shelfTrim,
         proofPhotoCount: proofCount,
         proofPhotoUrls:
@@ -254,6 +267,8 @@ export async function applyWarehouseReceiptLines(
         receivedQty: line.receivedQty,
         conditionKey: line.condition,
         missingReason,
+        conditionNotes:
+          conditionNotesTrim === "" ? undefined : conditionNotesTrim,
         shelfLocation: line.shelfLocation,
         proofPhotoCount: proofCount,
         barcodeValue: activeMemoPayload.barcodeValue,
@@ -290,6 +305,8 @@ export async function applyWarehouseReceiptLines(
           warehouseReceivedQty: line.receivedQty,
           warehouseReceivedCondition: line.condition,
           warehouseReceivedMissingReason: missingReason ?? null,
+          warehouseReceivedConditionNotes:
+            conditionNotesTrim === "" ? null : conditionNotesTrim,
           warehouseShelfLocation: shelfTrim === "" ? null : shelfTrim,
           warehouseReceivedBarcode:
             barcodeTrim === undefined || barcodeTrim === "" ? null : barcodeTrim,
@@ -316,6 +333,25 @@ export async function applyWarehouseReceiptLines(
       for (const snap of inserts) {
         await db.insert(itemRequestLineSnapshots).values(snap);
       }
+
+      if (authz.kind === "admin") {
+        const nextFulfillment = fulfillmentStatusFromWarehouseReceiveCondition(
+          line.condition,
+        );
+        customerNotifications.push({
+          clerkUserId: row.order.clerkUserId,
+          orderId: row.order.id,
+          orderItemId: row.orderItem.id,
+          productName: req.productName,
+          statusLabel: adminOrderLineStatusLabel(nextFulfillment, {
+            warehouseReceivedCondition: line.condition,
+          }),
+        });
+      }
+    }
+
+    for (const notification of customerNotifications) {
+      await recordWarehouseDeliveryReceivedActivity(notification);
     }
 
     const n = parsed.lines.length;

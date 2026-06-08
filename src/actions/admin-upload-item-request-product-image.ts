@@ -7,10 +7,6 @@ import { currentUser } from "@clerk/nextjs/server";
 
 import { getDb } from "@/db";
 import { itemRequests } from "@/db/schema";
-import {
-  insertItemRequestLineSnapshot,
-  lineSnapshotPayloadFromItemRequest,
-} from "@/data/item-request-line-snapshots";
 import { getItemRequestById } from "@/data/item-requests";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import {
@@ -100,21 +96,13 @@ export async function adminUploadItemRequestProductImageAction(
       .set({ productImageUrl: imageUrl })
       .where(eq(itemRequests.id, itemRequestId));
 
-    await insertItemRequestLineSnapshot({
-      itemRequestId,
-      phase: "post_admin_estimate_edit",
-      line: lineSnapshotPayloadFromItemRequest({
-        ...req,
-        productImageUrl: imageUrl,
-      }),
-      auditMemo: "Admin uploaded a product photo (stored on Vercel Blob).",
-    });
-
     revalidatePath("/admin/item-requests", "layout");
     revalidatePath("/admin/overview");
+    revalidatePath("/admin/barrels/assign-to-barrel");
     revalidatePath("/dashboard/items");
     revalidateDashboardAddItem();
     revalidatePath("/dashboard/cart");
+    revalidatePath("/dashboard/barrels/product-to-barrel");
   }
 
   return { ok: true, imageUrl };

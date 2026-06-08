@@ -29,6 +29,11 @@ import {
 import { dashboardOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import {
+  orderLineCurrentStatusDetail,
+  orderLineCurrentStatusRecordedAt,
+  orderLineStatusLabelOpts,
+} from "@/lib/order-line-current-status-display";
+import {
   groupPaidRowsStableByOrder,
   partitionPaidLinesIntoBatchBuckets,
 } from "@/lib/partition-paid-order-batch-groups";
@@ -118,22 +123,24 @@ function orderLineTimelineEvents(
   }
 
   const current = effectiveOrderItemFulfillmentStatus(row.orderItem, row.order);
+  const statusContext = {
+    orderItem: row.orderItem,
+    order: row.order,
+    pendingRefundRequest: row.pendingRefundRequest,
+    pendingProductReturnRequest: row.pendingProductReturnRequest,
+    fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+    refundedCents: row.refundedCents,
+  };
   const latestRecordedAt = filtered.at(-1)?.createdAt;
   events.push({
     id: `current:${row.orderItem.id}`,
     label: "Current status",
-    headline: dashboardOrderLineStatusLabel(current, {
-      pendingRefundRequest: row.pendingRefundRequest != null,
-      pendingProductReturnRequest: row.pendingProductReturnRequest != null,
-      fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
-      refundedCents: row.refundedCents,
-      linePriceCents: row.orderItem.price,
-    }),
-    detail:
-      row.pendingRefundRequest != null
-        ? "A refund request is awaiting staff approval."
-        : "Latest fulfillment status saved on this order line.",
-    at: row.orderItem.warehouseReceivedAt ?? latestRecordedAt ?? row.order.createdAt,
+    headline: dashboardOrderLineStatusLabel(
+      current,
+      orderLineStatusLabelOpts(statusContext),
+    ),
+    detail: orderLineCurrentStatusDetail(statusContext),
+    at: orderLineCurrentStatusRecordedAt(statusContext, latestRecordedAt),
     kind: "current",
     preview: { kind: "current", row },
   });
@@ -281,6 +288,20 @@ function ProductHistoryCard({
   const request = row.request;
   const fulfillment = effectiveOrderItemFulfillmentStatus(row.orderItem, row.order);
   const pendingRefund = row.pendingRefundRequest != null;
+  const statusContext = {
+    orderItem: row.orderItem,
+    order: row.order,
+    pendingRefundRequest: row.pendingRefundRequest,
+    pendingProductReturnRequest: row.pendingProductReturnRequest,
+    fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+    refundedCents: row.refundedCents,
+  };
+  const statusLabelOpts = orderLineStatusLabelOpts(statusContext);
+  const statusRecordedAt = orderLineCurrentStatusRecordedAt(
+    statusContext,
+    snapshots.filter((snap) => POST_CHECKOUT_PHASES.has(snap.phase)).at(-1)
+      ?.createdAt,
+  );
   const events = orderLineTimelineEvents(row, snapshots);
   const productName = request.productName?.trim() || "Unnamed product";
   const batchDisplay =
@@ -337,20 +358,24 @@ function ProductHistoryCard({
             <StatusBadge
               kind={orderItemFulfillmentBadgeKind(row.orderItem, row.order, {
                 pendingRefundRequest: pendingRefund,
+                pendingProductReturnRequest:
+                  row.pendingProductReturnRequest != null,
               })}
               className="mt-1"
               title={fulfillment}
             >
-              {dashboardOrderLineStatusLabel(fulfillment, {
-                pendingRefundRequest: pendingRefund,
-                pendingProductReturnRequest: row.pendingProductReturnRequest != null,
-                fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
-                refundedCents: row.refundedCents,
-                linePriceCents: row.orderItem.price,
-              })}
+              {dashboardOrderLineStatusLabel(fulfillment, statusLabelOpts)}
             </StatusBadge>
           </div>
           <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-1">
+            <div>
+              <dt className="text-xs text-muted-foreground">Status updated</dt>
+              <dd className="tabular-nums text-foreground">
+                <time dateTime={statusRecordedAt}>
+                  {new Date(statusRecordedAt).toLocaleString()}
+                </time>
+              </dd>
+            </div>
             <div>
               <dt className="text-xs text-muted-foreground">Checked out</dt>
               <dd className="tabular-nums text-foreground">

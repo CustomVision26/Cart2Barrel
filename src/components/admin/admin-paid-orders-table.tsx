@@ -39,6 +39,7 @@ import {
   adminCustomerDisplayLabel,
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
+import { WarehouseIntakePreviewDialog } from "@/components/orders/warehouse-intake-preview-dialog";
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { cn } from "@/lib/utils";
 
@@ -451,6 +452,10 @@ function AdminOrderDataRow(props: {
     fulfillment === BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID;
   const purchaseFlag = lineShowsPurchaseAction(row);
   const pendingProductReturn = row.pendingProductReturnRequest != null;
+  const warehouseFulfillment = effectiveOrderItemFulfillmentStatus(
+    row.orderItem,
+    row.order,
+  );
   const isBatch =
     !inBatchGroup &&
     (!!(row.resolvedBatchSessionId && row.resolvedBatchSessionId.trim()) ||
@@ -600,6 +605,7 @@ function AdminOrderDataRow(props: {
         </StatusBadge>
       </td>
       <td className="px-3 py-3 align-top">
+        <div className="flex flex-col items-start gap-2">
         {outsidePurchasePaidServiceFee ?
           <span className="text-xs text-muted-foreground">—</span>
         : <AdminOrderLineActions
@@ -623,8 +629,18 @@ function AdminOrderDataRow(props: {
             pendingRefundRequest={row.pendingRefundRequest}
             pendingProductReturnRequest={row.pendingProductReturnRequest}
             fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
+            isOutsidePurchase={isOutside}
           />
         }
+        {warehouseFulfillment === "delivery_received_item_missing" &&
+        row.orderItem.warehouseReceivedAt ?
+          <WarehouseIntakePreviewDialog
+            productLabel={r.productName?.trim() || "Unnamed product"}
+            orderItem={row.orderItem}
+            snapshots={snapshotsByRequestId[r.id] ?? []}
+          />
+        : null}
+        </div>
       </td>
       <td className="px-3 py-3 align-top">
         <ItemRequestLineAuditDialog

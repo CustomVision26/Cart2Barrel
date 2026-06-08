@@ -34,6 +34,11 @@ import {
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import {
+  adminOrderLineCurrentStatusDetail,
+  orderLineCurrentStatusRecordedAt,
+  orderLineStatusLabelOpts,
+} from "@/lib/order-line-current-status-display";
+import {
   groupPaidRowsStableByOrder,
   partitionPaidLinesIntoBatchBuckets,
 } from "@/lib/partition-paid-order-batch-groups";
@@ -46,6 +51,7 @@ const POST_CHECKOUT_PHASES = new Set<ItemRequestLineSnapshot["phase"]>([
   "outside_purchase_checkout_paid",
   "company_purchase_pending_delivery",
   "warehouse_delivery_received",
+  "product_return_requested",
   "product_return_tracking_saved",
   "customer_refund_request_submitted",
 ]);
@@ -135,18 +141,23 @@ function orderLineTimelineEvents(
   }
 
   const current = effectiveOrderItemFulfillmentStatus(row.orderItem, row.order);
+  const statusContext = {
+    orderItem: row.orderItem,
+    order: row.order,
+    pendingRefundRequest: row.pendingRefundRequest,
+    pendingProductReturnRequest: row.pendingProductReturnRequest,
+    fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+    refundedCents: row.refundedCents,
+  };
   events.push({
     id: `current:${row.orderItem.id}`,
     label: "Current fulfillment",
-    headline: adminOrderLineStatusLabel(current, {
-      pendingRefundRequest: row.pendingRefundRequest != null,
-      warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
-    }),
-    detail:
-      row.pendingRefundRequest != null
-        ? "A shopper refund request is waiting for staff review."
-        : "Latest fulfillment state currently saved on this product line.",
-    at: row.orderItem.warehouseReceivedAt ?? filtered.at(-1)?.createdAt ?? row.order.createdAt,
+    headline: adminOrderLineStatusLabel(
+      current,
+      orderLineStatusLabelOpts(statusContext),
+    ),
+    detail: adminOrderLineCurrentStatusDetail(statusContext),
+    at: orderLineCurrentStatusRecordedAt(statusContext, filtered.at(-1)?.createdAt),
     kind: "current",
   });
 
@@ -221,6 +232,20 @@ function ProductHistoryCard({
   const request = row.request;
   const fulfillment = effectiveOrderItemFulfillmentStatus(row.orderItem, row.order);
   const pendingRefund = row.pendingRefundRequest != null;
+  const statusContext = {
+    orderItem: row.orderItem,
+    order: row.order,
+    pendingRefundRequest: row.pendingRefundRequest,
+    pendingProductReturnRequest: row.pendingProductReturnRequest,
+    fulfilledProductReturnRequest: row.fulfilledProductReturnRequest,
+    refundedCents: row.refundedCents,
+  };
+  const statusLabelOpts = orderLineStatusLabelOpts(statusContext);
+  const statusRecordedAt = orderLineCurrentStatusRecordedAt(
+    statusContext,
+    snapshots.filter((snap) => POST_CHECKOUT_PHASES.has(snap.phase)).at(-1)
+      ?.createdAt,
+  );
   const events = orderLineTimelineEvents(row, snapshots);
   const productName = request.productName?.trim() || "Unnamed product";
   const batchDisplay =
@@ -258,13 +283,12 @@ function ProductHistoryCard({
           <StatusBadge
             kind={orderItemFulfillmentBadgeKind(row.orderItem, row.order, {
               pendingRefundRequest: pendingRefund,
+              pendingProductReturnRequest:
+                row.pendingProductReturnRequest != null,
             })}
             title={fulfillment}
           >
-            {adminOrderLineStatusLabel(fulfillment, {
-              pendingRefundRequest: pendingRefund,
-              warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
-            })}
+            {adminOrderLineStatusLabel(fulfillment, statusLabelOpts)}
           </StatusBadge>
           <span className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground">
             {open ? "Hide product" : "Show product"}
@@ -319,17 +343,24 @@ function ProductHistoryCard({
             <StatusBadge
               kind={orderItemFulfillmentBadgeKind(row.orderItem, row.order, {
                 pendingRefundRequest: pendingRefund,
+                pendingProductReturnRequest:
+                  row.pendingProductReturnRequest != null,
               })}
               className="mt-1"
               title={fulfillment}
             >
-              {adminOrderLineStatusLabel(fulfillment, {
-                pendingRefundRequest: pendingRefund,
-                warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
-              })}
+              {adminOrderLineStatusLabel(fulfillment, statusLabelOpts)}
             </StatusBadge>
           </div>
           <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-1">
+            <div>
+              <dt className="text-xs text-muted-foreground">Status updated</dt>
+              <dd className="tabular-nums text-foreground">
+                <time dateTime={statusRecordedAt}>
+                  {new Date(statusRecordedAt).toLocaleString()}
+                </time>
+              </dd>
+            </div>
             <div>
               <dt className="text-xs text-muted-foreground">Checkout date</dt>
               <dd className="tabular-nums text-foreground">

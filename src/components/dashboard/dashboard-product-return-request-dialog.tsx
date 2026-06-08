@@ -8,6 +8,16 @@ import { toast } from "sonner";
 import { submitProductReturnRequestAction } from "@/actions/submit-product-return-request";
 import { ProductReturnDesiredOutcomeOptions } from "@/components/dashboard/product-return-desired-outcome-options";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,8 +31,16 @@ import {
 import { Label } from "@/components/ui/label";
 import type { DashboardPaidOrderLineRow } from "@/data/dashboard-order-lines";
 import { formatUsd } from "@/lib/admin-markup";
+import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { dashboardShowsProductReturnButton } from "@/lib/order-line-product-return-eligibility";
-import type { ProductReturnDesiredOutcome } from "@/lib/product-return-desired-outcome";
+import {
+  productReturnDesiredOutcomeContextFromFulfillment,
+  type ProductReturnDesiredOutcome,
+} from "@/lib/product-return-desired-outcome";
+import {
+  isProductReturnBarrelStageFulfillment,
+  productReturnBarrelStageConfirmMessage,
+} from "@/lib/product-return-barrel-hold";
 import { displaySiteName } from "@/lib/site-name";
 import { cn } from "@/lib/utils";
 
@@ -38,51 +56,74 @@ function ProductReturnSummaryCard({ row }: { row: DashboardPaidOrderLineRow }) {
       `Batch ${row.resolvedBatchSessionId.trim().slice(0, 8)}…`
     : null);
 
+  const variantParts = [
+    size ? `Size ${size}` : null,
+    color ? `Color ${color}` : null,
+  ].filter(Boolean);
+
   return (
-    <div className="flex gap-3 rounded-lg border border-border bg-muted p-3">
-      <ProductRequestThumbnail
-        variant="list"
-        imageUrl={r.productImageUrl}
-        productLabel={productName}
-        className="size-16 shrink-0"
-      />
-      <dl className="min-w-0 flex-1 space-y-1.5 text-sm">
-        <div>
-          <dt className="sr-only">Product</dt>
-          <dd className="font-medium leading-snug text-foreground">{productName}</dd>
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-          <span>{site}</span>
-          <span className="tabular-nums">Qty {row.orderItem.quantity}</span>
-          <span className="tabular-nums">{formatUsd(row.orderItem.price)}</span>
-        </div>
-        {size || color ?
-          <div className="text-xs text-muted-foreground">
-            {[size ? `Size ${size}` : null, color ? `Color ${color}` : null]
-              .filter(Boolean)
-              .join(" · ")}
-          </div>
-        : null}
-        {batchLabel ?
-          <div className="text-xs text-muted-foreground">Batch {batchLabel}</div>
-        : null}
-        <div className="text-xs text-muted-foreground">
-          Order{" "}
-          <span className="font-mono" title={row.order.id}>
-            {row.order.id.slice(0, 8)}…
-          </span>
-        </div>
-        <div>
+    <div className="rounded-lg border border-border bg-muted/60 p-3.5">
+      <div className="flex gap-3">
+        <ProductRequestThumbnail
+          variant="list"
+          imageUrl={r.productImageUrl}
+          productLabel={productName}
+          className="size-[4.25rem] shrink-0 rounded-md"
+        />
+        <div className="min-w-0 flex-1 space-y-2">
+          <p
+            className="line-clamp-2 text-sm font-medium leading-snug text-foreground"
+            title={productName}
+          >
+            {productName}
+          </p>
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
+            <div>
+              <dt className="sr-only">Retailer</dt>
+              <dd>{site}</dd>
+            </div>
+            <div>
+              <dt className="sr-only">Quantity</dt>
+              <dd className="tabular-nums">Qty {row.orderItem.quantity}</dd>
+            </div>
+            <div>
+              <dt className="sr-only">Line total</dt>
+              <dd className="tabular-nums font-medium text-foreground">
+                {formatUsd(row.orderItem.price)}
+              </dd>
+            </div>
+            {variantParts.length > 0 ?
+              <div className="col-span-2 sm:col-span-3">
+                <dt className="sr-only">Variant</dt>
+                <dd>{variantParts.join(" · ")}</dd>
+              </div>
+            : null}
+            {batchLabel ?
+              <div className="col-span-2 sm:col-span-3">
+                <dt className="sr-only">Batch</dt>
+                <dd>Batch {batchLabel}</dd>
+              </div>
+            : null}
+            <div className="col-span-2 sm:col-span-3">
+              <dt className="sr-only">Order</dt>
+              <dd>
+                Order{" "}
+                <span className="font-mono" title={row.order.id}>
+                  {row.order.id.slice(0, 8)}…
+                </span>
+              </dd>
+            </div>
+          </dl>
           <Link
             href={r.productUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+            className="inline-flex text-xs font-medium text-primary underline-offset-2 hover:underline"
           >
-            View product URL
+            Open retailer listing
           </Link>
         </div>
-      </dl>
+      </div>
     </div>
   );
 }
@@ -98,7 +139,16 @@ export function DashboardProductReturnRequestDialog({
     useState<ProductReturnDesiredOutcome | null>(null);
   const [returnNote, setReturnNote] = useState("");
   const [confirmCharges, setConfirmCharges] = useState(false);
+  const [barrelConfirmOpen, setBarrelConfirmOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  const fulfillment = effectiveOrderItemFulfillmentStatus(
+    row.orderItem,
+    row.order,
+  );
+  const isBarrelStage = isProductReturnBarrelStageFulfillment(fulfillment);
+  const isMissingDelivery = fulfillment === "delivery_received_item_missing";
+  const outcomeContext = productReturnDesiredOutcomeContextFromFulfillment(fulfillment);
 
   const canRequest = dashboardShowsProductReturnButton({
     request: row.request,
@@ -115,10 +165,11 @@ export function DashboardProductReturnRequestDialog({
       setDesiredOutcome(null);
       setReturnNote("");
       setConfirmCharges(false);
+      setBarrelConfirmOpen(false);
     }
   }, []);
 
-  const submit = useCallback(() => {
+  const submitReturn = useCallback(() => {
     startTransition(async () => {
       if (!desiredOutcome) return;
       const res = await submitProductReturnRequestAction({
@@ -129,6 +180,7 @@ export function DashboardProductReturnRequestDialog({
       });
       if (res.ok) {
         toast.success(res.message);
+        setBarrelConfirmOpen(false);
         setOpen(false);
         router.refresh();
       } else {
@@ -136,6 +188,14 @@ export function DashboardProductReturnRequestDialog({
       }
     });
   }, [desiredOutcome, returnNote, row.orderItem.id, router]);
+
+  const onSubmitClick = useCallback(() => {
+    if (isBarrelStage) {
+      setBarrelConfirmOpen(true);
+      return;
+    }
+    submitReturn();
+  }, [isBarrelStage, submitReturn]);
 
   if (!canRequest) return null;
 
@@ -150,29 +210,50 @@ export function DashboardProductReturnRequestDialog({
           "mt-2 w-full",
         )}
       >
-        Return product
+        Request return
       </DialogTrigger>
       <DialogContent className="max-h-[min(92vh,720px)] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Return product</DialogTitle>
-          <DialogDescription>
-            Ask Cart2Barrel to return this item to the retailer on your behalf.
+        <DialogHeader className="space-y-2 text-left">
+          <DialogTitle>
+            {isMissingDelivery ? "Report missing delivery" : "Request product return"}
+          </DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed">
+            {isMissingDelivery ?
+              "Submit a report for this missing item. Our team will contact the retailer on your behalf."
+            : "Submit a return request. Our team will coordinate the physical return and retailer transaction on your behalf."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 text-sm">
+        <div className="space-y-5 text-sm">
           <ProductReturnSummaryCard row={row} />
 
-          <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-3 text-muted-foreground">
-            <p className="font-medium text-foreground">How returns work</p>
-            <p className="mt-2 leading-relaxed">
-              Cart2Barrel staff will handle the physical product, work with the
-              shipping carrier, and complete the return transaction with the retailer.
+          <div className="space-y-2 rounded-lg border border-border/80 bg-muted/40 px-4 py-3.5">
+            <p className="text-sm font-medium text-foreground">
+              {isMissingDelivery ? "What happens next" : "Return process"}
             </p>
-            <p className="mt-2 leading-relaxed">
-              After you submit, staff review your request and update this order when
-              return tracking is in place.
-            </p>
+            {isMissingDelivery ?
+              <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-muted-foreground">
+                <li>
+                  Our team will contact the retailer about the missing delivery
+                  and pursue the resolution you select below.
+                </li>
+                <li>
+                  After submission, your request will be reviewed and this order
+                  will be updated when the retailer responds or further action is
+                  required.
+                </li>
+              </ul>
+            : <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-muted-foreground">
+                <li>
+                  Our team will handle the physical product, coordinate with the
+                  carrier, and complete the return with the retailer.
+                </li>
+                <li>
+                  After submission, your request will be reviewed and this order
+                  will be updated when return tracking is confirmed.
+                </li>
+              </ul>
+            }
           </div>
 
           <ProductReturnDesiredOutcomeOptions
@@ -180,41 +261,47 @@ export function DashboardProductReturnRequestDialog({
             value={desiredOutcome}
             onChange={setDesiredOutcome}
             disabled={pending}
+            context={outcomeContext}
           />
 
           <div className="grid gap-2">
             <Label htmlFor={`return-note-${row.orderItem.id}`}>
-              Why are you requesting a return?
+              {isMissingDelivery ? "Delivery details" : "Reason for return"}
             </Label>
             <textarea
               id={`return-note-${row.orderItem.id}`}
-              className="min-h-[7rem] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
+              className="min-h-[6.5rem] w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm leading-relaxed text-foreground shadow-xs"
               value={returnNote}
               onChange={(e) => setReturnNote(e.target.value)}
-              placeholder="Describe the issue (wrong size, damaged, changed mind, retailer policy, etc.). Staff use this when arranging the return shipment."
+              placeholder={
+                isMissingDelivery ?
+                  "Describe how the delivery was incomplete (for example, the package arrived without this item). Include any carrier or retailer details that may assist our team."
+                : "Describe the issue (for example, incorrect size, damage, or a change of mind). Our team will use this information when arranging the return."
+              }
               maxLength={2000}
             />
             <p className="text-xs text-muted-foreground">
-              {returnNote.trim().length}/2000 · at least 20 characters
+              Minimum 20 characters · {returnNote.trim().length.toLocaleString()}
+              /2,000
             </p>
           </div>
 
-          <label className="flex items-start gap-2 text-sm leading-relaxed">
+          <label className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/30 px-3 py-3 text-sm leading-relaxed text-muted-foreground">
             <input
               type="checkbox"
-              className="mt-1"
+              className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
               checked={confirmCharges}
               onChange={(e) => setConfirmCharges(e.target.checked)}
             />
             <span>
-              I understand additional service, shipping, or price-difference
-              charges may or may not apply to my return or replacement, and staff
-              will confirm before any extra charge.
+              I understand that additional service, shipping, or price-difference
+              charges may apply. Our team will confirm any extra charges before
+              billing.
             </span>
           </label>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2 border-t border-border/60 pt-4 sm:gap-0">
           <Button
             type="button"
             disabled={
@@ -223,12 +310,41 @@ export function DashboardProductReturnRequestDialog({
               !confirmCharges ||
               !noteReady
             }
-            onClick={submit}
+            onClick={onSubmitClick}
           >
-            {pending ? "Submitting…" : "Submit return request"}
+            {pending ? "Submitting…" : (
+              isMissingDelivery ? "Submit request" : "Submit return request"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={barrelConfirmOpen} onOpenChange={setBarrelConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from container packing?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {productReturnBarrelStageConfirmMessage({
+                fulfillmentStatus: fulfillment,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={pending}
+              onClick={(event) => {
+                event.preventDefault();
+                submitReturn();
+              }}
+            >
+              {pending ? "Submitting…" : (
+              isMissingDelivery ? "Submit request" : "Submit return request"
+            )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { ArrowDown, ArrowUp, Search } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -51,7 +52,8 @@ export function ProductToBarrelFiltersToolbar({
     filters.assignment !== "all" ||
     filters.container !== "all" ||
     filters.fulfillment !== "all" ||
-    filters.sort !== DEFAULT_PRODUCT_TO_BARREL_FILTERS.sort;
+    filters.sortField !== DEFAULT_PRODUCT_TO_BARREL_FILTERS.sortField ||
+    filters.sortDir !== DEFAULT_PRODUCT_TO_BARREL_FILTERS.sortDir;
 
   if (totalCount === 0) {
     return null;
@@ -136,24 +138,45 @@ export function ProductToBarrelFiltersToolbar({
           : null}
 
           <div className="space-y-1.5">
-            <Label htmlFor={`${idPrefix}-sort`}>Sort</Label>
-            <select
-              id={`${idPrefix}-sort`}
-              value={filters.sort}
-              onChange={(e) =>
-                onFiltersChange({
-                  sort: e.target.value as ProductToBarrelFilterState["sort"],
-                })
-              }
-              className={cn(selectClassName, "min-w-[11rem]")}
-            >
-              <option value="assigned_newest">Assigned date (newest)</option>
-              <option value="assigned_oldest">Assigned date (oldest)</option>
-              <option value="product_asc">Product name (A–Z)</option>
-              <option value="product_desc">Product name (Z–A)</option>
-              <option value="container">Container</option>
-              <option value="fulfillment">Fulfillment status</option>
-            </select>
+            <Label htmlFor={`${idPrefix}-sort-field`}>Sort</Label>
+            <div className="flex items-center gap-1">
+              <select
+                id={`${idPrefix}-sort-field`}
+                value={filters.sortField}
+                onChange={(e) =>
+                  onFiltersChange({
+                    sortField: e.target.value as ProductToBarrelFilterState["sortField"],
+                  })
+                }
+                className={cn(selectClassName, "min-w-[9.5rem]")}
+              >
+                <option value="assigned">Assigned date</option>
+                <option value="product">Product name</option>
+                <option value="container">Container</option>
+                <option value="fulfillment">Fulfillment status</option>
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-8 shrink-0"
+                aria-label={
+                  filters.sortDir === "asc" ?
+                    "Sort ascending — click for descending"
+                  : "Sort descending — click for ascending"
+                }
+                title={filters.sortDir === "asc" ? "Ascending" : "Descending"}
+                onClick={() =>
+                  onFiltersChange({
+                    sortDir: filters.sortDir === "asc" ? "desc" : "asc",
+                  })
+                }
+              >
+                {filters.sortDir === "asc" ?
+                  <ArrowUp className="size-4" aria-hidden />
+                : <ArrowDown className="size-4" aria-hidden />}
+              </Button>
+            </div>
           </div>
 
           {hasActiveFilters ?

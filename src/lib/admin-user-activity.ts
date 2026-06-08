@@ -57,11 +57,15 @@ export function adminActivityHrefForOrders(
 
 export function adminActivityHrefForPurchaseOrders(
   customerClerkUserId: string,
+  highlightOrderItemId?: string,
 ): string {
-  return withAdminCustomerFilter(
+  const base = withAdminCustomerFilter(
     "/admin/purchase-orders",
     customerClerkUserId,
   );
+  if (!highlightOrderItemId) return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}highlight=${encodeURIComponent(highlightOrderItemId)}`;
 }
 
 export function adminActivityHrefForOutsidePurchase(

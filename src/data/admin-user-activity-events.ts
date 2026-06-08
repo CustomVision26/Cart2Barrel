@@ -217,7 +217,10 @@ export async function recordRefundRequestSubmittedActivity(params: {
     kind: "refund_request_submitted",
     title: "Refund request submitted",
     body: label,
-    href: adminActivityHrefForPurchaseOrders(params.customerClerkUserId),
+    href: adminActivityHrefForPurchaseOrders(
+      params.customerClerkUserId,
+      params.orderItemId,
+    ),
     entityType: "order_item",
     entityId: params.orderItemId,
   });
@@ -234,7 +237,10 @@ export async function recordProductReturnRequestedActivity(params: {
     kind: "product_return_requested",
     title: "Product return requested",
     body: label,
-    href: adminActivityHrefForPurchaseOrders(params.customerClerkUserId),
+    href: adminActivityHrefForPurchaseOrders(
+      params.customerClerkUserId,
+      params.orderItemId,
+    ),
     entityType: "order_item",
     entityId: params.orderItemId,
   });

@@ -49,6 +49,7 @@ export type PackageIntakeRowState = {
   receivedQty: number;
   condition: WarehouseReceiveCondition;
   missingReason: WarehouseMissingReason;
+  conditionNotes: string;
   shelfLocation: string;
   proofFileCount: number;
   proofPhotoUrls: string[];
@@ -83,6 +84,7 @@ export function packageIntakeRowStateFromLine(
           oi.warehouseReceivedMissingReason
         : "package_empty",
       shelfLocation: oi.warehouseShelfLocation ?? "",
+      conditionNotes: oi.warehouseReceivedConditionNotes ?? "",
       proofPhotoUrls,
       proofFileCount:
         proofPhotoUrls.length > 0 ?
@@ -95,6 +97,7 @@ export function packageIntakeRowStateFromLine(
     receivedQty: line.orderedQty,
     condition: "good",
     missingReason: "package_empty",
+    conditionNotes: "",
     shelfLocation: "",
     proofPhotoUrls: [],
     proofFileCount: 0,
@@ -274,6 +277,11 @@ function IntakePreviewBody({
               <PreviewProductUrl url={intakeUrl} label="Open intake product page" />
             </PreviewField>
           : null}
+          {row.conditionNotes.trim() ?
+            <PreviewField label="Condition notes" className="col-span-2">
+              <span className="whitespace-pre-wrap">{row.conditionNotes.trim()}</span>
+            </PreviewField>
+          : null}
           <PreviewField label="Shelf / bin" className="col-span-2">
             {row.shelfLocation.trim() || "Not assigned"}
           </PreviewField>
@@ -406,6 +414,20 @@ function IntakeEditForm({
         </label>
       </div>
       <label className="block space-y-1.5">
+        <Label htmlFor={`pkg-condition-notes-${line.id}`}>
+          Received condition notes
+        </Label>
+        <textarea
+          id={`pkg-condition-notes-${line.id}`}
+          className="min-h-[5rem] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
+          value={row.conditionNotes}
+          disabled={pending}
+          onChange={(e) => onChange({ conditionNotes: e.target.value })}
+          placeholder="Scratches, seal broken, wrong color received, etc."
+          maxLength={2000}
+        />
+      </label>
+      <label className="block space-y-1.5">
         <Label htmlFor={`pkg-shelf-${line.id}`}>Shelf location</Label>
         <Input
           id={`pkg-shelf-${line.id}`}
@@ -428,6 +450,11 @@ function IntakeEditForm({
         orderItemId={line.id}
         imageUrls={row.proofPhotoUrls}
         disabled={pending}
+        title="Received product receipt"
+        description="Upload photos of the retailer receipt, delivery slip, package label, or received item — up to 12 images (JPEG, PNG, WebP, GIF)."
+        addButtonLabel="Add receipt images"
+        emptyLabel="No receipt images uploaded yet."
+        imageAlt="Received product receipt"
         onUrlsChange={(urls) =>
           onChange({ proofPhotoUrls: urls, proofFileCount: urls.length })
         }
@@ -638,6 +665,10 @@ export function AdminPackageFileCard({
                             editDraft.missingReason
                           : undefined,
                         shelfLocation: editDraft.shelfLocation,
+                        conditionNotes:
+                          editDraft.conditionNotes.trim() === "" ?
+                            undefined
+                          : editDraft.conditionNotes.trim(),
                         proofPhotoCount: editDraft.proofPhotoUrls.length,
                         proofPhotoUrls: editDraft.proofPhotoUrls,
                         barcodeValue:

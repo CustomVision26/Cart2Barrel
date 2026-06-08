@@ -724,6 +724,8 @@ export const orderItems = pgTable(
      * (`package_empty` | `package_not_received`).
      */
     warehouseReceivedMissingReason: text("warehouse_received_missing_reason"),
+    /** Staff notes about package / item condition at warehouse intake. */
+    warehouseReceivedConditionNotes: text("warehouse_received_condition_notes"),
     warehouseShelfLocation: text("warehouse_shelf_location"),
     warehouseReceivedBarcode: text("warehouse_received_barcode"),
     /** Photo of the package / SKU barcode stored as a public Vercel Blob URL. */
@@ -815,6 +817,14 @@ export const orderItemProductReturnRequests = pgTable(
       mode: "string",
     }),
     fulfilledByClerkUserId: text("fulfilled_by_clerk_user_id"),
+    /** Barrel pipeline state saved when a return is submitted during packing. */
+    heldBarrelId: uuid("held_barrel_id").references(() => barrels.id, {
+      onDelete: "set null",
+    }),
+    heldPackageId: uuid("held_package_id").references(() => packages.id, {
+      onDelete: "set null",
+    }),
+    heldFulfillmentStatus: orderItemFulfillmentEnum("held_fulfillment_status"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1073,6 +1083,7 @@ export const userStatusUpdateKindEnum = pgEnum("user_status_update_kind", [
   "item_out_of_stock",
   "company_purchase_confirmed",
   "purchase_tracking_updated",
+  "warehouse_delivery_received",
   "refund_approved",
   "refund_rejected",
   "product_return_fulfilled",
@@ -1293,7 +1304,10 @@ export const packages = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (t) => [index("packages_order_item_id_idx").on(t.orderItemId)],
+  (t) => [
+    index("packages_order_item_id_idx").on(t.orderItemId),
+    uniqueIndex("packages_order_item_id_unique").on(t.orderItemId),
+  ],
 );
 
 /** User’s barrel inventory / fulfillment unit. */

@@ -456,7 +456,7 @@ export function ItemRequestLineAuditDialog({
                     batchShare={batchEstimateShare}
                     batchEstimateNote={batchEstimateNote}
                     isBatchedProduct={isBatchedProduct}
-                    auditSnapshots={isOutsidePurchase ? snapshots : null}
+                    auditSnapshots={snapshots}
                     showInternalIds
                   />
                 </>

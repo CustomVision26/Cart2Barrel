@@ -18,11 +18,21 @@ export function WarehouseProofPhotosField({
   imageUrls,
   disabled = false,
   onUrlsChange,
+  title = "Intake proof photos",
+  description = `Package condition, labels, or damage — up to ${RETAILER_RECEIPT_IMAGES_MAX} images (JPEG, PNG, WebP, GIF).`,
+  addButtonLabel = "Add photos",
+  emptyLabel = "No proof photos yet.",
+  imageAlt = "Intake proof",
 }: {
   orderItemId: string;
   imageUrls: string[];
   disabled?: boolean;
   onUrlsChange?: (urls: string[]) => void;
+  title?: string;
+  description?: string;
+  addButtonLabel?: string;
+  emptyLabel?: string;
+  imageAlt?: string;
 }) {
   const inputId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -86,11 +96,8 @@ export function WarehouseProofPhotosField({
     <div className="space-y-2 rounded-lg border border-border/80 bg-muted p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-medium text-foreground">Intake proof photos</p>
-          <p className="text-[11px] text-muted-foreground">
-            Package condition, labels, or damage — up to {RETAILER_RECEIPT_IMAGES_MAX}{" "}
-            images (JPEG, PNG, WebP, GIF).
-          </p>
+          <p className="text-xs font-medium text-foreground">{title}</p>
+          <p className="text-[11px] text-muted-foreground">{description}</p>
         </div>
         <div className="flex shrink-0 gap-2">
           <input
@@ -135,7 +142,7 @@ export function WarehouseProofPhotosField({
                 {/* eslint-disable-next-line @next/next/no-img-element -- Blob URLs */}
                 <img
                   src={url}
-                  alt="Intake proof"
+                  alt={imageAlt}
                   className="max-h-32 w-full object-contain"
                 />
               </a>
@@ -153,7 +160,7 @@ export function WarehouseProofPhotosField({
             </li>
           ))}
         </ul>
-      : <p className="text-[11px] italic text-muted-foreground">No proof photos yet.</p>}
+      : <p className="text-[11px] italic text-muted-foreground">{emptyLabel}</p>}
     </div>
   );
 }

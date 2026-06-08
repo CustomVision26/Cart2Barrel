@@ -40,6 +40,9 @@ import {
   type PaidOrderLineListRow,
 } from "@/data/paid-orders-queries";
 import { mapLatestOperationalQuoteItemCostByRequestIds } from "@/data/item-quotes";
+import { backfillOutsidePurchasePaidServiceFeeFulfillment } from "@/data/backfill-outside-purchase-paid-fulfillment";
+import { ensurePackagesForOutsidePurchasePaidAllOwners } from "@/data/barrel-package-assignment";
+import { reconcilePendingReturnBarrelHolds } from "@/data/product-return-barrel-hold";
 import {
   isMissingOrderItemAdminUpdatedByColumnsError,
   isMissingOrderItemWarehouseReceiptColumnsError,
@@ -50,6 +53,7 @@ import {
   productReturnAwaitingDeliveryOnPurchaseOrders,
 } from "@/lib/admin-order-queue-fulfillment";
 import { excludeDeliveryConditionAcceptedAwaitingBarrelSql } from "@/lib/delivery-condition-acceptance";
+import { excludePendingProductReturnRequestSql } from "@/lib/exclude-pending-product-return-request";
 import {
   ADMIN_PACKAGES_QUEUE_FULFILLMENT_STATUSES,
   ADMIN_PURCHASE_ORDERS_QUEUE_BASE_FULFILLMENT_STATUSES,
@@ -99,6 +103,7 @@ function packagesAwaitingBarrelWhere(): SQL {
     inArray(orderItems.fulfillmentStatus, [
       ...ADMIN_PACKAGES_QUEUE_FULFILLMENT_STATUSES,
     ]),
+    excludePendingProductReturnRequestSql(),
   )!;
 }
 
@@ -460,6 +465,9 @@ export async function listAdminPurchaseQueuePage(
 export async function listAdminPackagesQueuePage(
   queryInput: AdminListQuery,
 ): Promise<PurchaseQueuePageResult> {
+  await reconcilePendingReturnBarrelHolds();
+  await backfillOutsidePurchasePaidServiceFeeFulfillment();
+  await ensurePackagesForOutsidePurchasePaidAllOwners();
   try {
     return await listPurchaseQueueInner(queryInput, "packages_awaiting_barrel");
   } catch (e) {

@@ -91,8 +91,10 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
         tooltipClassName="w-80"
         help={
           <>
-            All paid package lines on the barrel pipeline: awaiting barrel (good, damaged
-            accepted, or wrong item accepted) and already assigned in-container (
+            All paid package lines on the barrel pipeline: outside purchases with service fee
+            paid (<span className="font-medium text-foreground">paid · service fee</span>),
+            awaiting barrel (good, damaged accepted, or wrong item accepted), and already
+            assigned in-container (
             <span className="font-medium text-foreground">In barrel: awaiting shipping</span>
             ). Use the control center to filter by customer, product, order, request, or batch.
             Expand a customer group to search and paginate package files inside the nested panel.
@@ -124,9 +126,10 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
             </AdminParentControlsShell>
           {emptyQueue ?
             <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-              No packages are awaiting barrel or consolidation yet. Lines appear here after
-              warehouse receipt from Purchase orders, including customer-accepted damaged or
-              wrong-item deliveries.
+              No packages are awaiting barrel or consolidation yet. Lines appear here when
+              outside-purchase service fees are paid, after warehouse receipt from Purchase
+              orders (including customer-accepted damaged or wrong-item deliveries), or when
+              already packed in a container.
             </p>
           : null}
           {noSearchHits ?

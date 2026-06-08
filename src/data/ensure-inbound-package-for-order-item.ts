@@ -27,9 +27,18 @@ export async function ensureInboundPackageForOrderItem(
       received: true,
       receivedAt: receivedAtIso,
     })
+    .onConflictDoNothing({ target: packages.orderItemId })
     .returning({ id: packages.id });
-  if (!row) {
-    throw new Error("Could not create inbound package row.");
+  if (row) {
+    return row.id;
   }
-  return row.id;
+  const afterConflict = await db
+    .select({ id: packages.id })
+    .from(packages)
+    .where(eq(packages.orderItemId, orderItemId))
+    .limit(1);
+  if (afterConflict[0]) {
+    return afterConflict[0].id;
+  }
+  throw new Error("Could not create inbound package row.");
 }
