@@ -10,27 +10,17 @@ import {
   orderItems,
   orders,
 } from "@/db/schema";
+import type {
+  BillingReceiptCategory,
+  BillingReceiptScope,
+  CustomerBillingReceiptRecord,
+} from "@/lib/billing-receipt-types";
 
-export type BillingReceiptScope = "order" | "single" | "batch";
-export type BillingReceiptCategory = "payment" | "proration";
-
-export type CustomerBillingReceiptRecord = {
-  id: string;
-  scope: BillingReceiptScope;
-  category: BillingReceiptCategory;
-  label: string;
-  subtitle: string | null;
-  amountCents: number;
-  createdAt: string;
-  orderId: string;
-  orderItemId: string | null;
-  batchNumber: string | null;
-  batchSessionId: string | null;
-  productName: string | null;
-  stripePaymentIntentId: string | null;
-  stripeRefundId: string | null;
-  searchHaystack: string;
-};
+export type {
+  BillingReceiptCategory,
+  BillingReceiptScope,
+  CustomerBillingReceiptRecord,
+} from "@/lib/billing-receipt-types";
 
 const batchDirect = alias(batchQuoteSessions, "billing_rcpt_batch_direct");
 const batchViaLine = alias(batchQuoteSessions, "billing_rcpt_batch_via_line");

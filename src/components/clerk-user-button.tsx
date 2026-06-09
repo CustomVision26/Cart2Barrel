@@ -1,23 +1,11 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { UserButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
+import { BillingReceiptsAccountPanel } from "@/components/account/billing-receipts-account-panel";
 import { BillingReceiptsAccountIcon } from "@/components/account/billing-receipts-account-icon";
-
-const BillingReceiptsAccountPanel = dynamic(
-  () =>
-    import("@/components/account/billing-receipts-account-panel").then(
-      (mod) => mod.BillingReceiptsAccountPanel,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <p className="text-sm text-muted-foreground">Open this tab to load receipts…</p>
-    ),
-  },
-);
+import { clerkUserButtonAppearance } from "@/components/auth/clerk-auth-appearance";
 
 /**
  * Clerk’s UserButton mounts via ClerkHostRenderer and often mismatches server HTML vs client
@@ -40,7 +28,7 @@ export function ClerkUserButton() {
   }
 
   return (
-    <UserButton>
+    <UserButton appearance={clerkUserButtonAppearance}>
       <UserButton.UserProfilePage
         label="Billing Receipt"
         url="billing-receipt"

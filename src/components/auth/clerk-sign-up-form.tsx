@@ -10,6 +10,8 @@ export function ClerkSignUpForm() {
       routing="path"
       path="/signup"
       signInUrl="/login"
+      forceRedirectUrl="/welcome"
+      fallbackRedirectUrl="/welcome"
       appearance={clerkAuthCardAppearance}
     />
   );

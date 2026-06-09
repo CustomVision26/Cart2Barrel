@@ -1,22 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import type { ReactNode } from "react";
 
-import { ThemeProvider, useTheme } from "@/components/theme/theme-provider";
+import { clerkBaseAppearance } from "@/components/auth/clerk-auth-appearance";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 
 function ClerkWithTheme({ children }: { children: ReactNode }) {
-  const { resolvedTheme } = useTheme();
-  const appearance = useMemo(
-    () => ({
-      baseTheme: resolvedTheme,
-    }),
-    [resolvedTheme],
-  );
-
   return (
-    <ClerkProvider dynamic appearance={appearance}>
+    <ClerkProvider dynamic appearance={clerkBaseAppearance}>
       {children}
     </ClerkProvider>
   );

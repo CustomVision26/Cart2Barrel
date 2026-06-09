@@ -47,6 +47,7 @@ import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
 import { formatUsd } from "@/lib/admin-markup";
 import { displaySiteName } from "@/lib/site-name";
+import { buildCheckoutProductDetailText } from "@/lib/checkout-product-reference";
 import { isOperationalQuoteRow } from "@/lib/checkout-snapshot-kind";
 import {
   isMissingBatchQuoteSessionIdColumnError,
@@ -598,14 +599,28 @@ function mergeSubMinimumStripeAllocations(amounts: number[]): number[] {
 function batchProductStripeDescription(
   group: CartBatchGroup,
   line: CartLine,
-  opts: { taxExcludedFromGoodsLine: boolean },
+  opts: {
+    taxExcludedFromGoodsLine: boolean;
+    orderItemIdByRequestId?: Map<string, string>;
+  },
 ): string {
   const site = displaySiteName(line.request.siteName, line.request.productUrl);
-  const parts = [
-    `Batch ${group.batchNumber}`,
-    site || group.siteKey,
-    `Qty ${line.request.quantity}`,
-  ];
+  const parts: string[] = [];
+  const referenceDetail = buildCheckoutProductDetailText({
+    batchNumber: group.batchNumber,
+    orderItemId: opts.orderItemIdByRequestId?.get(line.request.id),
+    itemRequestId: line.request.id,
+    outsidePurchaseReference: line.request.outsidePurchaseReference,
+    productUrl: line.request.productUrl,
+    source: line.request.source,
+    quantity: line.request.quantity,
+    siteName: site || group.siteKey,
+  });
+  if (referenceDetail) {
+    parts.push(referenceDetail);
+  } else {
+    parts.push(`Batch ${group.batchNumber}`, `Qty ${line.request.quantity}`);
+  }
   const size = line.request.productSize?.trim();
   const color = line.request.productColor?.trim();
   if (size) parts.push(`Size ${size}`);
@@ -620,6 +635,7 @@ function buildStripeLinesForBatchGroup(
   group: CartBatchGroup,
   goodsCentsForStripe: number,
   quotedTaxCents: number,
+  orderItemIdByRequestId?: Map<string, string>,
 ): StripeCheckoutPriceDataLine[] {
   const weights = group.lines.map((l) => l.quote.totalPrice);
   const allocated = mergeSubMinimumStripeAllocations(
@@ -670,6 +686,7 @@ function buildStripeLinesForBatchGroup(
           name,
           description: batchProductStripeDescription(group, line, {
             taxExcludedFromGoodsLine: taxExcluded,
+            orderItemIdByRequestId,
           }),
         },
       },
@@ -684,7 +701,10 @@ function buildStripeLinesForBatchGroup(
  * split into a dedicated line when Stripe’s USD minimum-per-line rules allow so it appears as
  * “tax” on receipts and Dashboard; totals match the bundled staff estimates.
  */
-export function buildStripeLineItemsFromAssembledCart(assembled: AssembledCart): {
+export function buildStripeLineItemsFromAssembledCart(
+  assembled: AssembledCart,
+  orderItemIdByRequestId?: Map<string, string>,
+): {
   lineItems: StripeCheckoutPriceDataLine[];
   /** Sum of tax taken from estimates (intent), even when folded back for Stripe minimums. */
   quotedSalesTaxIntentCents: number;
@@ -704,7 +724,12 @@ export function buildStripeLineItemsFromAssembledCart(assembled: AssembledCart):
     quotedTaxStripePool += quotedTaxCents;
 
     items.push(
-      ...buildStripeLinesForBatchGroup(group, goodsCentsForStripe, quotedTaxCents),
+      ...buildStripeLinesForBatchGroup(
+        group,
+        goodsCentsForStripe,
+        quotedTaxCents,
+        orderItemIdByRequestId,
+      ),
     );
   }
 
@@ -718,6 +743,19 @@ export function buildStripeLineItemsFromAssembledCart(assembled: AssembledCart):
     const { goodsCentsForStripe, quotedTaxCents } =
       splitGoodsAndQuotedTaxForStandalone(line);
     quotedTaxStripePool += quotedTaxCents;
+    const referenceDetail = buildCheckoutProductDetailText({
+      orderItemId: orderItemIdByRequestId?.get(line.request.id),
+      itemRequestId: line.request.id,
+      outsidePurchaseReference: line.request.outsidePurchaseReference,
+      productUrl: line.request.productUrl,
+      source: line.request.source,
+      quantity: line.request.quantity,
+      siteName: displaySiteName(line.request.siteName, line.request.productUrl),
+    });
+    const descriptionParts = [
+      referenceDetail,
+      quotedTaxCents > 0 ? "merchandise & fees excluding estimated sale tax" : null,
+    ].filter((part): part is string => Boolean(part));
     items.push({
       quantity: 1,
       price_data: {
@@ -726,8 +764,8 @@ export function buildStripeLineItemsFromAssembledCart(assembled: AssembledCart):
         product_data: {
           name,
           description:
-            quotedTaxCents > 0 ?
-              `Qty ${line.request.quantity} · merchandise & fees excluding estimated sale tax`
+            descriptionParts.length > 0 ?
+              descriptionParts.join(" · ")
             : `Qty ${line.request.quantity}`,
         },
       },
@@ -846,13 +884,20 @@ export function buildStripeLineItemsFromContainerCheckoutLines(
 
 export type CartCheckoutSummaryLine = {
   itemRequestId: string;
+  orderItemId: string;
   productName: string | null;
   productUrl: string;
+  source: ItemRequest["source"];
+  outsidePurchaseReference: string | null;
   quantity: number;
   lineTotalCents: number;
   outsidePurchaseReceiptImageUrl: string | null;
   /** Explains return-transit fees on checkout (outside-purchase return workflow). */
   chargeCaption: string | null;
+  /** Batch number when this line is part of a consolidated bundle. */
+  batchNumber: string | null;
+  /** Product # / OP # / batch metadata for display. */
+  productReferenceDetail: string | null;
 };
 
 export type CartCheckoutBatchBundleSummary = {
@@ -904,35 +949,44 @@ export async function getCartCheckoutOrderSummaryForUser(
   if (!order) return null;
 
   const checkoutLineSelect = {
+    orderItemId: orderItems.id,
     itemRequestId: orderItems.itemRequestId,
     quantity: orderItems.quantity,
     price: orderItems.price,
     productName: itemRequests.productName,
     productUrl: itemRequests.productUrl,
+    siteName: itemRequests.siteName,
     source: itemRequests.source,
+    outsidePurchaseReference: itemRequests.outsidePurchaseReference,
     outsidePurchaseReceiptImageUrl: itemRequests.outsidePurchaseReceiptImageUrl,
     linkBatchSessionId: batchQuoteSessionLines.batchQuoteSessionId,
     requestBatchSessionId: itemRequests.batchQuoteSessionId,
   } as const;
 
   const checkoutLineSelectWithoutReceipt = {
+    orderItemId: orderItems.id,
     itemRequestId: orderItems.itemRequestId,
     quantity: orderItems.quantity,
     price: orderItems.price,
     productName: itemRequests.productName,
     productUrl: itemRequests.productUrl,
+    siteName: itemRequests.siteName,
     source: itemRequests.source,
+    outsidePurchaseReference: itemRequests.outsidePurchaseReference,
     linkBatchSessionId: batchQuoteSessionLines.batchQuoteSessionId,
     requestBatchSessionId: itemRequests.batchQuoteSessionId,
   } as const;
 
   type CheckoutLineRow = {
+    orderItemId: string;
     itemRequestId: string;
     quantity: number;
     price: number;
     productName: string | null;
     productUrl: string;
+    siteName: string | null;
     source: ItemRequest["source"];
+    outsidePurchaseReference: string | null;
     outsidePurchaseReceiptImageUrl?: string | null;
     linkBatchSessionId: string | null;
     requestBatchSessionId: string | null;
@@ -975,6 +1029,7 @@ export async function getCartCheckoutOrderSummaryForUser(
     rows = legacyRows.map((r) => ({
       ...r,
       outsidePurchaseReceiptImageUrl: null,
+      outsidePurchaseReference: r.outsidePurchaseReference ?? null,
     }));
   }
 
@@ -986,11 +1041,17 @@ export async function getCartCheckoutOrderSummaryForUser(
     ).map((row) => [row.itemRequestId, row]),
   );
 
-  function toLine(r: CheckoutLineRow): CartCheckoutSummaryLine {
+  function toLine(
+    r: CheckoutLineRow,
+    batchNumber: string | null,
+  ): CartCheckoutSummaryLine {
     return {
       itemRequestId: r.itemRequestId,
+      orderItemId: r.orderItemId,
       productName: r.productName,
       productUrl: r.productUrl,
+      source: r.source,
+      outsidePurchaseReference: r.outsidePurchaseReference,
       quantity: r.quantity,
       lineTotalCents: r.price,
       outsidePurchaseReceiptImageUrl: r.outsidePurchaseReceiptImageUrl ?? null,
@@ -998,6 +1059,17 @@ export async function getCartCheckoutOrderSummaryForUser(
         r.source,
         returnRequestsByItemRequestId.get(r.itemRequestId),
       ),
+      batchNumber,
+      productReferenceDetail: buildCheckoutProductDetailText({
+        batchNumber,
+        orderItemId: r.orderItemId,
+        itemRequestId: r.itemRequestId,
+        outsidePurchaseReference: r.outsidePurchaseReference,
+        productUrl: r.productUrl,
+        source: r.source,
+        quantity: r.quantity,
+        siteName: batchNumber ? null : r.siteName,
+      }),
     };
   }
 
@@ -1006,18 +1078,17 @@ export async function getCartCheckoutOrderSummaryForUser(
   const standaloneLines: CartCheckoutSummaryLine[] = [];
 
   for (const r of rows) {
-    const line = toLine(r);
     const batchId =
       r.linkBatchSessionId ?? r.requestBatchSessionId ?? null;
     if (!batchId) {
-      standaloneLines.push(line);
+      standaloneLines.push(toLine(r, null));
       continue;
     }
     if (!linesByBatchId.has(batchId)) {
       bundleInsertionOrder.push(batchId);
       linesByBatchId.set(batchId, []);
     }
-    linesByBatchId.get(batchId)!.push(line);
+    linesByBatchId.get(batchId)!.push(toLine(r, null));
   }
 
   const batchSessionIds = bundleInsertionOrder;
@@ -1043,12 +1114,26 @@ export async function getCartCheckoutOrderSummaryForUser(
     (id) => {
       const lines = linesByBatchId.get(id)!;
       const meta = metaById.get(id);
+      const batchNumber = meta?.batchNumber?.trim() || id.slice(0, 8);
       return {
         batchSessionId: id,
-        batchNumber: meta?.batchNumber?.trim() || id.slice(0, 8),
+        batchNumber,
         siteKey: meta?.siteKey?.trim() || "—",
         bundleTotalCents: lines.reduce((s, l) => s + l.lineTotalCents, 0),
-        lines,
+        lines: lines.map((line) => ({
+          ...line,
+          batchNumber,
+          productReferenceDetail: buildCheckoutProductDetailText({
+            batchNumber,
+            orderItemId: line.orderItemId,
+            itemRequestId: line.itemRequestId,
+            outsidePurchaseReference: line.outsidePurchaseReference,
+            productUrl: line.productUrl,
+            source: line.source,
+            quantity: line.quantity,
+            siteName: null,
+          }),
+        })),
       };
     },
   );

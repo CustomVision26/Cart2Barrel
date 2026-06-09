@@ -109,16 +109,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   }
 
   const orderLines = buildCheckoutOrderLinesFromAssembledCart(assembled);
-  const builtLines = buildStripeLineItemsFromAssembledCart(assembled);
-  const stripeLineItems = [
-    ...builtLines.lineItems,
-    ...buildStripeLineItemsFromContainerCheckoutLines(containerCheckoutLines, {
-      barrelCount: containerPacking.barrelCount,
-      binCount: containerPacking.binCount,
-      rates: containerPackingRates,
-    }),
-    ...buildStripeLineItemsFromOutboundShippingCart(outboundShippingCartLines),
-  ];
+  const taxIntentPreview = buildStripeLineItemsFromAssembledCart(assembled);
 
   const cu = await currentUser();
   try {
@@ -145,36 +136,9 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     merchandiseSubtotalCents,
     processingFeeRegion,
   );
-  if (processingFeeCents > 0) {
-    const regionLabel = checkoutProcessingFeeRegionLabel(processingFeeRegion);
-    stripeLineItems.push({
-      quantity: 1,
-      price_data: {
-        currency: "usd",
-        unit_amount: processingFeeCents,
-        product_data: {
-          name: "Card processing fee",
-          description: `Estimated pass-through for ${regionLabel} (non-refundable)`,
-        },
-      },
-    });
-  }
-
   const totalAmount = merchandiseSubtotalCents + processingFeeCents;
   /** Stripe minimum charge for USD card payments (see Stripe currency docs). */
   const minUsdLineCents = 50;
-  const shortfallStripe = stripeLineItems.find(
-    (row) =>
-      !Number.isFinite(row.price_data.unit_amount) ||
-      row.price_data.unit_amount < minUsdLineCents
-  );
-  if (shortfallStripe) {
-    return {
-      ok: false,
-      message:
-        "Each checkout line must total at least $0.50 USD (Stripe minimum). Ask staff to revise the estimate, then refresh.",
-    };
-  }
   if (!Number.isFinite(totalAmount) || totalAmount < minUsdLineCents) {
     return {
       ok: false,
@@ -206,7 +170,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       clerkUserId: userId,
       status: "pending",
       totalAmount,
-      internalQuotedSaleTaxCents: builtLines.quotedSalesTaxIntentCents,
+      internalQuotedSaleTaxCents: taxIntentPreview.quotedSalesTaxIntentCents,
     })
     .returning();
 
@@ -265,6 +229,63 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
 
   if (outboundChargeIds.length > 0) {
     await clearOutboundShippingCartForCharges(userId, outboundChargeIds);
+  }
+
+  const orderItemRows = await db
+    .select({
+      id: orderItems.id,
+      itemRequestId: orderItems.itemRequestId,
+    })
+    .from(orderItems)
+    .where(eq(orderItems.orderId, order.id));
+  const orderItemIdByRequestId = new Map(
+    orderItemRows.map((row) => [row.itemRequestId, row.id]),
+  );
+
+  const builtLines = buildStripeLineItemsFromAssembledCart(
+    assembled,
+    orderItemIdByRequestId,
+  );
+  const stripeLineItems = [
+    ...builtLines.lineItems,
+    ...buildStripeLineItemsFromContainerCheckoutLines(containerCheckoutLines, {
+      barrelCount: containerPacking.barrelCount,
+      binCount: containerPacking.binCount,
+      rates: containerPackingRates,
+    }),
+    ...buildStripeLineItemsFromOutboundShippingCart(outboundShippingCartLines),
+  ];
+  if (processingFeeCents > 0) {
+    const regionLabel = checkoutProcessingFeeRegionLabel(processingFeeRegion);
+    stripeLineItems.push({
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: processingFeeCents,
+        product_data: {
+          name: "Card processing fee",
+          description: `Estimated pass-through for ${regionLabel} (non-refundable)`,
+        },
+      },
+    });
+  }
+
+  const shortfallStripe = stripeLineItems.find(
+    (row) =>
+      !Number.isFinite(row.price_data.unit_amount) ||
+      row.price_data.unit_amount < minUsdLineCents,
+  );
+  if (shortfallStripe) {
+    await deletePendingOrderAndRestoreContainerCart(
+      order.id,
+      userId,
+      outboundChargeIds,
+    );
+    return {
+      ok: false,
+      message:
+        "Each checkout line must total at least $0.50 USD (Stripe minimum). Ask staff to revise the estimate, then refresh.",
+    };
   }
 
   const origin = getAppOrigin();

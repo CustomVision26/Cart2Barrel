@@ -342,6 +342,90 @@
   }
 }
 
+@keyframes cart2barrel-journey-route-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+@keyframes cart2barrel-journey-globe-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cart2barrel-journey-plane-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cart2barrel-journey-ship-bob {
+  0%,
+  100% {
+    transform: translate(176px, 168px);
+  }
+  50% {
+    transform: translate(176px, 162px);
+  }
+}
+
+@keyframes cart2barrel-journey-packet-travel {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(224px, 0);
+  }
+}
+
+@keyframes cart2barrel-journey-packet-travel-delayed {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  12% {
+    opacity: 0.85;
+  }
+  88% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(224px, 0);
+  }
+}
+
+@keyframes cart2barrel-journey-welcome-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cart2barrel-journey-welcome-check {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 28;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
 @layer utilities {
   .brand-logo-scene {
     transform-style: preserve-3d;
@@ -456,6 +540,84 @@
 
   .order-slide-border-glow {
     animation: order-slide-border-spin 4s linear infinite;
+  }
+
+  .cart2barrel-journey__route {
+    animation: cart2barrel-journey-route-flow 2.4s linear infinite;
+  }
+
+  .cart2barrel-journey__globe {
+    transform-origin: 200px 108px;
+    animation: cart2barrel-journey-globe-spin 18s linear infinite;
+  }
+
+  .cart2barrel-journey__plane-orbit {
+    transform-origin: 0 0;
+    animation: cart2barrel-journey-plane-orbit 4.5s linear infinite;
+  }
+
+  .cart2barrel-journey__ship {
+    animation: cart2barrel-journey-ship-bob 2.8s ease-in-out infinite;
+  }
+
+  .cart2barrel-journey__packet--a {
+    animation: cart2barrel-journey-packet-travel 2.8s ease-in-out infinite;
+  }
+
+  .cart2barrel-journey__packet--b {
+    animation: cart2barrel-journey-packet-travel-delayed 2.8s ease-in-out 0.9s infinite;
+  }
+
+  .cart2barrel-journey__success {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .cart2barrel-journey--welcome .cart2barrel-journey__route,
+  .cart2barrel-journey--welcome .cart2barrel-journey__globe,
+  .cart2barrel-journey--welcome .cart2barrel-journey__plane-orbit,
+  .cart2barrel-journey--welcome .cart2barrel-journey__ship,
+  .cart2barrel-journey--welcome .cart2barrel-journey__packet {
+    animation: none;
+    opacity: 0;
+  }
+
+  .cart2barrel-journey--welcome .cart2barrel-journey__cart,
+  .cart2barrel-journey--welcome .cart2barrel-journey__barrel {
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  .cart2barrel-journey--welcome .cart2barrel-journey__success {
+    opacity: 1;
+    animation: cart2barrel-journey-welcome-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.35s both;
+  }
+
+  .cart2barrel-journey--welcome .cart2barrel-journey__success path {
+    stroke-dasharray: 28;
+    animation: cart2barrel-journey-welcome-check 0.55s ease-out 0.75s both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cart2barrel-journey__route,
+    .cart2barrel-journey__globe,
+    .cart2barrel-journey__plane-orbit,
+    .cart2barrel-journey__ship,
+    .cart2barrel-journey__packet--a,
+    .cart2barrel-journey__packet--b {
+      animation: none;
+    }
+
+    .cart2barrel-journey--welcome .cart2barrel-journey__success {
+      animation: none;
+      opacity: 1;
+    }
+
+    .cart2barrel-journey--welcome .cart2barrel-journey__success path {
+      animation: none;
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
   }
 
   .order-slide-border-glow--awaiting-purchase {
@@ -619,6 +781,11 @@
 .marketing-reveal--visible .marketing-live-note {
   opacity: 1;
   transform: translateY(0);
+}
+
+.billing-receipts-account-panel select option {
+  background-color: #27272a;
+  color: #fafafa;
 }
 
 @media (prefers-reduced-motion: reduce) {

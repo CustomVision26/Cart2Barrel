@@ -2,6 +2,7 @@ import { Package, Receipt } from "lucide-react";
 
 import { CartCheckoutBatchBundleCollapsible } from "@/components/dashboard/cart-checkout-batch-bundle-collapsible";
 import { CartCheckoutContainerLineCard } from "@/components/dashboard/cart-checkout-container-line-card";
+import { CartCheckoutProductDetail } from "@/components/dashboard/cart-checkout-product-detail";
 import { CartLineUrlOrReceipt } from "@/components/dashboard/cart-line-url-or-receipt";
 import {
   Card,
@@ -156,6 +157,7 @@ export function CartCheckoutSummaryCard({
                             </span>
                           : null}
                         </p>
+                        <CartCheckoutProductDetail detail={line.productReferenceDetail} />
                         {line.chargeCaption ?
                           <p className="text-[13px] leading-relaxed text-muted-foreground">
                             {line.chargeCaption}
