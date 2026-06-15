@@ -4,6 +4,7 @@ import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { UserNotificationsBell } from "@/components/dashboard/user-notifications-bell";
+import { UserDocumentationDialogLazy } from "@/components/documentation/user-documentation-dialog-lazy";
 import { ContactUsDialogLazy } from "@/components/support/contact-us-dialog-lazy";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { loadHubContactSettings } from "@/data/hub-contact-settings";
@@ -47,6 +48,7 @@ export default async function DashboardLayout({
             >
               Home
             </Link>
+            <UserDocumentationDialogLazy />
             {showAdminEntry ?
               <Link
                 href="/admin/overview?tab=summary"
