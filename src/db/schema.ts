@@ -745,6 +745,17 @@ export const orderItems = pgTable(
     companyPurchaseUpdatedByClerkUserId: text(
       "company_purchase_updated_by_clerk_user_id",
     ),
+    /**
+     * How the item reached the warehouse after company purchase:
+     * `shipment` (carrier) or `store_pickup` (staff collected at retailer).
+     * DB column: `company_purchase_delivery_method` (legacy name kept for Neon).
+     */
+    companyPurchaseInboundMethod: text("company_purchase_delivery_method"),
+    /** When staff collected the item at the retailer (store pickup flow). */
+    storePickupAt: timestamp("company_purchase_pickup_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
   },
   (t) => [
     index("order_items_order_id_idx").on(t.orderId),

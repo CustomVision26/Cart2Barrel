@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
+import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
 import { ContainerSlotsInventorySection } from "@/components/barrels/container-slots-inventory-section";
 import { BarrelPipelineProductSections } from "@/components/barrels/barrel-pipeline-product-sections";
 import { ProductToBarrelFiltersToolbar } from "@/components/barrels/product-to-barrel-filters-toolbar";
@@ -33,6 +34,8 @@ export function DashboardProductToBarrelClient({
   const [filters, setFilters] = useState<ProductToBarrelFilterState>(
     DEFAULT_PRODUCT_TO_BARREL_FILTERS,
   );
+  const [productFiltersVisible, setProductFiltersVisible] = useState(true);
+  const productFiltersToggleId = useId();
 
   const fulfillmentOptions = useMemo(
     () => uniqueFulfillmentStatuses(lines),
@@ -62,19 +65,32 @@ export function DashboardProductToBarrelClient({
         <span className="font-medium text-foreground">Product to barrel history</span>.
       </p>
 
-      <ProductToBarrelFiltersToolbar
-        idPrefix="ptb"
-        totalCount={lines.length}
-        filteredCount={filteredLines.length}
-        awaitingCount={awaitingCount}
-        assignedCount={assignedCount}
-        filters={filters}
-        onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
-        onClear={() => setFilters(DEFAULT_PRODUCT_TO_BARREL_FILTERS)}
-        fulfillmentOptions={fulfillmentOptions}
-        containerOptions={containerOptions}
-        searchPlaceholder="Product, container, order, status…"
-      />
+      {lines.length > 0 ?
+        <div className="space-y-2">
+          <AdminFindOrganizeVisibilityToggle
+            id={productFiltersToggleId}
+            visible={productFiltersVisible}
+            onVisibleChange={setProductFiltersVisible}
+            heading="Search products"
+            switchLabel="Show search & filters"
+          />
+          {productFiltersVisible ?
+            <ProductToBarrelFiltersToolbar
+              idPrefix="ptb"
+              totalCount={lines.length}
+              filteredCount={filteredLines.length}
+              awaitingCount={awaitingCount}
+              assignedCount={assignedCount}
+              filters={filters}
+              onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
+              onClear={() => setFilters(DEFAULT_PRODUCT_TO_BARREL_FILTERS)}
+              fulfillmentOptions={fulfillmentOptions}
+              containerOptions={containerOptions}
+              searchPlaceholder="Product, container, order, status…"
+            />
+          : null}
+        </div>
+      : null}
 
       <BarrelPipelineProductSections
         lines={filteredLines}

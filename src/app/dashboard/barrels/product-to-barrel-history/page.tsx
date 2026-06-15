@@ -1,39 +1,10 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
-import { BarrelAssignmentHistoryProduct } from "@/components/barrels/barrel-assignment-history-product";
-import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
+import { BarrelAssignmentHistoryGroupedTable } from "@/components/barrels/barrel-assignment-history-grouped-table";
 import { listBarrelAssignmentHistoryForOwner } from "@/data/barrel-package-assignment";
 
 export const dynamic = "force-dynamic";
-
-function formatWhen(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function actionLabel(
-  action: "assigned" | "reassigned" | "removed",
-): string {
-  switch (action) {
-    case "assigned":
-      return "Assigned";
-    case "reassigned":
-      return "Reassigned";
-    case "removed":
-      return "Removed";
-    default: {
-      const _e: never = action;
-      return _e;
-    }
-  }
-}
 
 export default async function DashboardProductToBarrelHistoryPage() {
   const { userId } = await auth();
@@ -51,52 +22,12 @@ export default async function DashboardProductToBarrelHistoryPage() {
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Every time you or staff move a received product into or out of a barrel slot, a row is
-          stored here with the time, product, and barrel label snapshot.
+          stored here. Products are grouped — double-click a row to see every action for that
+          item.
         </p>
       </div>
 
-      {rows.length === 0 ?
-        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-          No assignment history yet.
-        </p>
-      : (
-        <FloatingHorizontalScroll viewportClassName="rounded-lg border border-border/80 bg-card ring-1 ring-foreground/5">
-          <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-            <thead className="border-b border-border bg-muted">
-              <tr>
-                <th className="px-3 py-2 font-medium">When</th>
-                <th className="px-3 py-2 font-medium">Action</th>
-                <th className="px-3 py-2 font-medium">Product</th>
-                <th className="px-3 py-2 font-medium">Barrel / movement</th>
-                <th className="px-3 py-2 font-medium">Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-border/80 last:border-0">
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                    {formatWhen(r.createdAt)}
-                  </td>
-                  <td className="px-3 py-2">{actionLabel(r.action)}</td>
-                  <td className="px-3 py-2">
-                    <BarrelAssignmentHistoryProduct
-                      productName={r.productNameSnapshot}
-                      productImageUrl={r.productImageUrl}
-                      quantity={r.quantity}
-                    />
-                  </td>
-                  <td className="max-w-xs px-3 py-2 text-muted-foreground">
-                    {r.barrelLabelSnapshot?.trim() || "—"}
-                  </td>
-                  <td className="max-w-xs px-3 py-2 text-muted-foreground">
-                    {r.adminNote?.trim() || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </FloatingHorizontalScroll>
-      )}
+      <BarrelAssignmentHistoryGroupedTable rows={rows} />
     </div>
   );
 }

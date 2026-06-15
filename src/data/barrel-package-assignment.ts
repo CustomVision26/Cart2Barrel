@@ -45,8 +45,7 @@ import { ensureInboundPackageForOrderItem } from "@/data/ensure-inbound-package-
 import { reconcilePendingReturnBarrelHolds } from "@/data/product-return-barrel-hold";
 import { excludePendingProductReturnRequestSql } from "@/lib/exclude-pending-product-return-request";
 import { ensureBarrelsProvisionedForUser } from "@/data/ensure-paid-order-barrels";
-import {
-  orderItemBarrelPipelineSelect,
+import { orderItemBarrelPipelineSelect,
   orderItemBarrelPipelineSelectWithoutWarehouse,
 } from "@/data/order-list-select";
 
@@ -417,6 +416,7 @@ type BarrelPipelineQueryRow = {
     quantity: number;
     fulfillmentStatus: string;
     warehouseReceivedCondition?: string | null;
+    companyPurchaseInboundMethod?: string | null;
   };
 };
 
@@ -476,6 +476,8 @@ async function selectBarrelPipelineOrderItems<
       orderItem: {
         ...row.orderItem,
         warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition ?? null,
+        companyPurchaseInboundMethod:
+          row.orderItem.companyPurchaseInboundMethod ?? null,
       },
     }));
   } catch {
@@ -578,6 +580,7 @@ export async function listProductToBarrelLinesForUser(
       fulfillmentStatus,
       fulfillmentLabel: dashboardOrderLineStatusLabel(fulfillmentStatus, {
         warehouseReceivedCondition: r.orderItem.warehouseReceivedCondition,
+        companyPurchaseInboundMethod: r.orderItem.companyPurchaseInboundMethod,
       }),
       assignedContainerAlias: bid ? (aliasByBarrelId.get(bid) ?? null) : null,
       assignedAt: bid ? (assignedAtByPackage.get(r.pkg.id) ?? null) : null,
@@ -700,6 +703,7 @@ export async function listAdminBarrelPipelineLines(): Promise<
       fulfillmentStatus,
       fulfillmentLabel: dashboardOrderLineStatusLabel(fulfillmentStatus, {
         warehouseReceivedCondition: r.orderItem.warehouseReceivedCondition,
+        companyPurchaseInboundMethod: r.orderItem.companyPurchaseInboundMethod,
       }),
       assignedBarrelId: bid,
       assignedContainerAlias: bid ? (aliasByBarrelId.get(bid) ?? null) : null,

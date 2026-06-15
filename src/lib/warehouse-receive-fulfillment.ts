@@ -25,3 +25,13 @@ export function fulfillmentStatusFromWarehouseReceiveCondition(
     }
   }
 }
+
+/** Store pickup intake: good items skip awaiting-barrel and enter the in-container pipeline. */
+export function fulfillmentStatusAfterStorePickupIntake(
+  condition: WarehouseReceiveCondition,
+): OrderItem["fulfillmentStatus"] {
+  if (condition === "good") {
+    return "in_barrel_awaiting_shipping";
+  }
+  return fulfillmentStatusFromWarehouseReceiveCondition(condition);
+}

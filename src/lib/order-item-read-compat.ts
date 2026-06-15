@@ -13,6 +13,8 @@ export type OrderItemReadCore = Pick<
   companyPurchaseRetailerTrackingCompany?: string | null;
   companyPurchaseRetailerTrackingNumber?: string | null;
   companyPurchaseReceiptImageUrls?: string[] | null;
+  companyPurchaseInboundMethod?: OrderItem["companyPurchaseInboundMethod"];
+  storePickupAt?: OrderItem["storePickupAt"];
   warehouseReceivedAt?: OrderItem["warehouseReceivedAt"];
   warehouseReceivedQty?: OrderItem["warehouseReceivedQty"];
   warehouseReceivedCondition?: OrderItem["warehouseReceivedCondition"];

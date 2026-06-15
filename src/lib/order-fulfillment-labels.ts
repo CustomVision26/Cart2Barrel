@@ -6,6 +6,7 @@ import {
   isProblemDeliveryReceiptFulfillment,
   problemDeliveryReceiptStatusLabel,
 } from "@/lib/delivery-condition-acceptance";
+import { inBarrelAwaitingShippingStatusLabel } from "@/lib/company-purchase-inbound";
 import { PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL } from "@/lib/outside-purchase-paid-status";
 import {
   orderLineProductReturnStatusLabel,
@@ -22,6 +23,7 @@ export type OrderLineStatusLabelOpts = {
   refundedCents?: number;
   linePriceCents?: number;
   warehouseReceivedCondition?: string | null;
+  companyPurchaseInboundMethod?: string | null;
 };
 
 function warehouseDeliveryStatusLabel(
@@ -83,7 +85,7 @@ export function dashboardOrderLineStatusLabel(
     case "delivery_received_good_awaiting_barrel":
       return "Delivery received: good - awaiting barrel";
     case "in_barrel_awaiting_shipping":
-      return "In Barrel: awaiting shipping";
+      return inBarrelAwaitingShippingStatusLabel(opts?.companyPurchaseInboundMethod);
     case "delivery_received_item_missing":
       return "Delivery received: item missing";
     case "delivery_received_item_damaged":
@@ -126,7 +128,7 @@ export function adminOrderLineStatusLabel(
     case "delivery_received_good_awaiting_barrel":
       return "Delivery received: good - awaiting barrel";
     case "in_barrel_awaiting_shipping":
-      return "In Barrel: awaiting shipping";
+      return inBarrelAwaitingShippingStatusLabel(opts?.companyPurchaseInboundMethod);
     case "delivery_received_item_missing":
       return "Delivery received: item missing";
     case "delivery_received_item_damaged":

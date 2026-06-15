@@ -45,6 +45,8 @@ export const orderItemFulfillmentCoreSelect = {
   companyPurchaseRetailerTrackingNumber:
     orderItems.companyPurchaseRetailerTrackingNumber,
   companyPurchaseReceiptImageUrls: orderItems.companyPurchaseReceiptImageUrls,
+  companyPurchaseInboundMethod: orderItems.companyPurchaseInboundMethod,
+  storePickupAt: orderItems.storePickupAt,
 } as const;
 
 /** Apply when reading rows that may not have migrated yet (merge onto `orderItemFulfillmentCoreSelect` result). */
@@ -109,6 +111,7 @@ export const orderItemBarrelPipelineSelect = {
   quantity: orderItems.quantity,
   fulfillmentStatus: orderItems.fulfillmentStatus,
   warehouseReceivedCondition: orderItems.warehouseReceivedCondition,
+  companyPurchaseInboundMethod: orderItems.companyPurchaseInboundMethod,
 } as const;
 
 export const orderItemBarrelPipelineSelectWithoutWarehouse = {
@@ -129,6 +132,8 @@ export type OrderItemFulfillmentCore = Pick<
   | "companyPurchaseRetailerTrackingCompany"
   | "companyPurchaseRetailerTrackingNumber"
   | "companyPurchaseReceiptImageUrls"
+  | "companyPurchaseInboundMethod"
+  | "storePickupAt"
 > &
   Partial<
     Pick<

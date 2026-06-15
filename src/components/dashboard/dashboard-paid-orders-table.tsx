@@ -436,6 +436,7 @@ export function DashboardOrderDataRow(props: {
     refundedCents: row.refundedCents,
     linePriceCents: row.orderItem.price,
     warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
+    companyPurchaseInboundMethod: row.orderItem.companyPurchaseInboundMethod,
   };
   const acceptedAwaitingBarrelLabel = deliveryConditionAcceptedAwaitingBarrelLabel(
     row.orderItem.warehouseReceivedCondition,

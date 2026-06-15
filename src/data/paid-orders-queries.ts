@@ -103,6 +103,8 @@ const orderItemSelectWithFulfillment = {
   companyPurchaseRetailerTrackingNumber:
     orderItems.companyPurchaseRetailerTrackingNumber,
   companyPurchaseReceiptImageUrls: orderItems.companyPurchaseReceiptImageUrls,
+  companyPurchaseInboundMethod: orderItems.companyPurchaseInboundMethod,
+  storePickupAt: orderItems.storePickupAt,
   warehouseReceivedAt: orderItems.warehouseReceivedAt,
   warehouseReceivedQty: orderItems.warehouseReceivedQty,
   warehouseReceivedCondition: orderItems.warehouseReceivedCondition,

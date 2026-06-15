@@ -8,26 +8,30 @@ export function AdminFindOrganizeVisibilityToggle({
   id,
   visible,
   onVisibleChange,
+  heading = "Find & organize",
+  switchLabel = "Show filters and sort",
 }: {
   id: string;
   visible: boolean;
   onVisibleChange: (visible: boolean) => void;
+  heading?: string;
+  switchLabel?: string;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-xs font-medium text-foreground">Find & organize</p>
+      <p className="text-xs font-medium text-foreground">{heading}</p>
       <div className="flex items-center gap-2">
         <Switch
           id={id}
           checked={visible}
           onCheckedChange={(checked) => onVisibleChange(checked)}
-          aria-label="Show filters and sort"
+          aria-label={switchLabel}
         />
         <Label
           htmlFor={id}
           className="cursor-pointer text-xs font-normal text-muted-foreground"
         >
-          Show filters and sort
+          {switchLabel}
         </Label>
       </div>
     </div>

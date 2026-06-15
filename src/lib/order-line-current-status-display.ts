@@ -8,7 +8,10 @@ type WorkflowRequestBrief = { createdAt: string } | null | undefined;
 export type OrderLineCurrentStatusInput = {
   orderItem: Pick<
     OrderItemReadCore,
-    "warehouseReceivedAt" | "warehouseReceivedCondition" | "price"
+    | "warehouseReceivedAt"
+    | "warehouseReceivedCondition"
+    | "price"
+    | "companyPurchaseInboundMethod"
   >;
   order: Pick<Order, "createdAt">;
   pendingRefundRequest?: WorkflowRequestBrief;
@@ -27,6 +30,7 @@ export function orderLineStatusLabelOpts(
     refundedCents: input.refundedCents,
     linePriceCents: input.orderItem.price,
     warehouseReceivedCondition: input.orderItem.warehouseReceivedCondition,
+    companyPurchaseInboundMethod: input.orderItem.companyPurchaseInboundMethod,
   };
 }
 

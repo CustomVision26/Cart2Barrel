@@ -506,6 +506,7 @@ export function AdminPackageFileCard({
   const statusLabel = adminOrderLineStatusLabel(fulfillment, {
     pendingRefundRequest: pendingRefund,
     warehouseReceivedCondition: line.orderItem.warehouseReceivedCondition,
+    companyPurchaseInboundMethod: line.orderItem.companyPurchaseInboundMethod,
   });
 
   const openEdit = () => {
