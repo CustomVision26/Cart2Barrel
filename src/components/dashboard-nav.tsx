@@ -14,9 +14,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
-import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
-import { DASHBOARD_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
+import { CUSTOMER_SIDEBAR_NAV_LINKS } from "@/lib/documentation/customer-ui-surfaces";
 import { cn } from "@/lib/utils";
 
 type DashboardNavLink = {
@@ -31,6 +29,17 @@ type DashboardNavSection = {
   links: DashboardNavLink[];
 };
 
+const ICON_BY_DOC_ID: Record<string, LucideIcon> = {
+  "dashboard-overview": LayoutDashboard,
+  "requested-items": ClipboardList,
+  "add-item": PlusCircle,
+  cart: ShoppingCart,
+  orders: Package,
+  barrels: Box,
+  shipping: Truck,
+  "support-messages": MessageCircle,
+};
+
 function isOrdersPath(path: string): boolean {
   return (
     path === "/dashboard/orders" ||
@@ -40,74 +49,51 @@ function isOrdersPath(path: string): boolean {
   );
 }
 
-const SECTIONS: DashboardNavSection[] = [
-  {
-    title: "Shopping",
-    links: [
-      {
-        href: "/dashboard",
-        label: "Overview",
-        icon: LayoutDashboard,
-        match: (path) => path === "/dashboard",
-      },
-      {
-        href: DASHBOARD_REQUESTED_ITEMS_ROUTE,
-        label: "Requested items",
-        icon: ClipboardList,
-        match: (path) => path.startsWith("/dashboard/items/requested-items"),
-      },
-      {
-        href: DASHBOARD_ADD_ITEM_ROUTES.productsActive,
-        label: "Add item",
-        icon: PlusCircle,
-        match: (path) => path.startsWith("/dashboard/items/new/add-item"),
-      },
-      {
-        href: "/dashboard/cart",
-        label: "Cart",
-        icon: ShoppingCart,
-        match: (path) =>
-          path === "/dashboard/cart" || path.startsWith("/dashboard/cart/"),
-      },
-    ],
-  },
-  {
-    title: "Orders & shipping",
-    links: [
-      {
-        href: "/dashboard/orders",
-        label: "Orders",
-        icon: Package,
-        match: isOrdersPath,
-      },
-      {
-        href: "/dashboard/barrels",
-        label: "Barrels",
-        icon: Box,
-        match: (path) =>
-          path === "/dashboard/barrels" || path.startsWith("/dashboard/barrels/"),
-      },
-      {
-        href: "/dashboard/shipping",
-        label: "Shipping",
-        icon: Truck,
-        match: (path) =>
-          path === "/dashboard/shipping" || path.startsWith("/dashboard/shipping/"),
-      },
-    ],
-  },
-  {
-    title: "Support",
-    links: [
-      {
-        href: DASHBOARD_SUPPORT_ROUTES.inbox,
-        label: "Messages",
-        icon: MessageCircle,
-        match: (path) => path.startsWith("/dashboard/support"),
-      },
-    ],
-  },
-];
+function matchPathForDocId(docId: string, href: string): (path: string) => boolean {
+  switch (docId) {
+    case "dashboard-overview":
+      return (path) => path === "/dashboard";
+    case "requested-items":
+      return (path) => path.startsWith("/dashboard/items/requested-items");
+    case "add-item":
+      return (path) => path.startsWith("/dashboard/items/new/add-item");
+    case "cart":
+      return (path) =>
+        path === "/dashboard/cart" || path.startsWith("/dashboard/cart/");
+    case "orders":
+      return isOrdersPath;
+    case "barrels":
+      return (path) =>
+        path === "/dashboard/barrels" || path.startsWith("/dashboard/barrels/");
+    case "shipping":
+      return (path) =>
+        path === "/dashboard/shipping" || path.startsWith("/dashboard/shipping/");
+    case "support-messages":
+      return (path) => path.startsWith("/dashboard/support");
+    default:
+      return (path) => path === href || path.startsWith(`${href}/`);
+  }
+}
+
+const SECTIONS: DashboardNavSection[] = (() => {
+  const bySection = new Map<string, DashboardNavLink[]>();
+  for (const link of CUSTOMER_SIDEBAR_NAV_LINKS) {
+    const icon = ICON_BY_DOC_ID[link.docId];
+    if (!icon) {
+      throw new Error(`Missing dashboard nav icon for docId: ${link.docId}`);
+    }
+    const entry: DashboardNavLink = {
+      href: link.href,
+      label: link.label,
+      icon,
+      match: matchPathForDocId(link.docId, link.href),
+    };
+    const existing = bySection.get(link.navSection) ?? [];
+    existing.push(entry);
+    bySection.set(link.navSection, existing);
+  }
+  return [...bySection.entries()].map(([title, links]) => ({ title, links }));
+})();
 
 function NavLinkItem({
   href,
@@ -202,10 +188,11 @@ function navBadgeForHref(
   badges: DashboardNavBadges | undefined,
 ): number | undefined {
   if (!badges) return undefined;
-  if (href === DASHBOARD_REQUESTED_ITEMS_ROUTE) {
+  const link = CUSTOMER_SIDEBAR_NAV_LINKS.find((item) => item.href === href);
+  if (link?.docId === "requested-items") {
     return badges.requestedItems;
   }
-  if (href === "/dashboard/orders") {
+  if (link?.docId === "orders") {
     return badges.orders;
   }
   return undefined;
@@ -224,10 +211,7 @@ export function DashboardNav({
 
   if (variant === "mobile") {
     return (
-      <nav
-        aria-label="Dashboard"
-        className={cn("flex gap-2", className)}
-      >
+      <nav aria-label="Dashboard" className={cn("flex gap-2", className)}>
         {ALL_LINKS.map(({ href, label, icon, match }) => (
           <MobileNavLink
             key={href}
@@ -243,10 +227,7 @@ export function DashboardNav({
   }
 
   return (
-    <nav
-      aria-label="Dashboard"
-      className={cn("flex flex-col gap-6", className)}
-    >
+    <nav aria-label="Dashboard" className={cn("flex flex-col gap-6", className)}>
       {SECTIONS.map((section) => (
         <div key={section.title} className="space-y-1.5">
           <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/45">

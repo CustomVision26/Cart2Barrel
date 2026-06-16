@@ -1,0 +1,44 @@
+---
+description: Keep user and admin guides synced with UI surface registries and sidebar nav.
+globs:
+  - src/components/dashboard-nav.tsx
+  - src/components/admin-nav.tsx
+  - src/lib/documentation/**
+  - src/lib/user-documentation.ts
+  - src/lib/admin-documentation.ts
+alwaysApply: false
+---
+
+# User & admin guide sync (mandatory)
+
+Customer and admin documentation must stay aligned with the live UI. The app enforces this at build/import time.
+
+## Source of truth
+
+| Area | Registry (routes, labels, locations) | Content (prose, policies) |
+|------|--------------------------------------|---------------------------|
+| Customer UI | `src/lib/documentation/customer-ui-surfaces.ts` | `src/lib/user-documentation.ts` → `CUSTOMER_DOCUMENTATION_CONTENT_RAW` |
+| Customer sidebar | `CUSTOMER_SIDEBAR_NAV_LINKS` in same file — consumed by `dashboard-nav.tsx` | — |
+| Admin UI | `src/lib/documentation/admin-ui-surfaces.ts` | `src/lib/admin-documentation.ts` → `ADMIN_DOCUMENTATION_CONTENT_RAW` |
+| Admin sidebar | `ADMIN_SIDEBAR_NAV_LINKS` in same file — consumed by `admin-nav.tsx` | — |
+
+Built guide sections merge registry metadata (title, category, **location**) with content via `src/lib/documentation/sync-documentation.ts`.
+
+## When you change customer or admin UI
+
+1. **New sidebar page or renamed nav link** — update `CUSTOMER_SIDEBAR_NAV_LINKS` or `ADMIN_SIDEBAR_NAV_LINKS` (href, label, docId, navSection). Add matching `docId` surface overrides if the guide title differs from the nav label.
+2. **New header control, modal, tab, or public page** — add a `UiSurfaceDefinition` entry in the appropriate `*-ui-surfaces.ts` file (id, route, location, category).
+3. **Add guide content** — add a section to `CUSTOMER_DOCUMENTATION_CONTENT_RAW` or `ADMIN_DOCUMENTATION_CONTENT_RAW` with the **same `id`** as the registry entry (summary, bullets, requirements, dos, donts, article).
+4. **Remove a feature** — remove from registry, sidebar links, and content; orphaned entries throw `DocumentationSyncError` on import.
+5. Run `npm run docs:validate` before finishing.
+
+## Do not
+
+- Hard-code nav hrefs/labels in `dashboard-nav.tsx` or `admin-nav.tsx` without updating the registry.
+- Duplicate route strings in guide `location` fields when the registry already defines them — locations are auto-applied from the registry unless `quickReference.location` overrides.
+- Skip guide updates when adding admin-only or customer-facing screens.
+
+## Guide surfaces in the app
+
+- Customer: `/how-it-works?tab=user-guide`, dashboard header **Documentation**
+- Admin: `/admin/guide` (admin layout only)

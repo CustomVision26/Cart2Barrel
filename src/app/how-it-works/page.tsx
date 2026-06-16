@@ -11,9 +11,16 @@ import { DEFAULT_MERCHANT_SERVICE_TIERS } from "@/lib/admin-markup";
 import { buildContainerCatalogChartRows, buildContainerPackingFeeChartRows } from "@/lib/container-packing-fee-chart";
 import { DEFAULT_CONTAINER_PACKING_RATES } from "@/lib/container-packing-fee";
 import { buildServiceHandlingFeeChartRows } from "@/lib/service-handling-fee-chart";
+import { parseHowItWorksTab } from "@/lib/how-it-works-routes";
 
-export default async function HowItWorksPage() {
+export default async function HowItWorksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
   const { userId } = await auth();
+  const { tab } = await searchParams;
+  const activeTab = parseHowItWorksTab(tab);
 
   let inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(
     DEFAULT_MERCHANT_SERVICE_TIERS,
@@ -26,32 +33,35 @@ export default async function HowItWorksPage() {
   let containerPackingChartRows = buildContainerPackingFeeChartRows(
     DEFAULT_CONTAINER_PACKING_RATES,
   );
-  try {
-    const catalog = await listActiveContainerOfferingsWithImages();
-    containerCatalogChartRows = buildContainerCatalogChartRows(catalog);
-  } catch {
-    containerCatalogChartRows = [];
-  }
 
-  try {
-    const pricing = await getMerchantPricingForEstimates(userId);
-    inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(pricing.serviceTiers);
-    outsidePurchaseServiceFeeChartRows = buildServiceHandlingFeeChartRows(
-      pricing.outsidePurchaseServiceTiers,
-    );
-    containerPackingChartRows = buildContainerPackingFeeChartRows(
-      pricing.containerPackingRates,
-    );
-  } catch {
-    inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(
-      DEFAULT_MERCHANT_SERVICE_TIERS,
-    );
-    outsidePurchaseServiceFeeChartRows = buildServiceHandlingFeeChartRows(
-      DEFAULT_MERCHANT_SERVICE_TIERS,
-    );
-    containerPackingChartRows = buildContainerPackingFeeChartRows(
-      DEFAULT_CONTAINER_PACKING_RATES,
-    );
+  if (activeTab === "overview") {
+    try {
+      const catalog = await listActiveContainerOfferingsWithImages();
+      containerCatalogChartRows = buildContainerCatalogChartRows(catalog);
+    } catch {
+      containerCatalogChartRows = [];
+    }
+
+    try {
+      const pricing = await getMerchantPricingForEstimates(userId);
+      inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(pricing.serviceTiers);
+      outsidePurchaseServiceFeeChartRows = buildServiceHandlingFeeChartRows(
+        pricing.outsidePurchaseServiceTiers,
+      );
+      containerPackingChartRows = buildContainerPackingFeeChartRows(
+        pricing.containerPackingRates,
+      );
+    } catch {
+      inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(
+        DEFAULT_MERCHANT_SERVICE_TIERS,
+      );
+      outsidePurchaseServiceFeeChartRows = buildServiceHandlingFeeChartRows(
+        DEFAULT_MERCHANT_SERVICE_TIERS,
+      );
+      containerPackingChartRows = buildContainerPackingFeeChartRows(
+        DEFAULT_CONTAINER_PACKING_RATES,
+      );
+    }
   }
 
   return (
@@ -103,6 +113,7 @@ export default async function HowItWorksPage() {
       </header>
 
       <HowItWorksPageMain
+        activeTab={activeTab}
         isSignedIn={Boolean(userId)}
         inAppServiceFeeChartRows={inAppServiceFeeChartRows}
         outsidePurchaseServiceFeeChartRows={outsidePurchaseServiceFeeChartRows}

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "dev:webpack": "next dev -p 3001 --webpack",
-    "build": "next build",
+    "build": "npm run docs:validate && next build",
     "start": "next start -p 3001",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
@@ -18,7 +18,8 @@
     "db:ensure-outside-purchase-published": "node scripts/ensure-outside-purchase-published.mjs",
     "db:ensure-packages-order-item-unique": "node scripts/ensure-packages-order-item-unique.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "docs:validate": "tsx scripts/validate-documentation.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
