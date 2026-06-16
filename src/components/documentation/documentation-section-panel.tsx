@@ -280,10 +280,17 @@ function FullArticlePanel({ section }: { section: DocumentationSection }) {
 
 export function DocumentationSectionPanel({
   section,
+  onViewChange,
 }: {
   section: DocumentationSection;
+  onViewChange?: (mode: DocumentationView) => void;
 }) {
   const [view, setView] = useState<DocViewMode>("quick");
+
+  function handleViewChange(mode: DocViewMode) {
+    setView(mode);
+    onViewChange?.(mode);
+  }
 
   return (
     <div className="space-y-5">
@@ -295,7 +302,7 @@ export function DocumentationSectionPanel({
           <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
             {section.title}
           </h2>
-          <ViewToggle mode={view} onChange={setView} />
+          <ViewToggle mode={view} onChange={handleViewChange} />
         </div>
       </header>
 

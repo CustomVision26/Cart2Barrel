@@ -3,7 +3,6 @@
 import { BookOpen } from "lucide-react";
 import { useState } from "react";
 
-import { AdminDocumentationBrowser } from "@/components/documentation/admin-documentation-browser";
 import { UserDocumentationBrowser } from "@/components/documentation/user-documentation-browser";
 import {
   Dialog,
@@ -37,7 +36,9 @@ export function UserDocumentationDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <UserDocumentationBrowser variant="dialog" className="min-h-0 flex-1" />
+        {open ? (
+          <UserDocumentationBrowser variant="dialog" className="min-h-0 flex-1" />
+        ) : null}
       </DialogContent>
     </Dialog>
   );

@@ -1,12 +1,15 @@
 "use client";
 
-import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeft, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DocumentationSectionPanel } from "@/components/documentation/documentation-section-panel";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { DocumentationSection } from "@/lib/documentation-types";
+import type { DocumentationSection, DocumentationView } from "@/lib/documentation-types";
+
+const SPLIT_LAYOUT_QUERY = "(min-width: 1024px)";
 
 function matchesSearch(section: DocumentationSection, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -27,6 +30,20 @@ function matchesSearch(section: DocumentationSection, query: string): boolean {
   return haystack.includes(q);
 }
 
+function useSplitDocumentationLayout(): boolean {
+  const [isSplitLayout, setIsSplitLayout] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(SPLIT_LAYOUT_QUERY);
+    const sync = () => setIsSplitLayout(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  return isSplitLayout;
+}
+
 type DocumentationBrowserProps = {
   sections: DocumentationSection[];
   categories: readonly string[];
@@ -44,6 +61,10 @@ export function DocumentationBrowser({
 }: DocumentationBrowserProps) {
   const [activeId, setActiveId] = useState(sections[0]?.id ?? "");
   const [search, setSearch] = useState("");
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const isSplitLayout = useSplitDocumentationLayout();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const filteredSections = useMemo(
     () => sections.filter((section) => matchesSearch(section, search)),
@@ -67,6 +88,51 @@ export function DocumentationBrowser({
     return map;
   }, [categories, filteredSections]);
 
+  const showTopicList = isSplitLayout || !mobileDetailOpen;
+  const showTopicPreview = isSplitLayout || mobileDetailOpen;
+
+  const scrollToPreview = useCallback(() => {
+    requestAnimationFrame(() => {
+      const target = previewRef.current ?? contentRef.current;
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
+  const selectTopic = useCallback(
+    (id: string) => {
+      setActiveId(id);
+      if (!isSplitLayout) {
+        setMobileDetailOpen(true);
+        scrollToPreview();
+      }
+    },
+    [isSplitLayout, scrollToPreview],
+  );
+
+  const handleViewChange = useCallback(
+    (_mode: DocumentationView) => {
+      if (!isSplitLayout) {
+        scrollToPreview();
+      }
+    },
+    [isSplitLayout, scrollToPreview],
+  );
+
+  useEffect(() => {
+    if (isSplitLayout) {
+      setMobileDetailOpen(false);
+    }
+  }, [isSplitLayout]);
+
+  useEffect(() => {
+    if (filteredSections.some((section) => section.id === activeId)) return;
+    const nextId = filteredSections[0]?.id ?? sections[0]?.id ?? "";
+    setActiveId(nextId);
+    if (!isSplitLayout) {
+      setMobileDetailOpen(false);
+    }
+  }, [activeId, filteredSections, isSplitLayout, sections]);
+
   const isPage = variant === "page";
 
   return (
@@ -82,6 +148,7 @@ export function DocumentationBrowser({
         className={cn(
           "border-b border-border/80 bg-muted/20 px-4 py-3 sm:px-5",
           isPage && "sm:py-4",
+          !showTopicList && "lg:block",
         )}
       >
         <div className="relative">
@@ -102,10 +169,13 @@ export function DocumentationBrowser({
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <nav
           className={cn(
-            "shrink-0 overflow-y-auto border-b border-border/80 bg-muted/30 lg:w-64 lg:border-b-0 lg:border-r",
-            isPage ? "max-h-[34vh] lg:max-h-none" : "max-h-[30vh] sm:max-h-none sm:w-60",
+            "shrink-0 overflow-y-auto border-b border-border/80 bg-muted/30 lg:w-64 lg:max-h-none lg:border-b-0 lg:border-r",
+            isPage ? "max-h-none lg:max-h-none" : "max-h-none sm:w-60",
+            !showTopicList && "hidden lg:block",
+            showTopicList && !isSplitLayout && "min-h-[min(40vh,24rem)] flex-1 lg:min-h-0 lg:flex-none",
           )}
           aria-label="Documentation topics"
+          aria-hidden={!showTopicList}
         >
           <div className="space-y-4 p-3">
             {filteredSections.length === 0 ? (
@@ -128,7 +198,7 @@ export function DocumentationBrowser({
                         <li key={section.id}>
                           <button
                             type="button"
-                            onClick={() => setActiveId(section.id)}
+                            onClick={() => selectTopic(section.id)}
                             className={cn(
                               "w-full rounded-lg px-2.5 py-2 text-left transition-colors",
                               selected
@@ -153,9 +223,38 @@ export function DocumentationBrowser({
           </div>
         </nav>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-background/50 p-4 sm:p-6">
+        <div
+          ref={contentRef}
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto bg-background/50 p-4 sm:p-6",
+            !showTopicPreview && "hidden lg:block",
+            showTopicPreview && !isSplitLayout && "flex-1",
+          )}
+          aria-hidden={!showTopicPreview}
+        >
+          {mobileDetailOpen && !isSplitLayout ? (
+            <div className="mb-4 lg:hidden">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="-ml-2 gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={() => setMobileDetailOpen(false)}
+              >
+                <ArrowLeft className="size-4" aria-hidden />
+                All topics
+              </Button>
+            </div>
+          ) : null}
+
           {activeSection ? (
-            <DocumentationSectionPanel key={activeSection.id} section={activeSection} />
+            <div ref={previewRef}>
+              <DocumentationSectionPanel
+                key={activeSection.id}
+                section={activeSection}
+                onViewChange={handleViewChange}
+              />
+            </div>
           ) : null}
         </div>
       </div>

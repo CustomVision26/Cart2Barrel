@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { ContainerCatalogChart } from "@/components/marketing/container-catalog-chart";
 import {
@@ -40,6 +41,15 @@ export function HowItWorksPageMain({
 }: HowItWorksPageMainProps) {
   const isUserGuide = activeTab === "user-guide";
 
+  useEffect(() => {
+    if (!isUserGuide) return;
+    requestAnimationFrame(() => {
+      document
+        .getElementById("user-guide-panel")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [isUserGuide]);
+
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10 md:gap-10 md:py-12">
       <RevealOnScroll variant="load" delayMs={0} className="space-y-4">
@@ -65,7 +75,9 @@ export function HowItWorksPageMain({
 
       {isUserGuide ?
         <RevealOnScroll variant="load" delayMs={80}>
-          <UserDocumentationBrowser variant="page" />
+          <div id="user-guide-panel" className="scroll-mt-6">
+            <UserDocumentationBrowser variant="page" />
+          </div>
         </RevealOnScroll>
       : <>
           <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-12">
