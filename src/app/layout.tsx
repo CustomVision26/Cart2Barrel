@@ -17,6 +17,14 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "Cart2Barrel",
   description: "Shop abroad — we consolidate and ship to Jamaica.",
+  icons: {
+    icon: [
+      { url: "/favicon.png", type: "image/png", sizes: "32x32" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    shortcut: "/favicon.png",
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
