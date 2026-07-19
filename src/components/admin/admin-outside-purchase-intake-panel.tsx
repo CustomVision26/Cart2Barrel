@@ -3,7 +3,7 @@
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { useRouter } from "next/navigation";
 import { ChevronDownIcon, ChevronRightIcon, Loader2Icon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useId, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import {
@@ -21,6 +21,7 @@ import {
   type OutsidePurchaseConditionPhotoDraft,
 } from "@/components/admin/outside-purchase-condition-photos-field";
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
+import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
@@ -548,6 +549,7 @@ export function AdminOutsidePurchaseIntakePanel({
   outsidePurchaseServiceTiers,
 }: AdminOutsidePurchaseIntakePanelProps) {
   const router = useRouter();
+  const { clerkUserId: filterClerkUserId, setCustomer } = useAdminCustomerFilter();
   const recentGroupsPanelId = useId();
   const [saving, startSave] = useTransition();
   const [promptingId, setPromptingId] = useState<string | null>(null);
@@ -566,7 +568,15 @@ export function AdminOutsidePurchaseIntakePanel({
     [recentRows],
   );
 
-  const [clerkUserId, setClerkUserId] = useState("");
+  const [clerkUserId, setClerkUserId] = useState(filterClerkUserId ?? "");
+
+  useEffect(() => {
+    setClerkUserId(filterClerkUserId ?? "");
+    if (filterClerkUserId) {
+      setOpenClerkUserId(filterClerkUserId);
+    }
+  }, [filterClerkUserId]);
+
   const [reference, setReference] = useState(() => formatOutsidePurchaseReference());
   const [productName, setProductName] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -809,7 +819,11 @@ export function AdminOutsidePurchaseIntakePanel({
                   <select
                     id="op-customer"
                     value={clerkUserId}
-                    onChange={(e) => setClerkUserId(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setClerkUserId(next);
+                      setCustomer(next.trim() ? next : null);
+                    }}
                     className={FORM_SELECT_CLASS}
                   >
                     <option value="">Select customer…</option>

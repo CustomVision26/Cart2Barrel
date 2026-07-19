@@ -208,8 +208,6 @@ export function AdminSpecialFeaturesManager({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const createFormRef = useRef<HTMLFormElement>(null);
-  const [packagingMode, setPackagingMode] =
-    useState<SpecialFeaturePackagingMode>("in_app");
   const [airlineName, setAirlineName] = useState("");
   const [travelAt, setTravelAt] = useState("");
   const [secondBagUsd, setSecondBagUsd] = useState("");
@@ -266,7 +264,7 @@ export function AdminSpecialFeaturesManager({
                 const res = await invokeAdminSpecialFeatureAction(() =>
                   adminCreateSpecialFeatureOfferAction({
                     name: String(fd.get("name") ?? ""),
-                    packagingMode: String(fd.get("packagingMode") ?? "in_app"),
+                    packagingMode: "outside",
                     priceUsd: String(fd.get("priceUsd") ?? ""),
                     airlineName,
                     travelAt: datetimeLocalValueToIso(travelAt),
@@ -284,7 +282,6 @@ export function AdminSpecialFeaturesManager({
                   return;
                 }
                 createFormRef.current?.reset();
-                setPackagingMode("in_app");
                 setAirlineName("");
                 setTravelAt("");
                 setSecondBagUsd("");
@@ -308,19 +305,13 @@ export function AdminSpecialFeaturesManager({
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="sf-packaging">Packaging</Label>
-              <select
+              <div
                 id="sf-packaging"
-                name="packagingMode"
-                required
-                value={packagingMode}
-                onChange={(e) =>
-                  setPackagingMode(e.target.value as SpecialFeaturePackagingMode)
-                }
-                className={fieldSelectClassName}
+                className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-foreground"
               >
-                <option value="in_app">In-app packaging</option>
-                <option value="outside">Outside packaging</option>
-              </select>
+                Outside packaging
+              </div>
+              <input type="hidden" name="packagingMode" value="outside" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="sf-starts">Starts</Label>
@@ -339,16 +330,12 @@ export function AdminSpecialFeaturesManager({
               </p>
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="sf-price">
-                Transportation fee (USD)
-                {packagingMode === "outside" ? " — optional" : ""}
-              </Label>
+              <Label htmlFor="sf-price">Transportation fee (USD) — optional</Label>
               <Input
                 id="sf-price"
                 name="priceUsd"
                 inputMode="decimal"
-                required={packagingMode === "in_app"}
-                placeholder={packagingMode === "in_app" ? "49.99" : "0.00"}
+                placeholder="0.00"
               />
             </div>
             <div className="space-y-2">
@@ -641,19 +628,15 @@ function AdminSpecialFeatureRow({
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor={`sf-packaging-${offer.id}`}>Packaging</Label>
-            <select
+            <div
               id={`sf-packaging-${offer.id}`}
-              required
-              value={packagingMode}
-              onChange={(e) =>
-                setPackagingMode(e.target.value as SpecialFeaturePackagingMode)
-              }
-              disabled={formDisabled}
-              className={fieldSelectClassName}
+              className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-foreground"
             >
-              <option value="in_app">In-app packaging</option>
-              <option value="outside">Outside packaging</option>
-            </select>
+              {specialFeaturePackagingModeLabel(packagingMode)}
+              {packagingMode === "in_app" ?
+                <span className="ml-1.5 text-xs text-muted-foreground">(legacy)</span>
+              : null}
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor={`sf-starts-${offer.id}`}>Starts</Label>
