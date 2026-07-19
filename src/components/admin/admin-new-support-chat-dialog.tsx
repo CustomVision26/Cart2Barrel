@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { adminCreateSupportTicketAction } from "@/actions/admin-support-tickets";
 import { SupportTicketComposeForm } from "@/components/support/support-ticket-compose-form";
 import type { SupportTicketComposePayload } from "@/components/support/support-ticket-compose-form";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -101,11 +101,12 @@ export function AdminNewSupportChatDialog({
         if (!next) resetForm();
       }}
     >
-      <DialogTrigger asChild>
-        <Button type="button" size="sm">
-          <MessageSquarePlus className="size-4" aria-hidden />
-          New chat
-        </Button>
+      <DialogTrigger
+        type="button"
+        className={cn(buttonVariants({ size: "sm" }))}
+      >
+        <MessageSquarePlus className="size-4" aria-hidden />
+        New chat
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>

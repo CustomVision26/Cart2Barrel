@@ -34,7 +34,7 @@ export type AdminEstimateAirlineBagFeeState =
       secondBagUsd: number | null;
       thirdBagUsd: number | null;
       fourthBagUsd: number | null;
-      notes: string | null;
+      extraNote: string | null;
     }
   | { ok: false; message: string };
 

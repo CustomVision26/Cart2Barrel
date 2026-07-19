@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -192,37 +192,45 @@ export async function listActiveSpecialFeatureSuitcasesForBarrels(): Promise<
   const linkedOfferings: LinkedOffering[] = [];
   try {
     const offerNames = [...new Set(offers.map((o) => o.name.trim()).filter(Boolean))];
-    const conditions = [inArray(containerOfferings.specialFeatureOfferId, offerIds)];
+    const conditions: SQL[] = [
+      inArray(containerOfferings.specialFeatureOfferId, offerIds),
+    ];
     if (legacyOfferingIds.length > 0) {
       conditions.push(inArray(containerOfferings.id, legacyOfferingIds));
     }
     if (offerNames.length > 0) {
-      conditions.push(
-        and(
-          eq(containerOfferings.kind, "suitcase"),
-          inArray(containerOfferings.name, offerNames),
-        ),
+      const byOfferName = and(
+        eq(containerOfferings.kind, "suitcase"),
+        inArray(containerOfferings.name, offerNames),
       );
+      if (byOfferName) conditions.push(byOfferName);
     }
 
-    const rows = await db
-      .select({
-        id: containerOfferings.id,
-        name: containerOfferings.name,
-        sizeLabel: containerOfferings.sizeLabel,
-        kind: containerOfferings.kind,
-        priceUsdCents: containerOfferings.priceUsdCents,
-        isActive: containerOfferings.isActive,
-        specialFeatureOfferId: containerOfferings.specialFeatureOfferId,
-      })
-      .from(containerOfferings)
-      .where(
-        and(
-          eq(containerOfferings.kind, "suitcase"),
-          eq(containerOfferings.isActive, true),
-          or(...conditions),
-        ),
-      );
+    const linkedMatch =
+      conditions.length === 1 ? conditions[0]
+      : or(...(conditions as [SQL, ...SQL[]]));
+
+    const rows =
+      linkedMatch ?
+        await db
+          .select({
+            id: containerOfferings.id,
+            name: containerOfferings.name,
+            sizeLabel: containerOfferings.sizeLabel,
+            kind: containerOfferings.kind,
+            priceUsdCents: containerOfferings.priceUsdCents,
+            isActive: containerOfferings.isActive,
+            specialFeatureOfferId: containerOfferings.specialFeatureOfferId,
+          })
+          .from(containerOfferings)
+          .where(
+            and(
+              eq(containerOfferings.kind, "suitcase"),
+              eq(containerOfferings.isActive, true),
+              linkedMatch,
+            ),
+          )
+      : [];
 
     for (const r of rows) {
       if (r.kind !== "suitcase") continue;
