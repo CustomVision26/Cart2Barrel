@@ -30,7 +30,9 @@ import {
 } from "@/lib/special-feature-notes";
 import { US_OPERATING_AIRLINES } from "@/lib/us-airlines";
 import { cn } from "@/lib/utils";
+import { getSpecialFeatureWindowStatus } from "@/data/special-feature-offers";
 import {
+  datetimeLocalValueToIso,
   isoToDatetimeLocalValue,
   specialFeaturePackagingModeLabel,
   type SpecialFeaturePackagingMode,
@@ -72,17 +74,6 @@ type AdminSpecialFeaturesManagerProps = {
 function centsToUsdInput(cents: number): string {
   if (!cents) return "";
   return (cents / 100).toFixed(2);
-}
-
-function windowStatus(startsAt: string, endsAt: string, isActive: boolean): string {
-  if (!isActive) return "Draft";
-  const now = Date.now();
-  const start = new Date(startsAt).getTime();
-  const end = new Date(endsAt).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end)) return "Scheduled";
-  if (now < start) return "Scheduled";
-  if (now > end) return "Ended";
-  return "Live";
 }
 
 function serverActionErrorMessage(error: unknown): string {
@@ -138,37 +129,34 @@ function AirlineOptions({ extra }: { extra?: string }) {
 function OutsideBagFeeSummary({
   secondUsd,
   thirdUsd,
-  fourthUsd,
   pending,
 }: {
   secondUsd: string;
   thirdUsd: string;
-  fourthUsd: string;
   pending: boolean;
 }) {
   if (pending) {
     return (
-      <p className="text-xs text-muted-foreground">Looking up bag fees…</p>
+      <p className="text-xs text-muted-foreground">
+        Looking up 2nd and 3rd checked-bag fees for the travel day…
+      </p>
     );
   }
-  if (!secondUsd && !thirdUsd && !fourthUsd) {
+  if (!secondUsd && !thirdUsd) {
     return (
       <p className="text-xs text-muted-foreground">
-        Select an airline and travel day to load 2nd+ bag fees for that flight day
-        (not the special end date).
+        Select an airline and courier travel day to load the 2nd and 3rd checked-bag
+        fees the traveler pays at the airport (not the special end date).
       </p>
     );
   }
   return (
     <ul className="space-y-0.5 text-xs text-muted-foreground">
       {secondUsd ?
-        <li>2nd bag (~50 lb): {formatUsd(Math.round(Number(secondUsd) * 100))}</li>
+        <li>2nd checked bag (~50 lb): {formatUsd(Math.round(Number(secondUsd) * 100))}</li>
       : null}
       {thirdUsd ?
-        <li>3rd bag (~50 lb): {formatUsd(Math.round(Number(thirdUsd) * 100))}</li>
-      : null}
-      {fourthUsd ?
-        <li>4th bag (~50 lb): {formatUsd(Math.round(Number(fourthUsd) * 100))}</li>
+        <li>3rd checked bag (~50 lb): {formatUsd(Math.round(Number(thirdUsd) * 100))}</li>
       : null}
     </ul>
   );
@@ -180,7 +168,6 @@ async function lookupOutsideBagFees(input: {
 }): Promise<{
   secondUsd: string;
   thirdUsd: string;
-  fourthUsd: string;
   extraNote: string;
 } | null> {
   if (!input.airlineName.trim() || !input.travelAt.trim()) return null;
@@ -198,23 +185,19 @@ async function lookupOutsideBagFees(input: {
   const secondUsd =
     res.secondBagUsd != null ? res.secondBagUsd.toFixed(2) : "";
   const thirdUsd = res.thirdBagUsd != null ? res.thirdBagUsd.toFixed(2) : "";
-  const fourthUsd =
-    res.fourthBagUsd != null ? res.fourthBagUsd.toFixed(2) : "";
   const parts = [
     secondUsd ? `2nd $${secondUsd}` : null,
     thirdUsd ? `3rd $${thirdUsd}` : null,
-    fourthUsd ? `4th $${fourthUsd}` : null,
   ].filter(Boolean);
   toast.success(
     parts.length > 0 ?
-      `Bag fees on travel day — ${parts.join(" · ")}`
+      `Travel-day checked bags — ${parts.join(" · ")}`
     : "Bag fees updated.",
   );
   if (res.extraNote) toast.message(res.extraNote);
   return {
     secondUsd,
     thirdUsd,
-    fourthUsd,
     extraNote: res.extraNote?.trim() ?? "",
   };
 }
@@ -237,7 +220,13 @@ export function AdminSpecialFeaturesManager({
   const [notes, setNotes] = useState(SPECIAL_FEATURE_AUTO_NOTES);
 
   function runBagFeeLookup(nextAirline: string, nextTravelAt: string) {
-    if (!nextAirline.trim() || !nextTravelAt.trim()) return;
+    if (!nextAirline.trim()) return;
+    if (!nextTravelAt.trim()) {
+      toast.message(
+        "Set the courier travel day to load 2nd and 3rd checked-bag fees for that flight.",
+      );
+      return;
+    }
     setLookupPending(true);
     startTransition(async () => {
       try {
@@ -248,7 +237,7 @@ export function AdminSpecialFeaturesManager({
         if (!fees) return;
         setSecondBagUsd(fees.secondUsd);
         setThirdBagUsd(fees.thirdUsd);
-        setFourthBagUsd(fees.fourthUsd);
+        setFourthBagUsd("");
         if (fees.extraNote) setAirlineBagFeeExtraNote(fees.extraNote);
       } finally {
         setLookupPending(false);
@@ -280,14 +269,14 @@ export function AdminSpecialFeaturesManager({
                     packagingMode: String(fd.get("packagingMode") ?? "in_app"),
                     priceUsd: String(fd.get("priceUsd") ?? ""),
                     airlineName,
-                    travelAt,
+                    travelAt: datetimeLocalValueToIso(travelAt),
                     airlineSecondBagUsd: secondBagUsd,
                     airlineThirdBagUsd: thirdBagUsd,
                     airlineFourthBagUsd: fourthBagUsd,
                     airlineBagFeeExtraNote,
                     notes,
-                    startsAt: String(fd.get("startsAt") ?? ""),
-                    endsAt: String(fd.get("endsAt") ?? ""),
+                    startsAt: datetimeLocalValueToIso(String(fd.get("startsAt") ?? "")),
+                    endsAt: datetimeLocalValueToIso(String(fd.get("endsAt") ?? "")),
                   }),
                 );
                 if (!res?.ok) {
@@ -402,7 +391,6 @@ export function AdminSpecialFeaturesManager({
               <OutsideBagFeeSummary
                 secondUsd={secondBagUsd}
                 thirdUsd={thirdBagUsd}
-                fourthUsd={fourthBagUsd}
                 pending={lookupPending}
               />
               <div className="space-y-2 pt-2">
@@ -416,8 +404,8 @@ export function AdminSpecialFeaturesManager({
                   placeholder="Filled automatically when you select an airline and travel day."
                 />
                 <p className="text-xs text-muted-foreground">
-                  Returned by the AI bag-fee server action. Shown to shoppers with the bag
-                  fees. You may edit before saving.
+                  AI lookup for 2nd and 3rd checked-bag fees on the travel day. Shown to
+                  shoppers with the bag fees. You may edit before saving.
                 </p>
               </div>
             </div>
@@ -483,10 +471,13 @@ function AdminSpecialFeatureRow({
   const [pending, startTransition] = useTransition();
   const [lookupPending, setLookupPending] = useState(false);
   const disabled = disabledAll || pending;
-  const status = windowStatus(offer.startsAt, offer.endsAt, offer.isActive);
+  const status = getSpecialFeatureWindowStatus(
+    offer.startsAt,
+    offer.endsAt,
+    offer.isActive,
+  );
   const isDraft = status === "Draft";
-  const [isEditing, setIsEditing] = useState(!isDraft);
-  const formDisabled = disabled || (isDraft && !isEditing);
+  const formDisabled = disabled;
 
   const [name, setName] = useState(offer.name);
   const [packagingMode, setPackagingMode] = useState(offer.packagingMode);
@@ -512,7 +503,6 @@ function AdminSpecialFeatureRow({
   const [notes, setNotes] = useState(resolveSpecialFeatureNotes(offer.notes));
 
   useEffect(() => {
-    setIsEditing(windowStatus(offer.startsAt, offer.endsAt, offer.isActive) !== "Draft");
     setName(offer.name);
     setPackagingMode(offer.packagingMode);
     setStartsAt(isoToDatetimeLocalValue(offer.startsAt));
@@ -527,6 +517,7 @@ function AdminSpecialFeatureRow({
     setNotes(resolveSpecialFeatureNotes(offer.notes));
   }, [
     offer.id,
+    offer.isActive,
     offer.name,
     offer.packagingMode,
     offer.startsAt,
@@ -542,7 +533,13 @@ function AdminSpecialFeatureRow({
   ]);
 
   function runBagFeeLookup(nextAirline: string, nextTravelAt: string) {
-    if (!nextAirline.trim() || !nextTravelAt.trim()) return;
+    if (!nextAirline.trim()) return;
+    if (!nextTravelAt.trim()) {
+      toast.message(
+        "Set the courier travel day to load 2nd and 3rd checked-bag fees for that flight.",
+      );
+      return;
+    }
     setLookupPending(true);
     startTransition(async () => {
       try {
@@ -553,7 +550,7 @@ function AdminSpecialFeatureRow({
         if (!fees) return;
         setSecondBagUsd(fees.secondUsd);
         setThirdBagUsd(fees.thirdUsd);
-        setFourthBagUsd(fees.fourthUsd);
+        setFourthBagUsd("");
         if (fees.extraNote) setAirlineBagFeeExtraNote(fees.extraNote);
       } finally {
         setLookupPending(false);
@@ -588,7 +585,11 @@ function AdminSpecialFeatureRow({
           </div>
         </div>
         <CardDescription className="font-mono text-xs">{offer.id}</CardDescription>
-        {status === "Scheduled" ?
+        {isDraft ?
+          <p className="text-xs text-muted-foreground">
+            Draft — edit fields below, then Save changes. Publish when ready for shoppers.
+          </p>
+        : status === "Scheduled" ?
           <p className="text-xs text-amber-700 dark:text-amber-300">
             Banner is hidden until the start time. Use Go live now to show it
             immediately.
@@ -608,14 +609,14 @@ function AdminSpecialFeatureRow({
                   packagingMode,
                   priceUsd,
                   airlineName,
-                  travelAt,
+                  travelAt: datetimeLocalValueToIso(travelAt),
                   airlineSecondBagUsd: secondBagUsd,
                   airlineThirdBagUsd: thirdBagUsd,
                   airlineFourthBagUsd: fourthBagUsd,
                   airlineBagFeeExtraNote,
                   notes,
-                  startsAt,
-                  endsAt,
+                  startsAt: datetimeLocalValueToIso(startsAt),
+                  endsAt: datetimeLocalValueToIso(endsAt),
                   isActive: offer.isActive,
                 }),
               );
@@ -624,9 +625,6 @@ function AdminSpecialFeatureRow({
                 return;
               }
               toast.success("Special feature updated.");
-              if (isDraft) {
-                setIsEditing(false);
-              }
               onRefresh();
             });
           }}
@@ -734,7 +732,6 @@ function AdminSpecialFeatureRow({
             <OutsideBagFeeSummary
               secondUsd={secondBagUsd}
               thirdUsd={thirdBagUsd}
-              fourthUsd={fourthBagUsd}
               pending={lookupPending}
             />
             <div className="space-y-2 pt-2">
@@ -773,18 +770,9 @@ function AdminSpecialFeatureRow({
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:col-span-2">
-            {isDraft && !isEditing ?
-              <Button
-                type="button"
-                disabled={disabled}
-                onClick={() => setIsEditing(true)}
-              >
-                Edit
-              </Button>
-            : <Button type="submit" disabled={disabled}>
-                {pending ? "Saving…" : "Save changes"}
-              </Button>
-            }
+            <Button type="submit" disabled={disabled}>
+              {pending ? "Saving…" : "Save changes"}
+            </Button>
             {!offer.isActive || status === "Scheduled" ?
               <Button
                 type="button"

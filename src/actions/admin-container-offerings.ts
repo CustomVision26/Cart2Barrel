@@ -279,21 +279,45 @@ export async function adminUpdateContainerOfferingAction(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { id, name, sizeLabel, kind, priceUsd, isActive } = parsed.data;
+  const { id, name, sizeLabel, kind, priceUsd, isActive, specialFeatureOfferId } =
+    parsed.data;
   const cents = priceUsdStringToCents(priceUsd);
   if (cents < 50) {
     return { ok: false, message: "Price must be at least $0.50 USD (Stripe minimum per line)." };
   }
 
   const db = getDb();
+
+  let resolvedName = name.trim();
+  let resolvedSpecialFeatureOfferId: string | null | undefined;
+
+  if (specialFeatureOfferId) {
+    const specialId = specialFeatureOfferId.trim();
+    const [special] = await db
+      .select({ id: specialFeatureOffers.id, name: specialFeatureOffers.name })
+      .from(specialFeatureOffers)
+      .where(eq(specialFeatureOffers.id, specialId))
+      .limit(1);
+
+    if (!special) {
+      return { ok: false, message: "Special feature not found." };
+    }
+
+    resolvedName = special.name.trim();
+    resolvedSpecialFeatureOfferId = specialId;
+  }
+
   const [row] = await db
     .update(containerOfferings)
     .set({
-      name: name.trim(),
+      name: resolvedName,
       sizeLabel: sizeLabel.trim(),
       kind,
       priceUsdCents: cents,
       isActive,
+      ...(resolvedSpecialFeatureOfferId !== undefined ?
+        { specialFeatureOfferId: resolvedSpecialFeatureOfferId }
+      : {}),
     })
     .where(eq(containerOfferings.id, id))
     .returning({ id: containerOfferings.id });

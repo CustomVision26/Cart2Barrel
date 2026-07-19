@@ -17,7 +17,7 @@ export type SpecialFeatureWindowStatus = "Draft" | "Scheduled" | "Live" | "Ended
 export type SpecialFeatureContainerFormRef = {
   id: string;
   name: string;
-  status: Exclude<SpecialFeatureWindowStatus, "Ended">;
+  status: SpecialFeatureWindowStatus;
   priceUsdCents: number;
 };
 
@@ -36,52 +36,86 @@ export function getSpecialFeatureWindowStatus(
   return "Live";
 }
 
-const SPECIAL_FEATURE_STATUS_PRIORITY: Record<
-  Exclude<SpecialFeatureWindowStatus, "Ended">,
-  number
-> = {
+export function isSpecialFeatureOfferLiveNow(
+  offer: Pick<SpecialFeatureOfferRow, "startsAt" | "endsAt" | "isActive">,
+): boolean {
+  return (
+    getSpecialFeatureWindowStatus(offer.startsAt, offer.endsAt, offer.isActive) ===
+    "Live"
+  );
+}
+
+/** Published specials visible on the promo banner (live now or starting soon). */
+export function isSpecialFeatureOfferVisibleOnPromoBanner(
+  offer: Pick<SpecialFeatureOfferRow, "startsAt" | "endsAt" | "isActive">,
+): boolean {
+  const status = getSpecialFeatureWindowStatus(
+    offer.startsAt,
+    offer.endsAt,
+    offer.isActive,
+  );
+  return status === "Live" || status === "Scheduled";
+}
+
+/**
+ * Offers for the sitewide promo cards — published and not ended.
+ * Includes live offers and scheduled ones starting soon.
+ */
+export async function listPromoBannerSpecialFeatureOffers(): Promise<
+  SpecialFeatureOfferRow[]
+> {
+  const db = getDb();
+  try {
+    const rows = await db
+      .select()
+      .from(specialFeatureOffers)
+      .where(eq(specialFeatureOffers.isActive, true))
+      .orderBy(asc(specialFeatureOffers.startsAt));
+
+    return rows.filter(isSpecialFeatureOfferVisibleOnPromoBanner);
+  } catch {
+    return [];
+  }
+}
+
+const SPECIAL_FEATURE_STATUS_PRIORITY: Record<SpecialFeatureWindowStatus, number> = {
   Live: 0,
   Scheduled: 1,
   Draft: 2,
+  Ended: 3,
 };
 
-/** Draft, scheduled, or live specials for the shipping-containers new form (one row per name). */
+/** Every special feature offer for shipping-container forms (draft, scheduled, live, ended). */
 export function listEligibleSpecialFeatureRefsForContainerForm(
   offers: SpecialFeatureOfferRow[],
 ): SpecialFeatureContainerFormRef[] {
-  const byName = new Map<
-    string,
-    SpecialFeatureContainerFormRef & { priority: number }
-  >();
+  return offers
+    .map((offer) => {
+      const name = offer.name.trim();
+      if (!name) return null;
 
-  for (const offer of offers) {
-    const status = getSpecialFeatureWindowStatus(
-      offer.startsAt,
-      offer.endsAt,
-      offer.isActive,
-    );
-    if (status === "Ended") continue;
+      const status = getSpecialFeatureWindowStatus(
+        offer.startsAt,
+        offer.endsAt,
+        offer.isActive,
+      );
 
-    const name = offer.name.trim();
-    if (!name) continue;
-
-    const priority = SPECIAL_FEATURE_STATUS_PRIORITY[status];
-    const existing = byName.get(name);
-    if (!existing || priority < existing.priority) {
-      byName.set(name, {
+      return {
         id: offer.id,
         name,
         status,
         priceUsdCents: offer.priceUsdCents,
-        priority,
-      });
-    }
-  }
-
-  return Array.from(byName.values())
+        priority: SPECIAL_FEATURE_STATUS_PRIORITY[status],
+      };
+    })
+    .filter((row): row is SpecialFeatureContainerFormRef & { priority: number } =>
+      row !== null,
+    )
     .sort(
       (a, b) =>
-        a.priority - b.priority || a.name.localeCompare(b.name),
+        a.priority - b.priority ||
+        a.name.localeCompare(b.name) ||
+        a.id.localeCompare(b.id),
     )
     .map(({ id, name, status, priceUsdCents }) => ({
       id,
@@ -115,17 +149,13 @@ export async function listCurrentlyActiveSpecialFeatureOffers(): Promise<
 > {
   const db = getDb();
   try {
-    return await db
+    const rows = await db
       .select()
       .from(specialFeatureOffers)
-      .where(
-        and(
-          eq(specialFeatureOffers.isActive, true),
-          lte(specialFeatureOffers.startsAt, sql`now()`),
-          gte(specialFeatureOffers.endsAt, sql`now()`),
-        ),
-      )
+      .where(eq(specialFeatureOffers.isActive, true))
       .orderBy(asc(specialFeatureOffers.endsAt));
+
+    return rows.filter(isSpecialFeatureOfferLiveNow);
   } catch {
     return [];
   }

@@ -77,6 +77,9 @@ function specialFeatureStatusClassName(
   if (status === "Draft") {
     return "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300";
   }
+  if (status === "Ended") {
+    return "border-border/80 bg-muted/60 text-muted-foreground";
+  }
   return "border-border/80 bg-muted text-muted-foreground";
 }
 
@@ -214,38 +217,18 @@ export function AdminBarrelsManager({
                     first.
                   </p>
                 : <>
-                    {specialFeatures.length > 1 ?
-                      <select
-                        id="new-special-select"
-                        value={selectedSpecialId ?? ""}
-                        onChange={(e) => setSelectedSpecialId(e.target.value)}
-                        className={barrelsFieldSelectClassName}
-                      >
-                        {specialFeatures.map((special) => (
-                          <option key={special.id} value={special.id}>
-                            {special.name} ({special.status})
-                          </option>
-                        ))}
-                      </select>
-                    : null}
-                    <div
-                      id="new-special-name"
-                      className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2.5"
+                    <select
+                      id="new-special-select"
+                      value={selectedSpecialId ?? ""}
+                      onChange={(e) => setSelectedSpecialId(e.target.value)}
+                      className={barrelsFieldSelectClassName}
                     >
-                      <span className="text-sm font-medium text-foreground">
-                        {selectedSpecial?.name}
-                      </span>
-                      {selectedSpecial ?
-                        <span
-                          className={cn(
-                            "rounded-full border px-2 py-0.5 text-xs font-medium",
-                            specialFeatureStatusClassName(selectedSpecial.status),
-                          )}
-                        >
-                          {selectedSpecial.status}
-                        </span>
-                      : null}
-                    </div>
+                      {specialFeatures.map((special) => (
+                        <option key={special.id} value={special.id}>
+                          {special.name} ({special.status})
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type="hidden"
                       name="name"
@@ -393,6 +376,7 @@ export function AdminBarrelsManager({
                     <AdminOfferingRow
                       offering={o}
                       images={images}
+                      specialFeatures={specialFeatures}
                       disabledAll={pending}
                       onRefresh={() => router.refresh()}
                     />
@@ -410,11 +394,13 @@ export function AdminBarrelsManager({
 function AdminOfferingRow({
   offering,
   images,
+  specialFeatures,
   disabledAll,
   onRefresh,
 }: {
   offering: AdminSerializableOffering;
   images: AdminSerializableImage[];
+  specialFeatures: SpecialFeatureContainerFormRef[];
   disabledAll: boolean;
   onRefresh: () => void;
 }) {
@@ -430,11 +416,18 @@ function AdminOfferingRow({
   const isPublished = offering.isActive;
   const isShopperVisible = offering.isActive && specialWindowLive;
 
+  const linkedSpecialId =
+    offering.linkedSpecialFeatureOfferId ?? offering.specialFeatureOfferId ?? "";
+
   const [name, setName] = useState(offering.name);
+  const [selectedSpecialId, setSelectedSpecialId] = useState(linkedSpecialId);
   const [sizeLabel, setSizeLabel] = useState(offering.sizeLabel);
   const [kind, setKind] = useState<ContainerOfferingKind>(offering.kind);
   const [priceUsd, setPriceUsd] = useState(centsToUsdInput(offering.priceUsdCents));
   const [isActive, setIsActive] = useState(offering.isActive);
+
+  const selectedSpecial =
+    specialFeatures.find((special) => special.id === selectedSpecialId) ?? null;
 
   useEffect(() => {
     setName(offering.name);
@@ -442,6 +435,15 @@ function AdminOfferingRow({
     setKind(offering.kind);
     setPriceUsd(centsToUsdInput(offering.priceUsdCents));
     setIsActive(offering.isActive);
+
+    const linked =
+      offering.linkedSpecialFeatureOfferId ?? offering.specialFeatureOfferId ?? "";
+    if (linked && specialFeatures.some((special) => special.id === linked)) {
+      setSelectedSpecialId(linked);
+      return;
+    }
+    const byName = specialFeatures.find((special) => special.name === offering.name);
+    setSelectedSpecialId(byName?.id ?? linked);
   }, [
     offering.id,
     offering.name,
@@ -449,6 +451,9 @@ function AdminOfferingRow({
     offering.kind,
     offering.priceUsdCents,
     offering.isActive,
+    offering.linkedSpecialFeatureOfferId,
+    offering.specialFeatureOfferId,
+    specialFeatures,
   ]);
 
   return (
@@ -508,6 +513,9 @@ function AdminOfferingRow({
                 kind,
                 priceUsd,
                 isActive,
+                ...(isSpecialFeature && selectedSpecialId ?
+                  { specialFeatureOfferId: selectedSpecialId }
+                : {}),
               });
               if (!res.ok) {
                 toast.error(res.message);
@@ -520,12 +528,58 @@ function AdminOfferingRow({
         >
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor={`name-${offering.id}`}>Name</Label>
-            <Input
-              id={`name-${offering.id}`}
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            {isSpecialFeature ?
+              specialFeatures.length === 0 ?
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  No special feature offers yet. Create one under{" "}
+                  <a
+                    href="/admin/overview?tab=special-features"
+                    className="font-medium underline underline-offset-4"
+                  >
+                    Special features
+                  </a>
+                  .
+                </p>
+              : <>
+                  <select
+                    id={`name-${offering.id}`}
+                    required
+                    value={selectedSpecialId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setSelectedSpecialId(id);
+                      const special = specialFeatures.find((row) => row.id === id);
+                      if (special) {
+                        setName(special.name);
+                      }
+                    }}
+                    className={barrelsFieldSelectClassName}
+                    disabled={disabled}
+                  >
+                    {selectedSpecialId &&
+                    !specialFeatures.some((special) => special.id === selectedSpecialId) ?
+                      <option value={selectedSpecialId}>{name} (unlinked)</option>
+                    : null}
+                    {specialFeatures.map((special) => (
+                      <option key={special.id} value={special.id}>
+                        {special.name} ({special.status})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedSpecial ?
+                    <p className="text-xs text-muted-foreground">
+                      Listed transportation fee:{" "}
+                      {formatUsd(selectedSpecial.priceUsdCents)}
+                    </p>
+                  : null}
+                </>
+            : <Input
+                id={`name-${offering.id}`}
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            }
           </div>
           <div className="space-y-2">
             <Label htmlFor={`size-${offering.id}`}>Size</Label>

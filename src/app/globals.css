@@ -881,20 +881,21 @@
   }
 }
 
-.special-feature-promo-banner__track {
-  animation: special-feature-marquee 28s linear infinite;
-}
-
 .special-feature-promo-banner__shine {
   background: linear-gradient(
     105deg,
     transparent 0%,
-    rgb(255 255 255 / 0.22) 45%,
+    rgb(255 255 255 / 0.18) 45%,
     transparent 70%
   );
   animation: special-feature-banner-shimmer 4.5s ease-in-out infinite;
 }
 
-.special-feature-promo-banner:hover .special-feature-promo-banner__track {
+.special-feature-promo-banner__track {
+  animation: special-feature-marquee 36s linear infinite;
+}
+
+.special-feature-promo-banner:hover .special-feature-promo-banner__track,
+.special-feature-promo-banner:focus-within .special-feature-promo-banner__track {
   animation-play-state: paused;
 }

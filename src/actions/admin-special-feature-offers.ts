@@ -41,6 +41,7 @@ export type AdminEstimateAirlineBagFeeState =
 function revalidateSpecialFeaturePaths() {
   revalidatePath("/admin/overview");
   revalidatePath("/dashboard/barrels");
+  revalidatePath("/dashboard/cart");
   revalidatePath("/");
   revalidatePath("/dashboard");
 }
@@ -104,6 +105,8 @@ export async function adminCreateSpecialFeatureOfferAction(
   const db = getDb();
 
   const travelAtIso = specialFeatureDateTimeToIso(travelAt);
+  const startsAtIso = specialFeatureDateTimeToIso(startsAt);
+  const endsAtIso = specialFeatureDateTimeToIso(endsAt);
   const secondBagCents = usdStringToCentsOrZero(airlineSecondBagUsd);
   const thirdBagCents = usdStringToCentsOrZero(airlineThirdBagUsd);
   const fourthBagCents = usdStringToCentsOrZero(airlineFourthBagUsd);
@@ -124,8 +127,8 @@ export async function adminCreateSpecialFeatureOfferAction(
       airlineFourthBagUsdCents: fourthBagCents,
       airlineBagFeeExtraNote: bagFeeExtraNote,
       notes: persistSpecialFeatureNotes(notes),
-      startsAt: specialFeatureDateTimeToIso(startsAt),
-      endsAt: specialFeatureDateTimeToIso(endsAt),
+      startsAt: startsAtIso,
+      endsAt: endsAtIso,
       // Draft until admin publishes — then shoppers see the banner.
       isActive: false,
       containerOfferingId: null,
@@ -189,6 +192,10 @@ export async function adminUpdateSpecialFeatureOfferAction(
     existing.destinationLocation ||
     "—";
 
+  const travelAtIso = specialFeatureDateTimeToIso(travelAt);
+  const startsAtIso = specialFeatureDateTimeToIso(startsAt);
+  const endsAtIso = specialFeatureDateTimeToIso(endsAt);
+
   const [row] = await db
     .update(specialFeatureOffers)
     .set({
@@ -198,14 +205,14 @@ export async function adminUpdateSpecialFeatureOfferAction(
       packagingMode,
       priceUsdCents: cents,
       airlineName: airlineName.trim(),
-      travelAt: specialFeatureDateTimeToIso(travelAt),
+      travelAt: travelAtIso,
       airlineSecondBagUsdCents: usdStringToCentsOrZero(airlineSecondBagUsd),
       airlineThirdBagUsdCents: usdStringToCentsOrZero(airlineThirdBagUsd),
       airlineFourthBagUsdCents: usdStringToCentsOrZero(airlineFourthBagUsd),
       airlineBagFeeExtraNote: airlineBagFeeExtraNote.trim(),
       notes: persistSpecialFeatureNotes(notes),
-      startsAt: specialFeatureDateTimeToIso(startsAt),
-      endsAt: specialFeatureDateTimeToIso(endsAt),
+      startsAt: startsAtIso,
+      endsAt: endsAtIso,
       isActive,
     })
     .where(eq(specialFeatureOffers.id, id))
@@ -240,16 +247,12 @@ export async function adminEstimateAirlineBagFeesAction(
       travelDateIso: specialFeatureDateTimeToIso(parsed.data.travelDate),
     });
 
-    if (
-      estimate.secondBagUsd == null &&
-      estimate.thirdBagUsd == null &&
-      estimate.fourthBagUsd == null
-    ) {
+    if (estimate.secondBagUsd == null && estimate.thirdBagUsd == null) {
       return {
         ok: false,
         message:
           estimate.notes?.trim() ||
-          "AI could not determine outside bag fees for that airline and travel day.",
+          "AI could not determine 2nd or 3rd checked-bag fees for that airline on the travel day.",
       };
     }
 
@@ -257,7 +260,7 @@ export async function adminEstimateAirlineBagFeesAction(
       ok: true,
       secondBagUsd: estimate.secondBagUsd,
       thirdBagUsd: estimate.thirdBagUsd,
-      fourthBagUsd: estimate.fourthBagUsd,
+      fourthBagUsd: null,
       extraNote: estimate.notes?.trim() || null,
     };
   } catch (err) {

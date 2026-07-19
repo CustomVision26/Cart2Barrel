@@ -4,14 +4,19 @@ import { z } from "zod";
 const bagFeeSchema = z.object({
   secondBagUsd: z.number().finite().nonnegative().nullable(),
   thirdBagUsd: z.number().finite().nonnegative().nullable(),
-  fourthBagUsd: z.number().finite().nonnegative().nullable(),
+  fourthBagUsd: z.literal(null).optional(),
   notes: z.string().nullable().optional(),
 });
 
-export type AirlineCheckedBagFeeEstimate = z.infer<typeof bagFeeSchema>;
+export type AirlineCheckedBagFeeEstimate = {
+  secondBagUsd: number | null;
+  thirdBagUsd: number | null;
+  fourthBagUsd: null;
+  notes?: string | null;
+};
 
 /**
- * Ask OpenAI for typical checked-bag fees (~50 lb) for 2nd+ bags on a travel day.
+ * Ask OpenAI for 2nd / 3rd checked-bag fees (~50 lb) the traveler pays on the travel day.
  */
 export async function estimateAirlineCheckedBagFeeWithOpenAI(input: {
   airlineName: string;
@@ -35,20 +40,27 @@ export async function estimateAirlineCheckedBagFeeWithOpenAI(input: {
       {
         role: "system",
         content:
-          "You estimate published airline checked-baggage fees for US-origin passenger travel. Return JSON only.",
+          "You estimate published US airline checked-baggage fees passengers pay at check-in or prepaid online for a specific travel day. Return JSON only.",
       },
       {
         role: "user",
         content: [
           `Airline: ${airline}`,
-          `Travel day (UTC date): ${travelDay}`,
-          "These are OUTSIDE airline fees a traveler would pay at the airline if they add 2nd, 3rd, or 4th checked bags on that travel day (not Cart2Barrel platform fees).",
-          "Estimate USD fees for standard checked suitcases up to about 50 lb (23 kg), not overweight/oversize.",
-          "Return fees for the 2nd checked bag and additional bags (3rd, 4th) for typical US–Caribbean / US domestic published rates when known.",
-          "If fees vary by route or fare, pick the most common published US retail fee for that bag position on the travel day.",
-          "If unknown, use null for that field and explain briefly in notes.",
-          "In notes, write a clear customer-facing extra note about that airline's checked-bag policy for 2nd+ bags on the travel day (include typical USD amounts when known).",
-          'Return JSON: { "secondBagUsd": number|null, "thirdBagUsd": number|null, "fourthBagUsd": number|null, "notes": string|null }',
+          `Travel day: ${travelDay}`,
+          "",
+          "Cart2Barrel courier specials need ONLY the retail USD fees a traveler pays the airline on that travel day for:",
+          "- the 2nd standard checked bag (~50 lb / 23 kg, not overweight/oversize)",
+          "- the 3rd standard checked bag (~50 lb / 23 kg, not overweight/oversize)",
+          "",
+          "These are airline fees at the airport/on the travel day — not Cart2Barrel platform fees.",
+          "Use that airline's typical published US check-in or online prepaid rate for the travel date.",
+          "If fees vary by route or fare, pick the most common published US retail fee for that bag position.",
+          "If unknown for a bag position, use null for that field.",
+          "Do NOT estimate 4th or additional bags — always set fourthBagUsd to null.",
+          "",
+          "In notes, write 2–4 clear shopper-facing sentences about this airline's 2nd and 3rd checked-bag policy and typical USD amounts on the travel day. Do not mention 4th bags or Cart2Barrel.",
+          "",
+          'Return JSON: { "secondBagUsd": number|null, "thirdBagUsd": number|null, "fourthBagUsd": null, "notes": string|null }',
         ].join("\n"),
       },
     ],
@@ -70,5 +82,11 @@ export async function estimateAirlineCheckedBagFeeWithOpenAI(input: {
   if (!parsed.success) {
     throw new Error("AI baggage-fee response did not match the expected shape.");
   }
-  return parsed.data;
+
+  return {
+    secondBagUsd: parsed.data.secondBagUsd,
+    thirdBagUsd: parsed.data.thirdBagUsd,
+    fourthBagUsd: null,
+    notes: parsed.data.notes ?? null,
+  };
 }

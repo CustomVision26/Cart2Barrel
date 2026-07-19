@@ -32,8 +32,28 @@ export function specialFeaturePackagingModeLabel(
 function parseLocalDateTimeToIso(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
+
+  // Already an absolute instant from the browser (preferred for admin forms).
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
   const d = new Date(trimmed);
   if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+/** Convert `<input type="datetime-local">` value to UTC ISO in the user's browser. */
+export function datetimeLocalValueToIso(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(trimmed)) {
+    return trimmed;
+  }
+  const d = new Date(trimmed);
+  if (Number.isNaN(d.getTime())) return trimmed;
   return d.toISOString();
 }
 

@@ -13,6 +13,8 @@ import { loadUserStatusNotificationSummary } from "@/data/user-status-update-eve
 import { getClerkSessionGate } from "@/lib/clerk-session";
 import { Suspense } from "react";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
   children,
 }: {

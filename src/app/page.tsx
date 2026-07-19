@@ -9,6 +9,8 @@ import { HomeSpotlightSection } from "@/components/marketing/home-spotlight-sect
 import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
 import { getProfileByClerkId, isOnboardingComplete } from "@/data/profiles";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const { userId } = await auth();
 

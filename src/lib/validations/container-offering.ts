@@ -102,6 +102,7 @@ export const adminUpdateContainerOfferingSchema = z.object({
       message: "Enter a valid price.",
     }),
   isActive: z.boolean(),
+  specialFeatureOfferId: z.string().uuid().optional(),
 });
 
 export type AdminUpdateContainerOfferingInput = z.infer<
