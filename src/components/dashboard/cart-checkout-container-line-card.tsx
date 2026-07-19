@@ -15,12 +15,35 @@ export function CartCheckoutContainerLineCard({
   line,
   className,
 }: CartCheckoutContainerLineCardProps) {
+  const containerRowLabel =
+    line.kind === "suitcase" ? "Container (suitcase fee)" : "Container";
+
   const priceRows = [
     {
-      label: "Container",
+      label: containerRowLabel,
       detail: `${line.quantity} × ${formatUsd(line.unitPriceCents)}`,
       amountCents: line.containerSubtotalCents,
     },
+    ...(line.transportationFeeCents > 0 ?
+      [
+        {
+          label: "Transportation fee",
+          detail: `${line.quantity} × ${formatUsd(line.transportationFeeUnitCents)}`,
+          amountCents: line.transportationFeeCents,
+        },
+      ]
+    : []),
+    ...(line.airlineBaggageFeeCents > 0 ?
+      [
+        {
+          label: line.airlineName.trim() ?
+            `Airline baggage (${line.airlineName.trim()})`
+          : "Airline baggage fee",
+          detail: line.airlineBaggageFeeDetail.trim() || "Travel day checked bags",
+          amountCents: line.airlineBaggageFeeCents,
+        },
+      ]
+    : []),
     ...(line.packagingFeeCents > 0 ?
       [
         {
@@ -69,9 +92,17 @@ export function CartCheckoutContainerLineCard({
           <p className="text-lg font-semibold tabular-nums text-foreground">
             {formatUsd(line.lineTotalCents)}
           </p>
-          {line.packagingFeeCents > 0 ?
-            <p className="text-[11px] text-muted-foreground">incl. packaging</p>
-          : null}
+          {(() => {
+            const parts: string[] = [];
+            if (line.transportationFeeCents > 0) parts.push("transportation");
+            if (line.airlineBaggageFeeCents > 0) parts.push("baggage");
+            if (line.packagingFeeCents > 0) parts.push("packaging");
+            return parts.length > 0 ?
+                <p className="text-[11px] text-muted-foreground">
+                  incl. {parts.join(" & ")}
+                </p>
+              : null;
+          })()}
         </div>
       </div>
       <CartLinePriceBreakdown rows={priceRows} className="mt-4" />

@@ -249,7 +249,14 @@ export const barrelOutboundShipmentStageEnum = pgEnum(
 export const containerOfferingKindEnum = pgEnum("container_offering_kind", [
   "barrel",
   "bin",
+  "suitcase",
 ]);
+
+/** How a timed special-feature suitcase is packed for shipping. */
+export const specialFeaturePackagingModeEnum = pgEnum(
+  "special_feature_packaging_mode",
+  ["in_app", "outside"],
+);
 
 /** Shipping / delivery destinations (saved labels). Source of truth for where barrels ship. */
 export const addresses = pgTable(
@@ -1227,6 +1234,8 @@ export const supportTicketMessages = pgTable(
     body: text("body").notNull(),
     /** Public blob URLs for images attached to this message. */
     imageUrls: jsonb("image_urls").$type<string[] | null>(),
+    /** Product page URLs this message is about (retailer links). */
+    productLinks: jsonb("product_links").$type<string[] | null>(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1649,12 +1658,17 @@ export const containerOfferings = pgTable(
     priceUsdCents: integer("price_usd_cents").notNull(),
     isActive: boolean("is_active").notNull().default(true),
     sortIndex: integer("sort_index").notNull().default(0),
+    /** When set, this suitcase SKU belongs to a timed special (Overview → Special features). */
+    specialFeatureOfferId: uuid("special_feature_offer_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
   },
   (t) => [
     index("container_offerings_active_sort_idx").on(t.isActive, t.sortIndex),
+    index("container_offerings_special_feature_offer_id_idx").on(
+      t.specialFeatureOfferId,
+    ),
   ],
 );
 
@@ -1670,6 +1684,89 @@ export const containerOfferingImages = pgTable(
   },
   (t) => [
     index("container_offering_images_offering_id_idx").on(t.containerOfferingId),
+  ],
+);
+
+/**
+ * Timed suitcase specials (admin Overview → Special features).
+ * Shown in the sitewide promo banner while active; suitcase SKUs appear on
+ * `/dashboard/barrels` only during `startsAt`–`endsAt`.
+ */
+export const specialFeatureOffers = pgTable(
+  "special_feature_offers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    sizeLabel: text("size_label").notNull(),
+    /** Arrival location in the destination country (city, hub, address note). */
+    destinationLocation: text("destination_location").notNull(),
+    packagingMode: specialFeaturePackagingModeEnum("packaging_mode")
+      .notNull()
+      .default("in_app"),
+    /** Platform transportation fee (USD cents). Outside mode may be 0. */
+    priceUsdCents: integer("price_usd_cents").notNull().default(0),
+    /** Carrier the suitcase flies on (display name). */
+    airlineName: text("airline_name").notNull().default(""),
+    /**
+     * @deprecated Unused — replaced by per-bag outside fees on travel day.
+     * Kept so existing Neon columns do not require a destructive drop.
+     */
+    airlineFiftyPoundChargeUsdCents: integer(
+      "airline_fifty_pound_charge_usd_cents",
+    )
+      .notNull()
+      .default(0),
+    /**
+     * Day the courier traveler flies (not the special end date).
+     * Used for outside airline 2nd+ bag fee estimates.
+     */
+    travelAt: timestamp("travel_at", { withTimezone: true, mode: "string" }),
+    /** Outside airline fee for a 2nd ~50 lb checked bag on travel day (USD cents). */
+    airlineSecondBagUsdCents: integer("airline_second_bag_usd_cents")
+      .notNull()
+      .default(0),
+    /** Outside airline fee for a 3rd ~50 lb checked bag on travel day (USD cents). */
+    airlineThirdBagUsdCents: integer("airline_third_bag_usd_cents")
+      .notNull()
+      .default(0),
+    /** Outside airline fee for a 4th ~50 lb checked bag on travel day (USD cents). */
+    airlineFourthBagUsdCents: integer("airline_fourth_bag_usd_cents")
+      .notNull()
+      .default(0),
+    /**
+     * Extra shopper-facing note from AI bag-fee lookup (airline policy nuance).
+     */
+    airlineBagFeeExtraNote: text("airline_bag_fee_extra_note")
+      .notNull()
+      .default(""),
+    /**
+     * Shopper-facing notes. Empty string means use the platform auto note
+     * (courier traveler express delivery copy).
+     */
+    notes: text("notes").notNull().default(""),
+    startsAt: timestamp("starts_at", { withTimezone: true, mode: "string" })
+      .notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true, mode: "string" })
+      .notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    /**
+     * Linked catalog SKU (`kind = suitcase`) for in-app cart purchase.
+     * Null for outside packaging (customer packs and brings the suitcase).
+     */
+    containerOfferingId: uuid("container_offering_id").references(
+      () => containerOfferings.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("special_feature_offers_active_window_idx").on(
+      t.isActive,
+      t.startsAt,
+      t.endsAt,
+    ),
   ],
 );
 
@@ -1781,8 +1878,13 @@ export const orderContainerItems = pgTable(
     lineTotalCents: integer("line_total_cents").notNull(),
     nameSnapshot: text("name_snapshot").notNull(),
     sizeSnapshot: text("size_snapshot").notNull(),
-    /** `barrel` | `bin` at checkout (matches `container_offering_kind`). */
+    /** `barrel` | `bin` | `suitcase` at checkout (matches `container_offering_kind`). */
     kindSnapshot: text("kind_snapshot").notNull().default("barrel"),
+    /** Cart line first-add time for special suitcase baggage slot ordering at checkout. */
+    cartLineAddedAt: timestamp("cart_line_added_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
   },
   (t) => [index("order_container_items_order_id_idx").on(t.orderId)],
 );
@@ -2361,6 +2463,9 @@ export type NewContainerOffering = typeof containerOfferings.$inferInsert;
 export type ContainerOfferingImage = typeof containerOfferingImages.$inferSelect;
 export type NewContainerOfferingImage =
   typeof containerOfferingImages.$inferInsert;
+
+export type SpecialFeatureOffer = typeof specialFeatureOffers.$inferSelect;
+export type NewSpecialFeatureOffer = typeof specialFeatureOffers.$inferInsert;
 
 export type SpotlightCategoryProduct =
   typeof spotlightCategoryProducts.$inferSelect;

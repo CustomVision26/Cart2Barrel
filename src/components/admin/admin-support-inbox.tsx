@@ -45,8 +45,8 @@ export function AdminSupportInbox({ groups }: { groups: AdminSupportUserGroup[] 
   if (groups.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-        No support messages yet. When customers use Contact us, their tickets
-        appear here grouped by account.
+        No support messages yet. Start a new chat with a customer, or wait for
+        tickets from Contact us — they appear here grouped by account.
       </div>
     );
   }

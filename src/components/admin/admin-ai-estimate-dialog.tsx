@@ -149,12 +149,6 @@ export function AdminAiEstimateDialog({
     useState(true);
   /** Consumer units in each pack (1 = single item at pack price). */
   const [unitsPerPack, setUnitsPerPack] = useState("1");
-  /**
-   * When the site lists a different consumer-unit price than pack ÷ units,
-   * optional override in USD for **service tiers only** (merchandise uses pack line).
-   */
-  const [editConsumerUnitOverrideDollars, setEditConsumerUnitOverrideDollars] =
-    useState("");
   const [editShippingDollars, setEditShippingDollars] = useState("0.00");
   const [editTaxDollars, setEditTaxDollars] = useState("0.00");
   /** Subtracted from pack/bundle subtotal for net merchandise (promos, instant savings). */
@@ -180,7 +174,6 @@ export function AdminAiEstimateDialog({
     setUnitsPerPack("1");
     setEditPackPriceDollars("0.00");
     setIncludePackPriceInEstimate(true);
-    setEditConsumerUnitOverrideDollars("");
     setEditSavingsDollars("0.00");
     setEditStaffNote("");
     setMerchandiseIncludesSiteShippingTax(false);
@@ -211,7 +204,6 @@ export function AdminAiEstimateDialog({
         : "0.00"
     );
     setUnitsPerPack("1");
-    setEditConsumerUnitOverrideDollars("");
     setIncludePackPriceInEstimate(true);
     setEditShippingDollars(
       centsToDollarInput(result.estimate.estimatedShippingCents)
@@ -288,19 +280,11 @@ export function AdminAiEstimateDialog({
       9999,
       Math.max(1, Number.parseInt(unitsPerPack.trim(), 10) || 1)
     );
-    const overrideCentsRaw = parseDollarsToCents(
-      editConsumerUnitOverrideDollars
-    );
-    const consumerUnitPriceOverrideCents =
-      editConsumerUnitOverrideDollars.trim() === "" || overrideCentsRaw <= 0
-        ? null
-        : overrideCentsRaw;
 
     const packLine = computePackLineMerchandiseAndServiceCents({
       packPriceCents: packCents,
       packCount,
       unitsPerPack: upp,
-      consumerUnitPriceOverrideCents,
       serviceTiers: merchantEstimateFees?.serviceTiers,
     });
 
@@ -343,14 +327,12 @@ export function AdminAiEstimateDialog({
       includePackPriceInEstimate,
       impliedConsumerUnitCents,
       effectiveConsumerUnitCents,
-      usesUnitOverride: packLine.usesConsumerUnitOverride,
     };
   }, [
     result,
     editPackPriceDollars,
     includePackPriceInEstimate,
     unitsPerPack,
-    editConsumerUnitOverrideDollars,
     quantity,
     editShippingDollars,
     editTaxDollars,
@@ -425,7 +407,6 @@ export function AdminAiEstimateDialog({
           setUnitsPerPack("1");
           setEditPackPriceDollars("0.00");
           setIncludePackPriceInEstimate(true);
-          setEditConsumerUnitOverrideDollars("");
           setEditSavingsDollars("0.00");
           setEditStaffNote("");
           setMerchandiseIncludesSiteShippingTax(false);
@@ -570,10 +551,6 @@ export function AdminAiEstimateDialog({
                 setIncludePackPriceInEstimate={setIncludePackPriceInEstimate}
                 unitsPerPack={unitsPerPack}
                 setUnitsPerPack={setUnitsPerPack}
-                editConsumerUnitOverrideDollars={editConsumerUnitOverrideDollars}
-                setEditConsumerUnitOverrideDollars={
-                  setEditConsumerUnitOverrideDollars
-                }
                 editShippingDollars={editShippingDollars}
                 setEditShippingDollars={setEditShippingDollars}
                 editTaxDollars={editTaxDollars}

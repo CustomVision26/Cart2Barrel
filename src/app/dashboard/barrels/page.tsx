@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 
 import { DashboardBarrelOfferingCard } from "@/components/dashboard/dashboard-barrel-offering-card";
+import { DashboardSpecialFeatureSuitcaseCard } from "@/components/dashboard/dashboard-special-feature-suitcase-card";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -11,7 +12,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { listActiveContainerOfferingsWithImages } from "@/data/container-offerings";
-import { listUserContainerCartWithOfferings } from "@/data/user-container-cart";
+import { listActiveSpecialFeatureSuitcasesForBarrels } from "@/data/special-feature-offers";
+import {
+  listUserContainerCartWithOfferings,
+  sumSpecialSuitcaseCartQuantityFromRows,
+} from "@/data/user-container-cart";
+import type { SpecialFeaturePackagingMode } from "@/lib/validations/special-feature-offer";
 
 export default async function DashboardBarrelsPage() {
   const { userId } = await auth();
@@ -19,14 +25,28 @@ export default async function DashboardBarrelsPage() {
     return null;
   }
 
-  const [catalog, cartRows] = await Promise.all([
+  const [catalog, cartRows, specialSuitcases] = await Promise.all([
     listActiveContainerOfferingsWithImages(),
     listUserContainerCartWithOfferings(userId),
+    listActiveSpecialFeatureSuitcasesForBarrels(),
   ]);
 
   const cartQtyByOffering = new Map(
     cartRows.map((r) => [r.offering.id, r.quantity]),
   );
+
+  const specialOfferingIds = new Set(
+    specialSuitcases
+      .map((s) => s.offering?.id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const specialSuitcaseCartTotal = sumSpecialSuitcaseCartQuantityFromRows(
+    cartRows.map((r) => ({ offeringId: r.offering.id, quantity: r.quantity })),
+    specialOfferingIds,
+  );
+
+  const empty = catalog.length === 0 && specialSuitcases.length === 0;
 
   return (
     <div className="space-y-6">
@@ -48,7 +68,53 @@ export default async function DashboardBarrelsPage() {
         </Link>
       </div>
 
-      {catalog.length === 0 ?
+      {specialSuitcases.length > 0 ?
+        <ul className="grid gap-6 md:grid-cols-2">
+          {specialSuitcases.map(({ offer, offering, images }) => (
+            <li key={`${offer.id}-${offering?.id ?? "outside"}`}>
+              <DashboardSpecialFeatureSuitcaseCard
+                offer={{
+                  id: offer.id,
+                  name: offer.name,
+                  sizeLabel: offer.sizeLabel,
+                  destinationLocation: offer.destinationLocation,
+                  packagingMode: offer.packagingMode as SpecialFeaturePackagingMode,
+                  priceUsdCents: offer.priceUsdCents,
+                  airlineName: offer.airlineName,
+                  travelAt: offer.travelAt,
+                  airlineSecondBagUsdCents: offer.airlineSecondBagUsdCents,
+                  airlineThirdBagUsdCents: offer.airlineThirdBagUsdCents,
+                  airlineFourthBagUsdCents: offer.airlineFourthBagUsdCents,
+                  airlineBagFeeExtraNote: offer.airlineBagFeeExtraNote,
+                  notes: offer.notes,
+                  startsAt: offer.startsAt,
+                  endsAt: offer.endsAt,
+                }}
+                offering={
+                  offering ?
+                    {
+                      id: offering.id,
+                      sizeLabel: offering.sizeLabel,
+                      priceUsdCents: offering.priceUsdCents,
+                    }
+                  : null
+                }
+                images={images.map((im) => ({
+                  id: im.id,
+                  imageUrl: im.imageUrl,
+                  sortIndex: im.sortIndex,
+                }))}
+                cartQuantity={
+                  offering ? (cartQtyByOffering.get(offering.id) ?? null) : null
+                }
+                specialSuitcaseCartTotal={specialSuitcaseCartTotal}
+              />
+            </li>
+          ))}
+        </ul>
+      : null}
+
+      {empty ?
         <Card>
           <CardHeader>
             <CardTitle>No containers listed yet</CardTitle>
@@ -66,7 +132,7 @@ export default async function DashboardBarrelsPage() {
             </Link>
           </CardContent>
         </Card>
-      : (
+      : catalog.length > 0 ?
         <ul className="grid gap-6 md:grid-cols-2">
           {catalog.map(({ offering, images }) => (
             <li key={offering.id}>
@@ -89,7 +155,7 @@ export default async function DashboardBarrelsPage() {
             </li>
           ))}
         </ul>
-      )}
+      : null}
     </div>
   );
 }

@@ -35,7 +35,6 @@ export type AiPackDerivedTotals = {
   includePackPriceInEstimate: boolean;
   impliedConsumerUnitCents: number | null;
   effectiveConsumerUnitCents: number | null;
-  usesUnitOverride: boolean;
 };
 
 type AdminAiEstimateResultFieldsProps = {
@@ -47,8 +46,6 @@ type AdminAiEstimateResultFieldsProps = {
   setIncludePackPriceInEstimate: (v: boolean) => void;
   unitsPerPack: string;
   setUnitsPerPack: (v: string) => void;
-  editConsumerUnitOverrideDollars: string;
-  setEditConsumerUnitOverrideDollars: (v: string) => void;
   editShippingDollars: string;
   setEditShippingDollars: (v: string) => void;
   editTaxDollars: string;
@@ -99,8 +96,6 @@ export function AdminAiEstimateResultFields({
   setIncludePackPriceInEstimate,
   unitsPerPack,
   setUnitsPerPack,
-  editConsumerUnitOverrideDollars,
-  setEditConsumerUnitOverrideDollars,
   editShippingDollars,
   setEditShippingDollars,
   editTaxDollars,
@@ -325,9 +320,9 @@ export function AdminAiEstimateResultFields({
               tier—single item, twin-pack, case, etc. AI often returns per-item cost;
               bump this to the bundle or case price when the site sells that way. Check{" "}
               <span className="font-medium text-foreground">Add to estimate</span> to
-              include this pack price in totals (pack × quantity and implied unit when
-              no consumer unit override). Uncheck to omit pack price from the estimate
-              and rely on consumer unit price if set.
+              include this pack price in totals (pack × quantity; service tiers use
+              pack ÷ consumer units per pack). Uncheck to omit pack price from the
+              estimate.
             </p>
             <div className="relative max-w-xs">
               <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs text-muted-foreground">
@@ -368,56 +363,13 @@ export function AdminAiEstimateResultFields({
             />
           </FieldContent>
         </Field>
-        <Field className="gap-1.5">
-          <FieldLabel htmlFor={`${idPrefix}-consumer-unit-override`} className="text-xs">
-            Consumer unit price on site (optional)
-          </FieldLabel>
-          <FieldContent>
-            <p className="mb-1 text-xs text-muted-foreground">
-              When the listing shows a different{" "}
-              <span className="font-medium text-foreground">single-unit</span> price than
-              pack price ÷ units per pack, enter it here to drive{" "}
-              <span className="font-medium text-foreground">
-                service &amp; handling tiers
-              </span>{" "}
-              only.{" "}
-              <span className="font-medium text-foreground">Merchandise subtotal</span>{" "}
-              stays pack price × quantity (when Add to estimate is checked). Leave blank
-              to tier service using the implied unit from the pack line.
-            </p>
-            <div className="relative max-w-xs">
-              <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs text-muted-foreground">
-                $
-              </span>
-              <Input
-                id={`${idPrefix}-consumer-unit-override`}
-                className="pl-6"
-                inputMode="decimal"
-                placeholder="—"
-                value={editConsumerUnitOverrideDollars}
-                onChange={(e) => setEditConsumerUnitOverrideDollars(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-          </FieldContent>
-        </Field>
-        {derived.impliedConsumerUnitCents != null && !derived.usesUnitOverride ? (
+        {derived.impliedConsumerUnitCents != null ? (
           <p className="text-xs text-muted-foreground">
             Implied per unit (from pack):{" "}
             <span className="font-medium tabular-nums text-foreground">
               {formatUsd(derived.impliedConsumerUnitCents)}
             </span>{" "}
-            (used for service tiers when no unit override)
-          </p>
-        ) : null}
-        {derived.usesUnitOverride ? (
-          <p className="text-xs text-muted-foreground">
-            Consumer unit for service tiers:{" "}
-            <span className="font-medium tabular-nums text-foreground">
-              {formatUsd(derived.effectiveConsumerUnitCents)}
-            </span>{" "}
-            (override; implied from pack would be{" "}
-            {formatUsd(derived.impliedConsumerUnitCents)})
+            (used for service tiers)
           </p>
         ) : null}
       </div>
@@ -431,7 +383,7 @@ export function AdminAiEstimateResultFields({
             <>
               Tiered fee using{" "}
               <span className="font-medium text-foreground">
-                {derived.usesUnitOverride ? "your unit override" : "implied unit from pack"}
+                implied unit from pack
               </span>
               . Total:{" "}
               <span className="font-medium text-foreground">
@@ -441,7 +393,7 @@ export function AdminAiEstimateResultFields({
               {formatUsd(derived.effectiveConsumerUnitCents)} each for tiering).
             </>
           ) : (
-            "Enter pack price (with Add to estimate checked), or set a consumer unit price."
+            "Enter pack price with Add to estimate checked."
           )}
         </p>
       </div>
@@ -503,8 +455,8 @@ export function AdminAiEstimateResultFields({
           <p className="text-xs text-muted-foreground">
             Pack price × pack qty in the total only when{" "}
             <span className="font-medium text-foreground">Add to estimate</span> is
-            checked. Merchandise follows the pack line only; consumer unit price affects
-            service fees only.
+            checked. Merchandise follows the pack line; service tiers use pack ÷
+            consumer units per pack.
           </p>
           <div className="flex justify-between gap-2 border-t border-border pt-2 tabular-nums text-muted-foreground">
             <span>Merchandise subtotal (pack line)</span>

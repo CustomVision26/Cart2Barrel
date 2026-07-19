@@ -117,8 +117,6 @@ export function AdminQuoteHistoryEditDialog({
   const [includePackPriceInEstimate, setIncludePackPriceInEstimate] =
     useState(true);
   const [unitsPerPack, setUnitsPerPack] = useState("1");
-  const [editConsumerUnitOverrideDollars, setEditConsumerUnitOverrideDollars] =
-    useState("");
   const [editShippingDollars, setEditShippingDollars] = useState("0.00");
   const [editTaxDollars, setEditTaxDollars] = useState("0.00");
   const [editSavingsDollars, setEditSavingsDollars] = useState("0.00");
@@ -149,7 +147,6 @@ export function AdminQuoteHistoryEditDialog({
       parseDollarsToCents(packPriceDollarsFromQuoteLine(line)) > 0
     );
     setUnitsPerPack("1");
-    setEditConsumerUnitOverrideDollars("");
     setEditSavingsDollars(savingsDollarsFromQuoteLine(line));
     setEditShippingDollars(centsToDollarInput(line.quote.estimatedShipping));
     setEditTaxDollars(centsToDollarInput(tax));
@@ -175,7 +172,6 @@ export function AdminQuoteHistoryEditDialog({
       setEditPackPriceDollars(centsToDollarInput(result.unitPriceCents));
     }
     setUnitsPerPack("1");
-    setEditConsumerUnitOverrideDollars("");
     setIncludePackPriceInEstimate(true);
     setEditShippingDollars(
       centsToDollarInput(result.estimate.estimatedShippingCents)
@@ -213,19 +209,11 @@ export function AdminQuoteHistoryEditDialog({
       9999,
       Math.max(1, Number.parseInt(unitsPerPack.trim(), 10) || 1)
     );
-    const overrideCentsRaw = parseDollarsToCents(
-      editConsumerUnitOverrideDollars
-    );
-    const consumerUnitPriceOverrideCents =
-      editConsumerUnitOverrideDollars.trim() === "" || overrideCentsRaw <= 0
-        ? null
-        : overrideCentsRaw;
 
     const packLine = computePackLineMerchandiseAndServiceCents({
       packPriceCents: packCents,
       packCount,
       unitsPerPack: upp,
-      consumerUnitPriceOverrideCents,
       serviceTiers: merchantEstimateFees?.serviceTiers,
     });
 
@@ -265,14 +253,12 @@ export function AdminQuoteHistoryEditDialog({
         packLine.effectiveConsumerUnitCents > 0
           ? packLine.effectiveConsumerUnitCents
           : null,
-      usesUnitOverride: packLine.usesConsumerUnitOverride,
     };
   }, [
     result,
     editPackPriceDollars,
     includePackPriceInEstimate,
     unitsPerPack,
-    editConsumerUnitOverrideDollars,
     editCustomerQuantity,
     line?.request.quantity,
     editShippingDollars,
@@ -577,10 +563,6 @@ export function AdminQuoteHistoryEditDialog({
                 setIncludePackPriceInEstimate={setIncludePackPriceInEstimate}
                 unitsPerPack={unitsPerPack}
                 setUnitsPerPack={setUnitsPerPack}
-                editConsumerUnitOverrideDollars={editConsumerUnitOverrideDollars}
-                setEditConsumerUnitOverrideDollars={
-                  setEditConsumerUnitOverrideDollars
-                }
                 editShippingDollars={editShippingDollars}
                 setEditShippingDollars={setEditShippingDollars}
                 editTaxDollars={editTaxDollars}

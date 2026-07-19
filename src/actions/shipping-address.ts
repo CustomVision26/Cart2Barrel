@@ -94,6 +94,7 @@ export async function saveShippingAddressAction(
   revalidatePath("/settings/delivery");
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/shipping");
+  revalidatePath("/dashboard/shipping/profile");
   revalidatePath("/dashboard/shipping/address");
   redirect(resolveShippingAfterSaveRedirect(rawInput));
 }

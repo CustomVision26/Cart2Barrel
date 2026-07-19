@@ -13,7 +13,8 @@ import {
 } from "@/data/profiles";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 
-export default async function DashboardShippingAddressPage() {
+/** Shopper profile contact + shipping label (`/dashboard/shipping/profile`). */
+export default async function DashboardShippingProfilePage() {
   const { userId } = await auth();
   if (!userId) {
     redirect("/login");

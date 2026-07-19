@@ -298,6 +298,23 @@
   html {
     @apply font-sans;
   }
+  /* Native form controls follow theme (helps closed selects / date inputs). */
+  html.dark {
+    color-scheme: dark;
+  }
+  html:not(.dark) {
+    color-scheme: light;
+  }
+  /*
+   * Native <select> dropdown panels on Windows/Edge often use a light system popup
+   * while inheriting light text from the dark theme — options become invisible.
+   * Force high-contrast option rows regardless of page theme.
+   */
+  select option,
+  select optgroup {
+    background-color: #ffffff;
+    color: #111827;
+  }
 }
 
 @keyframes brand-logo-watermark-enter {
@@ -831,4 +848,53 @@
     transform: none;
     transition: none;
   }
+
+  .special-feature-promo-banner__track {
+    animation: none;
+  }
+
+  .special-feature-promo-banner__bg,
+  .special-feature-promo-banner__shine {
+    animation: none;
+  }
+}
+
+/* Timed special offer — scrolling marquee banner */
+@keyframes special-feature-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes special-feature-banner-shimmer {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translateX(-8%);
+  }
+  50% {
+    opacity: 0.75;
+    transform: translateX(8%);
+  }
+}
+
+.special-feature-promo-banner__track {
+  animation: special-feature-marquee 28s linear infinite;
+}
+
+.special-feature-promo-banner__shine {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.22) 45%,
+    transparent 70%
+  );
+  animation: special-feature-banner-shimmer 4.5s ease-in-out infinite;
+}
+
+.special-feature-promo-banner:hover .special-feature-promo-banner__track {
+  animation-play-state: paused;
 }

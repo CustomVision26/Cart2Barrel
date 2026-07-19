@@ -11,16 +11,21 @@ export function buildContainerAliasMap(
   rows: ContainerAliasInput[],
 ): Map<string, string> {
   const sorted = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const counters: Record<ContainerOfferingKind, number> = { barrel: 0, bin: 0 };
+  const counters: Record<ContainerOfferingKind, number> = {
+    barrel: 0,
+    bin: 0,
+    suitcase: 0,
+  };
   const map = new Map<string, string>();
 
   for (const row of sorted) {
     counters[row.kind] += 1;
     const n = counters[row.kind];
-    map.set(
-      row.barrelId,
-      row.kind === "barrel" ? `Barrel ${n}` : `Bin ${n}`,
-    );
+    const label =
+      row.kind === "barrel" ? `Barrel ${n}`
+      : row.kind === "bin" ? `Bin ${n}`
+      : `Suitcase ${n}`;
+    map.set(row.barrelId, label);
   }
 
   return map;
@@ -82,13 +87,15 @@ export function countContainersByKind(
   let binCount = 0;
   for (const b of barrels) {
     if (b.kind === "barrel") barrelCount += 1;
-    else binCount += 1;
+    else if (b.kind === "bin") binCount += 1;
   }
   return { total: barrels.length, barrelCount, binCount };
 }
 
 export function containerKindSortRank(kind: ContainerOfferingKind): number {
-  return kind === "barrel" ? 0 : 1;
+  if (kind === "barrel") return 0;
+  if (kind === "bin") return 1;
+  return 2;
 }
 
 export function aliasSortKey(alias: string, kind: ContainerOfferingKind): number {

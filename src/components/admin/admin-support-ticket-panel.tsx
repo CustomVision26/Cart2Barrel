@@ -11,7 +11,10 @@ import {
   adminUpdateSupportTicketStatusAction,
 } from "@/actions/admin-support-tickets";
 import type { SupportTicketDetail } from "@/data/support-tickets";
-import { SupportTicketComposeForm } from "@/components/support/support-ticket-compose-form";
+import {
+  SupportTicketComposeForm,
+  type SupportTicketComposePayload,
+} from "@/components/support/support-ticket-compose-form";
 import { SupportTicketThread } from "@/components/support/support-ticket-thread";
 import { inputFieldClassName } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,11 +45,12 @@ export function AdminSupportTicketPanel({ ticket }: { ticket: AdminTicketDetail 
   const [status, setStatus] = useState<SupportTicketStatus>(ticket.status);
   const [statusPending, startStatusTransition] = useTransition();
 
-  async function handleReply(payload: { body: string; imageUrls: string[] }) {
+  async function handleReply(payload: SupportTicketComposePayload) {
     const res = await adminReplySupportTicketAction({
       ticketId: ticket.id,
       body: payload.body,
       imageUrls: payload.imageUrls,
+      productLinks: payload.productLinks,
     });
     if (res.ok) {
       toast.success(res.message);

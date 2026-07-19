@@ -11,6 +11,7 @@ import {
   orderContainerItems,
   orderItems,
   orders,
+  containerOfferings,
   type BatchQuoteEstimate,
   type ItemQuote,
   type ItemRequest,
@@ -26,8 +27,10 @@ import {
 import { itemQuoteCoreSelect, itemQuoteCoreSelectPreMerchandiseSavings } from "@/data/item-quotes";
 import { listOutsidePurchaseReturnRequestsByItemRequestIds } from "@/data/outside-purchase-return-requests";
 import { orderListSelect } from "@/data/order-list-select";
-import { outsidePurchaseReturnTransitCheckoutCaption } from "@/lib/outside-purchase-display";
+import { getSpecialFeatureCartPricingByOfferingIds } from "@/data/special-feature-offers";
 import type { ContainerCheckoutLine } from "@/data/user-container-cart";
+import { buildSpecialSuitcaseBaggageAllocation } from "@/data/user-container-cart";
+import { outsidePurchaseReturnTransitCheckoutCaption } from "@/lib/outside-purchase-display";
 import { allocateBundleSubtotalAcrossLineTotalsCents } from "@/lib/batch-cart-allocation";
 import type {
   ContainerPackingFeeBreakdown,
@@ -842,6 +845,8 @@ export function buildStripeLineItemsFromContainerCheckoutLines(
 ): StripeCheckoutPriceDataLine[] {
   return lines.map((line) => {
     const containerSubtotalCents = line.lineTotalCents;
+    const transportationFeeCents = line.transportationFeeCents;
+    const airlineBaggageFeeCents = line.airlineBaggageFeeCents;
     const packagingFeeCents =
       packing ?
         allocateContainerPackingFeeToLineCents({
@@ -861,8 +866,20 @@ export function buildStripeLineItemsFromContainerCheckoutLines(
           packing.rates,
         )
       : 0;
-    const chargeCents = containerSubtotalCents + packagingFeeCents;
+    const chargeCents =
+      containerSubtotalCents +
+      transportationFeeCents +
+      airlineBaggageFeeCents +
+      packagingFeeCents;
     const kindLabel = containerOfferingKindLabel(line.kind);
+    const transportationDetail =
+      transportationFeeCents > 0 ?
+        ` · Transportation ${line.quantity} × ${formatUsd(line.transportationFeeUnitCents)}`
+      : "";
+    const baggageDetail =
+      airlineBaggageFeeCents > 0 && line.airlineBaggageFeeDetail.trim() ?
+        ` · Baggage ${line.airlineBaggageFeeDetail.trim()}${line.airlineName.trim() ? ` (${line.airlineName.trim()})` : ""}`
+      : "";
     const packagingDetail =
       packagingFeeCents > 0 ?
         ` · Packaging ${line.quantity} × ${formatUsd(packagingPerUnitCents)}`
@@ -875,7 +892,7 @@ export function buildStripeLineItemsFromContainerCheckoutLines(
         unit_amount: chargeCents,
         product_data: {
           name: line.name,
-          description: `${kindLabel} · ${line.sizeLabel} · Container ${formatUsd(containerSubtotalCents)}${packagingDetail}`,
+          description: `${kindLabel} · ${line.sizeLabel} · Container ${formatUsd(containerSubtotalCents)}${transportationDetail}${packagingDetail}`,
         },
       },
     };
@@ -917,9 +934,16 @@ export type CartCheckoutContainerSummaryLine = {
   quantity: number;
   unitPriceCents: number;
   containerSubtotalCents: number;
+  transportationFeeUnitCents: number;
+  transportationFeeCents: number;
+  airlineName: string;
+  airlineSecondBagUsdCents: number;
+  airlineThirdBagUsdCents: number;
+  airlineBaggageFeeCents: number;
+  airlineBaggageFeeDetail: string;
   packagingPerUnitCents: number;
   packagingFeeCents: number;
-  /** Container + packaging (matches Stripe line when checkout used merged lines). */
+  /** Container + transportation + packaging (matches Stripe line when checkout used merged lines). */
   lineTotalCents: number;
 };
 
@@ -1141,6 +1165,8 @@ export async function getCartCheckoutOrderSummaryForUser(
   const containerRowsRaw = await db
     .select({
       id: orderContainerItems.id,
+      containerOfferingId: orderContainerItems.containerOfferingId,
+      cartLineAddedAt: orderContainerItems.cartLineAddedAt,
       nameSnapshot: orderContainerItems.nameSnapshot,
       sizeSnapshot: orderContainerItems.sizeSnapshot,
       kindSnapshot: orderContainerItems.kindSnapshot,
@@ -1150,6 +1176,19 @@ export async function getCartCheckoutOrderSummaryForUser(
     })
     .from(orderContainerItems)
     .where(eq(orderContainerItems.orderId, orderId));
+
+  const linkedOfferingIds = containerRowsRaw
+    .map((row) => row.containerOfferingId)
+    .filter((id): id is string => Boolean(id));
+  const linkedOfferings =
+    linkedOfferingIds.length === 0 ?
+      []
+    : await db
+        .select()
+        .from(containerOfferings)
+        .where(inArray(containerOfferings.id, linkedOfferingIds));
+  const transportByOfferingId =
+    await getSpecialFeatureCartPricingByOfferingIds(linkedOfferings);
 
   const { containerPackingRates } = await getMerchantPricingForEstimates(clerkUserId);
   let barrelCount = 0;
@@ -1167,10 +1206,39 @@ export async function getCartCheckoutOrderSummaryForUser(
     containerPackingRates,
   );
 
+  const baggageAllocation = buildSpecialSuitcaseBaggageAllocation(
+    containerRowsRaw
+      .filter((row): row is typeof row & { containerOfferingId: string } =>
+        Boolean(row.containerOfferingId),
+      )
+      .map((row) => ({
+        offeringId: row.containerOfferingId,
+        quantity: row.quantity,
+        addedAt: row.cartLineAddedAt ?? row.id,
+      })),
+    transportByOfferingId,
+  );
+
   const containerLines: CartCheckoutContainerSummaryLine[] = containerRowsRaw.map(
     (row) => {
       const kind = parseContainerOfferingKind(row.kindSnapshot);
       const containerSubtotalCents = row.lineTotalCents;
+      const transportationFeeUnitCents =
+        row.containerOfferingId ?
+          (transportByOfferingId.get(row.containerOfferingId)
+            ?.transportationFeeUnitCents ?? 0)
+        : 0;
+      const transportationFeeCents = transportationFeeUnitCents * row.quantity;
+      const pricing =
+        row.containerOfferingId ?
+          transportByOfferingId.get(row.containerOfferingId)
+        : undefined;
+      const baggage =
+        row.containerOfferingId ?
+          baggageAllocation.get(row.containerOfferingId)
+        : undefined;
+      const airlineBaggageFeeCents = baggage?.feeCents ?? 0;
+      const airlineBaggageFeeDetail = baggage?.detail ?? "";
       const packagingPerUnitCents = containerPackingPerUnitCentsFromBreakdown(
         kind,
         containerPacking,
@@ -1190,9 +1258,20 @@ export async function getCartCheckoutOrderSummaryForUser(
         quantity: row.quantity,
         unitPriceCents: row.unitPriceCents,
         containerSubtotalCents,
+        transportationFeeUnitCents,
+        transportationFeeCents,
+        airlineName: pricing?.airlineName ?? "",
+        airlineSecondBagUsdCents: pricing?.airlineSecondBagUsdCents ?? 0,
+        airlineThirdBagUsdCents: pricing?.airlineThirdBagUsdCents ?? 0,
+        airlineBaggageFeeCents,
+        airlineBaggageFeeDetail,
         packagingPerUnitCents,
         packagingFeeCents,
-        lineTotalCents: containerSubtotalCents + packagingFeeCents,
+        lineTotalCents:
+          containerSubtotalCents +
+          transportationFeeCents +
+          airlineBaggageFeeCents +
+          packagingFeeCents,
       };
     },
   );

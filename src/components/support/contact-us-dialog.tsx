@@ -8,7 +8,10 @@ import { toast } from "sonner";
 
 import { createSupportTicketAction } from "@/actions/support-tickets";
 import type { HubContactPublic } from "@/data/hub-contact-settings";
-import { SupportTicketComposeForm } from "@/components/support/support-ticket-compose-form";
+import {
+  SupportTicketComposeForm,
+  type SupportTicketComposePayload,
+} from "@/components/support/support-ticket-compose-form";
 import {
   Dialog,
   DialogContent,
@@ -32,16 +35,14 @@ export function ContactUsDialog({
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmitMessage(payload: {
-    body: string;
-    imageUrls: string[];
-  }) {
+  async function handleSubmitMessage(payload: SupportTicketComposePayload) {
     setSubmitting(true);
     try {
       const res = await createSupportTicketAction({
         subject,
         body: payload.body,
         imageUrls: payload.imageUrls,
+        productLinks: payload.productLinks,
       });
       if (res.ok) {
         toast.success(res.message);

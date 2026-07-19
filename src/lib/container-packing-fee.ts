@@ -97,11 +97,12 @@ export function computeContainerPackingFeeBreakdown(
 
 /** Per-container packaging rate for one kind from cart totals (single vs multi tier). */
 export function containerPackingPerUnitCentsForKind(
-  kind: "barrel" | "bin",
+  kind: "barrel" | "bin" | "suitcase",
   barrelCount: number,
   binCount: number,
   rates: ContainerPackingRates,
 ): number {
+  if (kind === "suitcase") return 0;
   const r = withDefaultContainerPackingRates(rates);
   if (kind === "barrel") {
     const n = Math.max(0, Math.floor(barrelCount));
@@ -117,9 +118,10 @@ export function containerPackingPerUnitCentsForKind(
 
 /** Per-container packaging rate implied by the cart-wide breakdown (single vs multi tier). */
 export function containerPackingPerUnitCentsFromBreakdown(
-  kind: "barrel" | "bin",
+  kind: "barrel" | "bin" | "suitcase",
   breakdown: ContainerPackingFeeBreakdown,
 ): number {
+  if (kind === "suitcase") return 0;
   if (kind === "barrel") {
     if (breakdown.barrelCount <= 0) return 0;
     return Math.round(breakdown.barrelPackingFeeCents / breakdown.barrelCount);
@@ -130,14 +132,14 @@ export function containerPackingPerUnitCentsFromBreakdown(
 
 /** Line packaging = per-unit rate × line quantity (e.g. 2 barrels × $160 = $320). */
 export function allocateContainerPackingFeeToLineCents(params: {
-  kind: "barrel" | "bin";
+  kind: "barrel" | "bin" | "suitcase";
   quantity: number;
   barrelCount: number;
   binCount: number;
   rates: ContainerPackingRates;
 }): number {
   const qty = Math.max(0, Math.floor(params.quantity));
-  if (qty === 0) return 0;
+  if (qty === 0 || params.kind === "suitcase") return 0;
 
   const perUnit = containerPackingPerUnitCentsForKind(
     params.kind,

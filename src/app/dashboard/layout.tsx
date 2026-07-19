@@ -7,9 +7,11 @@ import { UserNotificationsBell } from "@/components/dashboard/user-notifications
 import { UserDocumentationDialogLazy } from "@/components/documentation/user-documentation-dialog-lazy";
 import { ContactUsDialogLazy } from "@/components/support/contact-us-dialog-lazy";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
 import { loadHubContactSettings } from "@/data/hub-contact-settings";
 import { loadUserStatusNotificationSummary } from "@/data/user-status-update-events";
 import { getClerkSessionGate } from "@/lib/clerk-session";
+import { Suspense } from "react";
 
 export default async function DashboardLayout({
   children,
@@ -87,6 +89,9 @@ export default async function DashboardLayout({
               }}
             />
           </div>
+          <Suspense fallback={null}>
+            <SpecialFeaturePromoBanner className="mb-6" />
+          </Suspense>
           {children}
         </div>
       </div>

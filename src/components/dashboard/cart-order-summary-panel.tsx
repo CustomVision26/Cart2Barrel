@@ -137,7 +137,7 @@ export function CartOrderSummaryPanel({
               <>
                 Processing preview uses your{" "}
                 <Link
-                  href="/dashboard/shipping/address"
+                  href="/dashboard/shipping/profile"
                   className="font-medium text-primary underline-offset-4 hover:underline"
                 >
                   shipping address

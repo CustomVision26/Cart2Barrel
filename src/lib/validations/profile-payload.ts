@@ -32,6 +32,7 @@ export type AfterSaveRedirect =
   | "/"
   | "/settings/delivery"
   | "/dashboard/settings"
+  | "/dashboard/shipping/profile"
   | "/dashboard/shipping/address"
   | "/onboarding";
 
@@ -41,12 +42,18 @@ function isAllowedAfterSaveRedirect(v: string): v is AfterSaveRedirect {
     v === "/settings/delivery" ||
     v === "/dashboard/settings" ||
     v === DASHBOARD_SHIPPING_ROUTES.address ||
+    v === "/dashboard/shipping/profile" ||
+    v === "/dashboard/shipping/address" ||
     v === "/onboarding"
   );
 }
 
 function normalizeAfterSaveRedirect(path: AfterSaveRedirect): AfterSaveRedirect {
-  if (path === "/dashboard/settings" || path === "/settings/delivery") {
+  if (
+    path === "/dashboard/settings" ||
+    path === "/settings/delivery" ||
+    path === "/dashboard/shipping/address"
+  ) {
     return DASHBOARD_SHIPPING_ROUTES.address;
   }
   return path;

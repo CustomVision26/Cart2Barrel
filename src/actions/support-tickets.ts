@@ -42,6 +42,7 @@ export async function createSupportTicketAction(
       subject: parsed.data.subject,
       body: parsed.data.body,
       imageUrls: parsed.data.imageUrls,
+      productLinks: parsed.data.productLinks,
       isFromStaff: false,
       senderClerkUserId: gate.userId,
     });
@@ -95,6 +96,7 @@ export async function userReplySupportTicketAction(
       isFromStaff: false,
       body: parsed.data.body,
       imageUrls: parsed.data.imageUrls,
+      productLinks: parsed.data.productLinks,
       nextStatus: "awaiting_staff",
     });
 
@@ -106,7 +108,11 @@ export async function userReplySupportTicketAction(
       customerClerkUserId: gate.userId,
       ticketId: parsed.data.ticketId,
       subject: result.subject,
-      preview: parsed.data.body || "[Image attachment]",
+      preview:
+        parsed.data.body ||
+        (parsed.data.imageUrls.length > 0
+          ? "[Image attachment]"
+          : "[Product link]"),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not send reply.";

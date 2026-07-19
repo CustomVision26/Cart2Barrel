@@ -11,6 +11,7 @@ import { getDb } from "@/db";
 import {
   containerOfferingImages,
   containerOfferings,
+  specialFeatureOffers,
 } from "@/db/schema";
 import {
   adminCreateContainerOfferingSchema,
@@ -18,6 +19,10 @@ import {
   priceUsdStringToCents,
 } from "@/lib/validations/container-offering";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import {
+  ensureContainerSpecialFeatureLink,
+  resolveSpecialFeatureForContainer,
+} from "@/lib/special-feature-container-link";
 import {
   isRetailerReceiptImageMime,
   retailerReceiptExtensionForMime,
@@ -43,24 +48,223 @@ export async function adminCreateContainerOfferingAction(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { name, sizeLabel, kind, priceUsd } = parsed.data;
+  const { name, sizeLabel, kind, priceUsd, specialFeatureOffer, specialFeatureOfferId, suitcaseSizes } =
+    parsed.data;
   const cents = priceUsdStringToCents(priceUsd);
   if (cents < 50) {
     return { ok: false, message: "Price must be at least $0.50 USD (Stripe minimum per line)." };
   }
 
   const db = getDb();
-  await db.insert(containerOfferings).values({
-    name: name.trim(),
-    sizeLabel: sizeLabel.trim(),
-    kind,
-    priceUsdCents: cents,
-    isActive: true,
-  });
+
+  if (specialFeatureOffer) {
+    const specialId = specialFeatureOfferId!.trim();
+    const [special] = await db
+      .select({ id: specialFeatureOffers.id })
+      .from(specialFeatureOffers)
+      .where(eq(specialFeatureOffers.id, specialId))
+      .limit(1);
+
+    if (!special) {
+      return { ok: false, message: "Special feature not found." };
+    }
+
+    for (const size of suitcaseSizes) {
+      await db.insert(containerOfferings).values({
+        name: name.trim(),
+        sizeLabel: size,
+        kind: "suitcase",
+        priceUsdCents: cents,
+        // Unpublished until admin clicks Publish on the catalog card.
+        isActive: false,
+        specialFeatureOfferId: specialId,
+      });
+    }
+  } else {
+    await db.insert(containerOfferings).values({
+      name: name.trim(),
+      sizeLabel: (sizeLabel ?? "").trim(),
+      kind,
+      priceUsdCents: cents,
+      isActive: true,
+    });
+  }
 
   revalidatePath("/admin/barrels");
   revalidatePath("/admin/overview");
   revalidatePath("/dashboard/barrels");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+const adminPublishSpecialFeatureContainerSchema = z.object({
+  offeringId: z.string().uuid(),
+});
+
+/**
+ * Publishes a special-feature suitcase so shoppers see it on `/dashboard/barrels`
+ * and in the sitewide promo banner for the offer window.
+ */
+export async function adminPublishSpecialFeatureContainerAction(
+  input: unknown,
+): Promise<AdminContainerOfferingMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+  const parsed = adminPublishSpecialFeatureContainerSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const db = getDb();
+  const [offering] = await db
+    .select()
+    .from(containerOfferings)
+    .where(eq(containerOfferings.id, parsed.data.offeringId))
+    .limit(1);
+
+  if (!offering) {
+    return { ok: false, message: "Container not found." };
+  }
+  if (offering.kind !== "suitcase") {
+    return { ok: false, message: "Only special-feature suitcases can be published this way." };
+  }
+
+  let offer;
+  if (offering.specialFeatureOfferId) {
+    [offer] = await db
+      .select()
+      .from(specialFeatureOffers)
+      .where(eq(specialFeatureOffers.id, offering.specialFeatureOfferId))
+      .limit(1);
+  } else {
+    const allSpecials = await db.select().from(specialFeatureOffers);
+    offer =
+      resolveSpecialFeatureForContainer(
+        {
+          id: offering.id,
+          name: offering.name,
+          kind: offering.kind,
+          specialFeatureOfferId: offering.specialFeatureOfferId,
+        },
+        allSpecials,
+      ) ?? null;
+  }
+
+  if (!offer) {
+    return {
+      ok: false,
+      message:
+        "No special feature linked to this suitcase. Link it under Special features first.",
+    };
+  }
+
+  const now = new Date();
+  const startsAt = now.toISOString();
+  const endDate = new Date(offer.endsAt);
+  const endsAt =
+    Number.isNaN(endDate.getTime()) || endDate.getTime() <= now.getTime() ?
+      new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    : offer.endsAt;
+
+  if (offering.specialFeatureOfferId !== offer.id) {
+    await ensureContainerSpecialFeatureLink(db, offering.id, offer.id);
+  }
+
+  await db
+    .update(containerOfferings)
+    .set({ isActive: true, specialFeatureOfferId: offer.id })
+    .where(eq(containerOfferings.id, offering.id));
+
+  await db
+    .update(specialFeatureOffers)
+    .set({
+      isActive: true,
+      startsAt,
+      endsAt,
+    })
+    .where(eq(specialFeatureOffers.id, offer.id));
+
+  revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
+  revalidatePath("/dashboard/barrels");
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+/**
+ * Hides a published special-feature suitcase from `/dashboard/barrels` without
+ * deleting the catalog entry or photos.
+ */
+export async function adminUnpublishSpecialFeatureContainerAction(
+  input: unknown,
+): Promise<AdminContainerOfferingMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+  const parsed = adminPublishSpecialFeatureContainerSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const db = getDb();
+  const [offering] = await db
+    .select()
+    .from(containerOfferings)
+    .where(eq(containerOfferings.id, parsed.data.offeringId))
+    .limit(1);
+
+  if (!offering) {
+    return { ok: false, message: "Container not found." };
+  }
+  if (offering.kind !== "suitcase") {
+    return {
+      ok: false,
+      message: "Only special-feature suitcases can be removed from live this way.",
+    };
+  }
+
+  let offer;
+  if (offering.specialFeatureOfferId) {
+    [offer] = await db
+      .select()
+      .from(specialFeatureOffers)
+      .where(eq(specialFeatureOffers.id, offering.specialFeatureOfferId))
+      .limit(1);
+  } else {
+    const allSpecials = await db.select().from(specialFeatureOffers);
+    offer =
+      resolveSpecialFeatureForContainer(
+        {
+          id: offering.id,
+          name: offering.name,
+          kind: offering.kind,
+          specialFeatureOfferId: offering.specialFeatureOfferId,
+        },
+        allSpecials,
+      ) ?? null;
+  }
+
+  if (!offer) {
+    return {
+      ok: false,
+      message: "No special feature linked to this suitcase.",
+    };
+  }
+
+  await db
+    .update(containerOfferings)
+    .set({ isActive: false })
+    .where(eq(containerOfferings.id, offering.id));
+
+  revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
+  revalidatePath("/dashboard/barrels");
+  revalidatePath("/");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 

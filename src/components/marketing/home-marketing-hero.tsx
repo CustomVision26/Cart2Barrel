@@ -1,10 +1,12 @@
 import Image from "next/image";
+import type { ReactNode } from "react";
 import { Sparkles } from "lucide-react";
 
 /** Static hero shown immediately on the marketing home page (no data dependencies). */
-export function HomeMarketingHero() {
+export function HomeMarketingHero({ promo }: { promo?: ReactNode }) {
   return (
     <section className="space-y-6">
+      {promo}
       <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
         <Sparkles className="size-3.5 text-amber-500" aria-hidden />
         Shop &amp; Ship From US stores · Delivered to Caribbean and The World

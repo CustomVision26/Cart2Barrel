@@ -25,7 +25,9 @@ import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings
 import {
   listUserContainerCartWithOfferings,
   sumContainerCartQuantitiesByKind,
+  buildSpecialSuitcaseBaggageAllocation,
 } from "@/data/user-container-cart";
+import { getSpecialFeatureCartPricingByOfferingIds } from "@/data/special-feature-offers";
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
 import {
   listUserOutboundShippingCartLines,
@@ -78,10 +80,28 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
 
   const assembled = await assembleApprovedCartForUser(userId);
   const containerCartRows = await listUserContainerCartWithOfferings(userId);
-  const containerSubtotalCents = containerCartRows.reduce(
-    (s, r) => s + r.offering.priceUsdCents * r.quantity,
-    0,
+  const specialPricingByOfferingId = await getSpecialFeatureCartPricingByOfferingIds(
+    containerCartRows.map((r) => r.offering),
   );
+  const specialBaggageAllocation = buildSpecialSuitcaseBaggageAllocation(
+    containerCartRows.map((r) => ({
+      offeringId: r.offering.id,
+      quantity: r.quantity,
+      addedAt: r.addedAt,
+    })),
+    specialPricingByOfferingId,
+  );
+  const containerSubtotalCents = containerCartRows.reduce((s, r) => {
+    const pricing = specialPricingByOfferingId.get(r.offering.id);
+    const transportUnit = pricing?.transportationFeeUnitCents ?? 0;
+    const baggage = specialBaggageAllocation.get(r.offering.id)?.feeCents ?? 0;
+    return (
+      s +
+      r.offering.priceUsdCents * r.quantity +
+      transportUnit * r.quantity +
+      baggage
+    );
+  }, 0);
   const { containerPackingRates } = await getMerchantPricingForEstimates(userId);
   const { barrelCount, binCount } =
     sumContainerCartQuantitiesByKind(containerCartRows);
@@ -313,7 +333,10 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                 count={containerCartRows.length}
               >
                 <ul className="divide-y divide-border" role="list">
-                  {containerCartRows.map(({ offering, quantity, images }) => (
+                  {containerCartRows.map(({ offering, quantity, images }) => {
+                    const pricing = specialPricingByOfferingId.get(offering.id);
+                    const baggage = specialBaggageAllocation.get(offering.id);
+                    return (
                     <CartContainerLineItem
                       key={offering.id}
                       offeringId={offering.id}
@@ -322,12 +345,19 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                       sizeLabel={offering.sizeLabel}
                       quantity={quantity}
                       unitPriceCents={offering.priceUsdCents}
+                      transportationFeeUnitCents={
+                        pricing?.transportationFeeUnitCents ?? 0
+                      }
+                      airlineName={pricing?.airlineName ?? ""}
+                      airlineBaggageFeeCents={baggage?.feeCents ?? 0}
+                      airlineBaggageFeeDetail={baggage?.detail ?? ""}
                       imageUrl={images[0]?.imageUrl ?? null}
                       barrelCount={barrelCount}
                       binCount={binCount}
                       containerPackingRates={containerPackingRates}
                     />
-                  ))}
+                    );
+                  })}
                 </ul>
               </CartSection>
             : null}

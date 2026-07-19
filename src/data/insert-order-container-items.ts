@@ -19,6 +19,7 @@ export async function insertOrderContainerItems(
         nameSnapshot: l.name,
         sizeSnapshot: l.sizeLabel,
         kindSnapshot: l.kind,
+        cartLineAddedAt: l.cartLineAddedAt,
       })),
     );
     return { ok: true };

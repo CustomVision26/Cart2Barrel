@@ -8,7 +8,10 @@ import { toast } from "sonner";
 
 import { userReplySupportTicketAction } from "@/actions/support-tickets";
 import type { SupportTicketDetail } from "@/data/support-tickets";
-import { SupportTicketComposeForm } from "@/components/support/support-ticket-compose-form";
+import {
+  SupportTicketComposeForm,
+  type SupportTicketComposePayload,
+} from "@/components/support/support-ticket-compose-form";
 import { SupportTicketThread } from "@/components/support/support-ticket-thread";
 import { DASHBOARD_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 
@@ -16,11 +19,12 @@ export function UserSupportTicketPanel({ ticket }: { ticket: SupportTicketDetail
   const router = useRouter();
   const [reply, setReply] = useState("");
 
-  async function handleReply(payload: { body: string; imageUrls: string[] }) {
+  async function handleReply(payload: SupportTicketComposePayload) {
     const res = await userReplySupportTicketAction({
       ticketId: ticket.id,
       body: payload.body,
       imageUrls: payload.imageUrls,
+      productLinks: payload.productLinks,
     });
     if (res.ok) {
       toast.success(res.message);

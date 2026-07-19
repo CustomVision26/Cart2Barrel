@@ -19,6 +19,7 @@ export function AdminCustomerFilter({ users }: AdminCustomerFilterProps) {
   const { clerkUserId, selectedUser, setCustomer } = useAdminCustomerFilter();
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -38,29 +39,73 @@ export function AdminCustomerFilter({ users }: AdminCustomerFilterProps) {
   }, [users, query]);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    function onDocPointerDown(e: PointerEvent) {
       if (!rootRef.current?.contains(e.target as Node)) {
         setOpen(false);
       }
     }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("pointerdown", onDocPointerDown);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown);
   }, []);
+
+  function clearCustomer(e?: React.SyntheticEvent) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setCustomer(null);
+    setQuery("");
+    setOpen(false);
+  }
+
+  function openList() {
+    setOpen(true);
+    inputRef.current?.focus();
+  }
 
   return (
     <div className="relative min-w-0 max-w-md flex-1" ref={rootRef}>
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
-        <label htmlFor={`${listId}-search`} className="sr-only">
-          Search customer by name or email
-        </label>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        {selectedUser ?
+          <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-2 py-1">
+            <button
+              type="button"
+              className="min-w-0 flex-1 truncate text-left text-sm text-foreground"
+              onClick={openList}
+              title={`${selectedUser.displayName}${selectedUser.email ? ` · ${selectedUser.email}` : ""}`}
+            >
+              <span className="font-medium">{selectedUser.displayName}</span>
+              {selectedUser.email ?
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {selectedUser.email}
+                </span>
+              : null}
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="z-10 size-7 shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label="Clear customer filter"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={clearCustomer}
+            >
+              <XIcon className="size-4" />
+            </Button>
+          </div>
+        : null}
+
         <div className="relative flex min-w-0 flex-1 items-center">
           <SearchIcon
-            className="pointer-events-none absolute left-2.5 size-4 text-muted-foreground"
+            className="pointer-events-none absolute left-2.5 z-[1] size-4 text-muted-foreground"
             aria-hidden
           />
           <Input
+            ref={inputRef}
             id={`${listId}-search`}
-            type="search"
+            type="text"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -68,11 +113,9 @@ export function AdminCustomerFilter({ users }: AdminCustomerFilterProps) {
             }}
             onFocus={() => setOpen(true)}
             placeholder={
-              selectedUser ?
-                `${selectedUser.displayName}${selectedUser.email ? ` · ${selectedUser.email}` : ""}`
-              : "Filter by name or email…"
+              selectedUser ? "Change customer…" : "Filter by name or email…"
             }
-            className="h-9 pl-8 pr-8"
+            className="h-9 pr-9 pl-8"
             autoComplete="off"
             role="combobox"
             aria-expanded={open}
@@ -82,21 +125,28 @@ export function AdminCustomerFilter({ users }: AdminCustomerFilterProps) {
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="absolute right-0 size-8 shrink-0"
-            aria-label={clerkUserId ? "Clear customer filter" : "Open customer list"}
-            onClick={() => {
-              if (clerkUserId) {
-                setCustomer(null);
-                setQuery("");
-              } else {
-                setOpen((v) => !v);
+            size="icon-sm"
+            className="absolute right-1 z-10 size-7 shrink-0"
+            aria-label={open ? "Close customer list" : "Open customer list"}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen((v) => !v);
+              if (!open) {
+                inputRef.current?.focus();
               }
             }}
           >
-            {clerkUserId ?
-              <XIcon className="size-4" />
-            : <ChevronDownIcon className="size-4" />}
+            <ChevronDownIcon
+              className={cn(
+                "size-4 transition-transform",
+                open && "rotate-180",
+              )}
+            />
           </Button>
         </div>
       </div>
@@ -116,11 +166,7 @@ export function AdminCustomerFilter({ users }: AdminCustomerFilterProps) {
                 "w-full px-3 py-2 text-left text-sm hover:bg-accent",
                 !clerkUserId && "bg-muted font-medium",
               )}
-              onClick={() => {
-                setCustomer(null);
-                setQuery("");
-                setOpen(false);
-              }}
+              onClick={() => clearCustomer()}
             >
               All customers
             </button>

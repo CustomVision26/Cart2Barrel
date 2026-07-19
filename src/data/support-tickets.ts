@@ -15,6 +15,7 @@ import {
 import {
   normalizeSupportTicketImageUrls,
 } from "@/lib/support-ticket-images";
+import { normalizeSupportTicketProductLinks } from "@/lib/support-ticket-product-links";
 
 export type SupportTicketSummary = {
   id: string;
@@ -32,6 +33,7 @@ export type SupportTicketMessageRow = {
   isFromStaff: boolean;
   body: string;
   imageUrls: string[];
+  productLinks: string[];
   createdAt: string;
 };
 
@@ -53,7 +55,11 @@ export type AdminSupportUserGroup = {
   tickets: SupportTicketSummary[];
 };
 
-function messagePreview(body: string, imageUrls?: string[] | null): string {
+function messagePreview(
+  body: string,
+  imageUrls?: string[] | null,
+  productLinks?: string[] | null,
+): string {
   const trimmed = body.trim();
   if (trimmed.length > 0) {
     if (trimmed.length <= 120) return trimmed;
@@ -63,7 +69,23 @@ function messagePreview(body: string, imageUrls?: string[] | null): string {
   if (images.length > 0) {
     return images.length === 1 ? "[Image attachment]" : `[${images.length} images]`;
   }
+  const links = normalizeSupportTicketProductLinks(productLinks);
+  if (links.length > 0) {
+    return links.length === 1 ? "[Product link]" : `[${links.length} product links]`;
+  }
   return "";
+}
+
+function mapMessageRow(m: SupportTicketMessage): SupportTicketMessageRow {
+  return {
+    id: m.id,
+    senderClerkUserId: m.senderClerkUserId,
+    isFromStaff: m.isFromStaff,
+    body: m.body,
+    imageUrls: normalizeSupportTicketImageUrls(m.imageUrls),
+    productLinks: normalizeSupportTicketProductLinks(m.productLinks),
+    createdAt: m.createdAt,
+  };
 }
 
 function generateTicketNumber(): string {
@@ -102,7 +124,9 @@ function toSummary(
     status: ticket.status,
     lastMessageAt: ticket.lastMessageAt,
     createdAt: ticket.createdAt,
-    messagePreview: latest ? messagePreview(latest.body, latest.imageUrls) : null,
+    messagePreview: latest
+      ? messagePreview(latest.body, latest.imageUrls, latest.productLinks)
+      : null,
     unreadFromStaff:
       latest != null &&
       latest.isFromStaff &&
@@ -157,14 +181,7 @@ export async function loadUserSupportTicketDetail(params: {
     status: ticket.status,
     lastMessageAt: ticket.lastMessageAt,
     createdAt: ticket.createdAt,
-    messages: messages.map((m) => ({
-      id: m.id,
-      senderClerkUserId: m.senderClerkUserId,
-      isFromStaff: m.isFromStaff,
-      body: m.body,
-      imageUrls: normalizeSupportTicketImageUrls(m.imageUrls),
-      createdAt: m.createdAt,
-    })),
+    messages: messages.map(mapMessageRow),
   };
 }
 
@@ -251,14 +268,7 @@ export async function loadAdminSupportTicketDetail(
     createdAt: row.ticket.createdAt,
     customerDisplayName: row.displayName?.trim() || "Customer",
     customerEmail: row.email,
-    messages: messages.map((m) => ({
-      id: m.id,
-      senderClerkUserId: m.senderClerkUserId,
-      isFromStaff: m.isFromStaff,
-      body: m.body,
-      imageUrls: normalizeSupportTicketImageUrls(m.imageUrls),
-      createdAt: m.createdAt,
-    })),
+    messages: messages.map(mapMessageRow),
   };
 }
 
@@ -280,12 +290,16 @@ export async function insertSupportTicketWithMessage(params: {
   isFromStaff: boolean;
   senderClerkUserId: string;
   imageUrls?: string[];
+  productLinks?: string[];
+  /** Defaults to awaiting_staff (customer-opened). Staff-opened chats use awaiting_customer. */
+  status?: SupportTicketStatus;
 }): Promise<{ ticketId: string; messageId: string }> {
   const db = getDb();
   const now = new Date().toISOString();
   const imageUrls = normalizeSupportTicketImageUrls(params.imageUrls);
+  const productLinks = normalizeSupportTicketProductLinks(params.productLinks);
 
-  const preview = messagePreview(params.body, imageUrls);
+  const preview = messagePreview(params.body, imageUrls, productLinks);
 
   const [ticket] = await db
     .insert(supportTickets)
@@ -293,7 +307,7 @@ export async function insertSupportTicketWithMessage(params: {
       ticketNumber: generateTicketNumber(),
       clerkUserId: params.clerkUserId,
       subject: params.subject,
-      status: "awaiting_staff",
+      status: params.status ?? "awaiting_staff",
       lastMessageAt: now,
       lastMessagePreview: preview,
       createdAt: now,
@@ -313,6 +327,7 @@ export async function insertSupportTicketWithMessage(params: {
       isFromStaff: params.isFromStaff,
       body: params.body,
       imageUrls: imageUrls.length > 0 ? imageUrls : null,
+      productLinks: productLinks.length > 0 ? productLinks : null,
     })
     .returning({ id: supportTicketMessages.id });
 
@@ -329,11 +344,13 @@ export async function appendSupportTicketMessage(params: {
   isFromStaff: boolean;
   body: string;
   imageUrls?: string[];
+  productLinks?: string[];
   nextStatus?: SupportTicketStatus;
 }): Promise<{ messageId: string; clerkUserId: string; subject: string }> {
   const db = getDb();
   const now = new Date().toISOString();
   const imageUrls = normalizeSupportTicketImageUrls(params.imageUrls);
+  const productLinks = normalizeSupportTicketProductLinks(params.productLinks);
 
   const [ticket] = await db
     .select()
@@ -345,7 +362,7 @@ export async function appendSupportTicketMessage(params: {
     throw new Error("Ticket not found.");
   }
 
-  const preview = messagePreview(params.body, imageUrls);
+  const preview = messagePreview(params.body, imageUrls, productLinks);
 
   const [message] = await db
     .insert(supportTicketMessages)
@@ -355,6 +372,7 @@ export async function appendSupportTicketMessage(params: {
       isFromStaff: params.isFromStaff,
       body: params.body,
       imageUrls: imageUrls.length > 0 ? imageUrls : null,
+      productLinks: productLinks.length > 0 ? productLinks : null,
     })
     .returning({ id: supportTicketMessages.id });
 

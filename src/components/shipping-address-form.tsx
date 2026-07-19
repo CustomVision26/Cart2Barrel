@@ -21,7 +21,7 @@ import {
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Input, nativeSelectFieldClassName } from "@/components/ui/input";
 import type { Address } from "@/db/schema";
 import { JAMAICA_PARISHES } from "@/lib/parishes";
 import {
@@ -29,15 +29,8 @@ import {
   SHIPPING_COUNTRIES,
 } from "@/lib/shipping-countries";
 import type { AfterSaveRedirect } from "@/lib/validations/shipping-address-payload";
-import { cn } from "@/lib/utils";
 
 const initialState: SaveShippingAddressState = {};
-
-const selectClassName = cn(
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none md:text-sm",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-  "dark:bg-input/30",
-);
 
 type ShippingAddressFormProps = {
   address: Address | undefined;
@@ -83,7 +76,7 @@ export function ShippingAddressForm({
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                   aria-invalid={!!state.fieldErrors?.country}
-                  className={selectClassName}
+                  className={nativeSelectFieldClassName}
                 >
                   <option value="">Select country</option>
                   {SHIPPING_COUNTRIES.map((c) => (
@@ -146,7 +139,7 @@ export function ShippingAddressForm({
                     key="parish-select"
                     defaultValue={address?.parish ?? ""}
                     aria-invalid={!!state.fieldErrors?.stateOrRegion}
-                    className={selectClassName}
+                    className={nativeSelectFieldClassName}
                   >
                     <option value="">Select parish</option>
                     {JAMAICA_PARISHES.map((p) => (

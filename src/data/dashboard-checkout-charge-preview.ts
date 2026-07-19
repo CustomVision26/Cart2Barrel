@@ -1,10 +1,11 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
   batchQuoteEstimates,
   batchQuoteSessionLines,
   batchQuoteSessions,
+  containerOfferings,
   itemQuotes,
   itemRequestLineSnapshots,
   itemRequests,
@@ -20,6 +21,8 @@ export type CheckoutChargeSummaryRow = {
   emphasis?: boolean;
 };
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
+import { getSpecialFeatureCartPricingByOfferingIds } from "@/data/special-feature-offers";
+import { buildSpecialSuitcaseBaggageAllocation } from "@/data/user-container-cart";
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -255,6 +258,9 @@ async function loadContainerChargeRows(
   const db = getDb();
   const containerRows = await db
     .select({
+      id: orderContainerItems.id,
+      containerOfferingId: orderContainerItems.containerOfferingId,
+      cartLineAddedAt: orderContainerItems.cartLineAddedAt,
       nameSnapshot: orderContainerItems.nameSnapshot,
       sizeSnapshot: orderContainerItems.sizeSnapshot,
       kindSnapshot: orderContainerItems.kindSnapshot,
@@ -265,6 +271,19 @@ async function loadContainerChargeRows(
     .where(eq(orderContainerItems.orderId, orderId));
 
   if (containerRows.length === 0) return [];
+
+  const linkedOfferingIds = containerRows
+    .map((row) => row.containerOfferingId)
+    .filter((id): id is string => Boolean(id));
+  const linkedOfferings =
+    linkedOfferingIds.length === 0 ?
+      []
+    : await db
+        .select()
+        .from(containerOfferings)
+        .where(inArray(containerOfferings.id, linkedOfferingIds));
+  const transportByOfferingId =
+    await getSpecialFeatureCartPricingByOfferingIds(linkedOfferings);
 
   const { containerPackingRates } = await getMerchantPricingForEstimates(clerkUserId);
   let barrelCount = 0;
@@ -283,10 +302,35 @@ async function loadContainerChargeRows(
     containerPackingRates,
   );
 
+  const baggageAllocation = buildSpecialSuitcaseBaggageAllocation(
+    containerRows
+      .filter((row): row is typeof row & { containerOfferingId: string } =>
+        Boolean(row.containerOfferingId),
+      )
+      .map((row) => ({
+        offeringId: row.containerOfferingId,
+        quantity: row.quantity,
+        addedAt: row.cartLineAddedAt ?? row.id,
+      })),
+    transportByOfferingId,
+  );
+
   const rows: CheckoutChargeSummaryRow[] = [];
   for (const row of containerRows) {
     const kind = parseContainerOfferingKind(row.kindSnapshot);
     const containerSubtotal = row.lineTotalCents;
+    const pricing =
+      row.containerOfferingId ?
+        transportByOfferingId.get(row.containerOfferingId)
+      : undefined;
+    const transportationFeeUnitCents = pricing?.transportationFeeUnitCents ?? 0;
+    const transportationFeeCents = transportationFeeUnitCents * row.quantity;
+    const baggage =
+      row.containerOfferingId ?
+        baggageAllocation.get(row.containerOfferingId)
+      : undefined;
+    const airlineBaggageFeeCents = baggage?.feeCents ?? 0;
+    const baggageDetail = baggage?.detail ?? "";
     const packagingFee = allocateContainerPackingFeeToLineCents({
       kind,
       quantity: row.quantity,
@@ -295,10 +339,18 @@ async function loadContainerChargeRows(
       rates: containerPackingRates,
     });
     const perUnit = containerPackingPerUnitCentsFromBreakdown(kind, packing);
-    const charge = containerSubtotal + packagingFee;
+    const charge = containerSubtotal + transportationFeeCents + airlineBaggageFeeCents + packagingFee;
     rows.push({
       label: row.nameSnapshot,
       detail: `${containerOfferingKindLabel(kind)} · ${row.sizeSnapshot} · qty ${row.quantity}${
+        transportationFeeCents > 0 ?
+          ` · transportation ${formatUsd(transportationFeeUnitCents)}/unit`
+        : ""
+      }${
+        airlineBaggageFeeCents > 0 ?
+          ` · baggage ${baggageDetail}${pricing?.airlineName.trim() ? ` (${pricing.airlineName.trim()})` : ""}`
+        : ""
+      }${
         packagingFee > 0 ?
           ` · packaging ${formatUsd(perUnit)}/unit`
         : ""

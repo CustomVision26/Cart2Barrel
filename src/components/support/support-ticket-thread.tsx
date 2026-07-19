@@ -4,6 +4,7 @@ import { formatUserStatusRelativeTime } from "@/lib/user-status-updates";
 import { cn } from "@/lib/utils";
 import type { SupportTicketMessageRow } from "@/data/support-tickets";
 import { SupportTicketMessageImages } from "@/components/support/support-ticket-message-images";
+import { SupportTicketMessageProductLinks } from "@/components/support/support-ticket-message-product-links";
 import { RelativeTimeLabel } from "@/components/ui/relative-time-label";
 
 type SupportTicketThreadProps = {
@@ -54,6 +55,9 @@ export function SupportTicketThread({
                 <p className="whitespace-pre-wrap break-words">{message.body}</p>
               : null}
               <SupportTicketMessageImages imageUrls={message.imageUrls} />
+              <SupportTicketMessageProductLinks
+                productLinks={message.productLinks}
+              />
               <RelativeTimeLabel
                 iso={message.createdAt}
                 className="mt-1 block text-[11px] text-muted-foreground"

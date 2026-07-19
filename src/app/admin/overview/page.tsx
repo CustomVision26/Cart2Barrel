@@ -2,6 +2,7 @@ import { AdminFinancePanel } from "../_components/admin-finance-panel";
 import { AdminOverviewCustomerPackagesSection } from "../_components/admin-overview-customer-packages-section";
 import { AdminOverviewSetFeeNRateSection } from "../_components/admin-overview-set-fee-n-rate-section";
 import { AdminOverviewShippingContainersSection } from "../_components/admin-overview-shipping-containers-section";
+import { AdminOverviewSpecialFeaturesSection } from "../_components/admin-overview-special-features-section";
 import { AdminOverviewSubnav } from "../_components/admin-overview-subnav";
 import { AdminRefundQueueBanner } from "@/components/admin/admin-refund-queue-banner";
 import { parseFinanceDateRange } from "@/data/admin-finance-summary";
@@ -39,6 +40,7 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
     : tabRaw === "set-fee-n-rate" ? "set-fee-n-rate"
     : tabRaw === "customer-packages" ? "customer-packages"
     : tabRaw === "shipping-containers" ? "shipping-containers"
+    : tabRaw === "special-features" ? "special-features"
     : "summary";
   const range = parseFinanceDateRange({
     from: first(rawSp.from)?.trim(),
@@ -70,6 +72,8 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
         />
       ) : tab === "shipping-containers" ? (
         <AdminOverviewShippingContainersSection />
+      ) : tab === "special-features" ? (
+        <AdminOverviewSpecialFeaturesSection />
       ) : (
         <div className="space-y-4">
           <AdminRefundQueueBanner />
@@ -79,9 +83,11 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
             <span className="font-medium text-foreground">Fees &amp; rates</span> for service
             tiers,{" "}
             <span className="font-medium text-foreground">Customer packages</span> for general
-            packing/container fees and per-shopper overrides, and{" "}
+            packing/container fees and per-shopper overrides,{" "}
             <span className="font-medium text-foreground">Shipping containers</span> for the barrel
-            catalog on <span className="font-medium text-foreground">/dashboard/barrels</span>.
+            catalog on <span className="font-medium text-foreground">/dashboard/barrels</span>, and{" "}
+            <span className="font-medium text-foreground">Special features</span> for timed
+            suitcase offers.
           </p>
         </div>
       )}

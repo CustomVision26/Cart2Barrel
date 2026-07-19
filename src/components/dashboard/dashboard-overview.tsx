@@ -319,7 +319,7 @@ export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }
                 size="sm"
                 className="w-full justify-start text-muted-foreground"
                 nativeButton={false}
-                render={<Link href="/dashboard/shipping/address" />}
+                render={<Link href="/dashboard/shipping/profile" />}
               >
                 Manage delivery address
               </Button>

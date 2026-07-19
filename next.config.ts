@@ -29,6 +29,11 @@ const nextConfig: NextConfig = {
       { source: "/sign-in/:path*", destination: "/login/:path*", permanent: true },
       { source: "/sign-up", destination: "/signup", permanent: true },
       { source: "/sign-up/:path*", destination: "/signup/:path*", permanent: true },
+      {
+        source: "/dashboard/shipping/address",
+        destination: "/dashboard/shipping/profile",
+        permanent: false,
+      },
     ];
   },
 };

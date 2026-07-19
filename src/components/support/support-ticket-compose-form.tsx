@@ -1,24 +1,34 @@
 "use client";
 
-import { ImagePlusIcon, Loader2Icon, XIcon } from "lucide-react";
+import { ImagePlusIcon, LinkIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { uploadSupportTicketImagesAction } from "@/actions/upload-support-ticket-images";
 import { Button } from "@/components/ui/button";
-import { inputFieldClassName } from "@/components/ui/input";
+import { Input, inputFieldClassName } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { revokeBlobPreviewUrl } from "@/lib/staged-product-image";
 import {
   SUPPORT_TICKET_IMAGES_MAX,
   SUPPORT_TICKET_UPLOAD_BATCH_MAX,
 } from "@/lib/support-ticket-images";
+import {
+  normalizeSupportTicketProductLinks,
+  SUPPORT_TICKET_PRODUCT_LINKS_MAX,
+} from "@/lib/support-ticket-product-links";
 import { cn } from "@/lib/utils";
 
 type PendingImage = {
   id: string;
   file: File;
   previewUrl: string;
+};
+
+export type SupportTicketComposePayload = {
+  body: string;
+  imageUrls: string[];
+  productLinks: string[];
 };
 
 type SupportTicketComposeFormProps = {
@@ -32,11 +42,19 @@ type SupportTicketComposeFormProps = {
   ticketId?: string | null;
   body: string;
   onBodyChange: (value: string) => void;
-  onSubmit: (payload: { body: string; imageUrls: string[] }) => Promise<void>;
+  onSubmit: (payload: SupportTicketComposePayload) => Promise<void>;
 };
 
-function canSubmit(body: string, pendingImages: PendingImage[]): boolean {
-  return body.trim().length > 0 || pendingImages.length > 0;
+function canSubmit(
+  body: string,
+  pendingImages: PendingImage[],
+  productLinks: string[],
+): boolean {
+  return (
+    body.trim().length > 0 ||
+    pendingImages.length > 0 ||
+    productLinks.length > 0
+  );
 }
 
 export function SupportTicketComposeForm({
@@ -52,8 +70,11 @@ export function SupportTicketComposeForm({
   onSubmit,
 }: SupportTicketComposeFormProps) {
   const inputId = useId();
+  const linkInputId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [productLinks, setProductLinks] = useState<string[]>([]);
+  const [linkDraft, setLinkDraft] = useState("");
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -112,6 +133,27 @@ export function SupportTicketComposeForm({
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  function addProductLink() {
+    if (disabled || pending) return;
+    const next = normalizeSupportTicketProductLinks([...productLinks, linkDraft]);
+    if (next.length === productLinks.length) {
+      toast.error("Enter a valid http(s) product URL.");
+      return;
+    }
+    if (next.length > SUPPORT_TICKET_PRODUCT_LINKS_MAX) {
+      toast.error(
+        `Each message can include up to ${SUPPORT_TICKET_PRODUCT_LINKS_MAX} product links.`,
+      );
+      return;
+    }
+    setProductLinks(next);
+    setLinkDraft("");
+  }
+
+  function removeProductLink(url: string) {
+    setProductLinks((current) => current.filter((link) => link !== url));
+  }
+
   async function uploadPendingImages(): Promise<string[] | null> {
     if (pendingImages.length === 0) return [];
 
@@ -131,19 +173,26 @@ export function SupportTicketComposeForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit(body, pendingImages) || disabled || pending) return;
+    if (!canSubmit(body, pendingImages, productLinks) || disabled || pending) return;
 
     startTransition(async () => {
       const imageUrls = await uploadPendingImages();
       if (imageUrls == null) return;
 
-      await onSubmit({ body: body.trim(), imageUrls });
+      await onSubmit({
+        body: body.trim(),
+        imageUrls,
+        productLinks,
+      });
       onBodyChange("");
       clearPendingImages();
+      setProductLinks([]);
+      setLinkDraft("");
     });
   }
 
-  const submitDisabled = disabled || pending || !canSubmit(body, pendingImages);
+  const submitDisabled =
+    disabled || pending || !canSubmit(body, pendingImages, productLinks);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
@@ -182,6 +231,71 @@ export function SupportTicketComposeForm({
         </ul>
       ) : null}
 
+      {productLinks.length > 0 ? (
+        <ul className="space-y-1.5">
+          {productLinks.map((url) => (
+            <li
+              key={url}
+              className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2 py-1.5 text-xs"
+            >
+              <LinkIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-foreground">{url}</span>
+              <button
+                type="button"
+                onClick={() => removeProductLink(url)}
+                disabled={pending}
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Remove product link"
+              >
+                <XIcon className="size-3.5" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="space-y-2">
+        <Label htmlFor={linkInputId} className="text-xs text-muted-foreground">
+          Product link
+        </Label>
+        <div className="flex flex-wrap gap-2">
+          <Input
+            id={linkInputId}
+            type="url"
+            value={linkDraft}
+            onChange={(e) => setLinkDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addProductLink();
+              }
+            }}
+            placeholder="https://…"
+            disabled={
+              disabled ||
+              pending ||
+              productLinks.length >= SUPPORT_TICKET_PRODUCT_LINKS_MAX
+            }
+            className="min-w-[12rem] flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={
+              disabled ||
+              pending ||
+              !linkDraft.trim() ||
+              productLinks.length >= SUPPORT_TICKET_PRODUCT_LINKS_MAX
+            }
+            onClick={addProductLink}
+          >
+            <PlusIcon className="size-4" aria-hidden />
+            Add link
+          </Button>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <input
           id={inputId}
@@ -211,7 +325,8 @@ export function SupportTicketComposeForm({
           {pending ? pendingLabel : submitLabel}
         </Button>
         <p className="text-xs text-muted-foreground">
-          JPEG, PNG, WebP, or GIF · up to {SUPPORT_TICKET_IMAGES_MAX} per message
+          Images up to {SUPPORT_TICKET_IMAGES_MAX} · product links up to{" "}
+          {SUPPORT_TICKET_PRODUCT_LINKS_MAX}
         </p>
       </div>
     </form>

@@ -201,7 +201,10 @@ export async function getCustomerPricingPackage(
   }
 }
 
-async function listProfilesForAdminPickerUncached(): Promise<AdminProfilePickerRow[]> {
+type AdminProfilePickerDbRow = Omit<AdminProfilePickerRow, "accountKind">;
+
+/** DB-only profile rows (no Clerk existence check). Safe to cache briefly. */
+async function listProfilesForAdminPickerFromDb(): Promise<AdminProfilePickerDbRow[]> {
   const db = getDb();
   try {
     const rows = await db
@@ -218,7 +221,7 @@ async function listProfilesForAdminPickerUncached(): Promise<AdminProfilePickerR
       )
       .orderBy(desc(profiles.updatedAt), asc(profiles.fullName));
 
-    const mapped = rows.map((r) => {
+    return rows.map((r) => {
       const name = r.fullName?.trim();
       const email = r.email?.trim() || null;
       const displayName = name || email || r.clerkUserId;
@@ -229,8 +232,6 @@ async function listProfilesForAdminPickerUncached(): Promise<AdminProfilePickerR
         hasCustomPackage: Boolean(r.packageUserId),
       };
     });
-    const active = await filterProfilesToActiveClerkUsers(mapped);
-    return attachAccountKinds(active);
   } catch {
     const rows = await db
       .select({
@@ -241,7 +242,7 @@ async function listProfilesForAdminPickerUncached(): Promise<AdminProfilePickerR
       .from(profiles)
       .orderBy(desc(profiles.updatedAt), asc(profiles.fullName));
 
-    const mapped = rows.map((r) => {
+    return rows.map((r) => {
       const name = r.fullName?.trim();
       const email = r.email?.trim() || null;
       return {
@@ -251,18 +252,49 @@ async function listProfilesForAdminPickerUncached(): Promise<AdminProfilePickerR
         hasCustomPackage: false,
       };
     });
-    const active = await filterProfilesToActiveClerkUsers(mapped);
-    return attachAccountKinds(active);
   }
 }
 
-/** Profiles for admin customer-package picker (newest activity first). Cached 5 min. */
+async function listProfilesForAdminPickerUncached(): Promise<AdminProfilePickerRow[]> {
+  const dbRows = await listProfilesForAdminPickerFromDb();
+  const active = await filterProfilesToActiveClerkUsers(dbRows);
+  return attachAccountKinds(active);
+}
+
+/**
+ * Profiles for admin customer picker.
+ * DB rows are cached briefly; Clerk existence filtering always runs so deleted
+ * accounts (e.g. after Clerk account deletion) disappear immediately.
+ *
+ * In development, skip live Clerk filtering so admin pages and HMR refresh stay
+ * responsive (Clerk batch lookups can take 10–30s and cause "Failed to fetch").
+ */
 export async function listProfilesForAdminPicker(): Promise<AdminProfilePickerRow[]> {
-  return unstable_cache(
-    listProfilesForAdminPickerUncached,
-    ["admin-profile-picker"],
-    { revalidate: 300, tags: ["admin-profile-picker"] },
-  )();
+  try {
+    const dbRows = await unstable_cache(
+      listProfilesForAdminPickerFromDb,
+      ["admin-profile-picker-db"],
+      { revalidate: 60, tags: ["admin-profile-picker"] },
+    )();
+
+    if (process.env.NODE_ENV === "development") {
+      return dbRows.map((row) => ({ ...row, accountKind: "customer" as const }));
+    }
+
+    const active = await filterProfilesToActiveClerkUsers(dbRows);
+    return attachAccountKinds(active);
+  } catch (error) {
+    console.warn(
+      "[Cart2Barrel] listProfilesForAdminPicker failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    try {
+      const dbRows = await listProfilesForAdminPickerFromDb();
+      return dbRows.map((row) => ({ ...row, accountKind: "customer" as const }));
+    } catch {
+      return [];
+    }
+  }
 }
 
 async function attachAccountKinds(

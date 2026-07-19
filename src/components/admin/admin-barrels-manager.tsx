@@ -10,6 +10,8 @@ import {
   adminDeleteContainerOfferingAction,
   adminDeleteContainerOfferingImageAction,
   adminMoveContainerOfferingImageAction,
+  adminPublishSpecialFeatureContainerAction,
+  adminUnpublishSpecialFeatureContainerAction,
   adminUpdateContainerOfferingAction,
   adminUploadContainerOfferingImagesAction,
 } from "@/actions/admin-container-offerings";
@@ -25,15 +27,23 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { formatUsd } from "@/lib/admin-markup";
+import type { SpecialFeatureContainerFormRef } from "@/data/special-feature-offers";
 import {
   containerOfferingKindLabel,
   type ContainerOfferingKind,
+  type SuitcaseSizeOption,
 } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
 
 const barrelsFieldSelectClassName = cn(
   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
 );
+
+const SUITCASE_SIZE_OPTIONS: SuitcaseSizeOption[] = [
+  'Small 20"',
+  'Medium 24"',
+  'Large 28"',
+];
 
 export type AdminSerializableOffering = {
   id: string;
@@ -42,6 +52,9 @@ export type AdminSerializableOffering = {
   kind: ContainerOfferingKind;
   priceUsdCents: number;
   isActive: boolean;
+  specialFeatureOfferId?: string | null;
+  linkedSpecialFeatureOfferId?: string | null;
+  specialFeaturePublished?: boolean;
 };
 
 export type AdminSerializableImage = {
@@ -52,17 +65,70 @@ export type AdminSerializableImage = {
 
 type AdminBarrelsManagerProps = {
   offerings: { offering: AdminSerializableOffering; images: AdminSerializableImage[] }[];
+  specialFeatures: SpecialFeatureContainerFormRef[];
 };
+
+function specialFeatureStatusClassName(
+  status: SpecialFeatureContainerFormRef["status"],
+): string {
+  if (status === "Live") {
+    return "border-primary/40 bg-primary/15 text-primary";
+  }
+  if (status === "Draft") {
+    return "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300";
+  }
+  return "border-border/80 bg-muted text-muted-foreground";
+}
 
 function centsToUsdInput(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
+export function AdminBarrelsManager({
+  offerings,
+  specialFeatures,
+}: AdminBarrelsManagerProps) {
   const router = useRouter();
   const [catalogOpen, setCatalogOpen] = useState(true);
   const [pending, startTransition] = useTransition();
   const createFormRef = useRef<HTMLFormElement>(null);
+  const [specialFeatureOffer, setSpecialFeatureOffer] = useState(false);
+  const [suitcaseSizes, setSuitcaseSizes] = useState<
+    Record<SuitcaseSizeOption, boolean>
+  >({
+    'Small 20"': true,
+    'Medium 24"': true,
+    'Large 28"': true,
+  });
+  const [selectedSpecialId, setSelectedSpecialId] = useState<string | null>(
+    specialFeatures[0]?.id ?? null,
+  );
+
+  const selectedSpecial =
+    specialFeatures.find((special) => special.id === selectedSpecialId) ??
+    specialFeatures[0] ??
+    null;
+
+  useEffect(() => {
+    if (!specialFeatureOffer) {
+      setSelectedSpecialId(null);
+      return;
+    }
+    if (specialFeatures.length === 0) {
+      setSelectedSpecialId(null);
+      return;
+    }
+    setSelectedSpecialId((current) => {
+      if (current && specialFeatures.some((special) => special.id === current)) {
+        return current;
+      }
+      return specialFeatures[0]?.id ?? null;
+    });
+  }, [specialFeatureOffer, specialFeatures]);
+
+  function toggleSuitcaseSize(size: SuitcaseSizeOption) {
+    setSuitcaseSizes((prev) => ({ ...prev, [size]: !prev[size] }));
+  }
 
   return (
     <div className="space-y-8">
@@ -70,8 +136,9 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
         <CardHeader>
           <CardTitle className="text-lg">New container</CardTitle>
           <CardDescription>
-            Add a name, type (barrel or bin), size label, and price. Upload one or more photos
-            after the container is created.
+            {specialFeatureOffer ?
+              "Link suitcase SKU(s) to an existing special, pick sizes and price, then Publish from the catalog card."
+            : "Add a name, type (barrel or bin), size label, and price. Upload one or more photos after the container is created."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -79,44 +146,191 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
             ref={createFormRef}
             className="grid gap-4 sm:grid-cols-2"
             action={(fd) => {
+              const wasSpecial = specialFeatureOffer;
+              const selectedSizes = SUITCASE_SIZE_OPTIONS.filter(
+                (s) => suitcaseSizes[s],
+              );
               startTransition(async () => {
                 const res = await adminCreateContainerOfferingAction({
                   name: String(fd.get("name") ?? ""),
-                  sizeLabel: String(fd.get("sizeLabel") ?? ""),
-                  kind: String(fd.get("kind") ?? "barrel"),
+                  sizeLabel: wasSpecial ?
+                    selectedSizes[0] ?? 'Medium 24"'
+                  : String(fd.get("sizeLabel") ?? ""),
+                  kind: wasSpecial ? "suitcase" : String(fd.get("kind") ?? "barrel"),
                   priceUsd: String(fd.get("priceUsd") ?? ""),
+                  specialFeatureOffer: wasSpecial,
+                  specialFeatureOfferId: wasSpecial ? selectedSpecialId ?? undefined : undefined,
+                  suitcaseSizes: wasSpecial ? selectedSizes : [],
                 });
                 if (!res.ok) {
                   toast.error(res.message);
                   return;
                 }
                 createFormRef.current?.reset();
-                toast.success("Container created.");
+                setSpecialFeatureOffer(false);
+                setSuitcaseSizes({
+                  'Small 20"': true,
+                  'Medium 24"': true,
+                  'Large 28"': true,
+                });
+                toast.success(
+                  wasSpecial ?
+                    "Suitcase container(s) created. Use Publish on the catalog card to show shoppers."
+                  : "Container created.",
+                );
                 router.refresh();
               });
             }}
           >
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="new-name">Name</Label>
-              <Input id="new-name" name="name" required placeholder="e.g. Standard barrel" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-size">Size</Label>
-              <Input id="new-size" name="sizeLabel" required placeholder='e.g. 55 gal' />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-kind">Type</Label>
-              <select
-                id="new-kind"
-                name="kind"
-                required
-                defaultValue="barrel"
-                className={barrelsFieldSelectClassName}
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <input
+                type="checkbox"
+                id="new-special-feature"
+                checked={specialFeatureOffer}
+                onChange={(e) => setSpecialFeatureOffer(e.target.checked)}
+                className="size-4 rounded border-border accent-primary"
+              />
+              <Label
+                htmlFor="new-special-feature"
+                className="text-sm font-normal"
               >
-                <option value="barrel">Barrel</option>
-                <option value="bin">Bin</option>
-              </select>
+                Special feature offer
+              </Label>
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor={specialFeatureOffer ? "new-special-name" : "new-name"}>
+                Name
+              </Label>
+              {specialFeatureOffer ?
+                specialFeatures.length === 0 ?
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    No draft or live special yet. Create one under{" "}
+                    <a
+                      href="/admin/overview?tab=special-features"
+                      className="font-medium underline underline-offset-4"
+                    >
+                      Special features
+                    </a>{" "}
+                    first.
+                  </p>
+                : <>
+                    {specialFeatures.length > 1 ?
+                      <select
+                        id="new-special-select"
+                        value={selectedSpecialId ?? ""}
+                        onChange={(e) => setSelectedSpecialId(e.target.value)}
+                        className={barrelsFieldSelectClassName}
+                      >
+                        {specialFeatures.map((special) => (
+                          <option key={special.id} value={special.id}>
+                            {special.name} ({special.status})
+                          </option>
+                        ))}
+                      </select>
+                    : null}
+                    <div
+                      id="new-special-name"
+                      className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2.5"
+                    >
+                      <span className="text-sm font-medium text-foreground">
+                        {selectedSpecial?.name}
+                      </span>
+                      {selectedSpecial ?
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-xs font-medium",
+                            specialFeatureStatusClassName(selectedSpecial.status),
+                          )}
+                        >
+                          {selectedSpecial.status}
+                        </span>
+                      : null}
+                    </div>
+                    <input
+                      type="hidden"
+                      name="name"
+                      value={selectedSpecial?.name ?? ""}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Uses the special from{" "}
+                      <span className="font-medium text-foreground">
+                        Special features
+                      </span>
+                      . Listed transportation fee:{" "}
+                      {selectedSpecial ?
+                        formatUsd(selectedSpecial.priceUsdCents)
+                      : "—"}
+                    </p>
+                  </>
+              : <Input
+                  id="new-name"
+                  name="name"
+                  required
+                  placeholder="e.g. Standard barrel"
+                />
+              }
+            </div>
+            {specialFeatureOffer ?
+              <>
+                <div className="space-y-2">
+                  <Label>Size</Label>
+                  <div className="flex flex-col gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2.5">
+                    {SUITCASE_SIZE_OPTIONS.map((size) => (
+                      <label
+                        key={size}
+                        className="flex cursor-pointer items-center gap-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={suitcaseSizes[size]}
+                          onChange={() => toggleSuitcaseSize(size)}
+                          className="size-4 rounded border-border accent-primary"
+                        />
+                        {size}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-kind">Type</Label>
+                  <select
+                    id="new-kind"
+                    name="kind"
+                    required
+                    value="suitcase"
+                    disabled
+                    className={barrelsFieldSelectClassName}
+                  >
+                    <option value="suitcase">Suitcase</option>
+                  </select>
+                  <input type="hidden" name="kind" value="suitcase" />
+                </div>
+              </>
+            : <>
+                <div className="space-y-2">
+                  <Label htmlFor="new-size">Size</Label>
+                  <Input
+                    id="new-size"
+                    name="sizeLabel"
+                    required
+                    placeholder="e.g. 55 gal"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-kind">Type</Label>
+                  <select
+                    id="new-kind"
+                    name="kind"
+                    required
+                    defaultValue="barrel"
+                    className={barrelsFieldSelectClassName}
+                  >
+                    <option value="barrel">Barrel</option>
+                    <option value="bin">Bin</option>
+                  </select>
+                </div>
+              </>
+            }
             <div className="space-y-2">
               <Label htmlFor="new-price">Price (USD)</Label>
               <Input
@@ -128,8 +342,18 @@ export function AdminBarrelsManager({ offerings }: AdminBarrelsManagerProps) {
               />
             </div>
             <div className="flex items-end sm:col-span-2">
-              <Button type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Create container"}
+              <Button
+                type="submit"
+                disabled={
+                  pending ||
+                  (specialFeatureOffer && specialFeatures.length === 0)
+                }
+              >
+                {pending ?
+                  "Saving…"
+                : specialFeatureOffer ?
+                  "Create suitcase container(s)"
+                : "Create container"}
               </Button>
             </div>
           </form>
@@ -195,9 +419,16 @@ function AdminOfferingRow({
   onRefresh: () => void;
 }) {
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [unpublishOpen, setUnpublishOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
   const disabled = disabledAll || pending;
+  const isSpecialFeature =
+    offering.kind === "suitcase" &&
+    Boolean(offering.specialFeatureOfferId ?? offering.linkedSpecialFeatureOfferId);
+  const specialWindowLive = Boolean(offering.specialFeaturePublished);
+  const isPublished = offering.isActive;
+  const isShopperVisible = offering.isActive && specialWindowLive;
 
   const [name, setName] = useState(offering.name);
   const [sizeLabel, setSizeLabel] = useState(offering.sizeLabel);
@@ -231,6 +462,11 @@ function AdminOfferingRow({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {isSpecialFeature ?
+              <span className="rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+                Special feature
+              </span>
+            : null}
             <span
               className={cn(
                 "rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground",
@@ -241,12 +477,20 @@ function AdminOfferingRow({
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-xs font-medium",
-                isActive ?
+                isPublished || (isActive && !isSpecialFeature) ?
                   "bg-emerald-500/15 text-emerald-200"
                 : "bg-muted text-muted-foreground",
               )}
             >
-              {isActive ? "Active" : "Hidden"}
+              {isSpecialFeature ?
+                isPublished ?
+                  isShopperVisible ?
+                    "Published"
+                  : "Live SKU"
+                : "Draft"
+              : isActive ?
+                "Active"
+              : "Hidden"}
             </span>
           </div>
         </div>
@@ -301,10 +545,16 @@ function AdminOfferingRow({
               onChange={(e) =>
                 setKind(e.target.value as ContainerOfferingKind)
               }
+              disabled={isSpecialFeature}
               className={barrelsFieldSelectClassName}
             >
-              <option value="barrel">Barrel</option>
-              <option value="bin">Bin</option>
+              {isSpecialFeature ?
+                <option value="suitcase">Suitcase</option>
+              : <>
+                  <option value="barrel">Barrel</option>
+                  <option value="bin">Bin</option>
+                </>
+              }
             </select>
           </div>
           <div className="space-y-2">
@@ -317,22 +567,71 @@ function AdminOfferingRow({
               inputMode="decimal"
             />
           </div>
-          <div className="flex items-center gap-2 sm:col-span-2">
-            <input
-              type="checkbox"
-              id={`active-${offering.id}`}
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="size-4 rounded border-border accent-primary"
-            />
-            <Label htmlFor={`active-${offering.id}`} className="text-sm font-normal">
-              Visible on shopper catalog
-            </Label>
-          </div>
+          {!isSpecialFeature ?
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <input
+                type="checkbox"
+                id={`active-${offering.id}`}
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="size-4 rounded border-border accent-primary"
+              />
+              <Label htmlFor={`active-${offering.id}`} className="text-sm font-normal">
+                Visible on shopper catalog
+              </Label>
+            </div>
+          : (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Each special suitcase SKU is published separately. Click Publish to show this size on{" "}
+              <span className="font-medium text-foreground">/dashboard/barrels</span>.
+              {isShopperVisible ?
+                " This SKU is visible to shoppers."
+              : isPublished && !specialWindowLive ?
+                " This SKU is marked live; the promo window is not active yet."
+              : isPublished ?
+                " This SKU is live; shoppers will see it when the special promo is active."
+              : specialWindowLive ?
+                " The promo is live — click Publish to show this SKU."
+              : null}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
             <Button type="submit" size="sm" disabled={disabled}>
               Save changes
             </Button>
+            {isSpecialFeature && !offering.isActive ?
+              <Button
+                type="button"
+                size="sm"
+                disabled={disabled}
+                onClick={() => {
+                  startTransition(async () => {
+                    const res = await adminPublishSpecialFeatureContainerAction({
+                      offeringId: offering.id,
+                    });
+                    if (!res.ok) {
+                      toast.error(res.message);
+                      return;
+                    }
+                    toast.success("Published — shoppers can see this suitcase now.");
+                    onRefresh();
+                  });
+                }}
+              >
+                {pending ? "Publishing…" : "Publish"}
+              </Button>
+            : null}
+            {isSpecialFeature && offering.isActive ?
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={disabled}
+                onClick={() => setUnpublishOpen(true)}
+              >
+                Remove from live
+              </Button>
+            : null}
             <Button
               type="button"
               size="sm"
@@ -345,6 +644,29 @@ function AdminOfferingRow({
             </Button>
           </div>
         </form>
+
+        <AdminConfirmDialog
+          open={unpublishOpen}
+          onOpenChange={setUnpublishOpen}
+          title="Remove this suitcase from live?"
+          description="Shoppers will no longer see this special suitcase on /dashboard/barrels. The catalog entry and photos are kept — use Publish to show it again."
+          confirmLabel="Remove from live"
+          pending={pending}
+          onConfirm={() => {
+            startTransition(async () => {
+              const res = await adminUnpublishSpecialFeatureContainerAction({
+                offeringId: offering.id,
+              });
+              if (!res.ok) {
+                toast.error(res.message);
+                return;
+              }
+              toast.success("Removed from live — hidden from shoppers.");
+              setUnpublishOpen(false);
+              onRefresh();
+            });
+          }}
+        />
 
         <AdminConfirmDialog
           open={removeOpen}

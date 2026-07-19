@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { containerOfferings, userContainerCartLines } from "@/db/schema";
+import { sumUserSpecialSuitcaseCartQuantity } from "@/data/user-container-cart";
+import { SPECIAL_FEATURE_SUITCASE_MAX_QUANTITY } from "@/lib/special-feature-bag-fees";
 import { userContainerCartMutationSchema } from "@/lib/validations/container-offering";
 
 export type UserContainerCartActionState =
@@ -28,7 +30,12 @@ export async function setUserContainerCartQuantityAction(
 
   const db = getDb();
   const [offering] = await db
-    .select({ id: containerOfferings.id })
+    .select({
+      id: containerOfferings.id,
+      kind: containerOfferings.kind,
+      name: containerOfferings.name,
+      specialFeatureOfferId: containerOfferings.specialFeatureOfferId,
+    })
     .from(containerOfferings)
     .where(
       and(
@@ -40,6 +47,39 @@ export async function setUserContainerCartQuantityAction(
 
   if (!offering) {
     return { ok: false, message: "That container is not available." };
+  }
+
+  if (offering.kind === "suitcase") {
+    const { listCurrentlyActiveSpecialFeatureOffers } = await import(
+      "@/data/special-feature-offers"
+    );
+    const active = await listCurrentlyActiveSpecialFeatureOffers();
+    const linkedSpecial = active.find(
+      (o) =>
+        o.packagingMode === "in_app" &&
+        (o.containerOfferingId === offeringId ||
+          (offering.specialFeatureOfferId != null &&
+            o.id === offering.specialFeatureOfferId) ||
+          o.name.trim() === offering.name.trim()),
+    );
+    if (!linkedSpecial) {
+      return {
+        ok: false,
+        message: "That suitcase special is not available right now.",
+      };
+    }
+
+    const nextTotal = await sumUserSpecialSuitcaseCartQuantity(userId, {
+      setOfferingId: offeringId,
+      setQuantity: quantity,
+      extraOfferingsForPricing: [offering],
+    });
+    if (nextTotal > SPECIAL_FEATURE_SUITCASE_MAX_QUANTITY) {
+      return {
+        ok: false,
+        message: `Special suitcases are limited to ${SPECIAL_FEATURE_SUITCASE_MAX_QUANTITY} total per offer (courier 2nd and 3rd bag capacity).`,
+      };
+    }
   }
 
   await db
@@ -56,7 +96,6 @@ export async function setUserContainerCartQuantityAction(
       ],
       set: {
         quantity: sql`excluded.quantity`,
-        updatedAt: sql`now()`,
       },
     });
 

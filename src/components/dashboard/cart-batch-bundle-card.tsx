@@ -100,14 +100,18 @@ export function CartBatchBundleCard(props: CartBatchBundleCardProps) {
                   {props.batchNumber}
                 </span>
               </div>
-              <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{props.siteKey}</span>
-                <span className="mx-1.5 text-border">·</span>
-                {props.lines.length}{" "}
-                {props.lines.length === 1 ? "product" : "products"}
-                <span className="mx-1.5 text-border">·</span>
-                Combined staff estimate
-              </p>
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-foreground">{props.siteKey}</p>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5">
+                    {props.lines.length}{" "}
+                    {props.lines.length === 1 ? "product" : "products"}
+                  </span>
+                  <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5">
+                    Combined staff estimate
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">

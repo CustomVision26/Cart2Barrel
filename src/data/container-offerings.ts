@@ -1,19 +1,32 @@
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
   containerOfferingImages,
   containerOfferings,
+  specialFeatureOffers,
   type ContainerOffering,
   type ContainerOfferingImage,
 } from "@/db/schema";
 import {
   isMissingContainerCatalogSchemaError,
 } from "@/lib/db-column-missing";
+import { resolveSpecialFeatureForContainer } from "@/lib/special-feature-container-link";
 
 export type ContainerOfferingWithImages = {
   offering: ContainerOffering;
   images: ContainerOfferingImage[];
+};
+
+export type AdminContainerOfferingWithImages = ContainerOfferingWithImages & {
+  specialFeature: {
+    id: string;
+    isActive: boolean;
+    startsAt: string;
+    endsAt: string;
+    /** True when offer is active and now is inside startsAt–endsAt. */
+    isPublishedLive: boolean;
+  } | null;
 };
 
 const CONTAINER_CATALOG_MIGRATION_HINT =
@@ -78,7 +91,13 @@ export async function listActiveContainerOfferingsWithImages(): Promise<
     offerings = await db
       .select()
       .from(containerOfferings)
-      .where(eq(containerOfferings.isActive, true))
+      .where(
+        and(
+          eq(containerOfferings.isActive, true),
+          // Suitcases are timed specials — listed via special-feature helpers only.
+          ne(containerOfferings.kind, "suitcase"),
+        ),
+      )
       .orderBy(asc(containerOfferings.sortIndex), desc(containerOfferings.createdAt));
   } catch (e) {
     rethrowIfMissingContainerCatalog(e);
@@ -92,7 +111,7 @@ export async function listActiveContainerOfferingsWithImages(): Promise<
 }
 
 export async function listAllContainerOfferingsWithImagesForAdmin(): Promise<
-  ContainerOfferingWithImages[]
+  AdminContainerOfferingWithImages[]
 > {
   const db = getDb();
   let offerings;
@@ -106,9 +125,95 @@ export async function listAllContainerOfferingsWithImagesForAdmin(): Promise<
   }
 
   const imgMap = await loadImagesForOfferingIds(offerings.map((o) => o.id));
+
+  const specialByOfferingId = new Map<
+    string,
+    {
+      id: string;
+      isActive: boolean;
+      startsAt: string;
+      endsAt: string;
+      isPublishedLive: boolean;
+    }
+  >();
+  try {
+    const specials = await db.select().from(specialFeatureOffers);
+    const specialById = new Map(specials.map((s) => [s.id, s]));
+    const now = Date.now();
+    for (const s of specials) {
+      if (!s.containerOfferingId) continue;
+      const start = new Date(s.startsAt).getTime();
+      const end = new Date(s.endsAt).getTime();
+      const isPublishedLive =
+        s.isActive &&
+        !Number.isNaN(start) &&
+        !Number.isNaN(end) &&
+        now >= start &&
+        now <= end;
+      specialByOfferingId.set(s.containerOfferingId, {
+        id: s.id,
+        isActive: s.isActive,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+        isPublishedLive,
+      });
+    }
+    for (const offering of offerings) {
+      if (!offering.specialFeatureOfferId) continue;
+      const s = specialById.get(offering.specialFeatureOfferId);
+      if (!s) continue;
+      const start = new Date(s.startsAt).getTime();
+      const end = new Date(s.endsAt).getTime();
+      const isPublishedLive =
+        s.isActive &&
+        !Number.isNaN(start) &&
+        !Number.isNaN(end) &&
+        now >= start &&
+        now <= end;
+      specialByOfferingId.set(offering.id, {
+        id: s.id,
+        isActive: s.isActive,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+        isPublishedLive,
+      });
+    }
+    for (const offering of offerings) {
+      if (specialByOfferingId.has(offering.id)) continue;
+      const s = resolveSpecialFeatureForContainer(
+        {
+          id: offering.id,
+          name: offering.name,
+          kind: offering.kind,
+          specialFeatureOfferId: offering.specialFeatureOfferId,
+        },
+        specials,
+      );
+      if (!s) continue;
+      const start = new Date(s.startsAt).getTime();
+      const end = new Date(s.endsAt).getTime();
+      const isPublishedLive =
+        s.isActive &&
+        !Number.isNaN(start) &&
+        !Number.isNaN(end) &&
+        now >= start &&
+        now <= end;
+      specialByOfferingId.set(offering.id, {
+        id: s.id,
+        isActive: s.isActive,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+        isPublishedLive,
+      });
+    }
+  } catch {
+    // special_feature_offers missing
+  }
+
   return offerings.map((offering) => ({
     offering,
     images: imgMap.get(offering.id) ?? [],
+    specialFeature: specialByOfferingId.get(offering.id) ?? null,
   }));
 }
 

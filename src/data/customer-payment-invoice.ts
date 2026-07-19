@@ -185,7 +185,9 @@ async function linesFromDatabase(orderId: string): Promise<PaymentInvoiceLine[]>
     lines.push(
       toInvoiceLine(
         label,
-        row.kindSnapshot === "bin" ? "Storage bin" : "Shipping barrel",
+        row.kindSnapshot === "bin" ? "Storage bin"
+        : row.kindSnapshot === "suitcase" ? "Suitcase"
+        : "Shipping barrel",
         row.quantity,
         row.lineTotalCents,
       ),

@@ -94,12 +94,6 @@ export type PackLinePricingInput = {
    * 2 = twin-pack; 10 = case of 10). Used to infer fee tier per consumer unit.
    */
   unitsPerPack: number;
-  /**
-   * When the retailer shows a different consumer-unit price than pack ÷ units,
-   * set this (cents) for **service & handling tiers only**. Merchandise stays
-   * pack price × pack count. When null/omit, tiers use implied unit from pack.
-   */
-  consumerUnitPriceOverrideCents?: number | null;
   /** When set, overrides default tier ladder for service fee only. */
   serviceTiers?: readonly MerchantServiceTierRow[] | null;
 };
@@ -110,15 +104,14 @@ export type PackLinePricingResult = {
   /** Line merchandise saved on the quote (always pack line when pack price in use). */
   merchandiseSubtotalCents: number;
   serviceFeeCents: number;
-  /** Unit price used for service tier math (override if set, else implied from pack). */
+  /** Unit price used for service tier math (pack price ÷ units per pack). */
   effectiveConsumerUnitCents: number;
-  usesConsumerUnitOverride: boolean;
   impliedConsumerUnitCents: number;
 };
 
 /**
- * Merchandise = pack price × pack count only. Optional consumer-unit override
- * adjusts service fee tiers only (not merchandise subtotal).
+ * Merchandise = pack price × pack count. Service tiers use implied unit
+ * (pack price ÷ units per pack).
  */
 export function computePackLineMerchandiseAndServiceCents(
   input: PackLinePricingInput
@@ -134,18 +127,7 @@ export function computePackLineMerchandiseAndServiceCents(
   const consumerUnits = packCount * upp;
   const impliedConsumerUnitCents =
     upp > 0 && packPrice > 0 ? Math.round(packPrice / upp) : 0;
-
-  const raw = input.consumerUnitPriceOverrideCents;
-  const override =
-    raw != null && Number.isFinite(raw) && Math.round(raw) > 0
-      ? Math.round(raw)
-      : null;
-  const usesConsumerUnitOverride = override != null;
-
-  const effectiveConsumerUnitCents = usesConsumerUnitOverride
-    ? (override as number)
-    : impliedConsumerUnitCents;
-
+  const effectiveConsumerUnitCents = impliedConsumerUnitCents;
   const merchandiseSubtotalCents = packBundleSubtotalCents;
 
   const serviceFeeCents =
@@ -163,7 +145,6 @@ export function computePackLineMerchandiseAndServiceCents(
     merchandiseSubtotalCents,
     serviceFeeCents,
     effectiveConsumerUnitCents,
-    usesConsumerUnitOverride,
     impliedConsumerUnitCents,
   };
 }
