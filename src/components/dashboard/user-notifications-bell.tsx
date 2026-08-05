@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   Bell,
   CheckCheck,
@@ -21,7 +21,7 @@ import {
 
 import {
   markAllUserStatusUpdateEventsReadAction,
-  markUserStatusUpdateEventsReadAction,
+  openUserStatusUpdateEventAction,
 } from "@/actions/user-status-updates";
 import type { UserStatusNotificationSummary } from "@/data/user-status-update-events";
 import type { UserStatusUpdateKind } from "@/db/schema";
@@ -49,8 +49,10 @@ function eventIcon(kind: UserStatusUpdateKind) {
     case "warehouse_delivery_received":
       return Package;
     case "refund_approved":
+    case "merchandise_topup_required":
       return CreditCard;
     case "refund_rejected":
+    case "merchandise_price_change":
       return RotateCcw;
     case "product_return_fulfilled":
     case "outside_purchase_return_estimate_ready":
@@ -79,6 +81,11 @@ export function UserNotificationsBell({ initial }: UserNotificationsBellProps) {
   const [summary, setSummary] = useState(initial);
   const [pending, startTransition] = useTransition();
 
+  /** Keep bell in sync when the layout refreshes with a new server summary. */
+  useEffect(() => {
+    setSummary(initial);
+  }, [initial]);
+
   const totalUnread = summary.totalUnread;
 
   function refreshFromServer() {
@@ -100,9 +107,13 @@ export function UserNotificationsBell({ initial }: UserNotificationsBellProps) {
     });
   }
 
-  function handleOpenEvent(eventId: string, href: string) {
+  function handleOpenEvent(eventId: string) {
     startTransition(async () => {
-      await markUserStatusUpdateEventsReadAction({ eventIds: [eventId] });
+      const res = await openUserStatusUpdateEventAction({ eventId });
+      if (!res.ok) {
+        refreshFromServer();
+        return;
+      }
       setSummary((prev) => {
         const events = prev.events.filter((e) => e.id !== eventId);
         let requestedItemsUnread = 0;
@@ -119,7 +130,7 @@ export function UserNotificationsBell({ initial }: UserNotificationsBellProps) {
         };
       });
       setOpen(false);
-      router.push(href);
+      router.push(res.href);
       refreshFromServer();
     });
   }
@@ -192,7 +203,7 @@ export function UserNotificationsBell({ initial }: UserNotificationsBellProps) {
                     <button
                       type="button"
                       disabled={pending}
-                      onClick={() => handleOpenEvent(event.id, event.href)}
+                      onClick={() => handleOpenEvent(event.id)}
                       className={cn(
                         "flex w-full gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                         "hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none",

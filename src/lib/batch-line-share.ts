@@ -53,3 +53,50 @@ export function computeBatchLineShares(
   });
   return map;
 }
+
+/**
+ * Scale a component share so it sums exactly to the charged checkout line
+ * (batch subtotal is allocated by quote totals at checkout; component shares
+ * can otherwise disagree by a few cents or more).
+ */
+export function alignBatchShareToChargedCents(
+  share: BatchLineShare,
+  chargedCents: number,
+): BatchLineShare {
+  const charged = Math.max(0, Math.round(chargedCents));
+  const current = share.total;
+  if (current === charged) {
+    return { ...share, total: charged };
+  }
+  if (current <= 0) {
+    return {
+      merchandise: charged,
+      serviceFee: 0,
+      shipping: 0,
+      tax: 0,
+      total: charged,
+    };
+  }
+
+  const scaled = {
+    merchandise: Math.round((share.merchandise * charged) / current),
+    serviceFee: Math.round((share.serviceFee * charged) / current),
+    shipping: Math.round((share.shipping * charged) / current),
+    tax: Math.round((share.tax * charged) / current),
+  };
+  const sum =
+    scaled.merchandise + scaled.serviceFee + scaled.shipping + scaled.tax;
+  const delta = charged - sum;
+  const keys = [
+    "merchandise",
+    "serviceFee",
+    "shipping",
+    "tax",
+  ] as const satisfies ReadonlyArray<keyof typeof scaled>;
+  let largest: (typeof keys)[number] = keys[0];
+  for (const key of keys) {
+    if (scaled[key] > scaled[largest]) largest = key;
+  }
+  scaled[largest] += delta;
+  return { ...scaled, total: charged };
+}

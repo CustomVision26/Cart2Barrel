@@ -187,9 +187,10 @@ export async function extractAdminAiProductWithSerpApi(
     if (pick) {
       productName = productName || pick.label;
       priceUsdCents = pick.priceUsdCents ?? priceUsdCents;
-      imageUrl = pick.imageUrl ?? imageUrl;
-      productSize = pick.size ?? productSize;
-      productColor = pick.color ?? productColor;
+      // Prefer SerpApi image only as a fallback for listings with no photo yet.
+      // Keep staff-entered size/color for the form — retailer codes (e.g. "bluepurple")
+      // must not overwrite what the customer/staff typed (e.g. "beige").
+      imageUrl = imageUrl || pick.imageUrl || null;
       if (pick.productUrl) resolvedUrl = pick.productUrl;
     }
 

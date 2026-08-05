@@ -1,7 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   ExternalLinkIcon,
   Loader2Icon,
@@ -131,8 +138,23 @@ export function AdminQuoteHistoryEditDialog({
     null,
   );
 
+  /** Seed only when the dialog opens (or the edited line id changes while open), not when parent revalidates `line` props mid-edit. */
+  const wasOpenRef = useRef(false);
+  const seededLineIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!open || !line) return;
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (!open) {
+      seededLineIdRef.current = null;
+      return;
+    }
+    if (!line) return;
+
+    const lineChanged =
+      seededLineIdRef.current != null &&
+      seededLineIdRef.current !== line.request.id;
+    if (!justOpened && !lineChanged) return;
+    seededLineIdRef.current = line.request.id;
 
     const tax = lineTaxCentsFromQuote(line);
     const seed = adminQuoteLineToEstimateSeed(line);
@@ -163,8 +185,9 @@ export function AdminQuoteHistoryEditDialog({
 
   useEffect(() => {
     if (!result?.ok) return;
-    setVariantColor((c) => result.extraction.color?.trim() || c);
-    setVariantSize((s) => result.extraction.size?.trim() || s);
+    // Only fill empty variant fields — never overwrite staff/customer values.
+    setVariantColor((c) => c.trim() || result.extraction.color?.trim() || "");
+    setVariantSize((s) => s.trim() || result.extraction.size?.trim() || "");
     if (result.extraction.productName?.trim()) {
       setEditProductName(result.extraction.productName.trim());
     }
@@ -177,10 +200,17 @@ export function AdminQuoteHistoryEditDialog({
       centsToDollarInput(result.estimate.estimatedShippingCents)
     );
     setEditTaxDollars(centsToDollarInput(result.estimate.taxCents));
-    if (result.extraction.productImageUrl?.trim()) {
-      setUploadedProductImageUrl(result.extraction.productImageUrl.trim());
+    const extractedImage = result.extraction.productImageUrl?.trim();
+    if (extractedImage) {
+      // Keep the customer/staff photo; SerpApi image is fallback only.
+      const requestImage = line?.request.productImageUrl?.trim() || "";
+      setUploadedProductImageUrl((prev) => {
+        const existing = prev?.trim() || requestImage;
+        if (existing) return prev?.trim() ? prev : existing;
+        return extractedImage;
+      });
     }
-  }, [result]);
+  }, [result, line?.request.productImageUrl]);
 
   const handleProductImageStaged = useCallback(
     (file: File, previewUrl: string) => {

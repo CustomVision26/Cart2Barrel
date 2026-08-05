@@ -4,16 +4,18 @@ import { getDb } from "@/db";
 import { orderContainerItems, orders } from "@/db/schema";
 import { mergeRestoredContainerOrderLinesIntoUserCart } from "@/data/user-container-cart";
 import { restoreOutboundShippingCartForCharges } from "@/data/barrel-outbound-shipping-charges";
+import { restoreMerchandiseTopupCartForReconciliations } from "@/data/merchandise-topup-cart";
 
 /**
  * Deletes a pending order owned by `clerkUserId` and merges any reserved container lines
- * back into the shopper cart. When `outboundChargeIds` are provided (from the Stripe
- * session metadata), the matching outbound shipping charges are also restored to the cart.
+ * back into the shopper cart. When `outboundChargeIds` / top-up reconciliation ids are
+ * provided (from Stripe session metadata), those charges are restored to the cart.
  */
 export async function deletePendingOrderAndRestoreContainerCart(
   orderId: string,
   clerkUserId: string,
   outboundChargeIds: string[] = [],
+  merchandiseTopupReconciliationIds: string[] = [],
 ): Promise<boolean> {
   const db = getDb();
   const [order] = await db
@@ -56,6 +58,12 @@ export async function deletePendingOrderAndRestoreContainerCart(
       await restoreOutboundShippingCartForCharges(
         order.clerkUserId,
         outboundChargeIds,
+      );
+    }
+    if (merchandiseTopupReconciliationIds.length > 0) {
+      await restoreMerchandiseTopupCartForReconciliations(
+        order.clerkUserId,
+        merchandiseTopupReconciliationIds,
       );
     }
   }

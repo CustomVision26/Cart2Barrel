@@ -29,6 +29,8 @@ import {
   type ConfirmCompanyPurchaseTrackingInput,
 } from "@/lib/validations/admin-order-item";
 import { safeCurrentUser } from "@/lib/safe-current-user";
+import { getMerchandiseReconciliationByOrderItemId } from "@/data/order-item-merchandise-reconciliations";
+import { merchandiseReconciliationAllowsPurchase } from "@/lib/merchandise-reconciliation";
 import { recordCompanyPurchaseConfirmedActivity } from "@/data/user-status-update-events";
 
 export type ConfirmCompanyPurchaseState =
@@ -140,6 +142,14 @@ export async function confirmCompanyPurchaseAction(
       ok: false,
       message: first ?? "Invalid request.",
     };
+  }
+
+  const reconciliation = await getMerchandiseReconciliationByOrderItemId(
+    parsed.data.orderItemId,
+  );
+  const gate = merchandiseReconciliationAllowsPurchase(reconciliation);
+  if (!gate.ok) {
+    return { ok: false, message: gate.message };
   }
 
   const result =

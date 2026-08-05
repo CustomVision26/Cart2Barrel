@@ -133,6 +133,20 @@ export function isMissingBatchQuoteSessionIdColumnError(e: unknown): boolean {
   return isUndefinedColumnError(e, "batch_quote_session_id");
 }
 
+/** `item_requests.quote_expiry_minutes_override` — `npm run db:ensure-quote-expiry`. */
+export function isMissingQuoteExpiryMinutesOverrideColumnError(
+  e: unknown,
+): boolean {
+  return isUndefinedColumnError(e, "quote_expiry_minutes_override");
+}
+
+/** `item_requests.quote_expiry_override_anchored_at` — `npm run db:ensure-quote-expiry`. */
+export function isMissingQuoteExpiryOverrideAnchoredAtColumnError(
+  e: unknown,
+): boolean {
+  return isUndefinedColumnError(e, "quote_expiry_override_anchored_at");
+}
+
 /** `item_requests.outside_purchase_published_at` — migration `0069_outside_purchase_published_at` or `npm run db:push`. */
 export function isMissingOutsidePurchasePublishedAtColumnError(
   e: unknown,
@@ -405,6 +419,17 @@ export function isMissingAdminUserActivityTablesError(e: unknown): boolean {
     msg.includes("admin_user_activity_event_reads") ||
     msg.includes("admin_user_activity_event_kind");
   if (!mentions) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}
+
+/** `order_item_merchandise_reconciliations` — `npm run db:ensure-merchandise-reconciliation`. */
+export function isMissingMerchandiseReconciliationTableError(
+  e: unknown,
+): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("order_item_merchandise_reconciliations")) return false;
   const code = getPgErrorCode(e);
   if (code === "42P01") return true;
   return /does not exist|relation\b/i.test(msg);

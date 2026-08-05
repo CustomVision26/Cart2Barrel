@@ -8,20 +8,31 @@ import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsForOwnerByRequestIds,
 } from "@/data/item-request-line-snapshots";
-import { listBatchSessionsWithDetailsForOwner } from "@/data/batch-quote-sessions";
+import {
+  dissolveOwnerBatchesWithAnyExpiredLineQuotes,
+  listBatchSessionsWithDetailsForOwner,
+} from "@/data/batch-quote-sessions";
 import {
   listActiveItemRequestsForUser,
   listProductHistoryForUser,
 } from "@/data/item-requests";
 import { listItemQuotesForOwnerByRequestIds } from "@/data/item-quotes";
 import { getProfileByClerkId } from "@/data/profiles";
+import { loadQuoteExpirySettings } from "@/data/quote-expiry-settings";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
 import {
   groupReturnRequestsByItemRequestId,
   listOutsidePurchaseReturnRequestsByItemRequestIds,
 } from "@/data/outside-purchase-return-requests";
 import { getOrderContextByItemRequestIds } from "@/data/item-request-order-context";
+import { listMerchandiseTopupAddOnChargesForUser } from "@/data/merchandise-topup-cart";
 import { fulfillmentProductHistoryLabelFromSnapshots } from "@/lib/product-history-fulfillment";
+import {
+  effectiveQuoteExpiryMinutes,
+  getLatestOperationalQuoteIssuedAt,
+  isQuoteExpired,
+  resolveQuoteExpiryClockStart,
+} from "@/lib/quote-expiry";
 
 export default async function DashboardAddItemLayout({
   children,
@@ -33,11 +44,25 @@ export default async function DashboardAddItemLayout({
     return null;
   }
 
-  const [profile, activeRequests, historyRequests, batchBundles] = await Promise.all([
+  const quoteExpiry = await loadQuoteExpirySettings(userId);
+  // End quoted/in-cart batches when any line’s accept/pay window has closed.
+  await dissolveOwnerBatchesWithAnyExpiredLineQuotes(
+    userId,
+    quoteExpiry.expiryMinutes,
+  );
+
+  const [
+    profile,
+    activeRequestsRaw,
+    historyRequests,
+    batchBundles,
+    merchandiseTopupAddOnCharges,
+  ] = await Promise.all([
     getProfileByClerkId(userId),
     listActiveItemRequestsForUser(userId),
     listProductHistoryForUser(userId),
     listBatchSessionsWithDetailsForOwner(userId),
+    listMerchandiseTopupAddOnChargesForUser(userId),
   ]);
 
   const customerName =
@@ -49,7 +74,7 @@ export default async function DashboardAddItemLayout({
   const batchRequestIds = batchBundles.flatMap((b) => b.requests.map((r) => r.id));
   const snapshotRequestIds = [
     ...new Set([
-      ...activeRequests.map((r) => r.id),
+      ...activeRequestsRaw.map((r) => r.id),
       ...historyRequests.map((r) => r.id),
       ...batchRequestIds,
     ]),
@@ -72,6 +97,25 @@ export default async function DashboardAddItemLayout({
     ])
   );
 
+  const expiredQuotedRequests = activeRequestsRaw.filter((r) => {
+    if (r.status !== "quoted") return false;
+    const issuedAt = getLatestOperationalQuoteIssuedAt(
+      quotesByRequestId[r.id] ?? [],
+    );
+    const lineMinutes = effectiveQuoteExpiryMinutes(
+      quoteExpiry.expiryMinutes,
+      r.quoteExpiryMinutesOverride,
+    ).expiryMinutes;
+    const clockStart = resolveQuoteExpiryClockStart({
+      quoteIssuedAt: issuedAt,
+      productOverrideMinutes: r.quoteExpiryMinutesOverride,
+      productOverrideAnchoredAt: r.quoteExpiryOverrideAnchoredAt,
+    });
+    return isQuoteExpired(clockStart, lineMinutes);
+  });
+  const expiredIds = new Set(expiredQuotedRequests.map((r) => r.id));
+  const activeRequests = activeRequestsRaw.filter((r) => !expiredIds.has(r.id));
+
   const returnRequestsByItemRequestId = groupReturnRequestsByItemRequestId(
     returnRequestRows,
   );
@@ -81,6 +125,7 @@ export default async function DashboardAddItemLayout({
   const fulfillmentLabelByRequestId: Record<string, string> = {};
   const allLabelRequests = [
     ...activeRequests,
+    ...expiredQuotedRequests,
     ...historyRequests,
     ...batchBundles.flatMap((bundle) => bundle.requests),
   ];
@@ -118,6 +163,8 @@ export default async function DashboardAddItemLayout({
             email: customerEmail,
           },
           activeRequests,
+          expiredQuotedRequests,
+          quoteExpiryMinutes: quoteExpiry.expiryMinutes,
           historyRequests,
           batchBundles,
           snapshotsByRequestId,
@@ -125,6 +172,7 @@ export default async function DashboardAddItemLayout({
           fulfillmentLabelByRequestId,
           returnRequestsByItemRequestId,
           orderContextByRequestId,
+          merchandiseTopupAddOnCharges,
         }}
       >
         {children}

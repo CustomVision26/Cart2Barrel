@@ -84,11 +84,18 @@ for (const [name, type] of [
   ["ticket_number", "text"],
   ["last_message_preview", "text"],
   ["resolved_at", "timestamp with time zone"],
+  ["customer_hidden_at", "timestamp with time zone"],
+  ["customer_last_read_at", "timestamp with time zone"],
 ]) {
   await sql.unsafe(
     `ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "${name}" ${type}`,
   );
 }
+
+await sql`
+  CREATE INDEX IF NOT EXISTS "support_tickets_user_hidden_idx"
+  ON "support_tickets" USING btree ("clerk_user_id", "customer_hidden_at")
+`;
 
 await sql`
   DO $$ BEGIN

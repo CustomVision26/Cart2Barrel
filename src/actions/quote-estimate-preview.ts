@@ -10,6 +10,7 @@ import {
 } from "@/data/item-quotes";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import { formatItemRequestProductNumber } from "@/lib/quote-expiry";
 import type { ItemRequest } from "@/db/schema";
 
 const previewSchema = z.object({
@@ -40,6 +41,8 @@ export type QuoteEstimatePreviewRow = {
 
 /** Subset of item request fields for the estimate dialog. */
 export type QuoteEstimateProductMeta = {
+  /** Short product # (OP ref or truncated request id). */
+  productNumber: string;
   productName: string | null;
   quantity: number;
   productSize: string | null;
@@ -89,6 +92,7 @@ export async function getQuoteEstimatePreviewAction(
   }
 
   const product: QuoteEstimateProductMeta = {
+    productNumber: formatItemRequestProductNumber(request),
     productName: request.productName?.trim() || null,
     quantity: request.quantity,
     productSize: request.productSize?.trim() || null,

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FlagIcon, Package } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
-import { AdminOrderEstimateSummary } from "@/components/admin/admin-order-estimate-summary";
+import { AdminBatchHeaderOps } from "@/components/admin/admin-batch-header-ops";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { CollapsibleOrderBatchBucket } from "@/components/orders/collapsible-order-batch-bucket";
@@ -18,8 +18,12 @@ import type {
   ItemQuote,
   ItemRequestLineSnapshot,
 } from "@/db/schema";
-import { batchEstimateSummaryRows } from "@/lib/admin-order-estimate-summary-rows";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  alignBatchShareToChargedCents,
+  computeBatchLineShares,
+  type BatchLineShare,
+} from "@/lib/batch-line-share";
 import {
   containerOfferingKindLabel,
   parseContainerOfferingKind,
@@ -199,6 +203,34 @@ export function AdminPaidOrdersTable({
   );
 }
 
+function buildBatchShareByRequestId(
+  buckets: ReturnType<typeof partitionPaidLinesIntoBatchBuckets>,
+  quotesByRequestId: Record<string, ItemQuote>,
+  estimatesBySessionId: Record<string, BatchQuoteEstimate>,
+): Record<string, BatchLineShare> {
+  const out: Record<string, BatchLineShare> = {};
+  for (const bucket of buckets) {
+    if (bucket.kind !== "batch") continue;
+    const estimate = estimatesBySessionId[bucket.batchSessionId];
+    if (!estimate) continue;
+    const lineIds = bucket.lines.map((l) => l.request.id);
+    const shares = computeBatchLineShares(
+      estimate,
+      lineIds,
+      (id) => quotesByRequestId[id] ?? null,
+    );
+    for (const line of bucket.lines) {
+      const share = shares.get(line.request.id);
+      if (!share) continue;
+      out[line.request.id] = alignBatchShareToChargedCents(
+        share,
+        line.orderItem.price,
+      );
+    }
+  }
+  return out;
+}
+
 function OrderBlock({
   order,
   lines,
@@ -217,6 +249,11 @@ function OrderBlock({
   const quotesByRequestId = latestQuotesByRequestId ?? {};
   const estimatesBySessionId = batchEstimatesBySessionId ?? {};
   const buckets = partitionPaidLinesIntoBatchBuckets(lines);
+  const batchShareByRequestId = buildBatchShareByRequestId(
+    buckets,
+    quotesByRequestId,
+    estimatesBySessionId,
+  );
   const hasBatchMix = buckets.some((b) => b.kind === "batch");
   const hasSinglesMix = buckets.some((b) => b.kind === "single");
   const onlySinglesSubgroup = buckets.length === 1 && buckets[0]!.kind === "single";
@@ -260,12 +297,11 @@ function OrderBlock({
             row={row}
             snapshotsByRequestId={snapshotsByRequestId}
             latestQuotesByRequestId={quotesByRequestId}
+            batchShare={batchShareByRequestId[row.request.id] ?? null}
           />
         ))
       : buckets.map((bucket, bi) => {
           if (bucket.kind === "batch") {
-            const batchEstimate =
-              estimatesBySessionId[bucket.batchSessionId] ?? null;
             return (
               <CollapsibleOrderBatchBucket
                 key={bucket.batchSessionId}
@@ -303,16 +339,17 @@ function OrderBlock({
                     </span>
                   );
                 })()}
-                estimateSummary={
-                  batchEstimate ?
-                    <AdminOrderEstimateSummary
-                      rows={batchEstimateSummaryRows(batchEstimate)}
-                    />
-                  : (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      No batch estimate on file.
-                    </p>
-                  )
+                trailing={
+                  <AdminBatchHeaderOps
+                    orderId={order.id}
+                    batchSessionId={bucket.batchSessionId}
+                    batchNumber={bucket.batchNumber}
+                    lines={bucket.lines}
+                    batchShareByRequestId={batchShareByRequestId}
+                    batchEstimate={
+                      estimatesBySessionId[bucket.batchSessionId] ?? null
+                    }
+                  />
                 }
               >
                 {bucket.lines.map((row) => (
@@ -321,6 +358,7 @@ function OrderBlock({
                     row={row}
                     snapshotsByRequestId={snapshotsByRequestId}
                     latestQuotesByRequestId={quotesByRequestId}
+                    batchShare={batchShareByRequestId[row.request.id] ?? null}
                     inBatchGroup
                   />
                 ))}
@@ -340,6 +378,7 @@ function OrderBlock({
                   row={row}
                   snapshotsByRequestId={snapshotsByRequestId}
                   latestQuotesByRequestId={quotesByRequestId}
+                  batchShare={batchShareByRequestId[row.request.id] ?? null}
                 />
               ))}
             </CollapsibleOrderBatchBucket>
@@ -432,6 +471,7 @@ function AdminOrderDataRow(props: {
   row: AdminPaidOrderLineRow;
   snapshotsByRequestId: Record<string, ItemRequestLineSnapshot[]>;
   latestQuotesByRequestId?: Record<string, ItemQuote>;
+  batchShare?: BatchLineShare | null;
   /** Renders each batch member as its own product row (batch roll-up stays in section header). */
   inBatchGroup?: boolean;
 }) {
@@ -439,6 +479,7 @@ function AdminOrderDataRow(props: {
     row,
     snapshotsByRequestId,
     latestQuotesByRequestId = {},
+    batchShare = null,
     inBatchGroup = false,
   } = props;
   const r = row.request;
@@ -462,17 +503,16 @@ function AdminOrderDataRow(props: {
       !!(row.resolvedBatchNumber && row.resolvedBatchNumber.trim()));
 
   const batchDialogLabel =
-    isBatch ?
-      row.resolvedBatchNumber?.trim() ||
-      (row.resolvedBatchSessionId?.trim() ?
-        `${row.resolvedBatchSessionId.trim().slice(0, 8)}…`
-      : null)
-    : null;
+    row.resolvedBatchNumber?.trim() ||
+    (row.resolvedBatchSessionId?.trim() ?
+      `${row.resolvedBatchSessionId.trim().slice(0, 8)}…`
+    : null);
 
   const purchaseReviewContext =
     fulfillment === "paid_pending_company_purchase" ?
       {
         retailerLabel: displaySiteName(r.siteName, r.productUrl),
+        productUrl: r.productUrl,
         quotedMerchandiseCostCents: quotedMerchandiseCostCents(
           latestQuotesByRequestId,
           r.id,
@@ -482,6 +522,10 @@ function AdminOrderDataRow(props: {
         sizeLabel: r.productSize?.trim() ?? null,
         colorLabel: r.productColor?.trim() ?? null,
         batchLabel: batchDialogLabel,
+        orderId: row.order.id,
+        batchSessionId: row.resolvedBatchSessionId?.trim() || null,
+        batchShare,
+        quote: latestQuotesByRequestId[r.id] ?? null,
       }
     : null;
 
@@ -631,6 +675,7 @@ function AdminOrderDataRow(props: {
             pendingProductReturnRequest={row.pendingProductReturnRequest}
             fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
             isOutsidePurchase={isOutside}
+            inBatchGroup={inBatchGroup}
           />
         }
         {warehouseFulfillment === "delivery_received_item_missing" &&

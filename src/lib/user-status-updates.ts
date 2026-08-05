@@ -13,7 +13,10 @@ export function userStatusUpdateNavSection(
     case "refund_approved":
     case "refund_rejected":
     case "product_return_fulfilled":
+    case "merchandise_price_change":
       return "orders";
+    case "merchandise_topup_required":
+      return "requested_items";
     default:
       return "requested_items";
   }
@@ -23,6 +26,11 @@ export function userStatusHrefForActiveProduct(highlightId?: string): string {
   const base = DASHBOARD_ADD_ITEM_ROUTES.productsActive;
   if (!highlightId) return base;
   return `${base}?highlight=${encodeURIComponent(highlightId)}`;
+}
+
+/** Merchandise top-up add-on charges live on Add item → Products → Active. */
+export function userStatusHrefForAddOnCharges(): string {
+  return DASHBOARD_ADD_ITEM_ROUTES.productsActive;
 }
 
 export function userStatusHrefForBatchQuotes(highlightSessionId?: string): string {

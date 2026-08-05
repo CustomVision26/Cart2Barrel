@@ -3,6 +3,7 @@ import { AdminOverviewCustomerPackagesSection } from "../_components/admin-overv
 import { AdminOverviewSetFeeNRateSection } from "../_components/admin-overview-set-fee-n-rate-section";
 import { AdminOverviewShippingContainersSection } from "../_components/admin-overview-shipping-containers-section";
 import { AdminOverviewSpecialFeaturesSection } from "../_components/admin-overview-special-features-section";
+import { AdminOverviewQuoteExpirySection } from "../_components/admin-overview-quote-expiry-section";
 import { AdminOverviewSubnav } from "../_components/admin-overview-subnav";
 import { AdminRefundQueueBanner } from "@/components/admin/admin-refund-queue-banner";
 import { parseFinanceDateRange } from "@/data/admin-finance-summary";
@@ -35,12 +36,18 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
           Boolean(selectedUserId)) ?
       "customer"
     : "general";
+  const expiryTabRaw = first(rawSp.expiryTab)?.toLowerCase() ?? "";
+  const expiryTab =
+    expiryTabRaw === "customer" ? "customer"
+    : expiryTabRaw === "product" ? "product"
+    : "hub";
   const tab =
     tabRaw === "finance" ? "finance"
     : tabRaw === "set-fee-n-rate" ? "set-fee-n-rate"
     : tabRaw === "customer-packages" ? "customer-packages"
     : tabRaw === "shipping-containers" ? "shipping-containers"
     : tabRaw === "special-features" ? "special-features"
+    : tabRaw === "quote-expiry" ? "quote-expiry"
     : "summary";
   const range = parseFinanceDateRange({
     from: first(rawSp.from)?.trim(),
@@ -74,6 +81,11 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
         <AdminOverviewShippingContainersSection />
       ) : tab === "special-features" ? (
         <AdminOverviewSpecialFeaturesSection />
+      ) : tab === "quote-expiry" ? (
+        <AdminOverviewQuoteExpirySection
+          expiryTab={expiryTab}
+          selectedClerkUserId={selectedUserId}
+        />
       ) : (
         <div className="space-y-4">
           <AdminRefundQueueBanner />
@@ -85,9 +97,11 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
             <span className="font-medium text-foreground">Customer packages</span> for general
             packing/container fees and per-shopper overrides,{" "}
             <span className="font-medium text-foreground">Shipping containers</span> for the barrel
-            catalog on <span className="font-medium text-foreground">/dashboard/barrels</span>, and{" "}
+            catalog on <span className="font-medium text-foreground">/dashboard/barrels</span>,{" "}
             <span className="font-medium text-foreground">Special features</span> for timed
-            suitcase offers.
+            suitcase offers, and{" "}
+            <span className="font-medium text-foreground">Quote Expiry Settings</span> for the
+            hub default, per-customer, and per-product quote windows.
           </p>
         </div>
       )}

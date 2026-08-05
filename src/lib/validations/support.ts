@@ -114,3 +114,17 @@ export const adminSupportTicketStatusSchema = z.object({
 export type AdminSupportTicketStatusInput = z.infer<
   typeof adminSupportTicketStatusSchema
 >;
+
+export const hideSupportTicketSchema = z.object({
+  ticketId: z.string().uuid("Invalid ticket."),
+});
+
+export type HideSupportTicketInput = z.infer<typeof hideSupportTicketSchema>;
+
+export const restoreSupportTicketSchema = z.object({
+  ticketId: z.string().uuid("Invalid ticket."),
+});
+
+export type RestoreSupportTicketInput = z.infer<
+  typeof restoreSupportTicketSchema
+>;

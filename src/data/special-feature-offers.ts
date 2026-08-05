@@ -155,7 +155,20 @@ export async function listCurrentlyActiveSpecialFeatureOffers(): Promise<
       .where(eq(specialFeatureOffers.isActive, true))
       .orderBy(asc(specialFeatureOffers.endsAt));
 
-    return rows.filter(isSpecialFeatureOfferLiveNow);
+    const live = rows.filter(isSpecialFeatureOfferLiveNow);
+    const filtered: SpecialFeatureOfferRow[] = [];
+    const { countSuitcaseSlotsForSpecialOffer, isSpecialOfferCapacityReached } =
+      await import("@/data/special-feature-suitcase-slots");
+
+    for (const offer of live) {
+      if (offer.suitcaseSlotCapacity != null && offer.suitcaseSlotCapacity > 0) {
+        const paidCount = await countSuitcaseSlotsForSpecialOffer(offer, ["paid"]);
+        if (isSpecialOfferCapacityReached(offer, paidCount)) continue;
+      }
+      filtered.push(offer);
+    }
+
+    return filtered;
   } catch {
     return [];
   }
@@ -196,12 +209,20 @@ export type ActiveSpecialFeatureSuitcaseForBarrels = {
   }[];
 };
 
+export type ActiveSpecialFeatureSuitcasesForBarrelsResult = {
+  suitcases: ActiveSpecialFeatureSuitcaseForBarrels[];
+  /** All linked suitcase offering ids for active specials (cart limit counting). */
+  specialOfferingIds: string[];
+};
+
 /** Suitcases to show on `/dashboard/barrels` during an active special. */
 export async function listActiveSpecialFeatureSuitcasesForBarrels(): Promise<
-  ActiveSpecialFeatureSuitcaseForBarrels[]
+  ActiveSpecialFeatureSuitcasesForBarrelsResult
 > {
   const offers = await listCurrentlyActiveSpecialFeatureOffers();
-  if (offers.length === 0) return [];
+  if (offers.length === 0) {
+    return { suitcases: [], specialOfferingIds: [] };
+  }
 
   const db = getDb();
   const offerIds = offers.map((o) => o.id);
@@ -314,6 +335,7 @@ export async function listActiveSpecialFeatureSuitcasesForBarrels(): Promise<
   }
 
   const results: ActiveSpecialFeatureSuitcaseForBarrels[] = [];
+  const specialOfferingIds = new Set<string>();
 
   for (const offer of offers) {
     const matched = linkedOfferings.filter(
@@ -329,16 +351,22 @@ export async function listActiveSpecialFeatureSuitcasesForBarrels(): Promise<
       return true;
     });
 
-    if (offer.packagingMode === "outside" || uniqueMatched.length === 0) {
-      results.push({
-        offer,
-        offering: null,
-        images: [],
-      });
+    if (uniqueMatched.length === 0) {
+      // Shoppers only see specials with a published suitcase SKU in the catalog.
       continue;
     }
 
     for (const offering of uniqueMatched) {
+      specialOfferingIds.add(offering.id);
+    }
+
+    const explicitlyLinked = uniqueMatched.filter(
+      (o) => o.specialFeatureOfferId === offer.id,
+    );
+    const offeringsToShow =
+      explicitlyLinked.length > 0 ? explicitlyLinked : uniqueMatched;
+
+    for (const offering of offeringsToShow) {
       results.push({
         offer,
         offering: {
@@ -354,7 +382,7 @@ export async function listActiveSpecialFeatureSuitcasesForBarrels(): Promise<
     }
   }
 
-  return results;
+  return { suitcases: results, specialOfferingIds: [...specialOfferingIds] };
 }
 
 type ContainerOfferingTransportLookup = Pick<

@@ -9,6 +9,10 @@ import { CartEmbeddedCheckoutClient } from "@/components/dashboard/cart-embedded
 import { buttonVariants } from "@/components/ui/button";
 import { getCartCheckoutOrderSummaryForUser } from "@/data/cart";
 import {
+  listMerchandiseTopupAddOnChargesForUser,
+  parseMerchandiseTopupReconciliationIdsFromMetadata,
+} from "@/data/merchandise-topup-cart";
+import {
   checkoutProcessingFeeRegionLabel,
   type CheckoutProcessingFeeRegion,
 } from "@/lib/checkout-processing-surcharge";
@@ -108,9 +112,26 @@ export default async function CartEmbeddedCheckoutPage({ searchParams }: PagePro
 
   const stripeLines = stripeCheckoutLinesFromSession(session);
   const orderId = session.metadata?.orderId ?? null;
-  const dbSummary = orderId
-    ? await getCartCheckoutOrderSummaryForUser(userId, orderId)
-    : null;
+  const topupRepresentativeIds =
+    parseMerchandiseTopupReconciliationIdsFromMetadata(
+      session.metadata?.merchandiseTopupReconciliationIds,
+    );
+  const [dbSummary, pendingTopups] = await Promise.all([
+    orderId ? getCartCheckoutOrderSummaryForUser(userId, orderId) : null,
+    topupRepresentativeIds.length > 0 ?
+      listMerchandiseTopupAddOnChargesForUser(userId)
+    : Promise.resolve([]),
+  ]);
+  const merchandiseTopupLines =
+    topupRepresentativeIds.length === 0 ?
+      []
+    : pendingTopups.filter(
+        (charge) =>
+          topupRepresentativeIds.includes(charge.reconciliationId) ||
+          charge.reconciliationIds.some((id) =>
+            topupRepresentativeIds.includes(id),
+          ),
+      );
   const totalCents =
     dbSummary?.totalAmount ??
     session.amount_total ??
@@ -236,6 +257,7 @@ export default async function CartEmbeddedCheckoutPage({ searchParams }: PagePro
           <CartCheckoutSummaryCard
             dbSummary={dbSummary}
             stripeLines={stripeLines}
+            merchandiseTopupLines={merchandiseTopupLines}
             totalCents={totalCents}
             processingFeeCents={
               showProcessingFeeWithDbLines ? processingFeeMeta : null

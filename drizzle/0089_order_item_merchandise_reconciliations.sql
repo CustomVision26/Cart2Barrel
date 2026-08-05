@@ -1,0 +1,62 @@
+DO $$ BEGIN
+  CREATE TYPE "public"."order_item_merchandise_reconciliation_status" AS ENUM(
+    'recorded',
+    'customer_notified',
+    'topup_pending',
+    'topup_paid',
+    'matched',
+    'cancelled'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'merchandise_price_change';
+ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'merchandise_topup_required';
+
+CREATE TABLE IF NOT EXISTS "order_item_merchandise_reconciliations" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "order_item_id" uuid NOT NULL,
+  "clerk_user_id" text NOT NULL,
+  "checkout_merchandise_cents" integer NOT NULL,
+  "actual_merchandise_cents" integer NOT NULL,
+  "delta_cents" integer NOT NULL,
+  "status" "order_item_merchandise_reconciliation_status" NOT NULL,
+  "support_ticket_id" uuid,
+  "customer_message" text,
+  "topup_amount_cents" integer,
+  "topup_expires_at" timestamp with time zone,
+  "topup_paid_at" timestamp with time zone,
+  "resolved_at" timestamp with time zone,
+  "created_by_clerk_user_id" text NOT NULL,
+  "updated_by_clerk_user_id" text NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+DO $$ BEGIN
+  ALTER TABLE "order_item_merchandise_reconciliations"
+    ADD CONSTRAINT "order_item_merchandise_reconciliations_order_item_id_order_items_id_fk"
+    FOREIGN KEY ("order_item_id") REFERENCES "public"."order_items"("id")
+    ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "order_item_merchandise_reconciliations"
+    ADD CONSTRAINT "order_item_merchandise_reconciliations_clerk_user_id_profiles_clerk_user_id_fk"
+    FOREIGN KEY ("clerk_user_id") REFERENCES "public"."profiles"("clerk_user_id")
+    ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS "order_item_merchandise_reconciliations_order_item_id_unique"
+  ON "order_item_merchandise_reconciliations" USING btree ("order_item_id");
+
+CREATE INDEX IF NOT EXISTS "order_item_merch_recon_clerk_user_id_idx"
+  ON "order_item_merchandise_reconciliations" USING btree ("clerk_user_id");
+
+CREATE INDEX IF NOT EXISTS "order_item_merch_recon_status_idx"
+  ON "order_item_merchandise_reconciliations" USING btree ("status");

@@ -1,5 +1,6 @@
 import { deletePendingOrderAndRestoreContainerCart } from "@/data/delete-pending-order-with-container-restore";
 import { parseOutboundChargeIdsFromMetadata } from "@/data/fulfill-outbound-shipping-checkout";
+import { parseMerchandiseTopupReconciliationIdsFromMetadata } from "@/data/merchandise-topup-cart";
 import { getStripeServer } from "@/lib/stripe-server";
 
 export type AbandonPendingCheckoutResult =
@@ -34,11 +35,16 @@ export async function abandonPendingOrderFromStripeCheckoutSession(
   const outboundChargeIds = parseOutboundChargeIdsFromMetadata(
     session.metadata?.outboundChargeIds,
   );
+  const merchandiseTopupReconciliationIds =
+    parseMerchandiseTopupReconciliationIdsFromMetadata(
+      session.metadata?.merchandiseTopupReconciliationIds,
+    );
 
   const cleared = await deletePendingOrderAndRestoreContainerCart(
     orderId,
     clerkUserId,
     outboundChargeIds,
+    merchandiseTopupReconciliationIds,
   );
 
   return { ok: true, hadOrderToClear: cleared };

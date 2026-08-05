@@ -79,6 +79,9 @@ export type DashboardSpecialFeatureSuitcaseCardProps = {
   cartQuantity: number | null;
   /** Total special suitcases across all sizes in the user's cart. */
   specialSuitcaseCartTotal: number;
+  /** Offer-wide remaining paid slots (null = no cap). */
+  offerSlotsRemaining: number | null;
+  offerSlotCapacity: number | null;
 };
 
 function formatDateTimeLabel(iso: string | null): string | null {
@@ -97,18 +100,29 @@ export function DashboardSpecialFeatureSuitcaseCard({
   images,
   cartQuantity,
   specialSuitcaseCartTotal,
+  offerSlotsRemaining,
+  offerSlotCapacity,
 }: DashboardSpecialFeatureSuitcaseCardProps) {
   const router = useRouter();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const currentInCart = cartQuantity != null && cartQuantity > 0 ? cartQuantity : 0;
-  const maxQtyForOffering = maxSpecialSuitcaseQtyForOffering(
+  const perUserMaxQty = maxSpecialSuitcaseQtyForOffering(
     specialSuitcaseCartTotal,
     currentInCart,
   );
-  const isUnavailable = isSpecialSuitcaseOfferingUnavailable(
-    specialSuitcaseCartTotal,
-    currentInCart,
-  );
+  const offerScopedMaxQty =
+    offerSlotsRemaining != null ?
+      currentInCart + Math.max(0, offerSlotsRemaining)
+    : perUserMaxQty;
+  const maxQtyForOffering = Math.min(perUserMaxQty, offerScopedMaxQty);
+  const offerSlotsFull =
+    offerSlotsRemaining != null && offerSlotsRemaining <= 0 && currentInCart <= 0;
+  const isUnavailable =
+    offerSlotsFull ||
+    isSpecialSuitcaseOfferingUnavailable(
+      specialSuitcaseCartTotal,
+      currentInCart,
+    );
   const [qty, setQty] = useState(() =>
     clampSpecialSuitcaseQty(
       currentInCart > 0 ? currentInCart : 1,
@@ -154,15 +168,21 @@ export function DashboardSpecialFeatureSuitcaseCard({
     if (safeQty !== qty) setQty(safeQty);
     setError(null);
     startTransition(async () => {
-      const res = await setUserContainerCartQuantityAction({
-        offeringId: offering.id,
-        quantity: safeQty,
-      });
-      if (!res.ok) {
-        setError(res.message);
-        return;
+      try {
+        const res = await setUserContainerCartQuantityAction({
+          offeringId: offering.id,
+          quantity: safeQty,
+        });
+        if (!res.ok) {
+          setError(res.message);
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError(
+          "Could not reach the server. Check your connection and try again.",
+        );
       }
-      router.refresh();
     });
   }
 
@@ -284,9 +304,18 @@ export function DashboardSpecialFeatureSuitcaseCard({
           {isInApp ?
             isUnavailable ?
               <p className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                Courier capacity is full ({SPECIAL_FEATURE_SUITCASE_MAX_QUANTITY}{" "}
-                special suitcases max). Remove one from your cart to choose another
-                size.
+                {offerSlotsFull ?
+                  <>
+                    All {offerSlotCapacity} suitcase slot
+                    {offerSlotCapacity === 1 ? "" : "s"} for this special are taken.
+                    Check back for another offer or remove items from your cart.
+                  </>
+                : <>
+                    Courier capacity is full ({SPECIAL_FEATURE_SUITCASE_MAX_QUANTITY}{" "}
+                    special suitcases max). Remove one from your cart to choose another
+                    size.
+                  </>
+                }
               </p>
             : <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1">
@@ -317,6 +346,9 @@ export function DashboardSpecialFeatureSuitcaseCard({
                     sizes
                     {maxQtyForOffering < SPECIAL_FEATURE_SUITCASE_MAX_QUANTITY ?
                       ` · ${maxQtyForOffering} left for this size`
+                    : null}
+                    {offerSlotCapacity != null && offerSlotsRemaining != null ?
+                      ` · ${offerSlotsRemaining} of ${offerSlotCapacity} offer slots left`
                     : null}
                   </p>
                 </div>

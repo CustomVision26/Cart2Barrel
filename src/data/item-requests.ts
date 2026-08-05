@@ -70,10 +70,14 @@ export const itemRequestsRowSelectWithoutReceiptImage = {
 type ItemRequestLegacyRow = Omit<
   ItemRequest,
   | "batchQuoteSessionId"
+  | "quoteExpiryMinutesOverride"
+  | "quoteExpiryOverrideAnchoredAt"
   | "outsidePurchasePublishedAt"
   | "outOfStockStaffNote"
   | "outOfStockAttachmentImageUrls"
 > & {
+  quoteExpiryMinutesOverride?: ItemRequest["quoteExpiryMinutesOverride"];
+  quoteExpiryOverrideAnchoredAt?: ItemRequest["quoteExpiryOverrideAnchoredAt"];
   outsidePurchasePublishedAt?: ItemRequest["outsidePurchasePublishedAt"];
   outOfStockStaffNote?: ItemRequest["outOfStockStaffNote"];
   outOfStockAttachmentImageUrls?: ItemRequest["outOfStockAttachmentImageUrls"];
@@ -138,6 +142,14 @@ export function withLegacyItemRequestDefaults(
       "outOfStockAttachmentImageUrls" in row ?
         (row.outOfStockAttachmentImageUrls ?? null)
       : null,
+    quoteExpiryMinutesOverride:
+      "quoteExpiryMinutesOverride" in row ?
+        (row.quoteExpiryMinutesOverride ?? null)
+      : null,
+    quoteExpiryOverrideAnchoredAt:
+      "quoteExpiryOverrideAnchoredAt" in row ?
+        (row.quoteExpiryOverrideAnchoredAt ?? null)
+      : null,
   };
 }
 
@@ -154,6 +166,16 @@ export function itemRequestFromRowWithoutReceiptImage(
   return {
     ...row,
     batchQuoteSessionId: row.batchQuoteSessionId ?? null,
+    quoteExpiryMinutesOverride:
+      "quoteExpiryMinutesOverride" in row ?
+        ((row as { quoteExpiryMinutesOverride?: number | null })
+          .quoteExpiryMinutesOverride ?? null)
+      : null,
+    quoteExpiryOverrideAnchoredAt:
+      "quoteExpiryOverrideAnchoredAt" in row ?
+        ((row as { quoteExpiryOverrideAnchoredAt?: string | null })
+          .quoteExpiryOverrideAnchoredAt ?? null)
+      : null,
     outsidePurchaseReceiptImageUrl: null,
     outsidePurchaseConditionImageUrl: null,
     outsidePurchaseConditionImageUrls: null,
@@ -529,7 +551,8 @@ export async function applyAiExtractionPatchToItemRequest(
   } = {};
 
   const img = extraction.productImageUrl?.trim();
-  if (img) {
+  // Keep the shopper's uploaded photo; only fill when the request has none.
+  if (img && !existing.productImageUrl?.trim()) {
     patch.productImageUrl = img;
   }
 

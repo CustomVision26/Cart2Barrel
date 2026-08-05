@@ -1,7 +1,14 @@
 "use client";
 
 import { ImagePlusIcon, LinkIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 
 import { uploadSupportTicketImagesAction } from "@/actions/upload-support-ticket-images";
@@ -43,6 +50,8 @@ type SupportTicketComposeFormProps = {
   body: string;
   onBodyChange: (value: string) => void;
   onSubmit: (payload: SupportTicketComposePayload) => Promise<void>;
+  /** Rendered beside Send (e.g. auto-message template dropdown). */
+  trailingActions?: ReactNode;
 };
 
 function canSubmit(
@@ -68,6 +77,7 @@ export function SupportTicketComposeForm({
   body,
   onBodyChange,
   onSubmit,
+  trailingActions,
 }: SupportTicketComposeFormProps) {
   const inputId = useId();
   const linkInputId = useId();
@@ -324,6 +334,7 @@ export function SupportTicketComposeForm({
         <Button type="submit" disabled={submitDisabled}>
           {pending ? pendingLabel : submitLabel}
         </Button>
+        {trailingActions}
         <p className="text-xs text-muted-foreground">
           Images up to {SUPPORT_TICKET_IMAGES_MAX} · product links up to{" "}
           {SUPPORT_TICKET_PRODUCT_LINKS_MAX}

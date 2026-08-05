@@ -1,10 +1,19 @@
+import {
+  UserSupportInboxControls,
+  UserSupportInboxTabNav,
+} from "@/components/support/user-support-inbox-controls";
 import { UserSupportInbox } from "@/components/support/user-support-inbox";
-import { listUserSupportTickets } from "@/data/support-tickets";
+import { listUserSupportTicketsPage } from "@/data/support-tickets";
 import { getClerkSessionGate } from "@/lib/clerk-session";
+import { parseSupportInboxQuery } from "@/lib/support-inbox-params";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardSupportPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function DashboardSupportPage({ searchParams }: PageProps) {
   const gate = await getClerkSessionGate();
   if (!gate.ok) {
     return (
@@ -12,7 +21,13 @@ export default async function DashboardSupportPage() {
     );
   }
 
-  const tickets = await listUserSupportTickets(gate.userId);
+  const rawSp = (await searchParams) ?? {};
+  const query = parseSupportInboxQuery(rawSp);
+  const page = await listUserSupportTicketsPage({
+    clerkUserId: gate.userId,
+    mode: "inbox",
+    query,
+  });
 
   return (
     <div className="space-y-6">
@@ -24,10 +39,17 @@ export default async function DashboardSupportPage() {
           Your support conversations with the hub team.
         </p>
       </div>
-      <UserSupportInbox tickets={tickets} />
+      <UserSupportInboxTabNav activeTab="inbox" />
+      <UserSupportInboxControls mode="inbox" query={query} />
+      <UserSupportInbox
+        tickets={page.tickets}
+        mode="inbox"
+        query={query}
+        total={page.total}
+      />
       <p className="text-xs text-muted-foreground">
         New issue? Use <span className="font-medium text-foreground">Contact us</span>{" "}
-        in the top bar to start a conversation.
+        in the top bar to start a conversation. Remove moves a thread to History.
       </p>
     </div>
   );

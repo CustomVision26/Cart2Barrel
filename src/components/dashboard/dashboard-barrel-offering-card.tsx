@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import {
   setUserContainerCartQuantityAction,
@@ -60,21 +60,36 @@ export function DashboardBarrelOfferingCard({
   const [qty, setQty] = useState(
     cartQuantity != null && cartQuantity > 0 ? cartQuantity : 1,
   );
+  const [savedCartQuantity, setSavedCartQuantity] = useState(cartQuantity);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setSavedCartQuantity(cartQuantity);
+    if (cartQuantity != null && cartQuantity > 0) {
+      setQty(cartQuantity);
+    }
+  }, [cartQuantity]);
 
   function handleAddToCart() {
     setError(null);
     startTransition(async () => {
-      const res = await setUserContainerCartQuantityAction({
-        offeringId: offering.id,
-        quantity: qty,
-      });
-      if (!res.ok) {
-        setError(res.message);
-        return;
+      try {
+        const res = await setUserContainerCartQuantityAction({
+          offeringId: offering.id,
+          quantity: qty,
+        });
+        if (!res.ok) {
+          setError(res.message);
+          return;
+        }
+        setSavedCartQuantity(qty);
+        router.refresh();
+      } catch {
+        setError(
+          "Could not reach the server. Check your connection and try again.",
+        );
       }
-      router.refresh();
     });
   }
 
@@ -161,10 +176,12 @@ export function DashboardBarrelOfferingCard({
             {pending ? "Saving…" : "Add to cart"}
           </Button>
         </div>
-        {cartQuantity != null && cartQuantity > 0 ?
+        {savedCartQuantity != null && savedCartQuantity > 0 ?
           <p className="text-xs text-muted-foreground">
             In your cart:{" "}
-            <span className="font-medium text-foreground">{cartQuantity}</span>
+            <span className="font-medium text-foreground">
+              {savedCartQuantity}
+            </span>
           </p>
         : null}
         {error ?

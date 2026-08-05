@@ -13,13 +13,13 @@ import {
   orderItems,
   orders,
   type BatchQuoteEstimate,
+  type ItemQuote,
 } from "@/db/schema";
-export type CheckoutChargeSummaryRow = {
-  label: string;
-  detail?: string;
-  amountCents: number;
-  emphasis?: boolean;
-};
+import { listItemQuotesForOwnerByRequestIds } from "@/data/item-quotes";
+import {
+  listPaidMerchandiseTopupAddOnsForOrderItems,
+  type PaidMerchandiseTopupAddOnView,
+} from "@/data/merchandise-topup-cart";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { getSpecialFeatureCartPricingByOfferingIds } from "@/data/special-feature-offers";
 import { buildSpecialSuitcaseBaggageAllocation } from "@/data/user-container-cart";
@@ -34,12 +34,38 @@ import {
   parseContainerOfferingKind,
 } from "@/lib/validations/container-offering";
 import { batchEstimateSummaryRows } from "@/lib/admin-order-estimate-summary-rows";
+import {
+  computeBatchLineShares,
+  type BatchLineShare,
+} from "@/lib/batch-line-share";
 import { partitionPaidLinesIntoBatchBuckets } from "@/lib/partition-paid-order-batch-groups";
+import { displaySiteName } from "@/lib/site-name";
+
+export type CheckoutChargeSummaryRow = {
+  label: string;
+  detail?: string;
+  amountCents: number;
+  emphasis?: boolean;
+};
 
 export type CheckoutChargesProductLine = {
   name: string;
   detail?: string;
   amountCents: number;
+  /** Per-product share of the batch charge breakdown (batch receipts only). */
+  summaryRows?: CheckoutChargeSummaryRow[];
+};
+
+/** Product card fields for single-line charge previews (matches admin purchase summary). */
+export type CheckoutChargesProductSummary = {
+  productName: string;
+  retailerLabel: string;
+  productUrl: string;
+  quantity: number;
+  sizeLabel: string | null;
+  colorLabel: string | null;
+  linePriceCents: number;
+  quotedMerchandiseCostCents: number | null;
 };
 
 export type CheckoutChargesPreview = {
@@ -47,6 +73,9 @@ export type CheckoutChargesPreview = {
   description: string;
   summaryRows: CheckoutChargeSummaryRow[];
   productLines: CheckoutChargesProductLine[];
+  productSummary?: CheckoutChargesProductSummary;
+  /** Later purchase-price top-up add-ons paid for these merchandise lines. */
+  paidTopupAddOns?: PaidMerchandiseTopupAddOnView[];
 };
 
 type OrderLineRow = {
@@ -190,13 +219,105 @@ async function resolveBatchEstimateForSession(
   return latest ?? null;
 }
 
-function productLineFromOrderRow(row: OrderLineRow): CheckoutChargesProductLine {
+function productLineFromOrderRow(
+  row: OrderLineRow,
+  summaryRows?: CheckoutChargeSummaryRow[],
+): CheckoutChargesProductLine {
   const name = row.productName?.trim() || "Unnamed product";
   return {
     name,
     detail: `Qty ${row.quantity} · charged at checkout`,
     amountCents: row.priceCents,
+    ...(summaryRows && summaryRows.length > 0 ? { summaryRows } : {}),
   };
+}
+
+/**
+ * Checkout stores one line price (batch subtotal split by quote totals).
+ * Estimate shares split each fee bucket with different weights, so the raw
+ * share total can disagree with the charged line. Scale + reconcile so the
+ * breakdown always sums to what was charged for that product.
+ */
+function alignBatchShareToChargedCents(
+  share: BatchLineShare,
+  chargedCents: number,
+): BatchLineShare {
+  const charged = Math.max(0, Math.round(chargedCents));
+  const current = share.total;
+  if (current === charged) {
+    return { ...share, total: charged };
+  }
+  if (current <= 0) {
+    return {
+      merchandise: charged,
+      serviceFee: 0,
+      shipping: 0,
+      tax: 0,
+      total: charged,
+    };
+  }
+
+  const scaled = {
+    merchandise: Math.round((share.merchandise * charged) / current),
+    serviceFee: Math.round((share.serviceFee * charged) / current),
+    shipping: Math.round((share.shipping * charged) / current),
+    tax: Math.round((share.tax * charged) / current),
+  };
+  const sum =
+    scaled.merchandise + scaled.serviceFee + scaled.shipping + scaled.tax;
+  const delta = charged - sum;
+  const keys = [
+    "merchandise",
+    "serviceFee",
+    "shipping",
+    "tax",
+  ] as const satisfies ReadonlyArray<keyof typeof scaled>;
+  let largest: (typeof keys)[number] = keys[0];
+  for (const key of keys) {
+    if (scaled[key] > scaled[largest]) largest = key;
+  }
+  scaled[largest] += delta;
+  return { ...scaled, total: charged };
+}
+
+/** Match top-level batch charge labels for each product's charged amount. */
+function batchShareSummaryRows(share: BatchLineShare): CheckoutChargeSummaryRow[] {
+  return [
+    { label: "Site merchandise", amountCents: share.merchandise },
+    { label: "Service & handling", amountCents: share.serviceFee },
+    { label: "Site shipping", amountCents: share.shipping },
+    { label: "Site sale tax", amountCents: share.tax },
+    {
+      label: "Product total (checkout)",
+      amountCents: share.total,
+      emphasis: true,
+    },
+  ];
+}
+
+function latestQuoteForRequest(
+  itemRequestId: string,
+  quotes: ItemQuote[],
+): ItemQuote | null {
+  const forRequest = quotes.filter(
+    (q) => q.itemRequestId === itemRequestId && !q.voidedAt,
+  );
+  if (forRequest.length === 0) {
+    const any = quotes.filter((q) => q.itemRequestId === itemRequestId);
+    if (any.length === 0) return null;
+    return (
+      [...any].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )[0] ?? null
+    );
+  }
+  return (
+    [...forRequest].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )[0] ?? null
+  );
 }
 
 async function loadStandaloneQuoteBreakdown(
@@ -362,6 +483,130 @@ async function loadContainerChargeRows(
   return rows;
 }
 
+export async function loadLineCheckoutChargesPreview(
+  clerkUserId: string,
+  orderId: string,
+  orderItemId: string,
+): Promise<{ ok: false; message: string } | { ok: true; preview: CheckoutChargesPreview }> {
+  const owned = await loadOwnedOrder(clerkUserId, orderId);
+  if (!owned.ok) return owned;
+
+  const db = getDb();
+  const [row] = await db
+    .select({
+      orderItemId: orderItems.id,
+      itemRequestId: itemRequests.id,
+      productName: itemRequests.productName,
+      productUrl: itemRequests.productUrl,
+      siteName: itemRequests.siteName,
+      productSize: itemRequests.productSize,
+      productColor: itemRequests.productColor,
+      quantity: orderItems.quantity,
+      priceCents: orderItems.price,
+      requestBatchSessionId: itemRequests.batchQuoteSessionId,
+      linkBatchSessionId: batchQuoteSessionLines.batchQuoteSessionId,
+    })
+    .from(orderItems)
+    .innerJoin(itemRequests, eq(orderItems.itemRequestId, itemRequests.id))
+    .leftJoin(
+      batchQuoteSessionLines,
+      eq(batchQuoteSessionLines.itemRequestId, itemRequests.id),
+    )
+    .where(
+      and(
+        eq(orderItems.id, orderItemId),
+        eq(orderItems.orderId, orderId),
+        eq(itemRequests.clerkUserId, clerkUserId),
+      ),
+    )
+    .limit(1);
+
+  if (!row) {
+    return { ok: false, message: "Product line not found on this order." };
+  }
+
+  const batchSessionId =
+    row.linkBatchSessionId ?? row.requestBatchSessionId ?? null;
+  if (batchSessionId) {
+    return {
+      ok: false,
+      message: "Use Batch charges for products checked out in a batch.",
+    };
+  }
+
+  const quoteRows = await loadStandaloneQuoteBreakdown(row.itemRequestId);
+  const merchandiseCents =
+    quoteRows?.find((r) => r.label === "Item cost")?.amountCents ?? null;
+  const summaryRows: CheckoutChargeSummaryRow[] = (() => {
+    if (!quoteRows) {
+      return [
+        {
+          label: "Line total (checkout)",
+          amountCents: row.priceCents,
+          emphasis: true,
+          detail: "Staff estimate breakdown unavailable for this product.",
+        },
+      ];
+    }
+    // Prefer the charged line amount so checkout subtotal + top-ups = new total.
+    return quoteRows.map((r) =>
+      r.emphasis ?
+        {
+          ...r,
+          label: "Line total (checkout)",
+          amountCents: row.priceCents,
+          detail:
+            r.amountCents !== row.priceCents ?
+              "Aligned to the amount charged on this order line."
+            : r.detail,
+        }
+      : r,
+    );
+  })();
+
+  const productName = row.productName?.trim() || "Unnamed product";
+
+  const paidTopupAddOns = await listPaidMerchandiseTopupAddOnsForOrderItems({
+    clerkUserId,
+    orderItemIds: [row.orderItemId],
+  });
+
+  return {
+    ok: true,
+    preview: {
+      title: productName,
+      description:
+        paidTopupAddOns.length > 0 ?
+          "Checkout charges for this product, plus any later purchase-price top-up add-ons."
+        : "Checkout charges for this single product (staff estimate + your charged line amount).",
+      summaryRows,
+      productLines: [
+        productLineFromOrderRow({
+          orderItemId: row.orderItemId,
+          itemRequestId: row.itemRequestId,
+          productName: row.productName,
+          productUrl: row.productUrl,
+          quantity: row.quantity,
+          priceCents: row.priceCents,
+          resolvedBatchSessionId: null,
+          resolvedBatchNumber: null,
+        }),
+      ],
+      productSummary: {
+        productName,
+        retailerLabel: displaySiteName(row.siteName, row.productUrl),
+        productUrl: row.productUrl,
+        quantity: row.quantity,
+        sizeLabel: row.productSize?.trim() || null,
+        colorLabel: row.productColor?.trim() || null,
+        linePriceCents: row.priceCents,
+        quotedMerchandiseCostCents: merchandiseCents,
+      },
+      paidTopupAddOns,
+    },
+  };
+}
+
 export async function loadBatchCheckoutChargesPreview(
   clerkUserId: string,
   orderId: string,
@@ -404,13 +649,43 @@ export async function loadBatchCheckoutChargesPreview(
     });
   }
 
+  let productLines: CheckoutChargesProductLine[] = batchLines.map((row) =>
+    productLineFromOrderRow(row),
+  );
+
+  if (estimate) {
+    const lineIds = batchLines.map((l) => l.itemRequestId);
+    const quotes = await listItemQuotesForOwnerByRequestIds(
+      clerkUserId,
+      lineIds,
+    );
+    const shares = computeBatchLineShares(estimate, lineIds, (id) =>
+      latestQuoteForRequest(id, quotes),
+    );
+    productLines = batchLines.map((row) => {
+      const share = shares.get(row.itemRequestId);
+      if (!share) return productLineFromOrderRow(row);
+      const aligned = alignBatchShareToChargedCents(share, row.priceCents);
+      return productLineFromOrderRow(row, batchShareSummaryRows(aligned));
+    });
+  }
+
+  const paidTopupAddOns = await listPaidMerchandiseTopupAddOnsForOrderItems({
+    clerkUserId,
+    orderItemIds: batchLines.map((l) => l.orderItemId),
+  });
+
   return {
     ok: true,
     preview: {
       title: `Batch ${batchNumber}`,
-      description: "Checkout charges for this batch bundle (staff estimate + your charged line amounts).",
+      description:
+        paidTopupAddOns.length > 0 ?
+          "Checkout charges for this batch bundle, plus any later purchase-price top-up add-ons."
+        : "Checkout charges for this batch bundle (staff estimate + your charged line amounts).",
       summaryRows,
-      productLines: batchLines.map(productLineFromOrderRow),
+      productLines,
+      paidTopupAddOns,
     },
   };
 }
@@ -510,13 +785,22 @@ export async function loadOrderCheckoutChargesPreview(
     emphasis: true,
   });
 
+  const paidTopupAddOns = await listPaidMerchandiseTopupAddOnsForOrderItems({
+    clerkUserId,
+    orderItemIds: merchandiseLines.map((l) => l.orderItemId),
+  });
+
   return {
     ok: true,
     preview: {
       title: "Order checkout summary",
-      description: `Charges recorded when you paid on ${new Date(order.createdAt).toLocaleString()}.`,
+      description:
+        paidTopupAddOns.length > 0 ?
+          `Charges recorded when you paid on ${new Date(order.createdAt).toLocaleString()}, plus later purchase-price top-up add-ons.`
+        : `Charges recorded when you paid on ${new Date(order.createdAt).toLocaleString()}.`,
       summaryRows,
       productLines,
+      paidTopupAddOns,
     },
   };
 }

@@ -12,7 +12,13 @@ import {
 } from "@/data/item-quotes";
 import { insertOutsidePurchaseLifecycleSnapshot } from "@/data/outside-purchase-lifecycle-snapshot";
 import { getItemRequestById } from "@/data/item-requests";
+import { loadQuoteExpirySettings } from "@/data/quote-expiry-settings";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import {
+  effectiveQuoteExpiryMinutes,
+  isQuoteExpired,
+  resolveQuoteExpiryClockStart,
+} from "@/lib/quote-expiry";
 import { approveItemQuoteSchema } from "@/lib/validations/approve-item-quote";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
@@ -68,6 +74,24 @@ export async function approveItemQuoteAction(
       ok: false,
       message:
         "No active estimate on file. Ask staff to open your request in admin and save the quote again.",
+    };
+  }
+
+  const { expiryMinutes } = await loadQuoteExpirySettings(userId);
+  const lineMinutes = effectiveQuoteExpiryMinutes(
+    expiryMinutes,
+    request.quoteExpiryMinutesOverride,
+  ).expiryMinutes;
+  const clockStart = resolveQuoteExpiryClockStart({
+    quoteIssuedAt: quote.createdAt,
+    productOverrideMinutes: request.quoteExpiryMinutesOverride,
+    productOverrideAnchoredAt: request.quoteExpiryOverrideAnchoredAt,
+  });
+  if (isQuoteExpired(clockStart, lineMinutes)) {
+    return {
+      ok: false,
+      message:
+        "This estimate has expired. Open Expired Quotes to resubmit a new request.",
     };
   }
 

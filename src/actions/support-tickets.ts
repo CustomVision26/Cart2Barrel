@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 
 import {
   appendSupportTicketMessage,
+  hideUserSupportTicket,
   insertSupportTicketWithMessage,
   loadUserSupportTicketDetail,
+  restoreUserSupportTicket,
 } from "@/data/support-tickets";
 import {
   recordSupportTicketRepliedActivity,
@@ -15,6 +17,8 @@ import { getClerkSessionGate } from "@/lib/clerk-session";
 import { DASHBOARD_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 import {
   createSupportTicketSchema,
+  hideSupportTicketSchema,
+  restoreSupportTicketSchema,
   supportTicketReplySchema,
 } from "@/lib/validations/support";
 
@@ -124,4 +128,52 @@ export async function userReplySupportTicketAction(
   revalidatePath("/admin/support/inbox");
   revalidatePath("/admin", "layout");
   return { ok: true, message: "Message sent." };
+}
+
+export async function hideSupportTicketAction(
+  raw: unknown,
+): Promise<SupportTicketActionState> {
+  const gate = await getClerkSessionGate();
+  if (!gate.ok) {
+    return { ok: false, message: gate.message };
+  }
+  const parsed = hideSupportTicketSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid ticket." };
+  }
+  const ok = await hideUserSupportTicket({
+    clerkUserId: gate.userId,
+    ticketId: parsed.data.ticketId,
+  });
+  if (!ok) {
+    return { ok: false, message: "Could not remove this conversation." };
+  }
+  revalidatePath(DASHBOARD_SUPPORT_ROUTES.inbox);
+  revalidatePath(DASHBOARD_SUPPORT_ROUTES.history);
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: "Moved to History." };
+}
+
+export async function restoreSupportTicketAction(
+  raw: unknown,
+): Promise<SupportTicketActionState> {
+  const gate = await getClerkSessionGate();
+  if (!gate.ok) {
+    return { ok: false, message: gate.message };
+  }
+  const parsed = restoreSupportTicketSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid ticket." };
+  }
+  const ok = await restoreUserSupportTicket({
+    clerkUserId: gate.userId,
+    ticketId: parsed.data.ticketId,
+  });
+  if (!ok) {
+    return { ok: false, message: "Could not restore this conversation." };
+  }
+  revalidatePath(DASHBOARD_SUPPORT_ROUTES.inbox);
+  revalidatePath(DASHBOARD_SUPPORT_ROUTES.history);
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: "Restored to Messages." };
 }

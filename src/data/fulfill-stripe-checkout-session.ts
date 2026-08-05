@@ -155,12 +155,29 @@ export async function fulfillPaidCheckoutFromStripeSession(
     stripePaymentIntentId: paymentIntentId,
   });
 
+  const { fulfillMerchandiseTopupsFromCheckout } = await import(
+    "@/data/fulfill-merchandise-topup-checkout"
+  );
+  const { parseMerchandiseTopupReconciliationIdsFromMetadata } = await import(
+    "@/data/merchandise-topup-cart"
+  );
+  const merchandiseTopupReconciliationIds =
+    parseMerchandiseTopupReconciliationIdsFromMetadata(
+      session.metadata?.merchandiseTopupReconciliationIds,
+    );
+  await fulfillMerchandiseTopupsFromCheckout(
+    order.clerkUserId,
+    merchandiseTopupReconciliationIds,
+    order.id,
+  );
+
   await markInCartBatchSessionsPaidForCheckoutOrder(order.id);
 
   await recordCheckoutPaymentSucceededActivity({
     orderId: order.id,
     customerClerkUserId: order.clerkUserId,
     totalAmountCents: order.totalAmount,
+    merchandiseTopupReconciliationIds,
   });
 
   await trySendOwnerPaidOrderReceiptEmail(order.id);

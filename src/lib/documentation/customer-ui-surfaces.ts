@@ -141,11 +141,28 @@ const CUSTOMER_EXTRA_SURFACES: UiSurfaceDefinition[] = [
     kind: "header",
   },
   {
+    id: "support-messages-history",
+    title: "Messages — History",
+    category: "Support",
+    route: DASHBOARD_SUPPORT_ROUTES.history,
+    location: "Sidebar → Messages → History tab, or /dashboard/support/history.",
+    kind: "tab",
+  },
+  {
     id: "user-guide",
     title: "User guide (How it works)",
     category: "Getting started",
     route: HOW_IT_WORKS_ROUTES.userGuide,
     location: "How it works → User guide tab, or dashboard header → Documentation.",
+    kind: "tab",
+  },
+  {
+    id: "expired-quotes",
+    title: "Add item — Expired Quotes",
+    category: "Shopping",
+    route: DASHBOARD_ADD_ITEM_ROUTES.productsExpiredQuotes,
+    location:
+      "Sidebar → Add item → Products → Expired Quotes (/dashboard/items/new/add-item/products/expired-quotes).",
     kind: "tab",
   },
 ];
@@ -185,10 +202,13 @@ const CUSTOMER_SURFACE_OVERRIDES: Partial<
   },
   "add-item": {
     title: "Add item — Products & batch quotes",
+    location:
+      "Sidebar → Add item → Products (Active). Purchase-price top-ups appear as add-on rows in the products table (status Top-up due).",
   },
   cart: {
     title: "Cart & checkout",
-    location: "Sidebar → Cart, or header cart icon.",
+    location:
+      "Sidebar → Cart, or header cart icon. Includes accepted estimates, containers, outbound shipping, and add-on top-up charges.",
   },
   orders: {
     title: "Orders (active & history)",
@@ -202,7 +222,7 @@ const CUSTOMER_SURFACE_OVERRIDES: Partial<
   },
   "support-messages": {
     title: "Messages (support inbox)",
-    location: "Sidebar → Messages, or /dashboard/support.",
+    location: "Sidebar → Messages, or /dashboard/support (History tab at /dashboard/support/history).",
   },
 };
 

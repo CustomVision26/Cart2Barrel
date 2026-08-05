@@ -1,7 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { Loader2Icon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -166,8 +173,13 @@ export function AdminAiEstimateDialog({
     null,
   );
 
+  /** Reset form only when the dialog opens — not when parent props refresh after SerpApi revalidation (that was wiping Pack price back to $0.00 while the AI hint stayed populated). */
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (!justOpened) return;
+
     setQuantity(String(initialQuantity));
     setVariantSize(initialProductSize?.trim() ?? "");
     setVariantColor(initialProductColor?.trim() ?? "");
@@ -178,6 +190,7 @@ export function AdminAiEstimateDialog({
     setEditStaffNote("");
     setMerchandiseIncludesSiteShippingTax(false);
     setStagedProductImageFile(null);
+    setResult(null);
     setUploadedProductImageUrl((prev) => {
       if (isBlobPreviewUrl(prev)) revokeBlobPreviewUrl(prev);
       return initialProductImageUrl?.trim() || null;
@@ -192,12 +205,9 @@ export function AdminAiEstimateDialog({
 
   useEffect(() => {
     if (!result?.ok) return;
-    setVariantColor(
-      (c) => result.extraction.color?.trim() || c
-    );
-    setVariantSize(
-      (s) => result.extraction.size?.trim() || s
-    );
+    // Only fill empty variant fields — never overwrite staff/customer values.
+    setVariantColor((c) => c.trim() || result.extraction.color?.trim() || "");
+    setVariantSize((s) => s.trim() || result.extraction.size?.trim() || "");
     setEditPackPriceDollars(
       result.unitPriceCents != null
         ? centsToDollarInput(result.unitPriceCents)
@@ -212,12 +222,15 @@ export function AdminAiEstimateDialog({
     setEditSavingsDollars("0.00");
     const extractedImage = result.extraction.productImageUrl?.trim();
     if (extractedImage) {
+      // Keep the customer/staff photo; SerpApi image is fallback only.
       setUploadedProductImageUrl((prev) => {
-        if (isBlobPreviewUrl(prev)) revokeBlobPreviewUrl(prev);
+        const existing =
+          prev?.trim() || initialProductImageUrl?.trim() || "";
+        if (existing) return prev?.trim() ? prev : existing;
         return extractedImage;
       });
     }
-  }, [result]);
+  }, [result, initialProductImageUrl]);
 
   const handleProductImageStaged = useCallback(
     (file: File, previewUrl: string) => {
@@ -347,6 +360,7 @@ export function AdminAiEstimateDialog({
         stagedProductImageFile ?
           null
         : uploadedProductImageUrl?.trim() ||
+          initialProductImageUrl?.trim() ||
           result.extraction.productImageUrl?.trim() ||
           null;
 
@@ -392,6 +406,7 @@ export function AdminAiEstimateDialog({
     router,
     merchandiseIncludesSiteShippingTax,
     uploadedProductImageUrl,
+    initialProductImageUrl,
     stagedProductImageFile,
     editStaffNote,
   ]);
@@ -435,10 +450,14 @@ export function AdminAiEstimateDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {uploadedProductImageUrl && !result?.ok ?
+          {(uploadedProductImageUrl || initialProductImageUrl)?.trim() &&
+          !result?.ok ?
             <div className="overflow-hidden rounded-lg border border-border bg-muted/40 p-3">
               <AdminProductImagePreview
-                imageUrl={uploadedProductImageUrl}
+                imageUrl={
+                  uploadedProductImageUrl?.trim() ||
+                  initialProductImageUrl!.trim()
+                }
                 productUrl={productUrl}
                 imageClassName="mx-auto max-h-36"
               />

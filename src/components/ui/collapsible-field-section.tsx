@@ -63,7 +63,9 @@ export function CollapsibleFieldSection({
             <span
               className={cn(
                 "mt-0.5 block text-muted-foreground",
-                compact ? "text-[10px] leading-snug" : "text-xs leading-snug",
+                compact
+                  ? "line-clamp-2 text-[10px] leading-snug"
+                  : "text-xs leading-snug",
               )}
             >
               {description}

@@ -4,7 +4,10 @@ import { auth } from "@clerk/nextjs/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { listItemRequestsForBatchSession } from "@/data/batch-quote-sessions";
+import {
+  dissolveOwnerBatchesWithAnyExpiredLineQuotes,
+  listItemRequestsForBatchSession,
+} from "@/data/batch-quote-sessions";
 import { appendBatchQuoteSessionStatusEvent } from "@/data/batch-quote-session-status-events";
 import { recordBatchEstimateAcceptedActivity } from "@/data/admin-user-activity-events";
 import { buildBatchQuoteHistorySnapshot } from "@/lib/batch-quote-history-snapshot";
@@ -12,6 +15,7 @@ import {
   getLatestQuoteForItemRequest,
   restoreOrphanQuotedItemRequestQuote,
 } from "@/data/item-quotes";
+import { loadQuoteExpirySettings } from "@/data/quote-expiry-settings";
 import { getDb } from "@/db";
 import {
   batchQuoteEstimates,
@@ -23,6 +27,11 @@ import {
   getPgErrorCode,
   isMissingBatchCartAcceptanceColumnsError,
 } from "@/lib/db-column-missing";
+import {
+  effectiveQuoteExpiryMinutes,
+  isQuoteExpired,
+  resolveQuoteExpiryClockStart,
+} from "@/lib/quote-expiry";
 import { approveBatchEstimateSchema } from "@/lib/validations/approve-batch-estimate";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
@@ -51,6 +60,21 @@ export async function approveBatchEstimateAction(
 
   const batchSessionId = parsed.data.batchSessionId;
   const db = getDb();
+
+  const { expiryMinutes } = await loadQuoteExpirySettings(userId);
+  const { dissolvedSessionIds } = await dissolveOwnerBatchesWithAnyExpiredLineQuotes(
+    userId,
+    expiryMinutes,
+  );
+  if (dissolvedSessionIds.includes(batchSessionId)) {
+    revalidateDashboardAddItem();
+    revalidatePath("/dashboard/cart");
+    return {
+      ok: false,
+      message:
+        "This batch ended because at least one product quote expired before checkout. Products are back on Products as individual lines—open Expired Quotes to resubmit any that expired.",
+    };
+  }
 
   const [session] = await db
     .select()
@@ -164,6 +188,34 @@ export async function approveBatchEstimateAction(
       return {
         ok: false,
         message: `${quoteFailureLabel(request.productName)} is missing its staff estimate rows. Refresh the page, or ask staff to re-save that line.`,
+      };
+    }
+    const lineMinutes = effectiveQuoteExpiryMinutes(
+      expiryMinutes,
+      request.quoteExpiryMinutesOverride,
+    ).expiryMinutes;
+    const clockStart = resolveQuoteExpiryClockStart({
+      quoteIssuedAt: quote.createdAt,
+      productOverrideMinutes: request.quoteExpiryMinutesOverride,
+      productOverrideAnchoredAt: request.quoteExpiryOverrideAnchoredAt,
+    });
+    if (isQuoteExpired(clockStart, lineMinutes)) {
+      const dissolved = await dissolveOwnerBatchesWithAnyExpiredLineQuotes(
+        userId,
+        expiryMinutes,
+      );
+      revalidateDashboardAddItem();
+      revalidatePath("/dashboard/cart");
+      if (dissolved.dissolvedSessionIds.includes(batchSessionId)) {
+        return {
+          ok: false,
+          message:
+            "This batch ended because at least one product quote expired before checkout. Products are back on Products as individual lines—open Expired Quotes to resubmit any that expired.",
+        };
+      }
+      return {
+        ok: false,
+        message: `${quoteFailureLabel(request.productName)} has an expired estimate. Open Expired Quotes to resubmit that line, then ask staff for a new batch total.`,
       };
     }
     linesToApproveIntoCart.push(request);

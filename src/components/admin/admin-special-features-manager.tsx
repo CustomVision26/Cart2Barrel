@@ -65,6 +65,7 @@ export type AdminSerializableSpecialFeature = {
   endsAt: string;
   isActive: boolean;
   containerOfferingId: string | null;
+  suitcaseSlotCapacity: number | null;
 };
 
 type AdminSpecialFeaturesManagerProps = {
@@ -275,6 +276,7 @@ export function AdminSpecialFeaturesManager({
                     notes,
                     startsAt: datetimeLocalValueToIso(String(fd.get("startsAt") ?? "")),
                     endsAt: datetimeLocalValueToIso(String(fd.get("endsAt") ?? "")),
+                    suitcaseSlotCapacity: String(fd.get("suitcaseSlotCapacity") ?? ""),
                   }),
                 );
                 if (!res?.ok) {
@@ -327,6 +329,23 @@ export function AdminSpecialFeaturesManager({
               <Input id="sf-ends" name="endsAt" type="datetime-local" required />
               <p className="text-xs text-muted-foreground">
                 Suitcases must be sent before this end time.
+              </p>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="sf-slots">Total suitcase slots (baggage allowance)</Label>
+              <Input
+                id="sf-slots"
+                name="suitcaseSlotCapacity"
+                type="number"
+                min={1}
+                max={999}
+                inputMode="numeric"
+                placeholder="e.g. 10"
+              />
+              <p className="text-xs text-muted-foreground">
+                How many paid suitcases this special accepts across all shoppers. When
+                that many are paid at checkout, the offer ends automatically. Leave blank
+                for no slot limit (time window only).
               </p>
             </div>
             <div className="space-y-2 sm:col-span-2">
@@ -488,6 +507,9 @@ function AdminSpecialFeatureRow({
     offer.airlineBagFeeExtraNote,
   );
   const [notes, setNotes] = useState(resolveSpecialFeatureNotes(offer.notes));
+  const [suitcaseSlotCapacity, setSuitcaseSlotCapacity] = useState(
+    offer.suitcaseSlotCapacity != null ? String(offer.suitcaseSlotCapacity) : "",
+  );
 
   useEffect(() => {
     setName(offer.name);
@@ -502,6 +524,9 @@ function AdminSpecialFeatureRow({
     setFourthBagUsd(centsToUsdInput(offer.airlineFourthBagUsdCents));
     setAirlineBagFeeExtraNote(offer.airlineBagFeeExtraNote);
     setNotes(resolveSpecialFeatureNotes(offer.notes));
+    setSuitcaseSlotCapacity(
+      offer.suitcaseSlotCapacity != null ? String(offer.suitcaseSlotCapacity) : "",
+    );
   }, [
     offer.id,
     offer.isActive,
@@ -517,6 +542,7 @@ function AdminSpecialFeatureRow({
     offer.airlineFourthBagUsdCents,
     offer.airlineBagFeeExtraNote,
     offer.notes,
+    offer.suitcaseSlotCapacity,
   ]);
 
   function runBagFeeLookup(nextAirline: string, nextTravelAt: string) {
@@ -605,6 +631,7 @@ function AdminSpecialFeatureRow({
                   startsAt: datetimeLocalValueToIso(startsAt),
                   endsAt: datetimeLocalValueToIso(endsAt),
                   isActive: offer.isActive,
+                  suitcaseSlotCapacity,
                 }),
               );
               if (!res?.ok) {
@@ -659,6 +686,26 @@ function AdminSpecialFeatureRow({
               onChange={(e) => setEndsAt(e.target.value)}
               disabled={formDisabled}
             />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor={`sf-slots-${offer.id}`}>
+              Total suitcase slots (baggage allowance)
+            </Label>
+            <Input
+              id={`sf-slots-${offer.id}`}
+              type="number"
+              min={1}
+              max={999}
+              inputMode="numeric"
+              value={suitcaseSlotCapacity}
+              onChange={(e) => setSuitcaseSlotCapacity(e.target.value)}
+              disabled={formDisabled}
+              placeholder="No limit"
+            />
+            <p className="text-xs text-muted-foreground">
+              Paid suitcases across all shoppers. When this count is reached at checkout,
+              the offer ends. Leave blank for no slot cap.
+            </p>
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor={`sf-price-${offer.id}`}>Transportation fee (USD)</Label>

@@ -8,11 +8,19 @@ import { getUserCartHeaderCount } from "@/data/cart-header-count";
 type CartHeaderLinkProps = {
   /** When provided, skips a second Clerk `auth()` round-trip on pages that already resolved the user. */
   userId?: string | null;
+  /** When provided, skips the cart badge count query (layout already loaded it). */
+  count?: number;
 };
 
-export async function CartHeaderLink({ userId: userIdProp }: CartHeaderLinkProps = {}) {
+export async function CartHeaderLink({
+  userId: userIdProp,
+  count: countProp,
+}: CartHeaderLinkProps = {}) {
   const userId = userIdProp ?? (await auth()).userId;
-  const count = userId ? await getUserCartHeaderCount(userId) : 0;
+  const count =
+    countProp !== undefined ? countProp
+    : userId ? await getUserCartHeaderCount(userId)
+    : 0;
 
   return (
     <Link

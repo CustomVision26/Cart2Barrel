@@ -172,11 +172,14 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Fees & rates: service tiers and container packing rates.",
         "Customer packages: per-customer or general package pricing.",
         "Shipping containers: catalog offerings for sale to customers.",
+        "Special features: timed suitcase offers.",
+        "Quote Expiry Settings: Hub / Customer / Product sub-tabs for default window, per-customer overrides, and per-product overrides (1 minute–90 days).",
       ],
       requirements: ["Admin access."],
       dos: [
         "Use Finance for reconciliation, not Summary alone.",
         "Change fees & rates deliberately—existing quotes may use prior tiers.",
+        "Publish Quote Expiry Settings (hub, customer, or product override) when retailer volatility or refund risk changes the payment window policy.",
       ],
       donts: [
         "Don't edit container catalog without coordinating marketing spotlight.",
@@ -185,7 +188,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, merchant pricing, customer-specific packages, and the container catalog sold in the user app.",
+        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, merchant pricing, customer-specific packages, the container catalog, special suitcase offers, and the quote expiry window for shoppers.",
       ],
       walkthrough: [
         "Summary tab: starting point with refund-awaiting banner and orientation copy.",
@@ -193,6 +196,8 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Fees & rates tab: edit in-app and outside-purchase service fee tiers and container packing fee rates.",
         "Customer packages tab: manage general or per-customer package pricing presets.",
         "Shipping containers tab: CRUD container offerings, images, and prices shown on user Barrels shop.",
+        "Special features tab: timed suitcase specials.",
+        "Quote Expiry Settings tab: Hub / Customer / Product sub-tabs. Publish the hub default (1 minute–90 days), assign a customer override for all of that shopper’s quotes, or search a quoted product and set a product-only override. Priority: product → customer → hub. Shorter windows reduce refunds and add-payment requests when retailer prices move.",
       ],
       notes: [
         "/admin/finance redirects to Overview with the Finance tab selected.",

@@ -17,6 +17,7 @@ import {
   type ItemRequest,
   type Order,
 } from "@/db/schema";
+import { dissolveOwnerBatchesWithAnyExpiredLineQuotes } from "@/data/batch-quote-sessions";
 import {
   itemRequestFromRowWithoutReceiptImage,
   itemRequestsRowLegacySelect,
@@ -27,6 +28,7 @@ import {
 import { itemQuoteCoreSelect, itemQuoteCoreSelectPreMerchandiseSavings } from "@/data/item-quotes";
 import { listOutsidePurchaseReturnRequestsByItemRequestIds } from "@/data/outside-purchase-return-requests";
 import { orderListSelect } from "@/data/order-list-select";
+import { loadQuoteExpirySettings } from "@/data/quote-expiry-settings";
 import { getSpecialFeatureCartPricingByOfferingIds } from "@/data/special-feature-offers";
 import type { ContainerCheckoutLine } from "@/data/user-container-cart";
 import { buildSpecialSuitcaseBaggageAllocation } from "@/data/user-container-cart";
@@ -308,6 +310,9 @@ export type CheckoutOrderLineInput = {
 export async function assembleApprovedCartForUser(
   clerkUserId: string
 ): Promise<AssembledCart> {
+  const { expiryMinutes } = await loadQuoteExpirySettings(clerkUserId);
+  await dissolveOwnerBatchesWithAnyExpiredLineQuotes(clerkUserId, expiryMinutes);
+
   const lines = await listApprovedCartLinesForUser(clerkUserId);
   if (lines.length === 0) {
     return { batchGroups: [], standaloneLines: [], estimatedTotalCents: 0 };

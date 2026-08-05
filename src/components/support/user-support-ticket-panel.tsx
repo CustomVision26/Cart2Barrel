@@ -12,10 +12,18 @@ import {
   SupportTicketComposeForm,
   type SupportTicketComposePayload,
 } from "@/components/support/support-ticket-compose-form";
+import { MerchandisePriceDecisionOptions } from "@/components/support/merchandise-price-decision-options";
 import { SupportTicketThread } from "@/components/support/support-ticket-thread";
 import { DASHBOARD_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 
-export function UserSupportTicketPanel({ ticket }: { ticket: SupportTicketDetail }) {
+export function UserSupportTicketPanel({
+  ticket,
+  showMerchandisePriceDecision = false,
+}: {
+  ticket: SupportTicketDetail;
+  /** Price-up reconciliation awaiting customer top-up vs cancel choice. */
+  showMerchandisePriceDecision?: boolean;
+}) {
   const router = useRouter();
   const [reply, setReply] = useState("");
 
@@ -53,6 +61,12 @@ export function UserSupportTicketPanel({ ticket }: { ticket: SupportTicketDetail
       </div>
 
       <SupportTicketThread messages={ticket.messages} viewerIsStaff={false} />
+
+      {showMerchandisePriceDecision &&
+      ticket.status !== "closed" &&
+      ticket.status !== "resolved" ?
+        <MerchandisePriceDecisionOptions ticketId={ticket.id} />
+      : null}
 
       {ticket.status !== "closed" && ticket.status !== "resolved" ? (
         <div className="rounded-xl border border-border bg-card p-4">

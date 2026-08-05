@@ -149,6 +149,19 @@ export const adminCreateSpecialFeatureOfferSchema = z
     notes: z.string().max(4000).optional().default(""),
     startsAt: dateTimeField,
     endsAt: dateTimeField,
+    suitcaseSlotCapacity: z
+      .string()
+      .trim()
+      .optional()
+      .default("")
+      .refine(
+        (s) =>
+          s === "" ||
+          (Number.isFinite(Number.parseInt(s, 10)) &&
+            Number.parseInt(s, 10) >= 1 &&
+            Number.parseInt(s, 10) <= 999),
+        { message: "Enter a whole number from 1 to 999, or leave blank for no limit." },
+      ),
     ...bagFeeUsdFields,
   })
   .superRefine((data, ctx) => {
@@ -175,6 +188,19 @@ export const adminUpdateSpecialFeatureOfferSchema = z
     startsAt: dateTimeField,
     endsAt: dateTimeField,
     isActive: z.boolean(),
+    suitcaseSlotCapacity: z
+      .string()
+      .trim()
+      .optional()
+      .default("")
+      .refine(
+        (s) =>
+          s === "" ||
+          (Number.isFinite(Number.parseInt(s, 10)) &&
+            Number.parseInt(s, 10) >= 1 &&
+            Number.parseInt(s, 10) <= 999),
+        { message: "Enter a whole number from 1 to 999, or leave blank for no limit." },
+      ),
     ...bagFeeUsdFields,
   })
   .superRefine((data, ctx) => {
@@ -203,6 +229,14 @@ export const adminPublishSpecialFeatureOfferSchema = z.object({
 export type AdminPublishSpecialFeatureOfferInput = z.infer<
   typeof adminPublishSpecialFeatureOfferSchema
 >;
+
+export function parseSuitcaseSlotCapacity(raw: string | undefined): number | null {
+  const s = raw?.trim() ?? "";
+  if (!s) return null;
+  const n = Number.parseInt(s, 10);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return n;
+}
 
 export function specialFeatureDateTimeToIso(raw: string): string {
   return parseLocalDateTimeToIso(raw) ?? new Date().toISOString();

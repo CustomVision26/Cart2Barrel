@@ -3,8 +3,10 @@ import {
   getSpecialFeatureWindowStatus,
   type SpecialFeatureOfferRow,
 } from "@/data/special-feature-offers";
+import { getSpecialOfferSlotSummariesByOfferId } from "@/data/special-feature-suitcase-slots";
 import { formatUsd } from "@/lib/admin-markup";
 import { formatSpecialFeatureOutsideBagFees } from "@/lib/special-feature-bag-fees";
+import { formatSpecialOfferSlotLabel } from "@/lib/special-feature-suitcase-slots";
 import { resolveSpecialFeatureNotes } from "@/lib/special-feature-notes";
 import { formatSpecialFeatureWindowLabel } from "@/lib/special-feature-window-label";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,7 @@ import {
 
 function mapOfferToBannerData(
   offer: SpecialFeatureOfferRow,
+  slotsLabel: string | null,
 ): Omit<SpecialFeaturePromoBannerData, "colorIndex"> {
   const mode = offer.packagingMode as SpecialFeaturePackagingMode;
   const priceLabel =
@@ -51,6 +54,7 @@ function mapOfferToBannerData(
     bagFeesText,
     airlineBagFeeExtraNote,
     notes: resolveSpecialFeatureNotes(offer.notes),
+    slotsLabel,
   };
 }
 
@@ -66,13 +70,28 @@ export async function SpecialFeaturePromoBanner({
   const offers = await listPromoBannerSpecialFeatureOffers();
   if (offers.length === 0) return null;
 
+  /** Only capped offers need reservation counts — uncapped return immediately. */
+  const cappedOffers = offers.filter(
+    (o) => o.suitcaseSlotCapacity != null && o.suitcaseSlotCapacity > 0,
+  );
+  const slotSummaries =
+    cappedOffers.length > 0 ?
+      await getSpecialOfferSlotSummariesByOfferId(cappedOffers)
+    : new Map();
+
   return (
     <SpecialFeaturePromoBannerClient
       className={cn(className)}
-      offers={offers.map((offer, index) => ({
-        ...mapOfferToBannerData(offer),
-        colorIndex: index,
-      }))}
+      offers={offers.map((offer, index) => {
+        const summary = slotSummaries.get(offer.id);
+        return {
+          ...mapOfferToBannerData(
+            offer,
+            summary ? formatSpecialOfferSlotLabel(summary) : null,
+          ),
+          colorIndex: index,
+        };
+      })}
     />
   );
 }

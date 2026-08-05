@@ -3,6 +3,7 @@ import { Package, Receipt } from "lucide-react";
 import { CartCheckoutBatchBundleCollapsible } from "@/components/dashboard/cart-checkout-batch-bundle-collapsible";
 import { CartCheckoutContainerLineCard } from "@/components/dashboard/cart-checkout-container-line-card";
 import { CartCheckoutProductDetail } from "@/components/dashboard/cart-checkout-product-detail";
+import { CartCheckoutTopupLineCard } from "@/components/dashboard/cart-checkout-topup-line-card";
 import { CartLineUrlOrReceipt } from "@/components/dashboard/cart-line-url-or-receipt";
 import {
   Card,
@@ -12,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { CartCheckoutOrderSummary } from "@/data/cart";
+import type { MerchandiseTopupAddOnChargeView } from "@/data/merchandise-topup-cart";
 import { formatUsd } from "@/lib/admin-markup";
 import { CART_CHECKOUT_USD_DISCLAIMER } from "@/lib/cart-checkout-disclaimer";
 import { statusBadgeClassName } from "@/lib/status-badge-kinds";
@@ -26,6 +28,8 @@ export type CartCheckoutStripeLineSummary = {
 type CartCheckoutSummaryCardProps = {
   dbSummary: CartCheckoutOrderSummary | null;
   stripeLines: CartCheckoutStripeLineSummary[];
+  /** Merchandise top-ups included in this checkout (from session metadata). */
+  merchandiseTopupLines?: MerchandiseTopupAddOnChargeView[];
   /** Prefer order total; else Stripe session `amount_total`. */
   totalCents: number;
   /** From Checkout Session metadata when surcharge applies (shown when listing DB line items). */
@@ -33,6 +37,10 @@ type CartCheckoutSummaryCardProps = {
   /** e.g. "US cards" / "International cards" — paired with `processingFeeCents`. */
   processingFeeGroupLabel?: string | null;
 };
+
+function isPurchasePriceTopupStripeDescription(description: string): boolean {
+  return description.trim().toLowerCase().includes("purchase price top-up");
+}
 
 function orderStatusPresentation(status: string): {
   label: string;
@@ -60,6 +68,7 @@ function orderStatusPresentation(status: string): {
 export function CartCheckoutSummaryCard({
   dbSummary,
   stripeLines,
+  merchandiseTopupLines = [],
   totalCents,
   processingFeeCents,
   processingFeeGroupLabel,
@@ -68,27 +77,43 @@ export function CartCheckoutSummaryCard({
     dbSummary?.batchBundles.reduce((n, b) => n + b.lines.length, 0) ?? 0;
   const standaloneCount = dbSummary?.standaloneLines.length ?? 0;
   const containerCount = dbSummary?.containerLines.length ?? 0;
+  const topupCount = merchandiseTopupLines.length;
   const dbLineTotal = bundleLineTotal + standaloneCount + containerCount;
+  const hasStructuredLines = dbLineTotal > 0 || topupCount > 0;
 
   const legacyAggregatePackingStripeLine = (description: string) => {
     const d = description.trim().toLowerCase();
     return d === "barrel packing fee" || d === "bin packing fee";
   };
-  const stripeLinesForDisplay = stripeLines.filter(
-    (row) => !legacyAggregatePackingStripeLine(row.description),
-  );
+  const stripeLinesForDisplay = stripeLines.filter((row) => {
+    if (legacyAggregatePackingStripeLine(row.description)) return false;
+    // Prefer structured top-up cards when we resolved charge details.
+    if (
+      topupCount > 0 &&
+      isPurchasePriceTopupStripeDescription(row.description)
+    ) {
+      return false;
+    }
+    return true;
+  });
   const lineCount =
-    dbLineTotal > 0 ? dbLineTotal : stripeLinesForDisplay.length;
+    hasStructuredLines ?
+      dbLineTotal + topupCount
+    : stripeLinesForDisplay.length;
+
+  const status = dbSummary ?
+      orderStatusPresentation(dbSummary.status)
+    : orderStatusPresentation("pending");
 
   return (
     <Card
       className={cn(
-        "h-fit overflow-hidden rounded-lg border-border bg-card shadow-sm",
+        "h-fit overflow-hidden rounded-xl border-border/80 bg-card shadow-sm ring-1 ring-border/40",
       )}
     >
-      <CardHeader className="space-y-4 border-b border-border/60 bg-muted pb-5">
+      <CardHeader className="space-y-4 border-b border-border/60 bg-gradient-to-b from-muted/50 to-muted/20 pb-5">
         <div className="flex items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-background text-muted-foreground">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/80 bg-background text-primary shadow-sm">
             <Receipt className="size-5" aria-hidden />
           </span>
           <div className="min-w-0 flex-1 space-y-1.5">
@@ -100,22 +125,39 @@ export function CartCheckoutSummaryCard({
             </CardTitle>
             <CardDescription className="text-[13px] leading-relaxed text-muted-foreground">
               {dbSummary ?
-                <>
-                  <span className="text-foreground">Order reference</span>{" "}
-                  <span className="font-mono text-xs text-foreground" title={dbSummary.orderId}>
-                    {dbSummary.orderId.slice(0, 8)}…
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>
+                    <span className="text-foreground">Order reference</span>{" "}
+                    <span
+                      className="font-mono text-xs text-foreground"
+                      title={dbSummary.orderId}
+                    >
+                      {dbSummary.orderId.slice(0, 8)}…
+                    </span>
                   </span>
-                  <span className="mx-2 text-border">·</span>
                   <span
                     className={cn(
-                      "tabular-nums capitalize",
-                      orderStatusPresentation(dbSummary.status).className
+                      "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize",
+                      status.className,
                     )}
                   >
-                    {orderStatusPresentation(dbSummary.status).label}
+                    {status.label}
                   </span>
-                </>
-              : "Verify that the items below match your selections before proceeding to payment."}
+                </span>
+              : <span className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize",
+                      status.className,
+                    )}
+                  >
+                    {status.label}
+                  </span>
+                  <span>
+                    Verify the charges below before completing payment.
+                  </span>
+                </span>
+              }
             </CardDescription>
           </div>
         </div>
@@ -126,7 +168,13 @@ export function CartCheckoutSummaryCard({
               <span className="font-medium tabular-nums text-foreground">
                 {lineCount}
               </span>{" "}
-              merchandise {lineCount === 1 ? "line" : "lines"}
+              {lineCount === 1 ? "line" : "lines"}
+              {topupCount > 0 ?
+                <span className="text-muted-foreground/90">
+                  {" "}
+                  ({topupCount} add-on top-up{topupCount === 1 ? "" : "s"})
+                </span>
+              : null}
             </span>
           </p>
         : null}
@@ -134,16 +182,16 @@ export function CartCheckoutSummaryCard({
 
       <CardContent className="space-y-0 p-0">
         <div className="px-5 pt-4">
-          {dbSummary && dbLineTotal > 0 ?
-            <ul className="space-y-6" role="list">
-              {dbSummary.batchBundles.map((bundle) => (
+          {hasStructuredLines ?
+            <ul className="space-y-4" role="list">
+              {dbSummary?.batchBundles.map((bundle) => (
                 <li key={bundle.batchSessionId}>
                   <CartCheckoutBatchBundleCollapsible bundle={bundle} />
                 </li>
               ))}
-              {dbSummary.standaloneLines.map((line) => (
+              {dbSummary?.standaloneLines.map((line) => (
                 <li key={line.itemRequestId}>
-                  <div className="rounded-lg border border-border bg-card p-4">
+                  <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm ring-1 ring-border/30">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
                       <div className="min-w-0 flex-1 space-y-2">
                         <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
@@ -185,9 +233,14 @@ export function CartCheckoutSummaryCard({
                   </div>
                 </li>
               ))}
-              {dbSummary.containerLines.map((line) => (
+              {dbSummary?.containerLines.map((line) => (
                 <li key={line.id}>
                   <CartCheckoutContainerLineCard line={line} />
+                </li>
+              ))}
+              {merchandiseTopupLines.map((charge) => (
+                <li key={charge.reconciliationId}>
+                  <CartCheckoutTopupLineCard charge={charge} />
                 </li>
               ))}
             </ul>
@@ -195,11 +248,13 @@ export function CartCheckoutSummaryCard({
             <ul className="space-y-3" role="list">
               {stripeLinesForDisplay.map((row, idx) => (
                 <li key={`${row.description}-${idx}`}>
-                  <div className="rounded-lg border border-border bg-card p-4">
+                  <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm ring-1 ring-border/30">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
                       <div className="min-w-0 flex-1 space-y-2">
                         <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                          Merchandise
+                          {isPurchasePriceTopupStripeDescription(row.description) ?
+                            "Add-on charge"
+                          : "Merchandise"}
                         </p>
                         <p className="break-words text-sm font-medium leading-snug text-foreground">
                           {row.description}
@@ -258,12 +313,12 @@ export function CartCheckoutSummaryCard({
           : null}
         </div>
 
-        <div className="mt-4 border-t border-border bg-secondary px-5 py-5">
-          <div className="flex items-baseline justify-between gap-4 border-b border-border/40 pb-3">
-            <span className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <div className="mt-4 border-t border-border bg-muted/40 px-5 py-5">
+          <div className="flex items-baseline justify-between gap-4 rounded-lg border border-border/60 bg-background/60 px-3.5 py-3">
+            <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               Order total (USD)
             </span>
-            <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
+            <span className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
               {formatUsd(totalCents)}
             </span>
           </div>

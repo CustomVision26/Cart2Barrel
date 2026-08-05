@@ -11,6 +11,9 @@ import {
   withdrawEstimatedBatchQuoteSessionForOwner,
   withdrawSubmittedBatchQuoteSessionForOwner,
 } from "@/data/batch-quote-sessions";
+import { getLatestQuoteForItemRequest } from "@/data/item-quotes";
+import { getItemRequestById } from "@/data/item-requests";
+import { loadQuoteExpirySettings } from "@/data/quote-expiry-settings";
 import {
   createCustomerBatchQuoteSchema,
   removeDraftBatchProductsSchema,
@@ -20,6 +23,11 @@ import {
   withdrawSubmittedBatchSessionSchema,
 } from "@/lib/validations/batch-quote";
 import { isMissingBatchCartAcceptanceColumnsError } from "@/lib/db-column-missing";
+import {
+  effectiveQuoteExpiryMinutes,
+  isQuoteExpired,
+  resolveQuoteExpiryClockStart,
+} from "@/lib/quote-expiry";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type CustomerBatchQuoteState = {
@@ -37,6 +45,31 @@ export async function createCustomerBatchQuoteAction(
   const parsed = createCustomerBatchQuoteSchema.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, message: "Invalid batch selection.", fieldErrors: {} };
+  }
+
+  const { expiryMinutes } = await loadQuoteExpirySettings(userId);
+  for (const id of parsed.data.itemRequestIds) {
+    const request = await getItemRequestById(id);
+    if (!request || request.clerkUserId !== userId) {
+      return { ok: false, message: "One or more selected products were not found." };
+    }
+    const quote = await getLatestQuoteForItemRequest(id);
+    const lineMinutes = effectiveQuoteExpiryMinutes(
+      expiryMinutes,
+      request.quoteExpiryMinutesOverride,
+    ).expiryMinutes;
+    const clockStart = resolveQuoteExpiryClockStart({
+      quoteIssuedAt: quote?.createdAt,
+      productOverrideMinutes: request.quoteExpiryMinutesOverride,
+      productOverrideAnchoredAt: request.quoteExpiryOverrideAnchoredAt,
+    });
+    if (quote && isQuoteExpired(clockStart, lineMinutes)) {
+      return {
+        ok: false,
+        message:
+          "One or more selected products have expired estimates. Open Expired Quotes to resubmit them first.",
+      };
+    }
   }
 
   try {

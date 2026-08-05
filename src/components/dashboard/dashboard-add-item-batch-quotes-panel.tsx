@@ -5,7 +5,8 @@ import { useAddItemPayload } from "@/components/dashboard/add-item-payload-conte
 import { DashboardBatchQuotesSection } from "@/components/dashboard/dashboard-batch-quotes-section";
 
 export function DashboardAddItemBatchQuotesPanel() {
-  const { batchBundles, quotesByRequestId } = useAddItemPayload();
+  const { batchBundles, quotesByRequestId, quoteExpiryMinutes } =
+    useAddItemPayload();
 
   return (
     <>
@@ -14,12 +15,15 @@ export function DashboardAddItemBatchQuotesPanel() {
         <HelpBalloon label="About active batch quotes" tooltipClassName="w-80">
           Track retailer-level batch requests grouped by Cart2Barrel batch numbers. Submit
           drafts to notify staff—they respond with a bundled estimate referencing every line
-          listed.
+          listed. Quote expiry shows how long each line’s price is held. If staff have quoted
+          the batch and any line expires before you pay, the batch ends and products return as
+          individual quotes.
         </HelpBalloon>
       </p>
       <DashboardBatchQuotesSection
         bundles={batchBundles}
         quotesByRequestId={quotesByRequestId}
+        quoteExpiryMinutes={quoteExpiryMinutes}
       />
     </>
   );

@@ -40,6 +40,11 @@ import {
 } from "@/lib/db-column-missing";
 import { validateQuotedFullSiteSelection } from "@/lib/batch-quote-validation";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import {
+  effectiveQuoteExpiryMinutes,
+  isQuoteExpired,
+  resolveQuoteExpiryClockStart,
+} from "@/lib/quote-expiry";
 import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
 import {
   getLatestQuoteForItemRequest,
@@ -1505,6 +1510,115 @@ export async function withdrawEstimatedBatchQuoteSessionForOwner(params: {
   }
 
   return { outcome: "completed" };
+}
+
+/**
+ * When staff have quoted a batch (`estimated`) or the customer accepted it into cart
+ * (`in_cart`) but has not paid yet, and **any** line’s individual quote has expired:
+ * end the batch, return every product to a single-product quote line, and delete the
+ * session (junction + estimates cascade). Paid / pending-staff-purchase batches are
+ * left alone.
+ */
+export async function dissolveOwnerBatchesWithAnyExpiredLineQuotes(
+  clerkUserId: string,
+  expiryMinutes: number,
+  nowMs: number = Date.now(),
+): Promise<{ dissolvedSessionIds: string[] }> {
+  const db = getDb();
+  let sessions: BatchQuoteSession[];
+  try {
+    sessions = await db
+      .select()
+      .from(batchQuoteSessions)
+      .where(
+        and(
+          eq(batchQuoteSessions.clerkUserId, clerkUserId),
+          inArray(batchQuoteSessions.status, ["estimated", "in_cart"]),
+        ),
+      );
+  } catch (e) {
+    if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
+    return { dissolvedSessionIds: [] };
+  }
+
+  const dissolvedSessionIds: string[] = [];
+
+  for (const session of sessions) {
+    if (session.status === "paid_pending_staff_purchase") continue;
+
+    const linked = await listItemRequestsForBatchSession(session.id);
+    const owned = linked.filter((r) => r.clerkUserId === clerkUserId);
+    if (owned.length === 0) continue;
+
+    const quoteMap = await collectLatestQuotesForRequests(owned.map((r) => r.id));
+    const anyExpired = owned.some((r) => {
+      const quote = quoteMap.get(r.id);
+      if (!quote) return false;
+      const lineMinutes = effectiveQuoteExpiryMinutes(
+        expiryMinutes,
+        r.quoteExpiryMinutesOverride,
+      ).expiryMinutes;
+      const clockStart = resolveQuoteExpiryClockStart({
+        quoteIssuedAt: quote.createdAt,
+        productOverrideMinutes: r.quoteExpiryMinutesOverride,
+        productOverrideAnchoredAt: r.quoteExpiryOverrideAnchoredAt,
+      });
+      return isQuoteExpired(clockStart, lineMinutes, nowMs);
+    });
+    if (!anyExpired) continue;
+
+    const ownedIds = owned.map((r) => r.id);
+
+    // Cart acceptance must unwind before the session can be deleted.
+    if (
+      session.status === "in_cart" ||
+      Boolean(session.cartAcceptanceAcceptedAt)
+    ) {
+      await db
+        .update(itemRequests)
+        .set({ status: "quoted" })
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.id, ownedIds),
+            eq(itemRequests.status, "approved"),
+          ),
+        );
+
+      await db
+        .update(batchQuoteSessions)
+        .set({
+          cartAcceptanceAcceptedAt: null,
+          cartAcceptanceAcceptedEstimateId: null,
+          status: "estimated",
+        })
+        .where(
+          and(
+            eq(batchQuoteSessions.id, session.id),
+            eq(batchQuoteSessions.clerkUserId, clerkUserId),
+          ),
+        );
+    }
+
+    await detachItemRequestsFromBatchSession(session.id);
+
+    const deleted = await db
+      .delete(batchQuoteSessions)
+      .where(
+        and(
+          eq(batchQuoteSessions.id, session.id),
+          eq(batchQuoteSessions.clerkUserId, clerkUserId),
+          inArray(batchQuoteSessions.status, ["estimated", "in_cart"]),
+        ),
+      )
+      .returning({ id: batchQuoteSessions.id });
+
+    if (deleted.length > 0) {
+      dissolvedSessionIds.push(session.id);
+    }
+  }
+
+  return { dissolvedSessionIds };
 }
 
 /**

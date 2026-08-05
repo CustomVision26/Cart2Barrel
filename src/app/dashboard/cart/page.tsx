@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { CartBatchBundleCard } from "@/components/dashboard/cart-batch-bundle-card";
 import { CartContainerLineItem } from "@/components/dashboard/cart-container-line-item";
+import { CartMerchandiseTopupLineItem } from "@/components/dashboard/cart-merchandise-topup-line-item";
 import { CartOutboundShippingLineItem } from "@/components/dashboard/cart-outbound-shipping-line-item";
 import { CartOrderSummaryPanel } from "@/components/dashboard/cart-order-summary-panel";
 import { CartQuoteLineItem } from "@/components/dashboard/cart-quote-line-item";
@@ -33,6 +34,10 @@ import {
   listUserOutboundShippingCartLines,
   sumOutboundShippingCartLinesCents,
 } from "@/data/barrel-outbound-shipping-charges";
+import {
+  listUserMerchandiseTopupCartLines,
+  sumMerchandiseTopupCartLinesCents,
+} from "@/data/merchandise-topup-cart";
 import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
@@ -115,26 +120,34 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
   const outboundShippingSubtotalCents = sumOutboundShippingCartLinesCents(
     outboundShippingCartLines,
   );
+  const merchandiseTopupCartLines =
+    await listUserMerchandiseTopupCartLines(userId);
+  const merchandiseTopupSubtotalCents = sumMerchandiseTopupCartLinesCents(
+    merchandiseTopupCartLines,
+  );
 
   const hasQuotedLines =
     assembled.batchGroups.length > 0 || assembled.standaloneLines.length > 0;
   const hasAny =
     hasQuotedLines ||
     containerCartRows.length > 0 ||
-    outboundShippingCartLines.length > 0;
+    outboundShippingCartLines.length > 0 ||
+    merchandiseTopupCartLines.length > 0;
   const quotedLineCount =
     assembled.batchGroups.reduce((n, g) => n + g.lines.length, 0) +
     assembled.standaloneLines.length;
   const lineCount =
     quotedLineCount +
     containerCartRows.length +
-    outboundShippingCartLines.length;
+    outboundShippingCartLines.length +
+    merchandiseTopupCartLines.length;
 
   const merchandiseSubtotalCents =
     assembled.estimatedTotalCents +
     containerSubtotalCents +
     containerPacking.totalPackingFeeCents +
-    outboundShippingSubtotalCents;
+    outboundShippingSubtotalCents +
+    merchandiseTopupSubtotalCents;
   const shipAddr = hasAny ? await getPrimaryShippingAddress(userId) : undefined;
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,
@@ -375,6 +388,23 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                 </ul>
               </CartSection>
             : null}
+
+            {merchandiseTopupCartLines.length > 0 ?
+              <CartSection
+                title="Add-on charges"
+                description="Purchase-price top-ups after a retailer price change."
+                count={merchandiseTopupCartLines.length}
+              >
+                <ul className="divide-y divide-border" role="list">
+                  {merchandiseTopupCartLines.map((line) => (
+                    <CartMerchandiseTopupLineItem
+                      key={line.reconciliationId}
+                      line={line}
+                    />
+                  ))}
+                </ul>
+              </CartSection>
+            : null}
           </div>
 
           <aside className="min-w-0">
@@ -387,6 +417,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
               }
               containerPacking={containerPacking}
               outboundShippingSubtotalCents={outboundShippingSubtotalCents}
+              merchandiseTopupSubtotalCents={merchandiseTopupSubtotalCents}
               processingPreviewCents={processingPreviewCents}
               processingRegionLabel={processingRegionLabel}
               shipCountry={shipAddr?.country?.trim() ?? null}

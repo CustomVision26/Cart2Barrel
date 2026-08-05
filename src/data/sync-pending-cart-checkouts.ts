@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { deletePendingOrderAndRestoreContainerCart } from "@/data/delete-pending-order-with-container-restore";
 import { parseOutboundChargeIdsFromMetadata } from "@/data/fulfill-outbound-shipping-checkout";
+import { parseMerchandiseTopupReconciliationIdsFromMetadata } from "@/data/merchandise-topup-cart";
 import { orders } from "@/db/schema";
 import {
   getStripeServer,
@@ -74,6 +75,9 @@ export async function syncPendingCartCheckoutsBeforeCartPage(
           row.id,
           row.clerkUserId,
           parseOutboundChargeIdsFromMetadata(session.metadata?.outboundChargeIds),
+          parseMerchandiseTopupReconciliationIdsFromMetadata(
+            session.metadata?.merchandiseTopupReconciliationIds,
+          ),
         );
         if (cleared) releasedCount++;
         continue;

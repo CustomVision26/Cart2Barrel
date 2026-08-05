@@ -1,17 +1,13 @@
-import Link from "next/link";
-
-import { BrandLogoLink } from "@/components/brand/brand-logo-link";
-import { UserHeaderControls } from "@/components/user-header-controls";
-import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
-import { UserNotificationsBell } from "@/components/dashboard/user-notifications-bell";
-import { UserDocumentationDialogLazy } from "@/components/documentation/user-documentation-dialog-lazy";
-import { ContactUsDialogLazy } from "@/components/support/contact-us-dialog-lazy";
-import { DashboardNav } from "@/components/dashboard-nav";
-import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
-import { loadHubContactSettings } from "@/data/hub-contact-settings";
-import { loadUserStatusNotificationSummary } from "@/data/user-status-update-events";
-import { getClerkSessionGate } from "@/lib/clerk-session";
 import { Suspense } from "react";
+
+import {
+  DashboardHeader,
+  DashboardHeaderFallback,
+  DashboardNavFallback,
+  DashboardNavWithBadges,
+} from "@/app/dashboard/_components/dashboard-layout-chrome";
+import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
+import { getClerkSessionGate } from "@/lib/clerk-session";
 
 export const dynamic = "force-dynamic";
 
@@ -22,78 +18,40 @@ export default async function DashboardLayout({
 }) {
   const gate = await getClerkSessionGate();
   const showAdminEntry = gate.ok && gate.isAdmin;
-
-  const [statusSummary, hubContact] =
-    gate.ok
-      ? await Promise.all([
-          loadUserStatusNotificationSummary(gate.userId),
-          loadHubContactSettings(),
-        ])
-      : [
-          {
-            totalUnread: 0,
-            requestedItemsUnread: 0,
-            ordersUnread: 0,
-            events: [],
-          },
-          null,
-        ];
+  const userId = gate.ok ? gate.userId : null;
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background">
-      <header className="border-b border-border/80 px-4 py-3">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <BrandLogoLink priority />
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              prefetch={false}
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Home
-            </Link>
-            <UserDocumentationDialogLazy />
-            {showAdminEntry ?
-              <Link
-                href="/admin/overview?tab=summary"
-                prefetch={false}
-                className="text-sm font-medium text-primary hover:text-primary/90"
-              >
-                Admin
-              </Link>
-            : null}
-            {gate.ok && hubContact ? <ContactUsDialogLazy hubContact={hubContact} /> : null}
-            {gate.ok ? <UserNotificationsBell initial={statusSummary} /> : null}
-            <CartHeaderLink />
-            <UserHeaderControls />
-          </div>
-        </div>
-      </header>
+      {userId ?
+        <Suspense
+          fallback={<DashboardHeaderFallback showAdminEntry={showAdminEntry} />}
+        >
+          <DashboardHeader
+            userId={userId}
+            showAdminEntry={showAdminEntry}
+          />
+        </Suspense>
+      : <DashboardHeaderFallback showAdminEntry={false} />}
+
       <div className="mx-auto flex w-full max-w-6xl flex-1 gap-6 px-4 py-6 lg:gap-8 lg:py-8">
-        <aside className="hidden w-60 shrink-0 lg:block">
-          <div className="sticky top-6 rounded-xl border border-sidebar-border bg-sidebar/95 p-3 shadow-sm ring-1 ring-sidebar-border/60 backdrop-blur-sm">
-              <DashboardNav
-                badges={{
-                  requestedItems: statusSummary.requestedItemsUnread,
-                  orders: statusSummary.ordersUnread,
-                }}
-              />
-          </div>
-        </aside>
+        {userId ?
+          <Suspense fallback={<DashboardNavFallback variant="desktop" />}>
+            <DashboardNavWithBadges userId={userId} variant="desktop" />
+          </Suspense>
+        : <DashboardNavFallback variant="desktop" />}
+
         <div className="min-w-0 flex-1">
-          <div className="mb-6 overflow-x-auto rounded-xl border border-sidebar-border bg-sidebar/90 p-2 shadow-sm ring-1 ring-sidebar-border/50 lg:hidden">
-            <DashboardNav
-              variant="mobile"
-              className="w-max min-w-full px-0.5 pb-0.5"
-              badges={{
-                requestedItems: statusSummary.requestedItemsUnread,
-                orders: statusSummary.ordersUnread,
-              }}
-            />
-          </div>
+          {userId ?
+            <Suspense fallback={<DashboardNavFallback variant="mobile" />}>
+              <DashboardNavWithBadges userId={userId} variant="mobile" />
+            </Suspense>
+          : <DashboardNavFallback variant="mobile" />}
+
           <Suspense fallback={null}>
             <SpecialFeaturePromoBanner className="mb-6" />
           </Suspense>
+
+          {/* Page content streams independently of header/nav/badge queries */}
           {children}
         </div>
       </div>

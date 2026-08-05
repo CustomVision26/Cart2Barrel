@@ -23,6 +23,7 @@ export async function AdminOverviewSpecialFeaturesSection() {
     endsAt: r.endsAt,
     isActive: r.isActive,
     containerOfferingId: r.containerOfferingId,
+    suitcaseSlotCapacity: r.suitcaseSlotCapacity,
   }));
 
   return (

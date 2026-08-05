@@ -20,6 +20,7 @@ import {
   adminEstimateAirlineBagFeeSchema,
   adminPublishSpecialFeatureOfferSchema,
   adminUpdateSpecialFeatureOfferSchema,
+  parseSuitcaseSlotCapacity,
   specialFeatureDateTimeToIso,
   usdStringToCentsOrZero,
 } from "@/lib/validations/special-feature-offer";
@@ -88,6 +89,7 @@ export async function adminCreateSpecialFeatureOfferAction(
     notes,
     startsAt,
     endsAt,
+    suitcaseSlotCapacity,
     airlineSecondBagUsd,
     airlineThirdBagUsd,
     airlineFourthBagUsd,
@@ -129,6 +131,7 @@ export async function adminCreateSpecialFeatureOfferAction(
       notes: persistSpecialFeatureNotes(notes),
       startsAt: startsAtIso,
       endsAt: endsAtIso,
+      suitcaseSlotCapacity: parseSuitcaseSlotCapacity(suitcaseSlotCapacity),
       // Draft until admin publishes — then shoppers see the banner.
       isActive: false,
       containerOfferingId: null,
@@ -162,6 +165,7 @@ export async function adminUpdateSpecialFeatureOfferAction(
     startsAt,
     endsAt,
     isActive,
+    suitcaseSlotCapacity,
     airlineSecondBagUsd,
     airlineThirdBagUsd,
     airlineFourthBagUsd,
@@ -214,6 +218,7 @@ export async function adminUpdateSpecialFeatureOfferAction(
       startsAt: startsAtIso,
       endsAt: endsAtIso,
       isActive,
+      suitcaseSlotCapacity: parseSuitcaseSlotCapacity(suitcaseSlotCapacity),
     })
     .where(eq(specialFeatureOffers.id, id))
     .returning({ id: specialFeatureOffers.id });

@@ -21,6 +21,7 @@ type CartOrderSummaryPanelProps = {
   quotedAndContainerSubtotalCents: number;
   containerPacking: ContainerPackingFeeBreakdown;
   outboundShippingSubtotalCents?: number;
+  merchandiseTopupSubtotalCents?: number;
   processingPreviewCents: number;
   processingRegionLabel: string;
   shipCountry: string | null;
@@ -35,6 +36,7 @@ export function CartOrderSummaryPanel({
   quotedAndContainerSubtotalCents,
   containerPacking,
   outboundShippingSubtotalCents = 0,
+  merchandiseTopupSubtotalCents = 0,
   processingPreviewCents,
   processingRegionLabel,
   shipCountry,
@@ -46,7 +48,8 @@ export function CartOrderSummaryPanel({
     containerPacking.totalPackingFeeCents > 0 ||
     containerPacking.barrelCount > 0 ||
     containerPacking.binCount > 0 ||
-    outboundShippingSubtotalCents > 0;
+    outboundShippingSubtotalCents > 0 ||
+    merchandiseTopupSubtotalCents > 0;
 
   return (
     <Card className="overflow-hidden rounded-xl border-border/80 shadow-lg ring-1 ring-border/40 lg:sticky lg:top-6">
@@ -101,6 +104,13 @@ export function CartOrderSummaryPanel({
               <SummaryRow
                 label="Outbound container shipping"
                 valueCents={outboundShippingSubtotalCents}
+                muted
+              />
+            : null}
+            {merchandiseTopupSubtotalCents > 0 ?
+              <SummaryRow
+                label="Add-on charges (price top-up)"
+                valueCents={merchandiseTopupSubtotalCents}
                 muted
               />
             : null}

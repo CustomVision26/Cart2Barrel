@@ -3,15 +3,18 @@ import "server-only";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { cache } from "react";
 
 import { getDb } from "@/db";
 import {
+  orderItemMerchandiseReconciliations,
   userStatusUpdateEventReads,
   userStatusUpdateEvents,
   type UserStatusUpdateKind,
 } from "@/db/schema";
 import {
   userStatusHrefForActiveProduct,
+  userStatusHrefForAddOnCharges,
   userStatusHrefForBatchQuotes,
   userStatusHrefForDashboard,
   userStatusHrefForOrders,
@@ -207,6 +210,58 @@ export async function recordPurchaseTrackingUpdatedActivity(params: {
   });
 }
 
+export async function recordMerchandisePriceChangeActivity(params: {
+  clerkUserId: string;
+  orderId: string;
+  orderItemId: string;
+  productName: string | null;
+  body: string;
+  /** When set, status update opens the support thread (not just the orders list). */
+  supportTicketId?: string | null;
+}): Promise<void> {
+  const label = params.productName?.trim() || "Order line";
+  const href =
+    params.supportTicketId ?
+      userStatusHrefForSupportTicket(params.supportTicketId)
+    : userStatusHrefForOrders(params.orderId);
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "merchandise_price_change",
+    title: "Purchase price update",
+    body: `${label} — ${params.body}`,
+    href,
+    entityType: "order_item",
+    entityId: params.orderItemId,
+  });
+}
+
+export async function recordMerchandiseTopupRequiredActivity(params: {
+  clerkUserId: string;
+  orderId: string;
+  orderItemId: string;
+  productName: string | null;
+  topupAmountCents: number;
+  expiresAtIso: string;
+}): Promise<void> {
+  const label = params.productName?.trim() || "Order line";
+  const expires = new Date(params.expiresAtIso);
+  const when = Number.isFinite(expires.getTime())
+    ? expires.toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "soon";
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "merchandise_topup_required",
+    title: "Price increased — pay extra charge",
+    body: `${label} — top-up ${formatUsd(params.topupAmountCents)} due by ${when}. Add item → Products (Active) → Top-up due row → Cart.`,
+    href: userStatusHrefForAddOnCharges(),
+    entityType: "order_item",
+    entityId: params.orderItemId,
+  });
+}
+
 export async function recordRefundApprovedActivity(params: {
   clerkUserId: string;
   orderId: string;
@@ -387,7 +442,7 @@ function mapFeedRow(
   };
 }
 
-export async function loadUserStatusNotificationSummary(
+export const loadUserStatusNotificationSummary = cache(async function loadUserStatusNotificationSummary(
   clerkUserId: string,
 ): Promise<UserStatusNotificationSummary> {
   const db = getDb();
@@ -423,13 +478,62 @@ export async function loadUserStatusNotificationSummary(
     throw e;
   }
 
+  // Fix older price-change events that still point at Orders instead of the support thread.
+  const priceChangeOrderItemIds = [
+    ...new Set(
+      rows
+        .map((r) => r.event)
+        .filter(
+          (e) =>
+            e.kind === "merchandise_price_change" &&
+            e.entityType === "order_item" &&
+            !e.href.includes("/dashboard/support/"),
+        )
+        .map((e) => e.entityId),
+    ),
+  ];
+  const ticketByOrderItemId = new Map<string, string>();
+  if (priceChangeOrderItemIds.length > 0) {
+    try {
+      const reconRows = await db
+        .select({
+          orderItemId: orderItemMerchandiseReconciliations.orderItemId,
+          supportTicketId: orderItemMerchandiseReconciliations.supportTicketId,
+        })
+        .from(orderItemMerchandiseReconciliations)
+        .where(
+          sql`${orderItemMerchandiseReconciliations.orderItemId}::text IN (${sql.join(
+            priceChangeOrderItemIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        );
+      for (const r of reconRows) {
+        if (r.supportTicketId) {
+          ticketByOrderItemId.set(r.orderItemId, r.supportTicketId);
+        }
+      }
+    } catch {
+      // Table may be absent until migrate; leave stored hrefs as-is.
+    }
+  }
+
   let totalUnread = 0;
   let requestedItemsUnread = 0;
   let ordersUnread = 0;
   const events: UserStatusFeedEvent[] = [];
 
+  const hrefFixes: { id: string; href: string }[] = [];
+
   for (const row of rows) {
     const event = mapFeedRow(row.event);
+    const ticketId = ticketByOrderItemId.get(event.entityId);
+    if (ticketId) {
+      const supportHref = userStatusHrefForSupportTicket(ticketId);
+      if (event.href !== supportHref) {
+        hrefFixes.push({ id: event.id, href: supportHref });
+        event.href = supportHref;
+      }
+    }
     totalUnread += 1;
     if (event.navSection === "requested_items") {
       requestedItemsUnread += 1;
@@ -439,13 +543,28 @@ export async function loadUserStatusNotificationSummary(
     events.push(event);
   }
 
+  if (hrefFixes.length > 0) {
+    after(async () => {
+      try {
+        for (const fix of hrefFixes) {
+          await db
+            .update(userStatusUpdateEvents)
+            .set({ href: fix.href })
+            .where(eq(userStatusUpdateEvents.id, fix.id));
+        }
+      } catch {
+        // Best-effort; feed already serves corrected hrefs.
+      }
+    });
+  }
+
   return {
     totalUnread,
     requestedItemsUnread,
     ordersUnread,
     events,
   };
-}
+});
 
 export async function markUserStatusUpdateEventsRead(params: {
   clerkUserId: string;

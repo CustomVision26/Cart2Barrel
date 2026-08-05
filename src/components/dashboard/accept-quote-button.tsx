@@ -17,10 +17,11 @@ export function AcceptQuoteButton({ itemRequestId }: AcceptQuoteButtonProps) {
   const [message, setMessage] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col items-stretch gap-1 sm:items-end">
+    <div className="flex w-full flex-col items-stretch gap-1">
       <Button
         type="button"
         size="sm"
+        className="w-full justify-center"
         disabled={isPending}
         onClick={() => {
           setMessage(null);

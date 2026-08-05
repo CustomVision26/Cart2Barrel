@@ -17,6 +17,7 @@ import { createCustomerBatchQuoteAction } from "@/actions/customer-batch-quote";
 import { withdrawCustomerProductRequestsAction } from "@/actions/withdraw-customer-product-requests";
 import { AcceptQuoteButton } from "@/components/dashboard/accept-quote-button";
 import { useAddItemPayload } from "@/components/dashboard/add-item-payload-context";
+import { MerchandiseTopupAddonTableRows } from "@/components/dashboard/merchandise-topup-addon-table-rows";
 import { CartLineUrlOrReceipt } from "@/components/dashboard/cart-line-url-or-receipt";
 import { OutsidePurchaseReturnPreviewDialog } from "@/components/dashboard/outside-purchase-return-preview-dialog";
 import { OutsidePurchaseMissingItemPreviewDialog } from "@/components/dashboard/outside-purchase-missing-item-preview-dialog";
@@ -25,6 +26,7 @@ import { OutsidePurchaseReturnRequestDialog } from "@/components/dashboard/outsi
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
 import { HelpBalloon } from "@/components/ui/help-balloon";
 import { ItemsNewProductHistoryPanel } from "@/components/dashboard/items-new-product-history-panel";
+import { ItemsNewExpiredQuotesPanel } from "@/components/dashboard/items-new-expired-quotes-panel";
 import { useBatchQuoteSelection } from "@/components/dashboard/batch-quote-selection-context";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { OutOfStockProductPreviewDialog } from "@/components/dashboard/out-of-stock-product-preview-dialog";
@@ -77,6 +79,14 @@ import {
   itemRequestStatusLabel,
   itemRequestStatusLabelForDisplay,
 } from "@/lib/item-request-status-label";
+import {
+  effectiveQuoteExpiryMinutes,
+  formatItemRequestProductNumber,
+  formatQuoteExpiryWindowLabel,
+  getLatestOperationalQuoteIssuedAt,
+  resolveQuoteExpiryClockStart,
+} from "@/lib/quote-expiry";
+import { QuoteExpiryCountdownLabel } from "@/components/dashboard/quote-expiry-countdown-label";
 import {
   isOutsidePurchaseMissingItem,
   isOutsidePurchaseProblemReceiptCondition,
@@ -150,6 +160,7 @@ function rowMatchesProductsSearch(
   const outsideRef = outsidePurchaseReferenceDisplay(r);
   const haystack = [
     r.id,
+    formatItemRequestProductNumber(r),
     r.productName,
     r.siteName,
     site,
@@ -223,7 +234,7 @@ function sortItemRequests(
 type ProductsAvailabilityFilter = "all" | "active" | "in_batch";
 
 type ItemsNewProductsPanelProps = {
-  productsSubTab: "active" | "history";
+  productsSubTab: "active" | "history" | "expired";
 };
 
 export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelProps) {
@@ -235,6 +246,10 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
     returnRequestsByItemRequestId,
     orderContextByRequestId,
     snapshotsByRequestId,
+    quotesByRequestId,
+    quoteExpiryMinutes,
+    expiredQuotedRequests,
+    merchandiseTopupAddOnCharges,
   } = useAddItemPayload();
   const { batchSelectedIds, setBatchSelectedIds } = useBatchQuoteSelection();
 
@@ -277,6 +292,31 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
   const [removeCheckedDialogOpen, setRemoveCheckedDialogOpen] = useState(false);
 
   const normalizedProductsQuery = productsSearch.trim().toLowerCase();
+
+  const filteredTopupCharges = useMemo(() => {
+    if (!normalizedProductsQuery) return merchandiseTopupAddOnCharges;
+    return merchandiseTopupAddOnCharges.filter((charge) => {
+      const haystack = [
+        charge.productName,
+        ...charge.productNames,
+        charge.productNumber,
+        charge.batchNumber ?? "",
+        charge.topupNumber,
+        ...charge.lines.map((l) => l.productNumber),
+        charge.siteLabel ?? "",
+        charge.productUrl ?? "",
+        "top-up",
+        "topup",
+        "add-on",
+        "addon",
+        "batch",
+        charge.inCart ? "in cart" : "top-up due",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(normalizedProductsQuery);
+    });
+  }, [merchandiseTopupAddOnCharges, normalizedProductsQuery]);
 
   const cycleReqSort = useCallback((key: RowSortKey) => {
     const next = nextSortState(reqSortKey, reqSortDir, key);
@@ -536,7 +576,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
     });
   };
 
-  const subTabLinkClass = (tab: "active" | "history") =>
+  const subTabLinkClass = (tab: "active" | "history" | "expired") =>
     cn(
       "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
       productsSubTab === tab
@@ -548,7 +588,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
     <>
       <div
         role="tablist"
-        aria-label="Active product requests and product history"
+        aria-label="Active product requests, expired quotes, and product history"
         className="flex flex-wrap gap-1 border-b border-border"
       >
         <Link
@@ -569,30 +609,50 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
         >
           History
         </Link>
+        <Link
+          href={DASHBOARD_ADD_ITEM_ROUTES.productsExpiredQuotes}
+          role="tab"
+          aria-selected={productsSubTab === "expired"}
+          className={subTabLinkClass("expired")}
+          scroll={false}
+        >
+          Expired Quotes
+          {expiredQuotedRequests.length > 0 ?
+            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
+              {expiredQuotedRequests.length}
+            </span>
+          : null}
+        </Link>
       </div>
       {productsSubTab === "history" ? (
         <ItemsNewProductHistoryPanel />
       ) : null}
+      {productsSubTab === "expired" ? (
+        <ItemsNewExpiredQuotesPanel />
+      ) : null}
       {productsSubTab === "active" ? (
         <>
-      <p className="text-sm text-muted-foreground">
-        Pending and quoted submissions. Items you accept appear in your cart only.
-        Rows that belong to a batch quote are dimmed here — open{" "}
-        <Link
-          href={DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive}
-          className="font-medium text-foreground underline-offset-2 hover:underline"
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-foreground">Active products</p>
+        <HelpBalloon
+          label="About Active products"
+          tooltipClassName="left-0 w-[min(22rem,calc(100vw-2rem))] -translate-x-0 sm:w-96"
         >
-          Batch Quotes
-        </Link>{" "}
-        to preview or accept the bundle. Submit a new request from{" "}
-        <Link
-          href={DASHBOARD_REQUESTED_ITEMS_ROUTE}
-          className="font-medium text-foreground underline-offset-2 hover:underline"
-        >
-          Requested items
-        </Link>
-        .
-      </p>
+          Pending and quoted submissions. Purchase-price top-ups appear in this
+          table as add-on rows (Top-up due) — add them to cart from Actions.
+          Because retailer prices can change quickly, each quoted estimate stays
+          valid for{" "}
+          <span className="font-medium text-foreground">
+            {formatQuoteExpiryWindowLabel(quoteExpiryMinutes)}
+          </span>{" "}
+          (see Quote Expiry Settings). Accept and pay within that window to keep
+          the locked price; after it expires the product moves to Expired Quotes
+          so you can resubmit for a fresh estimate. Items you accept appear in
+          your cart only. Rows that belong to a batch quote are dimmed here —
+          open Batch Quotes to preview or accept the bundle. Submit a new request
+          from Requested items.
+        </HelpBalloon>
+      </div>
       {showBatchSuggestion ? (
         <div
           role="status"
@@ -632,105 +692,132 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
               </div>
             </div>
           ) : null}
-          <div className={dashItemsTableToolbar}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Batch selection
-            </span>
-            {eligibleQuotedSites.map((site) => {
-              const allChecked = siteAllCheckedFor(site.rows);
-              return (
-                <label
-                  key={site.key}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-2 py-1 text-xs"
-                >
-                  <input
-                    type="checkbox"
-                    className="rounded border-input"
-                    checked={allChecked}
-                    onChange={(e) =>
-                      toggleSelectAllQuotedForSiteKey(
-                        site.rows,
-                        e.target.checked
-                      )
+          <div
+            className={cn(
+              dashItemsTableToolbar,
+              "flex flex-col gap-3 p-3 sm:p-4",
+            )}
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
+              <div className="min-w-0 flex-1 space-y-2.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Batch selection
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {eligibleQuotedSites.map((site) => {
+                    const allChecked = siteAllCheckedFor(site.rows);
+                    return (
+                      <label
+                        key={site.key}
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          className="rounded border-input"
+                          checked={allChecked}
+                          onChange={(e) =>
+                            toggleSelectAllQuotedForSiteKey(
+                              site.rows,
+                              e.target.checked,
+                            )
+                          }
+                        />
+                        <span>
+                          Select all on this site ·{" "}
+                          <span className="font-medium">{site.label}</span>{" "}
+                          <span className="text-muted-foreground">
+                            ({site.rows.length})
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      batchSelectedIds.size === 0 ||
+                      removableCheckedCount === 0 ||
+                      removingRequests ||
+                      addingBatch
                     }
-                  />
-                  Select all on this site · {site.label} ({site.rows.length})
-                </label>
-              );
-            })}
-          </div>
-          <div className="flex flex-col items-end gap-2 sm:shrink-0 sm:flex-row sm:items-center sm:gap-2">
-            <div className="flex items-center gap-1.5">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={
-                  batchSelectedIds.size === 0 ||
-                  removableCheckedCount === 0 ||
-                  removingRequests ||
-                  addingBatch
-                }
-                className={cn(
-                  batchSelectedIds.size > 0 &&
-                    "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    className={cn(
+                      batchSelectedIds.size > 0 &&
+                        "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive",
+                    )}
+                    onClick={() => setRemoveCheckedDialogOpen(true)}
+                  >
+                    Remove checked
+                  </Button>
+                  <HelpBalloon label="What does Remove checked do?">
+                    Moves all checked products to{" "}
+                    <span className="font-medium text-foreground">
+                      Product history
+                    </span>{" "}
+                    at once, so you stop tracking them here. Checked items already
+                    in a batch quote are skipped — uncheck them or use Batch Quotes.
+                    Nothing is deleted; you can reinstate items from the History tab
+                    anytime.
+                  </HelpBalloon>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    batchSelectedIds.size === 0 ||
+                    !batchSelectionCheck.ok ||
+                    addingBatch ||
+                    removingRequests
+                  }
+                  onClick={onAddBatch}
+                >
+                  {addingBatch ?
+                    <>
+                      <Loader2Icon
+                        className="mr-2 size-3.5 animate-spin"
+                        aria-hidden
+                      />
+                      Adding batch…
+                    </>
+                  : "Add Batch"}
+                </Button>
+              </div>
+            </div>
+
+            {batchSelectedIds.size > 0 ?
+              <div className="space-y-1.5 border-t border-border/60 pt-3">
+                {!batchSelectionCheck.ok ?
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    {batchSelectionCheck.message}
+                  </p>
+                : (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {batchSelectedIds.size}{" "}
+                      {batchSelectedIds.size === 1 ? "product" : "products"}
+                    </span>{" "}
+                    selected. Add Batch to send this group to staff; leave other
+                    quoted lines unchecked to form another batch from the same site
+                    later.
+                  </p>
                 )}
-                onClick={() => setRemoveCheckedDialogOpen(true)}
-              >
-                Remove checked
-              </Button>
-              <HelpBalloon label="What does Remove checked do?">
-                Moves all checked products to{" "}
-                <span className="font-medium text-foreground">Product history</span> at
-                once, so you stop tracking them here. Checked items already in a batch
-                quote are skipped — uncheck them or use Batch Quotes. Nothing is deleted;
-                you can reinstate items from the History tab anytime.
-              </HelpBalloon>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-            {batchSelectedIds.size > 0 ? (
-              <p className="max-w-[22rem] text-right text-xs text-muted-foreground">
-                Checked products are dimmed and can&apos;t be accepted individually until you
-                clear their checkboxes or finish Add Batch.
-              </p>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              disabled={
-                batchSelectedIds.size === 0 || !batchSelectionCheck.ok || addingBatch || removingRequests
-              }
-              onClick={onAddBatch}
-            >
-              {addingBatch ? (
-                <>
-                  <Loader2Icon className="mr-2 size-3.5 animate-spin" aria-hidden />
-                  Adding batch…
-                </>
-              ) : (
-                "Add Batch"
-              )}
-            </Button>
-            </div>
-          </div>
+                <p className="text-xs text-muted-foreground">
+                  Checked rows are dimmed and can&apos;t be accepted individually
+                  until you clear their checkboxes or finish Add Batch.
+                </p>
+              </div>
+            : null}
           </div>
         </div>
       ) : null}
-      {batchSelectedIds.size > 0 && !batchSelectionCheck.ok ? (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
-          {batchSelectionCheck.message}
-        </p>
-      ) : null}
-      {batchSelectedIds.size > 0 && batchSelectionCheck.ok ? (
-        <p className="text-xs text-muted-foreground">
-          {batchSelectedIds.size}{" "}
-          {batchSelectedIds.size === 1 ? "product" : "products"} on this retailer.
-          Add Batch to send this group to staff; quoted lines you leave unchecked can form
-          another batch from the same site afterward.
-        </p>
-      ) : null}
-      {activeRequests.length === 0 ? (
+      {activeRequests.length === 0 &&
+      merchandiseTopupAddOnCharges.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No active requests.{" "}
           <Link
@@ -813,7 +900,10 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
               </div>
             </div>
           </div>
-          {filteredActive.length === 0 && activeRequests.length > 0 ? (
+          {filteredActive.length === 0 &&
+          filteredTopupCharges.length === 0 &&
+          (activeRequests.length > 0 ||
+            merchandiseTopupAddOnCharges.length > 0) ? (
             <p className="text-sm text-muted-foreground">
               {normalizedProductsQuery
                 ? productsAvailabilityFilter === "all"
@@ -824,17 +914,20 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                   : "Nothing is in a batch quote yet. Choose “All” or “Active”."}
             </p>
           ) : null}
-          {filteredActive.length > 0 ? (
+          {filteredActive.length > 0 || filteredTopupCharges.length > 0 ? (
             <>
               <FloatingHorizontalScroll viewportClassName={dashItemsTableScroll}>
-                <table className="w-full min-w-[48rem] text-left text-sm">
+                <table className="w-full min-w-[78rem] table-fixed text-left text-sm">
                   <thead className={dashItemsTableHeadPlain}>
                     <tr>
-                      <th className="w-10 px-2 py-2.5 text-center text-xs font-medium text-foreground">
+                      <th className="w-12 px-2 py-2.5 text-center text-xs font-medium text-foreground">
                         Batch
                       </th>
-                      <th className="px-3 py-2.5 font-medium text-foreground">
+                      <th className="w-16 px-3 py-2.5 text-xs font-medium text-foreground">
                         Photo
+                      </th>
+                      <th className="w-[6.5rem] px-3 py-2.5 text-xs font-medium text-foreground">
+                        Product #
                       </th>
                       <SortableThCompact
                         columnId="dash-req-product"
@@ -842,18 +935,20 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                         active={reqSortKey === "product"}
                         dir={reqSortDir}
                         onSort={() => cycleReqSort("product")}
+                        className="w-[12rem]"
                       />
                       <SortableThCompact
                         columnId="dash-req-site"
-                        label="Site name"
+                        label="Site"
                         active={reqSortKey === "site"}
                         dir={reqSortDir}
                         onSort={() => cycleReqSort("site")}
+                        className="w-[7.5rem]"
                       />
-                      <th className="px-3 py-2.5 font-medium text-foreground">
-                        Product url
+                      <th className="w-[6.5rem] px-3 py-2.5 text-xs font-medium text-foreground">
+                        URL
                       </th>
-                      <th className="px-3 py-2.5 font-medium text-foreground">
+                      <th className="w-[7rem] px-3 py-2.5 text-xs font-medium text-foreground">
                         Details
                       </th>
                       <SortableThCompact
@@ -862,8 +957,15 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                         active={reqSortKey === "status"}
                         dir={reqSortDir}
                         onSort={() => cycleReqSort("status")}
+                        className="w-[7.5rem]"
                       />
-                      <th className="px-3 py-2.5 font-medium text-foreground">
+                      <th
+                        className="w-[9.5rem] px-3 py-2.5 text-xs font-medium text-foreground"
+                        title="Quoted prices expire because retailer listings change; pay within this window to keep the locked estimate."
+                      >
+                        Quote expiry
+                      </th>
+                      <th className="w-[13.5rem] px-3 py-2.5 text-xs font-medium text-foreground">
                         Actions
                       </th>
                       <SortableThCompact
@@ -872,10 +974,14 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                         active={reqSortKey === "submitted"}
                         dir={reqSortDir}
                         onSort={() => cycleReqSort("submitted")}
+                        className="w-[7.5rem]"
                       />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
+                    <MerchandiseTopupAddonTableRows
+                      charges={filteredTopupCharges}
+                    />
                     {pagedActive.map((r) => {
                       const inBatchSelection = batchSelectedIds.has(r.id);
                       const inBundledBatch = isInBatchQuote(r);
@@ -956,26 +1062,30 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                           </td>
                           <td
                             className={cn(
-                              "max-w-[10rem] px-3 py-3 align-top font-medium text-foreground",
+                              "px-3 py-3 align-top font-mono text-xs text-foreground",
+                              inBatchSelection && "text-muted-foreground",
+                            )}
+                            title={formatItemRequestProductNumber(r)}
+                          >
+                            {formatItemRequestProductNumber(r)}
+                          </td>
+                          <td
+                            className={cn(
+                              "px-3 py-3 align-top font-medium text-foreground",
                               inBatchSelection && "text-muted-foreground"
                             )}
                           >
-                            <span className="line-clamp-2">
+                            <span className="line-clamp-2 break-words">
                               {r.productName?.trim() || "Unnamed product"}
                             </span>
-                            {outsidePurchaseReferenceDisplay(r) ? (
-                              <span className="mt-1 block font-mono text-[10px] text-primary">
-                                {outsidePurchaseReferenceDisplay(r)}
-                              </span>
-                            ) : null}
                             {inBundledBatch ? (
-                              <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                                In batch quote — use Batch Quotes tab
+                              <span className="mt-1.5 inline-flex rounded border border-border/70 bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                In batch quote
                               </span>
                             ) : null}
                             {!inBundledBatch && inBatchSelection ? (
-                              <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-primary/90">
-                                In batch selection
+                              <span className="mt-1.5 inline-flex rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                                Batch selected
                               </span>
                             ) : null}
                           </td>
@@ -1057,9 +1167,48 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               );
                             })()}
                           </td>
+                          <td className="px-3 py-3 align-top">
+                            {r.status === "quoted" ?
+                              (() => {
+                                const issuedAt = getLatestOperationalQuoteIssuedAt(
+                                  quotesByRequestId[r.id] ?? [],
+                                );
+                                const clockStart = resolveQuoteExpiryClockStart({
+                                  quoteIssuedAt: issuedAt,
+                                  productOverrideMinutes:
+                                    r.quoteExpiryMinutesOverride,
+                                  productOverrideAnchoredAt:
+                                    r.quoteExpiryOverrideAnchoredAt,
+                                });
+                                if (!clockStart) {
+                                  return (
+                                    <span
+                                      className="text-muted-foreground/70"
+                                      title="Waiting for staff quote timestamp"
+                                    >
+                                      —
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <QuoteExpiryCountdownLabel
+                                    quotedAt={clockStart}
+                                    expiryMinutes={
+                                      effectiveQuoteExpiryMinutes(
+                                        quoteExpiryMinutes,
+                                        r.quoteExpiryMinutesOverride,
+                                      ).expiryMinutes
+                                    }
+                                  />
+                                );
+                              })()
+                            : (
+                              <span className="text-xs text-muted-foreground/70">—</span>
+                            )}
+                          </td>
                           <td
                             className={cn(
-                              "space-y-2 px-3 py-3 align-top",
+                              "px-3 py-3 align-top",
                               inBatchSelection && "opacity-90"
                             )}
                           >
@@ -1090,11 +1239,18 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                     !isOutsidePurchaseRequest(r));
                                 const returnEstimateAccepted =
                                   returnReq?.status === "estimate_accepted";
+                                const showPreview =
+                                  !inBundledBatch &&
+                                  (showTablePreviewEstimate ||
+                                    r.status === "quoted");
 
                                 if (inBundledBatch) {
                                   return (
                                     <p
-                                      className={dashItemsTableCellNote}
+                                      className={cn(
+                                        dashItemsTableCellNote,
+                                        "w-full max-w-[12.5rem]",
+                                      )}
                                       title="Open Batch Quotes to accept or preview this bundle."
                                     >
                                       Manage in{" "}
@@ -1107,11 +1263,13 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                 if (inBatchSelection) {
                                   return (
                                     <p
-                                      className={dashItemsTableCellNoteDashed}
+                                      className={cn(
+                                        dashItemsTableCellNoteDashed,
+                                        "w-full max-w-[12.5rem]",
+                                      )}
                                       title="Uncheck Batch to accept this estimate on its own."
                                     >
-                                      Accept estimate disabled while selected for a
-                                      batch.
+                                      Uncheck Batch to accept alone
                                     </p>
                                   );
                                 }
@@ -1122,24 +1280,22 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                     />
                                   );
                                 }
-                                if (isOpQuoted) {
+                                if (isOpQuoted && showReturnActions) {
                                   return (
                                     <CollapsibleFieldSection
                                       compact
                                       title="Actions"
                                       description={
                                         returnEstimateAccepted ?
-                                          "Accept estimate, preview, or cancel return"
+                                          "Accept, preview, or cancel return"
                                         : showReturnRequest ?
-                                          "Return, preview, and accept"
-                                        : showReturnPreview ?
-                                          "Preview return while estimate is prepared"
-                                        : "Preview and accept service estimate"
+                                          "Return, preview, accept"
+                                        : "Preview return estimate"
                                       }
                                       defaultOpen={
                                         showReturnActions || returnEstimateAccepted
                                       }
-                                      className="min-w-[11.5rem] bg-card"
+                                      className="w-full max-w-[12.5rem] bg-card"
                                     >
                                       <div className="flex flex-col gap-2">
                                         {showReturnRequest ?
@@ -1164,15 +1320,11 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                             returnRequest={returnReq}
                                           />
                                         : null}
-                                        {showTablePreviewEstimate ?
-                                          inBundledBatch ?
-                                            <p className="text-center text-[11px] text-muted-foreground">
-                                              Preview via Batch Quotes
-                                            </p>
-                                          : <QuoteEstimatePreviewDialog
-                                              itemRequestId={r.id}
-                                              label="Preview estimate"
-                                            />
+                                        {showPreview ?
+                                          <QuoteEstimatePreviewDialog
+                                            itemRequestId={r.id}
+                                            label="Preview"
+                                          />
                                         : null}
                                         {showAccept ?
                                           <AcceptQuoteButton itemRequestId={r.id} />
@@ -1190,9 +1342,19 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                   );
                                 }
 
-                                return showAccept ?
-                                    <AcceptQuoteButton itemRequestId={r.id} />
-                                  : null;
+                                return (
+                                  <div className="flex w-full max-w-[12.5rem] flex-col gap-1.5">
+                                    {showPreview ?
+                                      <QuoteEstimatePreviewDialog
+                                        itemRequestId={r.id}
+                                        label="Preview"
+                                      />
+                                    : null}
+                                    {showAccept ?
+                                      <AcceptQuoteButton itemRequestId={r.id} />
+                                    : null}
+                                  </div>
+                                );
                               })()
                             : null}
                             {r.status === "pending" &&
@@ -1351,7 +1513,14 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
               </FloatingHorizontalScroll>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {`Showing ${productsSliceStart + 1}–${productsRangeEnd} of ${sortedActive.length}`}
+                  {sortedActive.length > 0 ?
+                    `Showing ${productsSliceStart + 1}–${productsRangeEnd} of ${sortedActive.length}`
+                  : "No product rows on this page"}
+                  {filteredTopupCharges.length > 0 ?
+                    <span className="text-muted-foreground/80">
+                      {` · ${filteredTopupCharges.length} add-on top-up${filteredTopupCharges.length === 1 ? "" : "s"}`}
+                    </span>
+                  : null}
                   {activeRequests.length !== sortedActive.length ? (
                     <span className="text-muted-foreground/80">
                       {" "}

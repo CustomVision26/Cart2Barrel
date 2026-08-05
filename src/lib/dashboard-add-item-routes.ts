@@ -4,6 +4,7 @@ export const DASHBOARD_ADD_ITEM_ROUTES = {
   products: "/dashboard/items/new/add-item/products",
   productsActive: "/dashboard/items/new/add-item/products/active",
   productsHistory: "/dashboard/items/new/add-item/products/history",
+  productsExpiredQuotes: "/dashboard/items/new/add-item/products/expired-quotes",
   /** Legacy path `/product-history` redirects here. */
   productHistory: "/dashboard/items/new/add-item/products/history",
   /** Batch quotes index; redirects to `batchQuotesActive`. */

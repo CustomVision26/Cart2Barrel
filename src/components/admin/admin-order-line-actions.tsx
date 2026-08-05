@@ -18,15 +18,23 @@ import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-ful
 import { isProblemDeliveryReceiptFulfillment } from "@/lib/delivery-condition-acceptance";
 import { adminMayRefundLineAfterProductReturn } from "@/lib/order-line-product-return-display";
 
+import type { BatchLineShare } from "@/lib/batch-line-share";
+import type { ItemQuote } from "@/db/schema";
+
 /** Staff quote row `item_cost` plus display fields — used only for pending company purchase UI. */
 export type AdminPurchaseReviewContext = {
   retailerLabel: string;
+  productUrl: string;
   quotedMerchandiseCostCents: number | null;
   productLabel: string;
   quantity: number;
   sizeLabel: string | null;
   colorLabel: string | null;
   batchLabel: string | null;
+  orderId: string;
+  batchSessionId: string | null;
+  batchShare: BatchLineShare | null;
+  quote?: ItemQuote | null;
 };
 
 export type AdminPurchaseTrackingSlice = {
@@ -52,6 +60,8 @@ export function AdminOrderLineActions({
   fulfilledProductReturnRequest,
   warehouseReceivedCondition,
   isOutsidePurchase = false,
+  /** Batch header owns Review and approve + Refund for batch members. */
+  inBatchGroup = false,
 }: {
   orderItemId: string;
   fulfillmentStatus: OrderItem["fulfillmentStatus"];
@@ -71,6 +81,7 @@ export function AdminOrderLineActions({
   warehouseReceivedCondition?: string | null;
   /** Outside purchases use the return-to-retailer workflow — no Stripe refund line. */
   isOutsidePurchase?: boolean;
+  inBatchGroup?: boolean;
 }) {
   const refundableCents = Math.max(0, linePriceCents - refundedCents);
   const returnRefundContext = {
@@ -115,6 +126,22 @@ export function AdminOrderLineActions({
   }
 
   if (fulfillmentStatus === "paid_pending_company_purchase") {
+    const showPurchaseReview =
+      !inBatchGroup && purchaseReviewContext != null;
+    const showAwaitingRefundLine =
+      !inBatchGroup &&
+      !isOutsidePurchase &&
+      !pendingRefundRequest &&
+      refundableCents > 0;
+
+    if (
+      !pendingRefundRequest &&
+      !showPurchaseReview &&
+      !showAwaitingRefundLine
+    ) {
+      return <span className="text-xs text-muted-foreground">—</span>;
+    }
+
     return (
       <div className="flex flex-col items-start gap-2">
         {pendingRefundRequest ?
@@ -130,11 +157,12 @@ export function AdminOrderLineActions({
           />
         : null}
         <div className="flex flex-wrap gap-2">
-          {purchaseReviewContext ?
+          {showPurchaseReview && purchaseReviewContext ?
             <AdminCompanyPurchaseDialog
               orderItemId={orderItemId}
               productName={purchaseReviewContext.productLabel}
               retailerLabel={purchaseReviewContext.retailerLabel}
+              productUrl={purchaseReviewContext.productUrl}
               quantity={purchaseReviewContext.quantity}
               sizeLabel={purchaseReviewContext.sizeLabel}
               colorLabel={purchaseReviewContext.colorLabel}
@@ -142,7 +170,20 @@ export function AdminOrderLineActions({
               linePriceCents={linePriceCents}
               refundedCents={refundedCents}
               batchLabel={purchaseReviewContext.batchLabel}
+              orderId={purchaseReviewContext.orderId}
+              batchSessionId={purchaseReviewContext.batchSessionId}
+              batchShare={purchaseReviewContext.batchShare}
+              quote={purchaseReviewContext.quote}
               initialReceiptImageUrls={retailerReceiptImageUrls}
+            />
+          : null}
+          {showAwaitingRefundLine ?
+            <AdminRefundOrderLineButton
+              orderItemId={orderItemId}
+              linePriceCents={linePriceCents}
+              refundedCents={refundedCents}
+              productLabel={productLabel}
+              triggerLabel="Refund line"
             />
           : null}
         </div>
@@ -165,6 +206,7 @@ export function AdminOrderLineActions({
       fulfillmentStatus === "delivery_received_item_missing" ||
       fulfillmentStatus === "product_return_awaiting_delivery";
     const showRefundLine =
+      !inBatchGroup &&
       !isOutsidePurchase &&
       !pendingRefundRequest &&
       !problemReceipt &&

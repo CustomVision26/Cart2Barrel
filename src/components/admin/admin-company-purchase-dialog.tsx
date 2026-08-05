@@ -5,12 +5,15 @@ import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { confirmCompanyPurchaseAction } from "@/actions/admin-confirm-company-purchase";
+import { AdminMerchandiseReconciliationPanel } from "@/components/admin/admin-merchandise-reconciliation-panel";
 import { AdminRetailerReceiptImagesField } from "@/components/admin/admin-retailer-receipt-images-field";
 import {
   defaultWarehouseReceiptIntakeDraft,
   WarehouseReceiptIntakeFields,
   type WarehouseReceiptIntakeDraft,
 } from "@/components/admin/warehouse-receipt-intake-fields";
+import { CartLinePriceBreakdown } from "@/components/dashboard/cart-line-price-breakdown";
+import { DashboardCheckoutChargesPreviewDialog } from "@/components/dashboard/dashboard-checkout-charges-preview-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,13 +26,21 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  batchLineShareSummaryRows,
+  singleQuoteSummaryRows,
+} from "@/lib/admin-order-estimate-summary-rows";
 import { formatUsd } from "@/lib/admin-markup";
+import type { BatchLineShare } from "@/lib/batch-line-share";
+import type { ItemQuote } from "@/db/schema";
+import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
 import { cn } from "@/lib/utils";
 
 export type AdminCompanyPurchaseDialogProps = {
   orderItemId: string;
   productName: string;
   retailerLabel: string;
+  productUrl: string;
   quantity: number;
   sizeLabel: string | null;
   colorLabel: string | null;
@@ -37,6 +48,11 @@ export type AdminCompanyPurchaseDialogProps = {
   linePriceCents: number;
   refundedCents: number;
   batchLabel: string | null;
+  orderId: string;
+  batchSessionId: string | null;
+  batchShare: BatchLineShare | null;
+  /** Latest staff quote — used for single-line charge breakdown. */
+  quote?: ItemQuote | null;
 };
 
 type DeliveryTab = "tracking" | "store_pickup";
@@ -65,6 +81,7 @@ export function AdminCompanyPurchaseDialog(
     orderItemId,
     productName,
     retailerLabel,
+    productUrl,
     quantity,
     sizeLabel,
     colorLabel,
@@ -72,6 +89,10 @@ export function AdminCompanyPurchaseDialog(
     linePriceCents,
     refundedCents,
     batchLabel,
+    orderId,
+    batchSessionId,
+    batchShare,
+    quote = null,
     initialReceiptImageUrls,
   } = props;
 
@@ -88,8 +109,21 @@ export function AdminCompanyPurchaseDialog(
     () => defaultWarehouseReceiptIntakeDraft(quantity),
   );
   const [pending, startTransition] = useTransition();
+  const [reconciliationAllowsPurchase, setReconciliationAllowsPurchase] =
+    useState(false);
 
   const refundable = Math.max(0, linePriceCents - refundedCents);
+  const checkoutMerchandiseCents =
+    batchShare?.merchandise ??
+    quotedMerchandiseCostCents ??
+    quote?.itemCost ??
+    0;
+  const checkoutShippingCents =
+    batchShare?.shipping ?? quote?.estimatedShipping ?? 0;
+  const checkoutTaxCents =
+    batchShare?.tax ?? (quote ? lineSaleTaxCentsFromQuote(quote) : 0);
+  const checkoutServiceCents =
+    batchShare?.serviceFee ?? quote?.serviceFee ?? 0;
 
   const resetForm = useCallback(() => {
     setDeliveryTab("tracking");
@@ -224,11 +258,33 @@ export function AdminCompanyPurchaseDialog(
 
         <div className="space-y-4 text-sm">
           {batchLabel ?
-            <p className="rounded-md border border-primary/35 bg-primary/10 px-3 py-2 text-xs font-medium text-foreground">
-              Batch bundle ·{" "}
-              <span className="font-mono text-[13px]">{batchLabel}</span>
-            </p>
-          : null}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/35 bg-primary/10 px-3 py-2">
+              <p className="text-xs font-medium text-foreground">
+                Batch bundle ·{" "}
+                <span className="font-mono text-[13px]">{batchLabel}</span>
+              </p>
+              {batchSessionId ?
+                <DashboardCheckoutChargesPreviewDialog
+                  scope="batch"
+                  orderId={orderId}
+                  batchSessionId={batchSessionId}
+                  triggerLabel="Batch charges"
+                />
+              : null}
+            </div>
+          : (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/70 bg-muted/40 px-3 py-2">
+              <p className="text-xs font-medium text-foreground">
+                Single product checkout charges
+              </p>
+              <DashboardCheckoutChargesPreviewDialog
+                scope="line"
+                orderId={orderId}
+                orderItemId={orderItemId}
+                triggerLabel="Line charges"
+              />
+            </div>
+          )}
 
           <dl className="grid gap-3 rounded-lg border border-border bg-secondary p-3">
             <div className="flex flex-col gap-0.5">
@@ -240,28 +296,51 @@ export function AdminCompanyPurchaseDialog(
               <dd className="text-foreground">{retailerLabel}</dd>
             </div>
             <div className="flex flex-col gap-0.5">
+              <dt className="text-xs font-medium text-muted-foreground">Link</dt>
+              <dd>
+                <a
+                  href={productUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={productUrl}
+                  className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  Product URL
+                </a>
+              </dd>
+            </div>
+            <div className="flex flex-col gap-0.5">
               <dt className="text-xs font-medium text-muted-foreground">Quantity</dt>
               <dd className="tabular-nums text-foreground">{quantity}</dd>
             </div>
-            {showAttrs ?
+            {sizeLabel?.trim() ?
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs font-medium text-muted-foreground">Size</dt>
+                <dd className="text-foreground">{sizeLabel.trim()}</dd>
+              </div>
+            : null}
+            {colorLabel?.trim() ?
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs font-medium text-muted-foreground">Color</dt>
+                <dd className="text-foreground">{colorLabel.trim()}</dd>
+              </div>
+            : null}
+            {!showAttrs ?
               <div className="flex flex-col gap-0.5">
                 <dt className="text-xs font-medium text-muted-foreground">Variant</dt>
-                <dd className="text-foreground">
-                  {[sizeLabel?.trim(), colorLabel?.trim()].filter(Boolean).join(" · ") ||
-                    "—"}
+                <dd className="text-foreground">Single</dd>
+              </div>
+            : null}
+            {!batchSessionId && quotedMerchandiseCostCents != null ?
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs font-medium text-muted-foreground">
+                  Quoted merchandise cost (staff estimate)
+                </dt>
+                <dd className="tabular-nums font-medium text-foreground">
+                  {formatUsd(quotedMerchandiseCostCents)}
                 </dd>
               </div>
             : null}
-            <div className="flex flex-col gap-0.5">
-              <dt className="text-xs font-medium text-muted-foreground">
-                Quoted merchandise cost (staff estimate)
-              </dt>
-              <dd className="tabular-nums font-medium text-foreground">
-                {quotedMerchandiseCostCents != null ?
-                  formatUsd(quotedMerchandiseCostCents)
-                : "—"}
-              </dd>
-            </div>
             <div className="flex flex-col gap-0.5 border-t border-border pt-3">
               <dt className="text-xs font-medium text-muted-foreground">Checkout line total</dt>
               <dd className="text-base font-semibold tabular-nums text-foreground">
@@ -274,6 +353,46 @@ export function AdminCompanyPurchaseDialog(
               : null}
             </div>
           </dl>
+
+          {batchShare ?
+            <div>
+              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Batch summary (this product)
+              </p>
+              <CartLinePriceBreakdown rows={batchLineShareSummaryRows(batchShare)} />
+            </div>
+          : !batchSessionId && quote ?
+            <div>
+              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Charge breakdown
+              </p>
+              <CartLinePriceBreakdown rows={singleQuoteSummaryRows(quote)} />
+            </div>
+          : null}
+
+          <AdminMerchandiseReconciliationPanel
+            orderItemId={orderItemId}
+            productName={productName}
+            checkoutMerchandiseCents={checkoutMerchandiseCents}
+            checkoutShippingCents={checkoutShippingCents}
+            checkoutTaxCents={checkoutTaxCents}
+            checkoutServiceCents={checkoutServiceCents}
+            customerCheckoutTotalCents={linePriceCents}
+            linePriceCents={linePriceCents}
+            refundedCents={refundedCents}
+            quantity={quantity}
+            products={[
+              {
+                productName,
+                productNumber: orderItemId,
+                quantity,
+                sizeLabel,
+                colorLabel,
+              },
+            ]}
+            dialogOpen={open}
+            onAllowsPurchaseChange={setReconciliationAllowsPurchase}
+          />
 
           <AdminRetailerReceiptImagesField
             orderItemId={orderItemId}
@@ -424,7 +543,13 @@ export function AdminCompanyPurchaseDialog(
           >
             Cancel
           </Button>
-          <Button type="button" disabled={pending || refundable <= 0} onClick={submit}>
+          <Button
+            type="button"
+            disabled={
+              pending || refundable <= 0 || !reconciliationAllowsPurchase
+            }
+            onClick={submit}
+          >
             {pending ? "Saving…" : "Approve purchase"}
           </Button>
         </DialogFooter>

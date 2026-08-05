@@ -24,6 +24,7 @@ import {
   sumContainerQuantitiesByKind,
   sumContainerCheckoutLinesCents,
 } from "@/data/user-container-cart";
+import { validateSpecialOfferSlotAvailabilityForCartLines } from "@/data/special-feature-suitcase-slots";
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
 import {
   buildStripeLineItemsFromOutboundShippingCart,
@@ -31,6 +32,12 @@ import {
   listUserOutboundShippingCartLines,
   sumOutboundShippingCartLinesCents,
 } from "@/data/barrel-outbound-shipping-charges";
+import {
+  buildStripeLineItemsFromMerchandiseTopupCart,
+  clearMerchandiseTopupCartForReconciliations,
+  listUserMerchandiseTopupCartLines,
+  sumMerchandiseTopupCartLinesCents,
+} from "@/data/merchandise-topup-cart";
 import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
@@ -82,6 +89,15 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
 
   const assembled = await assembleApprovedCartForUser(userId);
   const containerCheckoutLines = await listContainerCheckoutLinesForUser(userId);
+  const slotCheck = await validateSpecialOfferSlotAvailabilityForCartLines(
+    containerCheckoutLines.map((line) => ({
+      offeringId: line.offeringId,
+      quantity: line.quantity,
+    })),
+  );
+  if (!slotCheck.ok) {
+    return slotCheck;
+  }
   const containerSubtotalCents = sumContainerCheckoutLinesCents(containerCheckoutLines);
   const { containerPackingRates } = await getMerchantPricingForEstimates(userId);
   const { barrelCount, binCount } = sumContainerQuantitiesByKind(
@@ -98,12 +114,21 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     outboundShippingCartLines,
   );
   const outboundChargeIds = outboundShippingCartLines.map((l) => l.chargeId);
+  const merchandiseTopupCartLines =
+    await listUserMerchandiseTopupCartLines(userId);
+  const merchandiseTopupSubtotalCents = sumMerchandiseTopupCartLinesCents(
+    merchandiseTopupCartLines,
+  );
+  const merchandiseTopupReconciliationIds = merchandiseTopupCartLines.map(
+    (l) => l.reconciliationId,
+  );
 
   if (
     assembled.batchGroups.length === 0 &&
     assembled.standaloneLines.length === 0 &&
     containerCheckoutLines.length === 0 &&
-    outboundShippingCartLines.length === 0
+    outboundShippingCartLines.length === 0 &&
+    merchandiseTopupCartLines.length === 0
   ) {
     return { ok: false, message: "Your cart is empty." };
   }
@@ -127,7 +152,8 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     assembled.estimatedTotalCents +
     containerSubtotalCents +
     containerPacking.totalPackingFeeCents +
-    outboundShippingSubtotalCents;
+    outboundShippingSubtotalCents +
+    merchandiseTopupSubtotalCents;
   const shipAddr = await getPrimaryShippingAddress(userId);
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,
@@ -230,6 +256,12 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   if (outboundChargeIds.length > 0) {
     await clearOutboundShippingCartForCharges(userId, outboundChargeIds);
   }
+  if (merchandiseTopupReconciliationIds.length > 0) {
+    await clearMerchandiseTopupCartForReconciliations(
+      userId,
+      merchandiseTopupReconciliationIds,
+    );
+  }
 
   const orderItemRows = await db
     .select({
@@ -254,6 +286,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       rates: containerPackingRates,
     }),
     ...buildStripeLineItemsFromOutboundShippingCart(outboundShippingCartLines),
+    ...buildStripeLineItemsFromMerchandiseTopupCart(merchandiseTopupCartLines),
   ];
   if (processingFeeCents > 0) {
     const regionLabel = checkoutProcessingFeeRegionLabel(processingFeeRegion);
@@ -280,6 +313,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       order.id,
       userId,
       outboundChargeIds,
+      merchandiseTopupReconciliationIds,
     );
     return {
       ok: false,
@@ -311,6 +345,8 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
         processingFeeRegion,
         quotedSalesTaxIntentCents: String(builtLines.quotedSalesTaxIntentCents),
         outboundChargeIds: outboundChargeIds.join(","),
+        merchandiseTopupReconciliationIds:
+          merchandiseTopupReconciliationIds.join(","),
       },
     };
 
@@ -339,6 +375,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
           order.id,
           userId,
           outboundChargeIds,
+          merchandiseTopupReconciliationIds,
         );
         return {
           ok: false,
@@ -355,6 +392,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
         order.id,
         userId,
         outboundChargeIds,
+        merchandiseTopupReconciliationIds,
       );
       return { ok: false, message: "Stripe did not return a checkout URL." };
     }
@@ -369,6 +407,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       order.id,
       userId,
       outboundChargeIds,
+      merchandiseTopupReconciliationIds,
     );
     console.error("[createCartCheckout] Stripe checkout.sessions.create failed", e);
     const detail = formatStripeApiErrorForUi(e);

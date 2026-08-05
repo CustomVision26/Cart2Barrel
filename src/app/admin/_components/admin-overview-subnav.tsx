@@ -11,7 +11,8 @@ export type AdminOverviewTab =
   | "set-fee-n-rate"
   | "customer-packages"
   | "shipping-containers"
-  | "special-features";
+  | "special-features"
+  | "quote-expiry";
 
 const tabs: { id: AdminOverviewTab; label: string; extra?: Record<string, string> }[] =
   [
@@ -21,6 +22,7 @@ const tabs: { id: AdminOverviewTab; label: string; extra?: Record<string, string
     { id: "customer-packages", label: "Customer packages" },
     { id: "shipping-containers", label: "Shipping containers" },
     { id: "special-features", label: "Special features" },
+    { id: "quote-expiry", label: "Quote Expiry Settings" },
   ];
 
 export function AdminOverviewSubnav({ active }: { active: AdminOverviewTab }) {

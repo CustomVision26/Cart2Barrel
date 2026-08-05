@@ -7,8 +7,9 @@ import {
   PaymentElement,
   useCheckoutElements,
 } from "@stripe/react-stripe-js/checkout";
-import { CreditCard, Info, Lock, Shield } from "lucide-react";
+import { CircleAlert, CreditCard, Info, Lock, Shield } from "lucide-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -45,11 +46,38 @@ function formatStripeCheckoutConfirmError(error: {
     const base = error.message.trim();
     if ("code" in error && error.code === "paymentFailed" && "paymentFailed" in error) {
       const code = error.paymentFailed?.declineCode?.trim();
-      return code ? `${base} (${code})` : base;
+      return toCustomerFacingPaymentError(code ? `${base} (${code})` : base);
     }
-    return base;
+    return toCustomerFacingPaymentError(base);
   }
-  return "We were unable to complete your payment.";
+  return "We were unable to complete your payment. Please try again or use a different payment method.";
+}
+
+/** Replace Stripe developer IntegrationErrors with shopper-facing copy. */
+function toCustomerFacingPaymentError(raw: string): string {
+  const message = raw.trim();
+  if (
+    /payment element is mounted/i.test(message) ||
+    /ready event has been emitted/i.test(message)
+  ) {
+    return "The secure payment form was not ready. Please wait a moment, then select Complete payment again. If the issue continues, refresh this page.";
+  }
+  return message || "We were unable to complete your payment. Please try again.";
+}
+
+function PaymentErrorAlert({ message }: { message: string }) {
+  return (
+    <Alert
+      variant="destructive"
+      className="border-destructive/40 bg-destructive/10 px-3 py-3"
+    >
+      <CircleAlert aria-hidden />
+      <AlertTitle>Unable to complete payment</AlertTitle>
+      <AlertDescription className="text-destructive/90">
+        {message}
+      </AlertDescription>
+    </Alert>
+  );
 }
 
 function EmbeddedCheckoutPaymentForm({
@@ -62,6 +90,8 @@ function EmbeddedCheckoutPaymentForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [elementError, setElementError] = useState<string | null>(null);
+  /** Stripe requires Payment Element `ready` before `checkout.confirm()`. */
+  const [paymentElementReady, setPaymentElementReady] = useState(false);
 
   if (checkoutState.type === "loading") {
     return (
@@ -80,19 +110,27 @@ function EmbeddedCheckoutPaymentForm({
 
   if (checkoutState.type === "error") {
     return (
-      <div
-        className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-        role="alert"
-      >
-        {checkoutState.error.message}
-      </div>
+      <PaymentErrorAlert
+        message={toCustomerFacingPaymentError(
+          checkoutState.error.message ||
+            "Checkout could not be started. Return to your cart and try again.",
+        )}
+      />
     );
   }
 
   const { checkout } = checkoutState;
+  const canSubmit =
+    paymentElementReady && !isSubmitting && !elementError;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!paymentElementReady) {
+      setErrorMessage(
+        "The payment form is still loading. Wait a moment, then try Complete payment again.",
+      );
+      return;
+    }
     setErrorMessage(null);
     setInfoMessage(null);
     setIsSubmitting(true);
@@ -159,7 +197,7 @@ function EmbeddedCheckoutPaymentForm({
        */
       if (statusObj?.type === "open") {
         setInfoMessage(
-          "Payment method selected. Selecting a card or Link in this form authorizes Stripe to use it upon submission—it does not complete the charge until you complete payment below.",
+          "Selecting a card or Link authorizes Stripe to use it when you submit—funds are not captured until you select Complete payment below.",
         );
         setIsSubmitting(false);
         return;
@@ -177,8 +215,8 @@ function EmbeddedCheckoutPaymentForm({
           ? err.message
           : typeof err === "object" && err !== null && "message" in err
             ? String((err as { message: unknown }).message)
-            : "An unexpected error occurred.";
-      setErrorMessage(fallback);
+            : "An unexpected error occurred while processing your payment.";
+      setErrorMessage(toCustomerFacingPaymentError(fallback));
       setIsSubmitting(false);
     }
   }
@@ -204,31 +242,37 @@ function EmbeddedCheckoutPaymentForm({
         </p>
       </div>
       <PaymentElement
+        onReady={() => {
+          setPaymentElementReady(true);
+          setElementError(null);
+        }}
         onLoadError={(ev) => {
+          setPaymentElementReady(false);
           setElementError(
             ev.error?.message ??
               "The payment form could not be loaded. Refresh the page or try again shortly."
           );
         }}
       />
-      {elementError ? (
-        <p className="text-sm text-destructive" role="alert">
-          {elementError}
-        </p>
-      ) : null}
+      {elementError ?
+        <PaymentErrorAlert message={toCustomerFacingPaymentError(elementError)} />
+      : null}
       {infoMessage ?
-        <p className="text-sm text-muted-foreground" role="status">
-          {infoMessage}
-        </p>
+        <Alert className="border-primary/25 bg-primary/5 px-3 py-3">
+          <Info aria-hidden />
+          <AlertTitle>Payment method selected</AlertTitle>
+          <AlertDescription>{infoMessage}</AlertDescription>
+        </Alert>
       : null}
-      {errorMessage ?
-        <p className="text-sm text-destructive" role="alert">
-          {errorMessage}
-        </p>
-      : null}
+      {errorMessage ? <PaymentErrorAlert message={errorMessage} /> : null}
       <div className="flex flex-col gap-3 border-t border-border/40 pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-1">
-          {!checkout.canConfirm && !elementError ?
+          {!paymentElementReady && !elementError ?
+            <p className="text-xs text-muted-foreground" role="status">
+              Loading the secure payment form…
+            </p>
+          : null}
+          {paymentElementReady && !checkout.canConfirm && !elementError ?
             <p className="text-xs text-muted-foreground" role="status">
               If Stripe is validating your selection, briefly wait until prompts above are
               dismissed, then select{" "}
@@ -242,17 +286,19 @@ function EmbeddedCheckoutPaymentForm({
             type="submit"
             variant="default"
             size="lg"
-            aria-disabled={isSubmitting}
+            aria-disabled={!canSubmit}
             className={cn(
               "w-full shrink-0 justify-center whitespace-normal px-6 py-3 text-base leading-snug",
               "min-h-12 rounded-xl sm:w-auto sm:min-w-[min(100%,16rem)]"
             )}
-            disabled={isSubmitting}
+            disabled={!canSubmit}
           >
             <Lock className="size-4 shrink-0 opacity-80" aria-hidden />
             <span className="text-center">
               {isSubmitting ?
                 "Processing payment…"
+              : !paymentElementReady ?
+                "Preparing payment…"
               : `Complete payment (${checkout.total.total.amount})`}
             </span>
           </Button>
@@ -310,7 +356,10 @@ export function CartEmbeddedCheckoutClient({
             },
           }}
         >
-          <EmbeddedCheckoutPaymentForm checkoutSessionId={checkoutSessionId} />
+          <EmbeddedCheckoutPaymentForm
+            key={clientSecret}
+            checkoutSessionId={checkoutSessionId}
+          />
         </CheckoutElementsProvider>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 bg-muted px-5 py-3">

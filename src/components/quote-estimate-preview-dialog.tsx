@@ -203,7 +203,7 @@ export function QuoteEstimatePreviewDialog({
             "inline-flex items-center gap-1 font-medium transition-colors",
             triggerVariant === "link" ?
               "text-sm text-primary underline-offset-2 hover:underline"
-            : "rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground shadow-sm hover:bg-accent",
+            : "w-full justify-center rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm hover:bg-accent",
           )}
         >
           {triggerVariant === "button" ?
@@ -271,6 +271,15 @@ export function QuoteEstimatePreviewDialog({
 
                     {!editing ? (
                       <dl className="space-y-1 text-xs text-muted-foreground sm:text-sm">
+                    <div className="flex flex-wrap justify-between gap-x-4 gap-y-0.5">
+                      <dt>Product number</dt>
+                      <dd
+                        className="break-all font-mono text-foreground"
+                        title={product.productNumber}
+                      >
+                        {product.productNumber}
+                      </dd>
+                    </div>
                     <div className="flex flex-wrap justify-between gap-x-4 gap-y-0.5">
                       <dt>Quantity</dt>
                       <dd className="tabular-nums text-foreground">{product.quantity}</dd>

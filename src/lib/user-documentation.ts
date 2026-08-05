@@ -635,21 +635,26 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Manage active quotes, history, and batch estimate sessions.",
       location: "Sidebar → Add item.",
       bullets: [
-        "Products → Active: accept, compare, or withdraw quotes.",
+        "Products → Active: accept quotes; Quote expiry shows Time left, live HH:MM:SS, and remaining time under it.",
+        "Products → Expired Quotes: estimates that passed the payment window — preview or resubmit.",
         "Products → History: past quote sessions.",
-        "Batch quotes → Active: multi-item bundles.",
+        "Batch quotes → Active: Quote expiry card (Time left, live HH:MM:SS, remainder under it) on each line.",
+        "If a quoted batch has any line expire before pay/checkout, the batch ends and products return as singles.",
         "Accepting adds lines to cart at quoted price.",
       ],
       requirements: [
         "Signed-in account.",
         "Approved quote before checkout.",
+        "Accept and pay before the quote expiry window ends.",
       ],
       dos: [
         "Compare alternatives when staff offers options.",
-        "Review fees before accepting.",
+        "Review fees and the Quote expiry column before accepting.",
         "Use batch quotes for related multi-item orders.",
+        "Resubmit from Expired Quotes if the window closed.",
       ],
       donts: [
+        "Don't wait past the expiry window to accept or pay.",
         "Don't accept quotes you won't pay for.",
         "Quoted price ≠ future barrel shipping charges.",
       ],
@@ -657,13 +662,16 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     article: {
       overview: [
         "Add item is your quote workspace after requests are submitted. It separates active product quotes from history, and supports batch quote sessions when you are bundling several items into one estimate.",
+        "After staff quotes a product, you have a limited window (set by the hub under Admin → Quote Expiry Settings, commonly 7 days, and as short as 1 minute; staff may set a custom window for your account or a specific product) to accept it and complete payment—whether as a single line or in a batch. Retailer prices change randomly; the expiry keeps the locked estimate honest and helps avoid refunds or extra payment requests when the store price drifts. The Active table Quote expiry card shows Time left, a live HH:MM:SS timer, and remaining time underneath. When time runs out, the product moves to Expired Quotes so you can preview the old estimate or resubmit for a fresh price.",
         "Accepting a quote moves it to your cart at the quoted price. Barrel and outbound shipping charges are typically billed later when containers are ready to ship.",
       ],
       walkthrough: [
         "Navigate to Add item from the sidebar.",
-        "Products → Active: review quotes you can accept, compare, or withdraw.",
+        "Products → Active: review quotes you can accept, compare, or withdraw; check Quote expiry.",
+        "Products → Expired Quotes: preview expired estimates or resubmit as a new pending request.",
         "Products → History: browse past product quote sessions.",
-        "Batch quotes → Active: manage bundled multi-item estimate sessions.",
+        "Batch quotes → Active: manage bundled multi-item estimate sessions; check Quote expiry on each product.",
+        "If any line in a staff-quoted batch expires before you pay, the batch closes and each product returns as an individual quote (expired ones appear under Expired Quotes).",
         "Accept a quote to add the line to your cart (subject to stock at purchase time).",
         "Withdraw quotes you no longer want to keep your cart accurate.",
       ],
@@ -680,6 +688,49 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Do not accept quotes you do not intend to pay for—withdraw instead to keep your cart accurate.",
         "Do not assume quoted prices include future shipping barrel charges; those are billed separately when containers ship.",
       ],
+    },
+  },
+  {
+    id: "expired-quotes",
+    title: "Add item — Expired Quotes",
+    category: "Shopping",
+    quickReference: {
+      summary:
+        "Estimates that passed the accept/pay window; preview or resubmit for a new quote.",
+      location:
+        "Sidebar → Add item → Products → Expired Quotes.",
+      bullets: [
+        "Shows expiration date/time, product number, name, retailer, URL, and last quoted price.",
+        "Preview expired opens the prior estimate for reference.",
+        "Resubmit new request voids the old estimate and returns the line to pending for staff.",
+      ],
+      requirements: ["Signed-in account.", "A quoted product that passed the expiry window."],
+      dos: [
+        "Resubmit promptly if you still want the product.",
+        "Use Preview expired to review the old fees before resubmitting.",
+      ],
+      donts: [
+        "Do not expect to accept an expired estimate from Active—it has already moved here.",
+      ],
+    },
+    article: {
+      overview: [
+        "When staff quotes a product, you have a limited window (published by the hub under Admin → Quote Expiry Settings, or a custom window if staff set one for your account or that product) to accept it and pay. That window exists because retailer prices change often—holding a quote forever would force more refunds or additional payment when the store price moves. After the window, the line leaves Active and appears under Expired Quotes.",
+      ],
+      walkthrough: [
+        "Open Add item → Products → Expired Quotes.",
+        "Review the expiration timestamp, product details, and last quoted price.",
+        "Use Preview expired to inspect the old estimate.",
+        "Use Resubmit new request to open a fresh pending request for staff to quote again at current retailer pricing.",
+      ],
+      notes: [
+        "If staff have already quoted a batch estimate and any line expires before you pay or check out, that batch ends automatically and products return as single quotes.",
+        "Batch accept/checkout is blocked when a line has expired; expired lines appear here after the batch dissolves.",
+        "Resubmitting does not keep the expired price; staff will re-check the retailer.",
+      ],
+      requirements: ["Signed-in account."],
+      dos: ["Act on Quoted items before the Quote expiry column reaches zero."],
+      donts: ["Do not assume an expired price is still available after resubmit."],
     },
   },
   {
@@ -904,18 +955,19 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     title: "Messages (support inbox)",
     category: "Support",
     quickReference: {
-      summary: "View and reply to support tickets in one inbox.",
+      summary: "View, search, and reply to support tickets; remove threads to History.",
       location: "Sidebar → Messages, or /dashboard/support.",
       bullets: [
-        "Lists tickets with status and last update.",
-        "Open a thread to read and reply.",
-        "Images optional in replies.",
-        "Support replies trigger bell notifications.",
+        "Unread count badges the Messages nav item.",
+        "Search, filter, and paginate your inbox.",
+        "New / Read badges on each conversation.",
+        "Remove moves a thread to the History tab.",
+        "Price-update decisions: check an option, optional note/image, then send.",
       ],
       requirements: ["Signed-in account."],
       dos: [
         "Reply in the existing thread.",
-        "Reference order IDs in follow-ups.",
+        "Use History to restore removed conversations.",
       ],
       donts: [
         "Can't edit sent messages—add a new reply.",
@@ -925,24 +977,53 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     article: {
       overview: [
         "Messages is your support inbox for tickets opened through Contact us or order-related issues. Keep conversations in one thread so the hub team has full context when helping you.",
-        "New replies from support appear in your notifications bell as well as in the ticket thread.",
+        "New replies from support appear in your notifications bell and as a badge on Messages. Opening a thread marks it read. Remove sends a conversation to History without deleting it.",
       ],
       walkthrough: [
-        "Open Messages from the sidebar or navigate to /dashboard/support.",
-        "Browse your ticket list with status and last-update timestamps.",
-        "Click a ticket to read the full conversation thread.",
-        "Send replies with optional image attachments.",
-        "Check the notifications bell when support responds.",
+        "Open Messages from the sidebar (badge shows unread hub replies).",
+        "Search or filter, then open a conversation.",
+        "For purchase price updates, check one decision option; optionally add a note or image, then send.",
+        "Remove threads you do not need — they move to History.",
       ],
       requirements: ["Signed-in account."],
       dos: [
         "Reply in the existing thread for continuity.",
-        "Reference ticket subject or order IDs in follow-ups.",
+        "Restore removed threads from History when needed.",
       ],
       donts: [
         "Do not delete or edit sent messages—add a new reply instead.",
         "Do not use Messages for new quote requests—use Requested items or Add item.",
       ],
+    },
+  },
+  {
+    id: "support-messages-history",
+    title: "Messages — History",
+    category: "Support",
+    quickReference: {
+      summary: "Removed conversations, searchable and restorable.",
+      location: "Messages → History, or /dashboard/support/history.",
+      bullets: [
+        "Removed badge on archived threads.",
+        "Restore returns a thread to the inbox.",
+        "Same search, filter, and pagination as Messages.",
+      ],
+      requirements: ["Signed-in account."],
+      dos: ["Restore a thread before replying if you still need it."],
+      donts: ["History is not permanent delete—staff can still see the ticket."],
+    },
+    article: {
+      overview: [
+        "History holds conversations you removed from Messages. Threads stay available to restore and remain visible to the hub team.",
+      ],
+      walkthrough: [
+        "Open Messages → History.",
+        "Search or filter removed threads.",
+        "Use Restore to move a conversation back to the inbox.",
+      ],
+      requirements: ["Signed-in account."],
+      dos: ["Use History to declutter without losing context."],
+      donts: ["Do not expect History removal to erase the ticket for support staff."],
     },
   },
   {

@@ -16,6 +16,7 @@ import {
 } from "@/actions/customer-batch-quote";
 import { AcceptBatchQuoteButton } from "@/components/dashboard/accept-batch-quote-button";
 import { BatchEstimatePreviewDialog } from "@/components/dashboard/batch-estimate-preview-dialog";
+import { QuoteExpiryCountdownLabel } from "@/components/dashboard/quote-expiry-countdown-label";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import {
   AlertDialog,
@@ -52,6 +53,12 @@ import {
   dashItemsTableScroll,
   dashItemsTableStatusPanel,
 } from "@/lib/app-table-surfaces";
+import {
+  effectiveQuoteExpiryMinutes,
+  formatItemRequestProductNumber,
+  getLatestOperationalQuoteIssuedAt,
+  resolveQuoteExpiryClockStart,
+} from "@/lib/quote-expiry";
 import { displaySiteName } from "@/lib/site-name";
 import { batchQuoteSessionBadgeKind } from "@/lib/status-badge-map";
 import { compareLocale, compareNum, type SortDir } from "@/lib/table-sort";
@@ -68,6 +75,7 @@ const SELECT_CLASS =
 type DashboardBatchQuotesSectionProps = {
   bundles: OwnerBatchQuoteSessionBundle[];
   quotesByRequestId?: Record<string, ItemQuote[]>;
+  quoteExpiryMinutes: number;
 };
 
 function ownerBundleActivityMs(b: OwnerBatchQuoteSessionBundle): number {
@@ -96,6 +104,8 @@ function haystackForBundleSearch(b: OwnerBatchQuoteSessionBundle): string {
   ];
   for (const r of b.requests) {
     parts.push(
+      r.id,
+      formatItemRequestProductNumber(r),
       r.productName ?? "",
       r.productUrl ?? "",
       r.siteName ?? "",
@@ -113,8 +123,12 @@ function haystackForBundleSearch(b: OwnerBatchQuoteSessionBundle): string {
 export function DashboardBatchQuotesSection({
   bundles,
   quotesByRequestId = {},
+  quoteExpiryMinutes,
 }: DashboardBatchQuotesSectionProps) {
   const router = useRouter();
+  const refreshAfterExpiry = useCallback(() => {
+    router.refresh();
+  }, [router]);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [withdrawingSessionId, setWithdrawingSessionId] = useState<string | null>(
@@ -757,7 +771,7 @@ export function DashboardBatchQuotesSection({
             ) : null}
 
             <FloatingHorizontalScroll viewportClassName={dashItemsTableScroll}>
-              <table className="w-full min-w-[36rem] text-left text-sm">
+              <table className="w-full min-w-[54rem] text-left text-sm">
                 <thead className={dashItemsTableHeadPlain}>
                   <tr>
                     {isDraft ? (
@@ -774,13 +788,25 @@ export function DashboardBatchQuotesSection({
                       </th>
                     ) : null}
                     <th className="px-3 py-2 font-medium">Photo</th>
+                    <th className="px-3 py-2 font-medium">Product #</th>
                     <th className="px-3 py-2 font-medium">Product</th>
                     <th className="px-3 py-2 font-medium">Site</th>
                     <th className="px-3 py-2 font-medium">Link</th>
+                    <th className="px-3 py-2 font-medium">Quote expiry</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {requests.map((r: ItemRequest) => (
+                  {requests.map((r: ItemRequest) => {
+                    const issuedAt = getLatestOperationalQuoteIssuedAt(
+                      quotesByRequestId[r.id] ?? [],
+                    );
+                    const clockStart = resolveQuoteExpiryClockStart({
+                      quoteIssuedAt: issuedAt,
+                      productOverrideMinutes: r.quoteExpiryMinutesOverride,
+                      productOverrideAnchoredAt: r.quoteExpiryOverrideAnchoredAt,
+                    });
+                    const productNumber = formatItemRequestProductNumber(r);
+                    return (
                     <tr key={r.id}>
                       {isDraft ? (
                         <td className="px-2 py-2 text-center align-top">
@@ -800,6 +826,12 @@ export function DashboardBatchQuotesSection({
                           productLabel={r.productName}
                         />
                       </td>
+                      <td
+                        className="px-3 py-2 font-mono text-xs text-foreground"
+                        title={productNumber}
+                      >
+                        {productNumber}
+                      </td>
                       <td className="max-w-[12rem] px-3 py-2 font-medium text-foreground">
                         <span className="line-clamp-2">
                           {r.productName?.trim() || "Unnamed product"}
@@ -818,8 +850,35 @@ export function DashboardBatchQuotesSection({
                           Product url
                         </a>
                       </td>
+                      <td className="px-3 py-2 align-top">
+                        {clockStart ? (
+                          <QuoteExpiryCountdownLabel
+                            quotedAt={clockStart}
+                            expiryMinutes={
+                              effectiveQuoteExpiryMinutes(
+                                quoteExpiryMinutes,
+                                r.quoteExpiryMinutesOverride,
+                              ).expiryMinutes
+                            }
+                            onExpired={
+                              session.status === "estimated" ||
+                              session.status === "in_cart"
+                                ? refreshAfterExpiry
+                                : undefined
+                            }
+                          />
+                        ) : (
+                          <span
+                            className="text-muted-foreground/70"
+                            title="Waiting for staff quote timestamp"
+                          >
+                            —
+                          </span>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </FloatingHorizontalScroll>

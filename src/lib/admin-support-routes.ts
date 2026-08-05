@@ -7,6 +7,7 @@ export const ADMIN_SUPPORT_ROUTES = {
 
 export const DASHBOARD_SUPPORT_ROUTES = {
   inbox: "/dashboard/support",
+  history: "/dashboard/support/history",
   ticket: (ticketId: string) =>
     `/dashboard/support/${encodeURIComponent(ticketId)}`,
 } as const;

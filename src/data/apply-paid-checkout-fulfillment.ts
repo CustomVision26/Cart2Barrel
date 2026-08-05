@@ -15,6 +15,7 @@ import {
   lineSnapshotPayloadFromItemRequest,
 } from "@/data/item-request-line-snapshots";
 import { ensureBarrelsProvisionedForPaidOrder } from "@/data/ensure-paid-order-barrels";
+import { finalizeSpecialOffersForPaidOrder } from "@/data/special-feature-suitcase-slots";
 import { ensureInboundPackageForOrderItem } from "@/data/ensure-inbound-package-for-order-item";
 import { ensurePaidOutsidePurchaseFulfillmentEnums } from "@/data/ensure-paid-outside-purchase-fulfillment-enum";
 import { insertOutsidePurchaseLifecycleSnapshot } from "@/data/outside-purchase-lifecycle-snapshot";
@@ -119,4 +120,5 @@ export async function applyPaidCheckoutFulfillmentForOrder(
   }
 
   await ensureBarrelsProvisionedForPaidOrder(orderId);
+  await finalizeSpecialOffersForPaidOrder(orderId);
 }

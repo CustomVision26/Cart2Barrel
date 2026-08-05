@@ -29,6 +29,8 @@ await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 
 await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'account_suspended'`;
 await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'account_reinstated'`;
 await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'outside_purchase_payment_prompt'`;
+await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'merchandise_price_change'`;
+await sql`ALTER TYPE "public"."user_status_update_kind" ADD VALUE IF NOT EXISTS 'merchandise_topup_required'`;
 
 await sql`
   CREATE TABLE IF NOT EXISTS "user_status_update_events" (

@@ -181,6 +181,7 @@ function MobileNavLink({
 export type DashboardNavBadges = {
   requestedItems?: number;
   orders?: number;
+  messages?: number;
 };
 
 function navBadgeForHref(
@@ -194,6 +195,9 @@ function navBadgeForHref(
   }
   if (link?.docId === "orders") {
     return badges.orders;
+  }
+  if (link?.docId === "support-messages") {
+    return badges.messages;
   }
   return undefined;
 }

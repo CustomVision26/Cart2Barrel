@@ -176,6 +176,8 @@ export async function recordCheckoutPaymentSucceededActivity(params: {
   orderId: string;
   customerClerkUserId: string;
   totalAmountCents: number;
+  /** When this checkout collected merchandise purchase-price top-ups. */
+  merchandiseTopupReconciliationIds?: string[];
 }): Promise<void> {
   const db = getDb();
   const lines = await db
@@ -190,15 +192,25 @@ export async function recordCheckoutPaymentSucceededActivity(params: {
   const names = lines
     .map((l) => l.productName?.trim())
     .filter((n): n is string => Boolean(n));
+  const topupIds = params.merchandiseTopupReconciliationIds ?? [];
+  const isTopupOnlyCheckout = topupIds.length > 0 && names.length === 0;
+  const orderRef = params.orderId.slice(0, 8);
+  const amount = formatUsd(params.totalAmountCents);
+
   const body =
-    names.length > 0
-      ? `${names.join(", ")}${lines.length > names.length ? "…" : ""} · ${formatUsd(params.totalAmountCents)}`
-      : formatUsd(params.totalAmountCents);
+    isTopupOnlyCheckout ?
+      `Purchase price top-up add-on · ${amount} · Order ${orderRef}…`
+    : names.length > 0 ?
+      `${names.join(", ")}${lines.length > names.length ? "…" : ""} · ${amount} · Order ${orderRef}…`
+    : `${amount} · Order ${orderRef}…`;
 
   await recordAdminUserActivityEvent({
     customerClerkUserId: params.customerClerkUserId,
     kind: "checkout_payment_succeeded",
-    title: "Checkout payment succeeded",
+    title:
+      isTopupOnlyCheckout ?
+        "Top-up payment succeeded"
+      : "Checkout payment succeeded",
     body,
     href: adminActivityHrefForOrders(params.customerClerkUserId, params.orderId),
     entityType: "order",

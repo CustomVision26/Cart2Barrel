@@ -9,6 +9,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
@@ -414,6 +415,21 @@ export const itemRequests = pgTable(
       () => batchQuoteSessions.id,
       { onDelete: "set null" },
     ),
+    /**
+     * Optional per-product quote window (minutes). When set, overrides hub default
+     * and any customer-level override for this request only.
+     * Countdown starts from {@link quoteExpiryOverrideAnchoredAt} (publish time).
+     */
+    quoteExpiryMinutesOverride: integer("quote_expiry_minutes_override"),
+    /**
+     * When the product expiry override was last published. Used as the countdown
+     * clock start so a short window (e.g. 10 minutes) means 10 minutes from publish,
+     * not from the original staff quote timestamp.
+     */
+    quoteExpiryOverrideAnchoredAt: timestamp(
+      "quote_expiry_override_anchored_at",
+      { withTimezone: true, mode: "string" },
+    ),
     /** Optional staff explanation shown to the customer when marked out of stock. */
     outOfStockStaffNote: text("out_of_stock_staff_note"),
     /** Staff attachment images (screenshots, retailer pages) for out-of-stock lines. */
@@ -796,6 +812,253 @@ export const orderItemRefunds = pgTable(
   ],
 );
 
+/**
+ * Live retailer / fee costs vs checkout shares at company-purchase time.
+ * Merchandise, shipping, sales tax, and service & handling (adjusted from merch)
+ * can change (top-up / cancel+refund).
+ */
+export const orderItemMerchandiseReconciliationStatusEnum = pgEnum(
+  "order_item_merchandise_reconciliation_status",
+  [
+    "recorded",
+    "customer_notified",
+    "topup_pending",
+    "topup_paid",
+    "matched",
+    "cancelled",
+  ],
+);
+
+export const orderItemMerchandiseReconciliations = pgTable(
+  "order_item_merchandise_reconciliations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderItemId: uuid("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "cascade" })
+      .unique(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    /** Merchandise share the customer paid at checkout (batch-aligned or quote itemCost). */
+    checkoutMerchandiseCents: integer("checkout_merchandise_cents").notNull(),
+    /** Site shipping share paid at checkout. */
+    checkoutShippingCents: integer("checkout_shipping_cents")
+      .notNull()
+      .default(0),
+    /** Site sale tax share paid at checkout. */
+    checkoutTaxCents: integer("checkout_tax_cents").notNull().default(0),
+    /** Service & handling share paid at checkout. */
+    checkoutServiceCents: integer("checkout_service_cents").notNull().default(0),
+    /** What staff actually pays / would pay the retailer for merchandise. */
+    actualMerchandiseCents: integer("actual_merchandise_cents").notNull(),
+    /** Actual retailer shipping for this purchase / batch. */
+    actualShippingCents: integer("actual_shipping_cents").notNull().default(0),
+    /** Actual retailer sales tax for this purchase / batch. */
+    actualTaxCents: integer("actual_tax_cents").notNull().default(0),
+    /**
+     * Service & handling re-computed from actual merchandise
+     * (tier × qty for single lines, or scaled for batch).
+     */
+    actualServiceCents: integer("actual_service_cents").notNull().default(0),
+    /**
+     * (actual merch+ship+tax+service) − (checkout merch+ship+tax+service).
+     * Positive = price up, negative = price down.
+     */
+    deltaCents: integer("delta_cents").notNull(),
+    status: orderItemMerchandiseReconciliationStatusEnum("status").notNull(),
+    supportTicketId: uuid("support_ticket_id"),
+    customerMessage: text("customer_message"),
+    topupAmountCents: integer("topup_amount_cents"),
+    topupExpiresAt: timestamp("topup_expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    topupPaidAt: timestamp("topup_paid_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    /**
+     * Cart checkout order that collected this top-up (add-on payment).
+     * Distinct from the merchandise order owning `orderItemId`.
+     */
+    topupCheckoutOrderId: uuid("topup_checkout_order_id").references(
+      () => orders.id,
+      { onDelete: "set null" },
+    ),
+    /** Cents already refunded from the top-up checkout payment (shared across batch siblings). */
+    topupRefundedCents: integer("topup_refunded_cents").notNull().default(0),
+    /**
+     * Cumulative top-up cents collected (all successful add-on checkouts).
+     * Remaining due = max(0, deltaCents − (topupPaidTotalCents − topupRefundedCents)).
+     */
+    topupPaidTotalCents: integer("topup_paid_total_cents").notNull().default(0),
+    resolvedAt: timestamp("resolved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    updatedByClerkUserId: text("updated_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("order_item_merch_recon_clerk_user_id_idx").on(t.clerkUserId),
+    index("order_item_merch_recon_status_idx").on(t.status),
+  ],
+);
+
+/**
+ * Staging cart for merchandise purchase-price top-ups (add-on charges).
+ * One row per charge group representative reconciliation; batch siblings pay together.
+ */
+export const userMerchandiseTopupCartLines = pgTable(
+  "user_merchandise_topup_cart_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    reconciliationId: uuid("reconciliation_id")
+      .notNull()
+      .references(() => orderItemMerchandiseReconciliations.id, {
+        onDelete: "cascade",
+      }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("user_merch_topup_cart_user_recon_unique").on(
+      t.clerkUserId,
+      t.reconciliationId,
+    ),
+    index("user_merch_topup_cart_clerk_user_id_idx").on(t.clerkUserId),
+  ],
+);
+
+/**
+ * One Stripe checkout payment for a merchandise top-up (supports multiple
+ * installments when actuals rise after a prior top-up was paid).
+ */
+export const merchandiseTopupPayments = pgTable(
+  "merchandise_topup_payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    checkoutOrderId: uuid("checkout_order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "restrict" }),
+    amountCents: integer("amount_cents").notNull(),
+    refundedCents: integer("refunded_cents").notNull().default(0),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("merchandise_topup_payments_checkout_order_id_uidx").on(
+      t.checkoutOrderId,
+    ),
+    index("merchandise_topup_payments_clerk_user_id_idx").on(t.clerkUserId),
+  ],
+);
+
+/** Reconciliations covered by a top-up Stripe payment (batch siblings share one). */
+export const merchandiseTopupPaymentReconciliations = pgTable(
+  "merchandise_topup_payment_reconciliations",
+  {
+    paymentId: uuid("payment_id")
+      .notNull()
+      .references(() => merchandiseTopupPayments.id, { onDelete: "cascade" }),
+    reconciliationId: uuid("reconciliation_id")
+      .notNull()
+      .references(() => orderItemMerchandiseReconciliations.id, {
+        onDelete: "cascade",
+      }),
+  },
+  (t) => [
+    primaryKey({
+      name: "merchandise_topup_payment_recons_pk",
+      columns: [t.paymentId, t.reconciliationId],
+    }),
+    index("merchandise_topup_payment_recons_recon_idx").on(t.reconciliationId),
+  ],
+);
+
+/**
+ * Immutable snapshot of the top-up charge breakdown for each installment.
+ * A later top-up inserts a new row — prior rows are never overwritten.
+ */
+export const merchandiseTopupChargeBreakdownStatusEnum = pgEnum(
+  "merchandise_topup_charge_breakdown_status",
+  ["pending", "paid", "revoked"],
+);
+
+export const merchandiseTopupChargeBreakdowns = pgTable(
+  "merchandise_topup_charge_breakdowns",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    /**
+     * Charge group key: support ticket id when present, else representative
+     * reconciliation id (matches cart / paid add-on grouping).
+     */
+    groupKey: text("group_key").notNull(),
+    reconciliationId: uuid("reconciliation_id")
+      .notNull()
+      .references(() => orderItemMerchandiseReconciliations.id, {
+        onDelete: "cascade",
+      }),
+    checkoutMerchandiseCents: integer("checkout_merchandise_cents").notNull(),
+    checkoutShippingCents: integer("checkout_shipping_cents").notNull().default(0),
+    checkoutTaxCents: integer("checkout_tax_cents").notNull().default(0),
+    checkoutServiceCents: integer("checkout_service_cents").notNull().default(0),
+    actualMerchandiseCents: integer("actual_merchandise_cents").notNull(),
+    actualShippingCents: integer("actual_shipping_cents").notNull().default(0),
+    actualTaxCents: integer("actual_tax_cents").notNull().default(0),
+    actualServiceCents: integer("actual_service_cents").notNull().default(0),
+    /** Gross (actual − checkout) at snapshot time. */
+    deltaCents: integer("delta_cents").notNull(),
+    /** This installment amount due / collected. */
+    amountCents: integer("amount_cents").notNull(),
+    /** Paid top-up net already collected before this installment. */
+    priorPaidNetCents: integer("prior_paid_net_cents").notNull().default(0),
+    status: merchandiseTopupChargeBreakdownStatusEnum("status")
+      .notNull()
+      .default("pending"),
+    topupPaymentId: uuid("topup_payment_id").references(
+      () => merchandiseTopupPayments.id,
+      { onDelete: "set null" },
+    ),
+    topupExpiresAt: timestamp("topup_expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("merch_topup_breakdown_clerk_user_id_idx").on(t.clerkUserId),
+    index("merch_topup_breakdown_group_key_idx").on(t.groupKey),
+    index("merch_topup_breakdown_recon_id_idx").on(t.reconciliationId),
+    index("merch_topup_breakdown_status_idx").on(t.status),
+  ],
+);
+
 export const orderItemProductReturnRequestStatusEnum = pgEnum(
   "order_item_product_return_request_status",
   ["submitted", "fulfilled", "cancelled"],
@@ -1111,6 +1374,8 @@ export const userStatusUpdateKindEnum = pgEnum("user_status_update_kind", [
   "account_suspended",
   "account_reinstated",
   "support_reply",
+  "merchandise_price_change",
+  "merchandise_topup_required",
 ]);
 
 export const userStatusUpdateEvents = pgTable(
@@ -1178,6 +1443,38 @@ export const hubContactSettings = pgTable("hub_contact_settings", {
     .notNull(),
 });
 
+/**
+ * Singleton: minutes a customer has to accept/pay after staff quotes a product
+ * (single line or batch). Default 7 days (10080 minutes). Min 1 minute.
+ */
+export const quoteExpirySettings = pgTable("quote_expiry_settings", {
+  singletonKey: text("singleton_key").primaryKey().default("default"),
+  /** Whole minutes from quote `createdAt` until the estimate expires. */
+  expiryMinutes: integer("expiry_minutes").notNull().default(10080),
+  updatedByClerkUserId: text("updated_by_clerk_user_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+});
+
+/**
+ * Per-customer quote expiry override. When present, replaces the hub singleton
+ * for that shopper’s quoted products (single lines and batch lines).
+ */
+export const customerQuoteExpirySettings = pgTable(
+  "customer_quote_expiry_settings",
+  {
+    clerkUserId: text("clerk_user_id")
+      .primaryKey()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    expiryMinutes: integer("expiry_minutes").notNull(),
+    updatedByClerkUserId: text("updated_by_clerk_user_id"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+);
+
 export const supportTicketStatusEnum = pgEnum("support_ticket_status", [
   "open",
   "awaiting_staff",
@@ -1208,6 +1505,16 @@ export const supportTickets = pgTable(
       withTimezone: true,
       mode: "string",
     }),
+    /** Customer marked conversation as removed → Messages History. */
+    customerHiddenAt: timestamp("customer_hidden_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    /** Last time the customer opened this conversation (read state). */
+    customerLastReadAt: timestamp("customer_last_read_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1218,6 +1525,7 @@ export const supportTickets = pgTable(
   (t) => [
     index("support_tickets_user_last_msg_idx").on(t.clerkUserId, t.lastMessageAt),
     index("support_tickets_status_last_msg_idx").on(t.status, t.lastMessageAt),
+    index("support_tickets_user_hidden_idx").on(t.clerkUserId, t.customerHiddenAt),
   ],
 );
 
@@ -1749,6 +2057,11 @@ export const specialFeatureOffers = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true, mode: "string" })
       .notNull(),
     isActive: boolean("is_active").notNull().default(true),
+    /**
+     * Max paid suitcase slots for this special across all shoppers.
+     * When paid count reaches this limit the offer ends. Null = no slot cap.
+     */
+    suitcaseSlotCapacity: integer("suitcase_slot_capacity"),
     /**
      * Linked catalog SKU (`kind = suitcase`) for in-app cart purchase.
      * Null for outside packaging (customer packs and brings the suitcase).
@@ -2393,6 +2706,26 @@ export type OrderItem = typeof orderItems.$inferSelect;
 export type NewOrderItem = typeof orderItems.$inferInsert;
 
 export type OrderItemRefund = typeof orderItemRefunds.$inferSelect;
+export type OrderItemMerchandiseReconciliation =
+  typeof orderItemMerchandiseReconciliations.$inferSelect;
+export type NewOrderItemMerchandiseReconciliation =
+  typeof orderItemMerchandiseReconciliations.$inferInsert;
+export type OrderItemMerchandiseReconciliationStatus =
+  OrderItemMerchandiseReconciliation["status"];
+export type UserMerchandiseTopupCartLine =
+  typeof userMerchandiseTopupCartLines.$inferSelect;
+export type NewUserMerchandiseTopupCartLine =
+  typeof userMerchandiseTopupCartLines.$inferInsert;
+export type MerchandiseTopupPayment =
+  typeof merchandiseTopupPayments.$inferSelect;
+export type NewMerchandiseTopupPayment =
+  typeof merchandiseTopupPayments.$inferInsert;
+export type MerchandiseTopupChargeBreakdownRow =
+  typeof merchandiseTopupChargeBreakdowns.$inferSelect;
+export type NewMerchandiseTopupChargeBreakdown =
+  typeof merchandiseTopupChargeBreakdowns.$inferInsert;
+export type MerchandiseTopupChargeBreakdownStatus =
+  MerchandiseTopupChargeBreakdownRow["status"];
 export type NewOrderItemRefund = typeof orderItemRefunds.$inferInsert;
 
 export type OrderItemRefundRequest = typeof orderItemRefundRequests.$inferSelect;
@@ -2489,6 +2822,14 @@ export type NewOrderContainerItem = typeof orderContainerItems.$inferInsert;
 
 export type HubContactSetting = typeof hubContactSettings.$inferSelect;
 export type NewHubContactSetting = typeof hubContactSettings.$inferInsert;
+
+export type QuoteExpirySetting = typeof quoteExpirySettings.$inferSelect;
+export type NewQuoteExpirySetting = typeof quoteExpirySettings.$inferInsert;
+
+export type CustomerQuoteExpirySetting =
+  typeof customerQuoteExpirySettings.$inferSelect;
+export type NewCustomerQuoteExpirySetting =
+  typeof customerQuoteExpirySettings.$inferInsert;
 
 export type SupportTicket = typeof supportTickets.$inferSelect;
 export type NewSupportTicket = typeof supportTickets.$inferInsert;

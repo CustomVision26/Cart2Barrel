@@ -15,5 +15,8 @@ export default async function DashboardAddItemProductsIndexPage({
   if (tab === "history") {
     redirect(DASHBOARD_ADD_ITEM_ROUTES.productsHistory);
   }
+  if (tab === "expired" || tab === "expired-quotes") {
+    redirect(DASHBOARD_ADD_ITEM_ROUTES.productsExpiredQuotes);
+  }
   redirect(DASHBOARD_ADD_ITEM_ROUTES.productsActive);
 }

@@ -26,6 +26,7 @@ export type SpecialFeaturePromoBannerData = {
   bagFeesText: string | null;
   airlineBagFeeExtraNote: string | null;
   notes: string;
+  slotsLabel: string | null;
 };
 
 type PromoStripTheme = {
@@ -102,6 +103,7 @@ function buildOfferMarqueeLabel(offer: SpecialFeaturePromoBannerData): string {
     offer.packagingModeLabel,
     offer.airlineName,
     offer.bagFeesText,
+    offer.slotsLabel,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -237,7 +239,10 @@ function SpecialFeaturePromoMarqueeChip({
 }) {
   const theme = promoStripTheme(offer.colorIndex);
   const isLive = offer.windowStatus === "Live";
+  const slotsSoldOut =
+    offer.slotsLabel?.toLowerCase().includes("capacity reached") ?? false;
   const summaryLine = [
+    offer.slotsLabel,
     offer.priceLabel ? offer.priceLabel : null,
     offer.packagingModeLabel,
     offer.airlineName,
@@ -267,8 +272,10 @@ function SpecialFeaturePromoMarqueeChip({
             theme.badge,
           )}
         >
-          {isLive ?
+          {isLive && !slotsSoldOut ?
             "Live"
+          : slotsSoldOut ?
+            "Sold out"
           : <>
               <Clock className="size-2.5" aria-hidden />
               Soon
@@ -317,6 +324,11 @@ function SpecialFeaturePromoOfferDetails({
             <span>
               <span className="font-medium">Offer period:</span> {offer.windowLabel}
             </span>
+          </p>
+        : null}
+        {offer.slotsLabel ?
+          <p className="text-xs font-medium text-foreground sm:text-sm">
+            {offer.slotsLabel}
           </p>
         : null}
         {secondaryLine ?

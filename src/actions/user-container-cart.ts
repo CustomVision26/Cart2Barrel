@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { containerOfferings, userContainerCartLines } from "@/db/schema";
 import { sumUserSpecialSuitcaseCartQuantity } from "@/data/user-container-cart";
+import { validateSpecialOfferSlotAvailabilityForCartLines } from "@/data/special-feature-suitcase-slots";
 import { SPECIAL_FEATURE_SUITCASE_MAX_QUANTITY } from "@/lib/special-feature-bag-fees";
 import { userContainerCartMutationSchema } from "@/lib/validations/container-offering";
 
@@ -79,6 +80,29 @@ export async function setUserContainerCartQuantityAction(
         ok: false,
         message: `Special suitcases are limited to ${SPECIAL_FEATURE_SUITCASE_MAX_QUANTITY} total per offer (courier 2nd and 3rd bag capacity).`,
       };
+    }
+
+    const { listUserContainerCartWithOfferings } = await import(
+      "@/data/user-container-cart"
+    );
+    const cartRows = await listUserContainerCartWithOfferings(userId);
+    const projectedLines = cartRows
+      .map((row) => ({
+        offeringId: row.offering.id,
+        quantity: row.offering.id === offeringId ? quantity : row.quantity,
+      }))
+      .filter((line) => line.quantity > 0);
+    if (
+      quantity > 0 &&
+      !projectedLines.some((line) => line.offeringId === offeringId)
+    ) {
+      projectedLines.push({ offeringId, quantity });
+    }
+    const slotCheck = await validateSpecialOfferSlotAvailabilityForCartLines(
+      projectedLines,
+    );
+    if (!slotCheck.ok) {
+      return slotCheck;
     }
   }
 

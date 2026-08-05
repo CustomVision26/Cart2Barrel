@@ -216,7 +216,7 @@ function OrderBlock({
                     scope="batch"
                     orderId={order.id}
                     batchSessionId={bucket.batchSessionId}
-                    triggerLabel="Preview batch charges"
+                    triggerLabel="Batch charges"
                   />
                 }
               >
@@ -252,7 +252,11 @@ function OrderBlock({
   );
 }
 
-function DashboardRefundPreviewDialog({ row }: { row: DashboardPaidOrderLineRow }) {
+export function DashboardRefundPreviewDialog({
+  row,
+}: {
+  row: DashboardPaidOrderLineRow;
+}) {
   if (row.refundedCents <= 0) return null;
 
   const r = row.request;
@@ -415,6 +419,9 @@ export function DashboardOrderDataRow(props: {
   const pendingReturn = row.pendingProductReturnRequest != null;
   const fulfilledReturn = row.fulfilledProductReturnRequest != null;
   const isOutside = isOutsidePurchaseRequest(r);
+  const isSingleProduct = !(
+    row.resolvedBatchSessionId?.trim() || row.resolvedBatchNumber?.trim()
+  );
   const showTracking =
     !pendingReturn && fulfillment !== "product_return_awaiting_delivery" &&
     dashboardShowLineTracking(row);
@@ -523,37 +530,47 @@ export function DashboardOrderDataRow(props: {
         )}
       </td>
       <td className="px-3 py-3 align-top">
-        {returnWorkflowActive && !isOutside ?
-          <>
-            <DashboardProductReturnPreviewDialog row={row} />
-            <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
-          </>
-        : !isOutside ?
-          <>
-            <DashboardRefundPreviewDialog row={row} />
-            <DashboardProductReturnRequestDialog row={row} />
-            <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
-          </>
-        : (
-          <>
-            <DashboardRefundPreviewDialog row={row} />
-            <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
-          </>
-        )}
-        {row.pendingRefundRequest ?
-          <p className="mt-2 text-[10px] font-medium text-amber-900 dark:text-amber-100">
-            Awaiting staff approval
-          </p>
-        : null}
-        <DashboardAcceptDeliveryConditionDialog row={row} />
-        {fulfillment === "delivery_received_item_missing" &&
-        row.orderItem.warehouseReceivedAt ?
-          <WarehouseIntakePreviewDialog
-            productLabel={r.productName?.trim() || "Unnamed product"}
-            orderItem={row.orderItem}
-            snapshots={snapshotsByRequestId[r.id] ?? []}
-          />
-        : null}
+        <div className="flex flex-col items-start gap-2">
+          {isSingleProduct ?
+            <DashboardCheckoutChargesPreviewDialog
+              scope="line"
+              orderId={row.order.id}
+              orderItemId={row.orderItem.id}
+              triggerLabel="Line charges"
+            />
+          : null}
+          {returnWorkflowActive && !isOutside ?
+            <>
+              <DashboardProductReturnPreviewDialog row={row} />
+              <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
+            </>
+          : !isOutside ?
+            <>
+              <DashboardRefundPreviewDialog row={row} />
+              <DashboardProductReturnRequestDialog row={row} />
+              <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
+            </>
+          : (
+            <>
+              <DashboardRefundPreviewDialog row={row} />
+              <DashboardStripeRefundReceiptLinks refunds={row.refundDetails} />
+            </>
+          )}
+          {row.pendingRefundRequest ?
+            <p className="text-[10px] font-medium text-amber-900 dark:text-amber-100">
+              Awaiting staff approval
+            </p>
+          : null}
+          <DashboardAcceptDeliveryConditionDialog row={row} />
+          {fulfillment === "delivery_received_item_missing" &&
+          row.orderItem.warehouseReceivedAt ?
+            <WarehouseIntakePreviewDialog
+              productLabel={r.productName?.trim() || "Unnamed product"}
+              orderItem={row.orderItem}
+              snapshots={snapshotsByRequestId[r.id] ?? []}
+            />
+          : null}
+        </div>
       </td>
       <td className="px-3 py-3 align-top">
         <ItemRequestLineAuditDialog

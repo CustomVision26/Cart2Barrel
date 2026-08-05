@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { listActiveContainerOfferingsWithImages } from "@/data/container-offerings";
 import { listActiveSpecialFeatureSuitcasesForBarrels } from "@/data/special-feature-offers";
+import { getSpecialOfferSlotSummariesByOfferId } from "@/data/special-feature-suitcase-slots";
 import {
   listUserContainerCartWithOfferings,
   sumSpecialSuitcaseCartQuantityFromRows,
@@ -25,21 +26,24 @@ export default async function DashboardBarrelsPage() {
     return null;
   }
 
-  const [catalog, cartRows, specialSuitcases] = await Promise.all([
+  const [catalog, cartRows, specialSuitcasesResult] = await Promise.all([
     listActiveContainerOfferingsWithImages(),
     listUserContainerCartWithOfferings(userId),
     listActiveSpecialFeatureSuitcasesForBarrels(),
   ]);
 
+  const specialSuitcases = specialSuitcasesResult.suitcases;
+
+  const uniqueOffers = [
+    ...new Map(specialSuitcases.map(({ offer }) => [offer.id, offer])).values(),
+  ];
+  const slotSummaries = await getSpecialOfferSlotSummariesByOfferId(uniqueOffers);
+
   const cartQtyByOffering = new Map(
     cartRows.map((r) => [r.offering.id, r.quantity]),
   );
 
-  const specialOfferingIds = new Set(
-    specialSuitcases
-      .map((s) => s.offering?.id)
-      .filter((id): id is string => Boolean(id)),
-  );
+  const specialOfferingIds = new Set(specialSuitcasesResult.specialOfferingIds);
 
   const specialSuitcaseCartTotal = sumSpecialSuitcaseCartQuantityFromRows(
     cartRows.map((r) => ({ offeringId: r.offering.id, quantity: r.quantity })),
@@ -70,7 +74,9 @@ export default async function DashboardBarrelsPage() {
 
       {specialSuitcases.length > 0 ?
         <ul className="grid gap-6 md:grid-cols-2">
-          {specialSuitcases.map(({ offer, offering, images }) => (
+          {specialSuitcases.map(({ offer, offering, images }) => {
+            const slots = slotSummaries.get(offer.id);
+            return (
             <li key={`${offer.id}-${offering?.id ?? "outside"}`}>
               <DashboardSpecialFeatureSuitcaseCard
                 offer={{
@@ -108,9 +114,12 @@ export default async function DashboardBarrelsPage() {
                   offering ? (cartQtyByOffering.get(offering.id) ?? null) : null
                 }
                 specialSuitcaseCartTotal={specialSuitcaseCartTotal}
+                offerSlotsRemaining={slots?.remaining ?? null}
+                offerSlotCapacity={slots?.capacity ?? null}
               />
             </li>
-          ))}
+            );
+          })}
         </ul>
       : null}
 
