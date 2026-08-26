@@ -7,6 +7,7 @@ import {
   getDashboardCheckoutChargePreviewAction,
   type DashboardCheckoutChargePreviewInput,
 } from "@/actions/dashboard-checkout-charge-preview";
+import { CartCheckoutHubStockPackageCard } from "@/components/dashboard/cart-checkout-hub-stock-package-card";
 import { CartLinePriceBreakdown } from "@/components/dashboard/cart-line-price-breakdown";
 import { MerchandiseTopupAmountBreakdownToggle } from "@/components/merchandise-topup-amount-breakdown-toggle";
 import {
@@ -162,7 +163,7 @@ export function DashboardCheckoutChargesPreviewDialog({
         <EyeIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />
         {triggerLabel}
       </DialogTrigger>
-      <DialogContent className="max-h-[min(92vh,720px)] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[min(92vh,720px)] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{preview?.title ?? "Checkout charges"}</DialogTitle>
           <DialogDescription>
@@ -181,7 +182,7 @@ export function DashboardCheckoutChargesPreviewDialog({
             {error}
           </p>
         : preview ?
-          <div className="space-y-5">
+          <div className="space-y-4">
             {preview.productSummary ?
               <dl className="grid gap-3 rounded-xl border border-border/80 bg-muted/30 p-3.5 text-sm">
                 <div className="flex flex-col gap-0.5">
@@ -275,23 +276,37 @@ export function DashboardCheckoutChargesPreviewDialog({
               </dl>
             : null}
 
-            <div>
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Charge breakdown
-              </p>
-              <CartLinePriceBreakdown rows={preview.summaryRows} />
-            </div>
+            {preview.productSummary || input.scope === "batch" ?
+              <div>
+                <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                  Charge breakdown
+                </p>
+                <CartLinePriceBreakdown rows={preview.summaryRows} />
+              </div>
+            : null}
+
+            {!preview.productSummary && (preview.hubStockPackages?.length ?? 0) > 0 ?
+              <ul className="space-y-3" role="list">
+                {preview.hubStockPackages?.map((pkg) => (
+                  <li key={pkg.key}>
+                    <CartCheckoutHubStockPackageCard pkg={pkg} compact />
+                  </li>
+                ))}
+              </ul>
+            : null}
 
             {!preview.productSummary && preview.productLines.length > 0 ?
               <div>
                 <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                  Products on this receipt
+                  {(preview.hubStockPackages?.length ?? 0) > 0 ?
+                    "Other products"
+                  : "Products on this receipt"}
                 </p>
-                <ul className="space-y-3" role="list">
+                <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-muted/25" role="list">
                   {preview.productLines.map((line, i) => (
                     <li
                       key={`${line.name}-${i}`}
-                      className="rounded-xl border border-border/70 bg-muted/40 px-4 py-3"
+                      className="px-3.5 py-2.5"
                     >
                       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 text-sm">
                         <span className="min-w-0">
@@ -309,7 +324,7 @@ export function DashboardCheckoutChargesPreviewDialog({
                         </span>
                       </div>
                       {line.summaryRows && line.summaryRows.length > 0 ?
-                        <div className="mt-3">
+                        <div className="mt-2.5">
                           <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
                             Batch summary (this product)
                           </p>
@@ -320,6 +335,23 @@ export function DashboardCheckoutChargesPreviewDialog({
                   ))}
                 </ul>
               </div>
+            : null}
+
+            {input.scope === "order" && !preview.productSummary ?
+              (() => {
+                const extraFeeRows = preview.summaryRows.filter(
+                  (row) => !row.emphasis,
+                );
+                if (extraFeeRows.length === 0) return null;
+                return (
+                  <div>
+                    <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                      Other checkout charges
+                    </p>
+                    <CartLinePriceBreakdown rows={extraFeeRows} />
+                  </div>
+                );
+              })()
             : null}
 
             {paidTopups.length > 0 ?
@@ -433,12 +465,14 @@ export function DashboardCheckoutChargesPreviewDialog({
               )}
             >
               <div className="space-y-2 text-sm">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-muted-foreground">Checkout subtotal</span>
-                  <span className="font-medium tabular-nums text-foreground">
-                    {formatUsd(checkoutSubtotalCents)}
-                  </span>
-                </div>
+                {paidTopups.length > 0 ?
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-muted-foreground">Checkout subtotal</span>
+                    <span className="font-medium tabular-nums text-foreground">
+                      {formatUsd(checkoutSubtotalCents)}
+                    </span>
+                  </div>
+                : null}
                 {paidTopups.length > 0 ?
                   (() => {
                     const summed = sumPaidTopupBreakdowns(
@@ -473,7 +507,12 @@ export function DashboardCheckoutChargesPreviewDialog({
                     );
                   })()
                 : null}
-                <div className="flex items-baseline justify-between gap-3 border-t border-border/70 pt-2.5">
+                <div
+                  className={cn(
+                    "flex items-baseline justify-between gap-3",
+                    paidTopups.length > 0 && "border-t border-border/70 pt-2.5",
+                  )}
+                >
                   <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                     {paidTopups.length > 0 ? "New total" : "Total"}
                   </span>

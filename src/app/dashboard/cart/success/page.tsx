@@ -22,6 +22,7 @@ import { orders } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import { CART_CHECKOUT_USD_DISCLAIMER } from "@/lib/cart-checkout-disclaimer";
 import { getStripeServer, isStripeSecretConfigured } from "@/lib/stripe-server";
+import { userStatusHrefForOrders } from "@/lib/user-status-updates";
 
 type PageProps = {
   searchParams?: Promise<{ session_id?: string }>;
@@ -107,11 +108,14 @@ export default async function CartCheckoutSuccessPage({ searchParams }: PageProp
     }
   }
 
+  const ordersHref = userStatusHrefForOrders(order.id);
+
   return (
     <div className="space-y-6">
       <CartCheckoutSuccessToast
         variant={order.status === "paid" ? "paid" : "pending"}
         dedupeKey={sessionId}
+        ordersHref={ordersHref}
         headline={
           order.status === "paid"
             ? "Payment successful"
@@ -156,7 +160,7 @@ export default async function CartCheckoutSuccessPage({ searchParams }: PageProp
             Status: {order.status}
           </p>
           <Link
-            href="/dashboard/orders"
+            href={ordersHref}
             className="inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
             View orders

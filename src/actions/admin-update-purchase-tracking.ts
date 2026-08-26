@@ -107,11 +107,13 @@ export async function updateOrderItemPurchaseTrackingAction(
     effective === "delivery_received_item_missing" ||
     effective === "delivery_received_item_damaged" ||
     effective === "delivery_received_wrong_item" ||
-    effective === "product_return_awaiting_delivery";
+    effective === "product_return_awaiting_delivery" ||
+    effective === "hub_stock_us_in_transit" ||
+    effective === "hub_stock_us_delivered";
   if (!trackingEditable) {
     return {
       ok: false,
-      message: "Tracking can only be edited after company purchase is recorded.",
+      message: "Tracking can only be edited after company purchase is recorded or an in-hub US package is shipped.",
     };
   }
 

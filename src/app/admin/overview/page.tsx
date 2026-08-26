@@ -3,6 +3,7 @@ import { AdminOverviewCustomerPackagesSection } from "../_components/admin-overv
 import { AdminOverviewSetFeeNRateSection } from "../_components/admin-overview-set-fee-n-rate-section";
 import { AdminOverviewShippingContainersSection } from "../_components/admin-overview-shipping-containers-section";
 import { AdminOverviewSpecialFeaturesSection } from "../_components/admin-overview-special-features-section";
+import { AdminOverviewHubStockSection } from "../_components/admin-overview-hub-stock-section";
 import { AdminOverviewQuoteExpirySection } from "../_components/admin-overview-quote-expiry-section";
 import { AdminOverviewSubnav } from "../_components/admin-overview-subnav";
 import { AdminRefundQueueBanner } from "@/components/admin/admin-refund-queue-banner";
@@ -48,6 +49,7 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
     : tabRaw === "shipping-containers" ? "shipping-containers"
     : tabRaw === "special-features" ? "special-features"
     : tabRaw === "quote-expiry" ? "quote-expiry"
+    : tabRaw === "in-hub-products" ? "in-hub-products"
     : "summary";
   const range = parseFinanceDateRange({
     from: first(rawSp.from)?.trim(),
@@ -86,6 +88,8 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
           expiryTab={expiryTab}
           selectedClerkUserId={selectedUserId}
         />
+      ) : tab === "in-hub-products" ? (
+        <AdminOverviewHubStockSection />
       ) : (
         <div className="space-y-4">
           <AdminRefundQueueBanner />
@@ -99,7 +103,9 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
             <span className="font-medium text-foreground">Shipping containers</span> for the barrel
             catalog on <span className="font-medium text-foreground">/dashboard/barrels</span>,{" "}
             <span className="font-medium text-foreground">Special features</span> for timed
-            suitcase offers, and{" "}
+            suitcase offers,{" "}
+            <span className="font-medium text-foreground">In-hub products</span> for inventory
+            already at the warehouse, and{" "}
             <span className="font-medium text-foreground">Quote Expiry Settings</span> for the
             hub default, per-customer, and per-product quote windows.
           </p>

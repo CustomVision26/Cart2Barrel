@@ -12,6 +12,8 @@ type CartCheckoutSuccessToastProps = {
   body?: string;
   /** Used with sessionStorage so the toast only shows once (Strict Mode / remounts). */
   dedupeKey: string;
+  /** Opens this paid order's product list on Orders. */
+  ordersHref?: string;
 };
 
 /**
@@ -22,6 +24,7 @@ export function CartCheckoutSuccessToast({
   headline,
   body,
   dedupeKey,
+  ordersHref = "/dashboard/orders",
 }: CartCheckoutSuccessToastProps) {
   const router = useRouter();
 
@@ -39,7 +42,7 @@ export function CartCheckoutSuccessToast({
         action: {
           label: "View orders",
           onClick: () => {
-            router.push("/dashboard/orders");
+            router.push(ordersHref);
           },
         },
       });
@@ -48,7 +51,7 @@ export function CartCheckoutSuccessToast({
         description: body,
       });
     }
-  }, [variant, headline, body, router, dedupeKey]);
+  }, [variant, headline, body, router, dedupeKey, ordersHref]);
 
   return null;
 }

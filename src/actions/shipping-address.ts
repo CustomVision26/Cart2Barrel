@@ -1,16 +1,18 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { and, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 
-import { getDb } from "@/db";
-import { addresses } from "@/db/schema";
-import { getPrimaryShippingAddress } from "@/data/addresses";
+import {
+  deleteShippingAddressForUser,
+  setPrimaryShippingAddressForUser,
+  upsertShippingContactAddress,
+} from "@/data/addresses";
 import { getOrCreateProfile } from "@/data/profiles";
 import {
-  parseShippingAddressFormSubmission,
+  parseShippingContactAddressFormSubmission,
   resolveShippingAfterSaveRedirect,
 } from "@/lib/validations/shipping-address-payload";
 
@@ -20,9 +22,33 @@ export type SaveShippingAddressState = {
   fieldErrors?: Record<string, string[] | undefined>;
 };
 
+function revalidateShippingPaths(): void {
+  revalidatePath("/");
+  revalidatePath("/onboarding");
+  revalidatePath("/settings/delivery");
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/shipping");
+  revalidatePath("/dashboard/shipping/profile");
+  revalidatePath("/dashboard/shipping/address");
+  revalidatePath("/dashboard/cart");
+}
+
+function fieldErrorsFromZod(error: z.ZodError): Record<string, string[]> {
+  const fieldErrors: Record<string, string[]> = {};
+  for (const issue of error.issues) {
+    const path = issue.path[0];
+    if (typeof path === "string") {
+      if (!fieldErrors[path]) fieldErrors[path] = [];
+      fieldErrors[path].push(issue.message);
+    }
+  }
+  return fieldErrors;
+}
+
+/** Saves recipient contact and street lines as one address record. */
 export async function saveShippingAddressAction(
   _prev: SaveShippingAddressState,
-  rawInput: unknown
+  rawInput: unknown,
 ): Promise<SaveShippingAddressState> {
   const { userId } = await auth();
   if (!userId) {
@@ -36,65 +62,64 @@ export async function saveShippingAddressAction(
     null;
   await getOrCreateProfile(userId, email);
 
-  const parsed = parseShippingAddressFormSubmission(rawInput);
+  const parsed = parseShippingContactAddressFormSubmission(rawInput);
   if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const issue of parsed.error.issues) {
-      const path = issue.path[0];
-      if (typeof path === "string") {
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(issue.message);
-      }
-    }
-    return { ok: false, fieldErrors };
+    return { ok: false, fieldErrors: fieldErrorsFromZod(parsed.error) };
   }
 
-  const now = new Date().toISOString();
-  const db = getDb();
-
-  const primary = await getPrimaryShippingAddress(userId);
-
-  if (!primary) {
-    await db.insert(addresses).values({
+  try {
+    await upsertShippingContactAddress({
       clerkUserId: userId,
-      label: "Default",
-      line1: parsed.data.line1,
-      line2: parsed.data.line2 ?? null,
-      cityOrTown: parsed.data.cityOrTown,
-      parish: parsed.data.stateOrRegion,
-      postalCode: parsed.data.postalCode ?? null,
-      country: parsed.data.country,
-      isDefault: true,
-      createdAt: now,
+      data: parsed.data,
     });
-  } else {
-    await db
-      .update(addresses)
-      .set({ isDefault: false })
-      .where(
-        and(eq(addresses.clerkUserId, userId), ne(addresses.id, primary.id)),
-      );
-    await db
-      .update(addresses)
-      .set({
-        label: "Default",
-        line1: parsed.data.line1,
-        line2: parsed.data.line2 ?? null,
-        cityOrTown: parsed.data.cityOrTown,
-        parish: parsed.data.stateOrRegion,
-        postalCode: parsed.data.postalCode ?? null,
-        country: parsed.data.country,
-        isDefault: true,
-      })
-      .where(eq(addresses.id, primary.id));
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Could not save shipping address.",
+    };
   }
 
-  revalidatePath("/");
-  revalidatePath("/onboarding");
-  revalidatePath("/settings/delivery");
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard/shipping");
-  revalidatePath("/dashboard/shipping/profile");
-  revalidatePath("/dashboard/shipping/address");
+  revalidateShippingPaths();
   redirect(resolveShippingAfterSaveRedirect(rawInput));
+}
+
+const addressIdSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export async function setPrimaryShippingAddressAction(
+  input: unknown,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { userId } = await auth();
+  if (!userId) {
+    return { ok: false, message: "You must be signed in." };
+  }
+  const parsed = addressIdSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid address." };
+  }
+  const ok = await setPrimaryShippingAddressForUser(userId, parsed.data.id);
+  if (!ok) {
+    return { ok: false, message: "Address not found." };
+  }
+  revalidateShippingPaths();
+  return { ok: true };
+}
+
+export async function deleteShippingAddressAction(
+  input: unknown,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { userId } = await auth();
+  if (!userId) {
+    return { ok: false, message: "You must be signed in." };
+  }
+  const parsed = addressIdSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid address." };
+  }
+  const result = await deleteShippingAddressForUser(userId, parsed.data.id);
+  if (!result.ok) return result;
+  revalidateShippingPaths();
+  return { ok: true };
 }

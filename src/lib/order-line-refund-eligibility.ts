@@ -11,6 +11,10 @@ const CUSTOMER_LINE_REFUND_FULFILLMENTS: OrderItem["fulfillmentStatus"][] = [
   "delivery_received_item_damaged",
   "delivery_received_wrong_item",
   "product_return_awaiting_delivery",
+  "hub_stock_pending_us_shipment",
+  "hub_stock_pending_container",
+  "hub_stock_us_in_transit",
+  "hub_stock_us_delivered",
 ];
 
 export function orderLineFulfillmentAllowsRefundWorkflow(

@@ -39,6 +39,16 @@ import {
   sumMerchandiseTopupCartLinesCents,
 } from "@/data/merchandise-topup-cart";
 import {
+  buildStripeLineItemsFromHubStockCart,
+  clearHubStockCartForUser,
+  deleteReservedHubStockItemRequests,
+  insertHubStockOrderSnapshots,
+  listHubStockCartLinesForUser,
+  refreshHubStockCartShippingForUser,
+  reserveHubStockCartForCheckout,
+  sumHubStockCartLinesCents,
+} from "@/data/hub-stock-cart";
+import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
   processingFeeRegionFromShippingCountry,
@@ -122,18 +132,34 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const merchandiseTopupReconciliationIds = merchandiseTopupCartLines.map(
     (l) => l.reconciliationId,
   );
+  const hubStockCartLinesInitial = await listHubStockCartLinesForUser(userId);
+  if (hubStockCartLinesInitial.length > 0) {
+    const shippingRefresh = await refreshHubStockCartShippingForUser(userId);
+    if (!shippingRefresh.ok) return shippingRefresh;
+  }
+  const hubStockCartLines = await listHubStockCartLinesForUser(userId);
+  const hubStockSubtotalCents = sumHubStockCartLinesCents(hubStockCartLines);
 
   if (
     assembled.batchGroups.length === 0 &&
     assembled.standaloneLines.length === 0 &&
     containerCheckoutLines.length === 0 &&
     outboundShippingCartLines.length === 0 &&
-    merchandiseTopupCartLines.length === 0
+    merchandiseTopupCartLines.length === 0 &&
+    hubStockCartLines.length === 0
   ) {
     return { ok: false, message: "Your cart is empty." };
   }
 
-  const orderLines = buildCheckoutOrderLinesFromAssembledCart(assembled);
+  const hubReserve = await reserveHubStockCartForCheckout(userId, hubStockCartLines);
+  if (!hubReserve.ok) {
+    return hubReserve;
+  }
+
+  const orderLines = [
+    ...buildCheckoutOrderLinesFromAssembledCart(assembled),
+    ...hubReserve.reserved.map((row) => row.orderLine),
+  ];
   const taxIntentPreview = buildStripeLineItemsFromAssembledCart(assembled);
 
   const cu = await currentUser();
@@ -145,6 +171,9 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
         null
     );
   } catch {
+    await deleteReservedHubStockItemRequests(
+      hubReserve.reserved.map((row) => row.itemRequestId),
+    );
     return { ok: false, message: "Could not prepare your account for checkout." };
   }
 
@@ -153,7 +182,8 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     containerSubtotalCents +
     containerPacking.totalPackingFeeCents +
     outboundShippingSubtotalCents +
-    merchandiseTopupSubtotalCents;
+    merchandiseTopupSubtotalCents +
+    hubStockSubtotalCents;
   const shipAddr = await getPrimaryShippingAddress(userId);
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,
@@ -166,6 +196,9 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   /** Stripe minimum charge for USD card payments (see Stripe currency docs). */
   const minUsdLineCents = 50;
   if (!Number.isFinite(totalAmount) || totalAmount < minUsdLineCents) {
+    await deleteReservedHubStockItemRequests(
+      hubReserve.reserved.map((row) => row.itemRequestId),
+    );
     return {
       ok: false,
       message:
@@ -183,6 +216,9 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
       .where(inArray(orderItems.itemRequestId, requestIds));
 
     if (taken.length > 0) {
+      await deleteReservedHubStockItemRequests(
+        hubReserve.reserved.map((row) => row.itemRequestId),
+      );
       return {
         ok: false,
         message: "Your cart changed while checking out. Refresh the page and try again.",
@@ -201,12 +237,18 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     .returning();
 
   if (!order) {
+    await deleteReservedHubStockItemRequests(
+      hubReserve.reserved.map((row) => row.itemRequestId),
+    );
     return { ok: false, message: "Could not create order." };
   }
 
   const reserve = await insertCheckoutOrderItems(order.id, orderLines);
   if (!reserve.ok) {
     await deletePendingOrderAndRestoreContainerCart(order.id, userId);
+    await deleteReservedHubStockItemRequests(
+      hubReserve.reserved.map((row) => row.itemRequestId),
+    );
     const code = getPgErrorCode(reserve.cause);
     console.error("[createCartCheckout] order_items insert failed", reserve.cause);
 
@@ -235,6 +277,9 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   );
   if (!containerReserve.ok) {
     await deletePendingOrderAndRestoreContainerCart(order.id, userId);
+    await deleteReservedHubStockItemRequests(
+      hubReserve.reserved.map((row) => row.itemRequestId),
+    );
     console.error(
       "[createCartCheckout] order_container_items insert failed",
       containerReserve.cause,
@@ -274,6 +319,35 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     orderItemRows.map((row) => [row.itemRequestId, row.id]),
   );
 
+  const hubSnap = await insertHubStockOrderSnapshots(
+    order.id,
+    hubReserve.reserved,
+    orderItemIdByRequestId,
+  );
+  if (!hubSnap.ok) {
+    await deletePendingOrderAndRestoreContainerCart(
+      order.id,
+      userId,
+      outboundChargeIds,
+      merchandiseTopupReconciliationIds,
+    );
+    await deleteReservedHubStockItemRequests(
+      hubReserve.reserved.map((row) => row.itemRequestId),
+    );
+    console.error(
+      "[createCartCheckout] hub_stock_order_items insert failed",
+      hubSnap.cause,
+    );
+    return {
+      ok: false,
+      message: "Could not reserve in-hub product lines. Try checkout again.",
+    };
+  }
+
+  if (hubStockCartLines.length > 0) {
+    await clearHubStockCartForUser(userId);
+  }
+
   const builtLines = buildStripeLineItemsFromAssembledCart(
     assembled,
     orderItemIdByRequestId,
@@ -287,6 +361,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     }),
     ...buildStripeLineItemsFromOutboundShippingCart(outboundShippingCartLines),
     ...buildStripeLineItemsFromMerchandiseTopupCart(merchandiseTopupCartLines),
+    ...buildStripeLineItemsFromHubStockCart(hubStockCartLines),
   ];
   if (processingFeeCents > 0) {
     const regionLabel = checkoutProcessingFeeRegionLabel(processingFeeRegion);

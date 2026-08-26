@@ -2,6 +2,7 @@ import { Package, Receipt } from "lucide-react";
 
 import { CartCheckoutBatchBundleCollapsible } from "@/components/dashboard/cart-checkout-batch-bundle-collapsible";
 import { CartCheckoutContainerLineCard } from "@/components/dashboard/cart-checkout-container-line-card";
+import { CartCheckoutHubStockPackageCard } from "@/components/dashboard/cart-checkout-hub-stock-package-card";
 import { CartCheckoutProductDetail } from "@/components/dashboard/cart-checkout-product-detail";
 import { CartCheckoutTopupLineCard } from "@/components/dashboard/cart-checkout-topup-line-card";
 import { CartLineUrlOrReceipt } from "@/components/dashboard/cart-line-url-or-receipt";
@@ -76,9 +77,12 @@ export function CartCheckoutSummaryCard({
   const bundleLineTotal =
     dbSummary?.batchBundles.reduce((n, b) => n + b.lines.length, 0) ?? 0;
   const standaloneCount = dbSummary?.standaloneLines.length ?? 0;
+  const hubStockCount =
+    dbSummary?.hubStockPackages.reduce((n, pkg) => n + pkg.lines.length, 0) ?? 0;
   const containerCount = dbSummary?.containerLines.length ?? 0;
   const topupCount = merchandiseTopupLines.length;
-  const dbLineTotal = bundleLineTotal + standaloneCount + containerCount;
+  const dbLineTotal =
+    bundleLineTotal + standaloneCount + hubStockCount + containerCount;
   const hasStructuredLines = dbLineTotal > 0 || topupCount > 0;
 
   const legacyAggregatePackingStripeLine = (description: string) => {
@@ -187,6 +191,11 @@ export function CartCheckoutSummaryCard({
               {dbSummary?.batchBundles.map((bundle) => (
                 <li key={bundle.batchSessionId}>
                   <CartCheckoutBatchBundleCollapsible bundle={bundle} />
+                </li>
+              ))}
+              {dbSummary?.hubStockPackages.map((pkg) => (
+                <li key={pkg.key}>
+                  <CartCheckoutHubStockPackageCard pkg={pkg} />
                 </li>
               ))}
               {dbSummary?.standaloneLines.map((line) => (

@@ -16,12 +16,13 @@ import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
+import { listHubStockOrderPackingByOrderIds } from "@/data/hub-stock-order-packing";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
 import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
 import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import {
+  ADMIN_ORDER_SLIDE_LANE_AUDIENCE,
   orderSlideLaneNamesList,
-  ORDER_SLIDE_LANE_AUDIENCE,
 } from "@/lib/admin-orders-slide-filters";
 import { parseOrderHighlightId } from "@/lib/order-notification-highlight";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
@@ -109,6 +110,10 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     admin && orderIdsOnPage.length > 0 ?
       Object.fromEntries(await listOrderContainerItemsByOrderIds(orderIdsOnPage))
     : {};
+  const hubStockPackingByOrderId =
+    admin && orderIdsOnPage.length > 0 ?
+      Object.fromEntries(await listHubStockOrderPackingByOrderIds(orderIdsOnPage))
+    : {};
 
   const staffProfilesByClerkUserId =
     admin && pagePack.rows.length > 0 ?
@@ -130,7 +135,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
           <>
             Orders appear in horizontal lanes below —{" "}
             <span className="font-medium text-foreground">
-              {orderSlideLaneNamesList(ORDER_SLIDE_LANE_AUDIENCE)}
+              {orderSlideLaneNamesList(ADMIN_ORDER_SLIDE_LANE_AUDIENCE)}
             </span>{" "}
             — newest first in each lane. Double-click a card to open the full table
             grouped by batch and single. Pagination counts orders across all lanes.
@@ -175,6 +180,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
               latestQuotesByRequestId={latestQuotesByRequestId}
               batchEstimatesBySessionId={batchEstimatesBySessionId}
               orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+              hubStockPackingByOrderId={hubStockPackingByOrderId}
               staffProfilesByClerkUserId={staffProfilesByClerkUserId}
               highlightOrderId={highlightOrderId}
             />

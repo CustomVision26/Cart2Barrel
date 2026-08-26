@@ -6,7 +6,7 @@ import { ProductRequestThumbnail } from "@/components/product-request-thumbnail"
 import type { DashboardPaidOrderLineRow } from "@/data/dashboard-order-lines";
 import { formatUsd } from "@/lib/admin-markup";
 import {
-  laneTitle,
+  orderSlideStatusLabel,
   ORDER_SLIDE_LANE_AUDIENCE,
   type OrderSlideGroup,
   type OrdersSlideLane,
@@ -155,7 +155,7 @@ export function DashboardOrderSlideCard({
 
           <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
             <p className="line-clamp-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {laneTitle(lane, ORDER_SLIDE_LANE_AUDIENCE)}
+              {orderSlideStatusLabel(group, lane, ORDER_SLIDE_LANE_AUDIENCE)}
             </p>
             <p className="line-clamp-1 font-mono text-sm font-semibold text-primary">
               {group.order.id.slice(0, 8)}…

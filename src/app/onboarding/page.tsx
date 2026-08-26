@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { UserHeaderControls } from "@/components/user-header-controls";
-import { ProfileForm } from "@/components/profile-form";
 import { ShippingAddressForm } from "@/components/shipping-address-form";
 import { getPrimaryShippingAddress } from "@/data/addresses";
 import { getOrCreateProfile, isOnboardingComplete } from "@/data/profiles";
@@ -44,18 +43,20 @@ export default async function OnboardingPage() {
             Contact &amp; shipping address
           </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Add your account name and phone (billing and legal contact), then your
-            delivery address anywhere in the world for barrel shipping.
+            Save your name, phone, and delivery address as one record. You can add
+            more addresses later and keep one as primary.
           </p>
         </div>
-        <div className="flex w-full max-w-lg flex-col gap-8">
-          <ProfileForm
-            profile={profile}
-            afterSaveRedirect="/onboarding"
-            showSkip
-          />
-          <ShippingAddressForm address={shipping} afterSaveRedirect="/" />
-        </div>
+        <ShippingAddressForm
+          address={shipping}
+          contactDefaults={{
+            fullName: profile.fullName ?? "",
+            phone: profile.phone ?? "",
+          }}
+          afterSaveRedirect="/"
+          showSkip
+          forcePrimary
+        />
       </main>
     </div>
   );

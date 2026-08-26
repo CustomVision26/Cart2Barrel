@@ -5,6 +5,10 @@ import { orderContainerItems, orders } from "@/db/schema";
 import { mergeRestoredContainerOrderLinesIntoUserCart } from "@/data/user-container-cart";
 import { restoreOutboundShippingCartForCharges } from "@/data/barrel-outbound-shipping-charges";
 import { restoreMerchandiseTopupCartForReconciliations } from "@/data/merchandise-topup-cart";
+import {
+  deleteReservedHubStockItemRequests,
+  restoreHubStockCartFromPendingOrder,
+} from "@/data/hub-stock-cart";
 
 /**
  * Deletes a pending order owned by `clerkUserId` and merges any reserved container lines
@@ -39,6 +43,11 @@ export async function deletePendingOrderAndRestoreContainerCart(
     .from(orderContainerItems)
     .where(eq(orderContainerItems.orderId, orderId));
 
+  const hubStockRequestIds = await restoreHubStockCartFromPendingOrder(
+    order.clerkUserId,
+    orderId,
+  );
+
   const deletedRows = await db
     .delete(orders)
     .where(
@@ -66,6 +75,7 @@ export async function deletePendingOrderAndRestoreContainerCart(
         merchandiseTopupReconciliationIds,
       );
     }
+    await deleteReservedHubStockItemRequests(hubStockRequestIds);
   }
   return deletedRows.length > 0;
 }

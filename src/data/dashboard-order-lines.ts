@@ -7,6 +7,7 @@ import type { PaidOrdersQueryInput } from "@/lib/paid-orders-list-params";
 
 import type { PaidOrderLinesPageResult } from "@/data/paid-orders-queries";
 import { listPaidOrderLinesPage } from "@/data/paid-orders-queries";
+import { ensureHubStockSchemaEnums } from "@/data/ensure-hub-stock-schema";
 import {
   listOrderItemRefundDetailsByOrderItemIds,
   type OrderItemRefundDetail,
@@ -52,6 +53,9 @@ const DASHBOARD_ORDERS_LINE_FULFILLMENTS: OrderItem["fulfillmentStatus"][] = [
   "delivery_received_wrong_item",
   "product_return_awaiting_delivery",
   "paid_outside_purchase_service_fee",
+  "hub_stock_pending_us_shipment",
+  "hub_stock_pending_container",
+  "hub_stock_us_in_transit",
   "refunded",
 ];
 
@@ -90,6 +94,7 @@ export async function listDashboardPaidOrderLinesPage(
   clerkUserId: string,
   query: PaidOrdersQueryInput,
 ): Promise<DashboardPaidOrderLinesPageResult> {
+  await ensureHubStockSchemaEnums();
   const pack = await listPaidOrderLinesPage({
     scope: { ownerClerkUserId: clerkUserId },
     query,
@@ -103,6 +108,7 @@ export async function listDashboardPaidOrderHistoryLinesPage(
   clerkUserId: string,
   query: PaidOrdersQueryInput,
 ): Promise<DashboardPaidOrderLinesPageResult> {
+  await ensureHubStockSchemaEnums();
   const pack = await listPaidOrderLinesPage({
     scope: { ownerClerkUserId: clerkUserId },
     query,

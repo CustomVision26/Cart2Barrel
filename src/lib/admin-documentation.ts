@@ -172,6 +172,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Fees & rates: service tiers and container packing rates.",
         "Customer packages: per-customer or general package pricing.",
         "Shipping containers: catalog offerings for sale to customers.",
+        "In-hub products: warehouse SKUs with packed weight (oz) and box size (in) for Shippo US rates, plus the hub ship-from address.",
         "Special features: timed suitcase offers.",
         "Quote Expiry Settings: Hub / Customer / Product sub-tabs for default window, per-customer overrides, and per-product overrides (1 minute–90 days).",
       ],
@@ -188,7 +189,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, merchant pricing, customer-specific packages, the container catalog, special suitcase offers, and the quote expiry window for shoppers.",
+        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, merchant pricing, customer-specific packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, and the quote expiry window for shoppers.",
       ],
       walkthrough: [
         "Summary tab: starting point with refund-awaiting banner and orientation copy.",
@@ -196,6 +197,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Fees & rates tab: edit in-app and outside-purchase service fee tiers and container packing fee rates.",
         "Customer packages tab: manage general or per-customer package pricing presets.",
         "Shipping containers tab: CRUD container offerings, images, and prices shown on user Barrels shop.",
+        "In-hub products tab: save the US warehouse ship-from address, add SKUs with packed weight (ounces) and outer length/width/height (inches), then Publish so they appear on Home. Shippo uses those parcel fields plus SHIPPO_API_KEY to rate US delivery when a shopper adds the item or checks out. Overseas-container destination does not call Shippo.",
         "Special features tab: timed suitcase specials.",
         "Quote Expiry Settings tab: Hub / Customer / Product sub-tabs. Publish the hub default (1 minute–90 days), assign a customer override for all of that shopper’s quotes, or search a quoted product and set a product-only override. Priority: product → customer → hub. Shorter windows reduce refunds and add-payment requests when retailer prices move.",
       ],
@@ -206,6 +208,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       dos: [
         "Document fee changes internally when they affect quoted margins.",
         "Use Finance date filters that match your accounting period.",
+        "Keep in-hub parcel weight/size and the hub ship-from address complete, and set SHIPPO_API_KEY, before publishing SKUs for US delivery.",
       ],
       donts: [
         "Do not delete or disable container offerings that customers already purchased without a migration plan.",
@@ -314,6 +317,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Active orders: carousel/table of paid lines needing hub action.",
         "Orders history: closed or completed admin order views.",
         "Refund, tracking, purchase confirmation, and warehouse flows per line.",
+        "Double-click an order card to open products. In-hub US warehouse orders sit in In progress as Awaiting shipment (not Waiting for purchase). After tracking is entered, the card shows In transit to customer. Preview shows the checkout receipt including the destination US address. Update tracking opens Open tracking, Check delivery (Shippo), Save tracking, and Next to mark the package arrived at the customer.",
       ],
       requirements: ["Admin access."],
       dos: [
@@ -333,6 +337,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Open Orders from the sidebar for active paid lines.",
         "Use Orders history for completed or archived views.",
         "Open a line to see payment details, customer info, and available staff actions.",
+        "For in-hub US products, the order appears under In progress as Awaiting shipment. After tracking is entered, the card shows In transit to customer (not In transit to you). Preview opens the checkout receipt, including the destination US address on the warehouse package. Update tracking collects carrier and tracking; Open tracking opens the carrier page; Check delivery asks Shippo for the latest carrier status (live Shippo key required — test keys cannot look up FedEx); Next marks the package delivered to the customer, notifies them, and moves the order to Orders history.",
         "Record company purchase, tracking updates, and warehouse delivery as operations progress.",
         "Process refund or return flows when policy and status allow.",
       ],
@@ -543,7 +548,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Customer accounts, admin role assignment, and grant audit log.",
       location: "Sidebar → Users.",
       bullets: [
-        "All users: registered shoppers; suspend or ban.",
+        "All users: registered shoppers with contact, primary address, and extra addresses; suspend or ban.",
         "Assign admin: grant or revoke admin role.",
         "Grant log: audit trail of admin grants.",
       ],
@@ -556,7 +561,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Users management covers registered customer accounts and internal admin access control. Only existing admins should grant new admins; the grant log provides accountability.",
       ],
       walkthrough: [
-        "All users tab: browse registered profiles, view activity, suspend or reinstate accounts.",
+        "All users tab: browse registered profiles, contact details, and saved shipping addresses (one primary). Suspend or reinstate accounts.",
         "Assign admin tab: search for a user and grant or remove Clerk admin role.",
         "Grant log tab: review historical admin assignments with timestamps.",
         "Account suspension triggers customer notifications in the user app.",

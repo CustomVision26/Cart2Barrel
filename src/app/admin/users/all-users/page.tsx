@@ -9,8 +9,9 @@ export default async function AdminUsersAllUsersPage() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        All registered accounts from your database. Banning suspends the linked
-        Clerk user and revokes their sessions.
+        All registered accounts from your database. Each row shows contact details
+        and the primary shipping address (name, phone, and street saved together).
+        Banning suspends the linked Clerk user and revokes their sessions.
       </p>
       <AdminRegisteredUsersTable users={users} />
     </div>

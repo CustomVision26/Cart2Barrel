@@ -50,6 +50,11 @@ import {
 } from "@/lib/validations/container-offering";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
+import { listHubStockOrderItemsByOrderId } from "@/data/hub-stock-cart";
+import {
+  partitionCheckoutHubStockPackages,
+  type CartCheckoutHubStockPackage,
+} from "@/data/hub-stock-checkout-summary";
 import { formatUsd } from "@/lib/admin-markup";
 import { displaySiteName } from "@/lib/site-name";
 import { buildCheckoutProductDetailText } from "@/lib/checkout-product-reference";
@@ -142,7 +147,7 @@ export async function countApprovedCartItemsForUser(
 ): Promise<number> {
   const db = getDb();
   const rows = await db
-    .select({ id: itemRequests.id })
+    .select({ id: itemRequests.id, source: itemRequests.source })
     .from(itemRequests)
     .where(
       and(
@@ -151,7 +156,7 @@ export async function countApprovedCartItemsForUser(
         notInAnyOrderClause()
       )
     );
-  return rows.length;
+  return rows.filter((row) => row.source !== "hub_stock").length;
 }
 
 /**
@@ -223,6 +228,8 @@ export async function listApprovedCartLinesForUser(
       throw e;
     }
   }
+
+  requests = requests.filter((row) => row.source !== "hub_stock");
 
   if (requests.length === 0) {
     return [];
@@ -958,6 +965,7 @@ export type CartCheckoutOrderSummary = {
   totalAmount: number;
   batchBundles: CartCheckoutBatchBundleSummary[];
   standaloneLines: CartCheckoutSummaryLine[];
+  hubStockPackages: CartCheckoutHubStockPackage[];
   containerLines: CartCheckoutContainerSummaryLine[];
 };
 
@@ -1281,12 +1289,17 @@ export async function getCartCheckoutOrderSummaryForUser(
     },
   );
 
+  const hubSnapshots = await listHubStockOrderItemsByOrderId(orderId);
+  const { packages: hubStockPackages, remainingStandalone } =
+    partitionCheckoutHubStockPackages(standaloneLines, hubSnapshots);
+
   return {
     orderId: order.id,
     status: order.status,
     totalAmount: order.totalAmount,
     batchBundles,
-    standaloneLines,
+    standaloneLines: remainingStandalone,
+    hubStockPackages,
     containerLines,
   };
 }

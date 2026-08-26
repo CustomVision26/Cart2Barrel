@@ -5,6 +5,7 @@ import { alias } from "drizzle-orm/pg-core";
 import type Stripe from "stripe";
 
 import { getPrimaryShippingAddress } from "@/data/addresses";
+import { listHubStockOrderPackingByOrderIds } from "@/data/hub-stock-order-packing";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
 import { getDb } from "@/db";
 import {
@@ -15,6 +16,7 @@ import {
   orders,
   profiles,
 } from "@/db/schema";
+import type { HubStockOrderPackingPackage } from "@/lib/hub-stock-box";
 import { getInvoiceCompanyProfile } from "@/lib/invoice/company-profile";
 import { buildPaymentInvoiceProductDetail } from "@/lib/invoice/payment-invoice-line-detail";
 import {
@@ -26,6 +28,7 @@ import type {
   PaymentInvoiceBillTo,
   PaymentInvoiceDocument,
   PaymentInvoiceLine,
+  PaymentInvoicePackingNote,
   PaymentInvoicePaymentRow,
 } from "@/lib/invoice/payment-invoice-types";
 import { isStripePaymentIntentId } from "@/lib/stripe-refund-receipt";
@@ -53,6 +56,8 @@ function addressLinesFromProfile(
   fullName: string | null,
   address:
     | {
+        recipientName?: string | null;
+        recipientPhone?: string | null;
         line1: string | null;
         line2: string | null;
         cityOrTown: string | null;
@@ -63,7 +68,9 @@ function addressLinesFromProfile(
     | undefined,
 ): string[] {
   const lines: string[] = [];
-  if (fullName?.trim()) lines.push(fullName.trim());
+  const name = address?.recipientName?.trim() || fullName?.trim();
+  if (name) lines.push(name);
+  if (address?.recipientPhone?.trim()) lines.push(address.recipientPhone.trim());
 
   if (address) {
     if (address.line1?.trim()) lines.push(address.line1.trim());
@@ -81,6 +88,29 @@ function addressLinesFromProfile(
   }
 
   return lines;
+}
+
+function packingNotesFromPackages(
+  packages: HubStockOrderPackingPackage[],
+): PaymentInvoicePackingNote[] {
+  return packages.map((pkg) => {
+    if (pkg.destination !== "us_address") {
+      return {
+        title: "Overseas hub packing",
+        detail: `${pkg.itemCount} in-hub ${pkg.itemCount === 1 ? "product" : "products"} packed into the customer's overseas container. No US outbound box.`,
+      };
+    }
+    const parts = [
+      pkg.boxSizeLabel ??
+        "Box size not on file — add parcel dimensions on the in-hub product.",
+      `${pkg.itemCount} ${pkg.itemCount === 1 ? "product" : "products"} · ${pkg.unitCount} ${pkg.unitCount === 1 ? "unit" : "units"}`,
+      pkg.shippingLabel,
+    ].filter((part): part is string => Boolean(part));
+    return {
+      title: "Warehouse package (US in-hub)",
+      detail: parts.join(" · "),
+    };
+  });
 }
 
 function toInvoiceLine(
@@ -278,7 +308,27 @@ async function loadStripePaymentDetails(paymentIntentId: string): Promise<{
   }
 }
 
-/** Builds a payment invoice / receipt for a paid order owned by the customer. */
+export async function getPaidOrderInvoiceForAdmin(
+  orderId: string,
+): Promise<CustomerPaymentInvoiceResult> {
+  const trimmed = orderId.trim();
+  if (!trimmed) {
+    return { ok: false, message: "Missing order reference." };
+  }
+  const db = getDb();
+  const [order] = await db
+    .select({ clerkUserId: orders.clerkUserId })
+    .from(orders)
+    .where(eq(orders.id, trimmed))
+    .limit(1);
+  if (!order) {
+    return { ok: false, message: "Order not found." };
+  }
+  return getCustomerPaymentInvoice({
+    clerkUserId: order.clerkUserId,
+    orderId: trimmed,
+  });
+}
 export async function getCustomerPaymentInvoice(opts: {
   clerkUserId: string;
   orderId: string;
@@ -360,6 +410,9 @@ export async function getCustomerPaymentInvoice(opts: {
 
   const subtotalCents = lines.reduce((sum, line) => sum + line.amountCents, 0);
 
+  const packingMap = await listHubStockOrderPackingByOrderIds([orderId]);
+  const packingNotes = packingNotesFromPackages(packingMap.get(orderId) ?? []);
+
   return {
     ok: true,
     invoice: {
@@ -372,6 +425,7 @@ export async function getCustomerPaymentInvoice(opts: {
       company: getInvoiceCompanyProfile(),
       billTo,
       lines,
+      packingNotes,
       subtotalCents,
       totalCents: order.totalAmount,
       payments: [paymentRow],

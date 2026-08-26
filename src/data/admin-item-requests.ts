@@ -76,7 +76,7 @@ export async function listItemRequestsWithProfileForAdmin(
         userEmail: r.userEmail,
         queueKind,
       };
-    });
+    }).filter((r) => r.request.source !== "hub_stock");
   }
 
   const rows = await runItemRequestSelectWithFallback({

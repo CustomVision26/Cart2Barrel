@@ -75,6 +75,7 @@ import {
   WAREHOUSE_MISSING_REASON_OPTIONS,
 } from "@/lib/warehouse-receive-condition";
 import { isOutsidePurchaseProductUrl } from "@/lib/outside-purchase";
+import { isHubStockProductUrl } from "@/lib/hub-stock";
 import { displaySiteName } from "@/lib/site-name";
 import {
   adminCustomerDisplayLabel,
@@ -682,7 +683,9 @@ export function AdminPurchaseOrdersTable({
               const lineLabel = receiveLineLabel(row);
               const productUrl = r.productUrl?.trim() || "";
               const showProductUrl =
-                productUrl.length > 0 && !isOutsidePurchaseProductUrl(productUrl);
+                productUrl.length > 0 &&
+                !isOutsidePurchaseProductUrl(productUrl) &&
+                !isHubStockProductUrl(productUrl);
               return (
                 <div
                   key={orderItemId}

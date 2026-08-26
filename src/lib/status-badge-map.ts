@@ -60,6 +60,14 @@ export function orderItemFulfillmentBadgeKind(
       return "awaitingPurchase";
     case "paid_outside_purchase_service_fee":
       return "fullyReceived";
+    case "hub_stock_pending_us_shipment":
+      return "companyPurchasePendingDelivery";
+    case "hub_stock_pending_container":
+      return "companyPurchasePendingDelivery";
+    case "hub_stock_us_in_transit":
+      return "companyPurchasePendingDelivery";
+    case "hub_stock_us_delivered":
+      return "fullyReceived";
     default: {
       const _exhaustive: never = f;
       return _exhaustive;

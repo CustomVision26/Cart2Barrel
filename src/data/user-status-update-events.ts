@@ -210,6 +210,55 @@ export async function recordPurchaseTrackingUpdatedActivity(params: {
   });
 }
 
+export async function recordHubStockPackageShippedActivity(params: {
+  clerkUserId: string;
+  orderId: string;
+  carrier: string;
+  trackingNumber: string;
+  productCount: number;
+}): Promise<void> {
+  const countLabel =
+    params.productCount === 1 ?
+      "1 in-hub product"
+    : `${params.productCount} in-hub products`;
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "purchase_tracking_updated",
+    title: "Package shipped",
+    body: `${countLabel} · ${params.carrier} · ${params.trackingNumber}`,
+    href: userStatusHrefForOrders(params.orderId),
+    entityType: "order",
+    entityId: params.orderId,
+  });
+}
+
+export async function recordHubStockPackageDeliveredActivity(params: {
+  clerkUserId: string;
+  orderId: string;
+  carrier: string | null;
+  trackingNumber: string | null;
+  productCount: number;
+}): Promise<void> {
+  const countLabel =
+    params.productCount === 1 ?
+      "1 in-hub product"
+    : `${params.productCount} in-hub products`;
+  const tracking =
+    params.carrier && params.trackingNumber ?
+      ` · ${params.carrier} · ${params.trackingNumber}`
+    : params.carrier ? ` · ${params.carrier}`
+    : "";
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "warehouse_delivery_received",
+    title: "Package delivered",
+    body: `${countLabel} arrived at your address${tracking}.`,
+    href: `/dashboard/orders-history?highlight=${encodeURIComponent(params.orderId)}`,
+    entityType: "order",
+    entityId: params.orderId,
+  });
+}
+
 export async function recordMerchandisePriceChangeActivity(params: {
   clerkUserId: string;
   orderId: string;

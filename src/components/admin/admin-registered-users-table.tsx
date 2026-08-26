@@ -42,6 +42,7 @@ export function AdminRegisteredUsersTable({
   const [query, setQuery] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmTarget | null>(null);
+  const [addressUser, setAddressUser] = useState<AdminRegisteredUserRow | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bannedOverrides, setBannedOverrides] = useState<Record<string, boolean>>(
@@ -55,6 +56,8 @@ export function AdminRegisteredUsersTable({
       (u) =>
         u.displayName.toLowerCase().includes(q) ||
         (u.email?.toLowerCase().includes(q) ?? false) ||
+        (u.phone?.toLowerCase().includes(q) ?? false) ||
+        (u.primaryAddressSummary?.toLowerCase().includes(q) ?? false) ||
         u.clerkUserId.toLowerCase().includes(q),
     );
   }, [users, query]);
@@ -104,7 +107,7 @@ export function AdminRegisteredUsersTable({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Name, email, or user id…"
+          placeholder="Name, email, phone, address, or user id…"
           autoComplete="off"
           className="max-w-md"
         />
@@ -126,11 +129,12 @@ export function AdminRegisteredUsersTable({
       ) : null}
 
       <FloatingHorizontalScroll className="rounded-lg border border-border">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[980px] text-left text-sm">
           <thead>
             <tr className="border-b border-border bg-muted text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-2.5 font-medium">Name</th>
-              <th className="px-3 py-2.5 font-medium">Email</th>
+              <th className="px-3 py-2.5 font-medium">Contact</th>
+              <th className="px-3 py-2.5 font-medium">Primary address</th>
               <th className="px-3 py-2.5 font-medium">Created</th>
               <th className="px-3 py-2.5 font-medium">Status</th>
               <th className="px-3 py-2.5 font-medium text-right">Actions</th>
@@ -155,7 +159,33 @@ export function AdminRegisteredUsersTable({
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-muted-foreground">
-                    {row.email ?? "—"}
+                    <div className="space-y-0.5">
+                      <p>{row.email ?? "—"}</p>
+                      {row.phone ?
+                        <p className="text-xs">{row.phone}</p>
+                      : null}
+                    </div>
+                  </td>
+                  <td className="max-w-[280px] px-3 py-2.5 text-muted-foreground">
+                    {row.primaryAddressSummary ?
+                      <div className="space-y-1">
+                        <p className="text-xs leading-relaxed">
+                          {row.primaryAddressSummary}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="xs"
+                          className="h-auto px-0"
+                          onClick={() => setAddressUser(row)}
+                        >
+                          {row.addresses.length} address
+                          {row.addresses.length === 1 ? "" : "es"}
+                        </Button>
+                      </div>
+                    : (
+                      <span>—</span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
                     {formatCreated(row.createdAt)}
@@ -265,6 +295,60 @@ export function AdminRegisteredUsersTable({
               </DialogFooter>
             </>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={addressUser != null}
+        onOpenChange={(open) => {
+          if (!open) setAddressUser(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          {addressUser ?
+            <>
+              <DialogHeader>
+                <DialogTitle>Shipping addresses</DialogTitle>
+                <DialogDescription>
+                  Contact and delivery records for {addressUser.displayName}.
+                </DialogDescription>
+              </DialogHeader>
+              <ul className="space-y-3" role="list">
+                {addressUser.addresses.map((address) => (
+                  <li
+                    key={address.id}
+                    className="rounded-lg border border-border/80 bg-muted/20 p-3 text-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">
+                          {address.recipientName || "Shipping address"}
+                        </p>
+                        {address.recipientPhone ?
+                          <p className="text-xs text-muted-foreground">
+                            {address.recipientPhone}
+                          </p>
+                        : null}
+                      </div>
+                      {address.isDefault ?
+                        <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                          Primary
+                        </span>
+                      : null}
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      {address.line1}
+                      {address.line2 ? `, ${address.line2}` : ""}
+                      {address.cityOrTown ? `, ${address.cityOrTown}` : ""}
+                      {address.parish ? `, ${address.parish}` : ""}
+                      {address.postalCode ? ` ${address.postalCode}` : ""}
+                      {address.country ? `, ${address.country}` : ""}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </>
+          : null}
         </DialogContent>
       </Dialog>
     </div>

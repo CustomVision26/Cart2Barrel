@@ -10,6 +10,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  real,
   serial,
   text,
   timestamp,
@@ -57,6 +58,8 @@ export const itemRequestStatusEnum = pgEnum("item_request_status", [
 export const itemRequestSourceEnum = pgEnum("item_request_source", [
   "customer_url",
   "outside_purchase",
+  /** Admin-listed inventory already at the hub — no estimate required. */
+  "hub_stock",
 ]);
 
 /** Frozen copies of request line fields for auditing (customer submit + staff estimate saves). */
@@ -178,6 +181,14 @@ export const orderItemFulfillmentEnum = pgEnum("order_item_fulfillment_status", 
   "product_return_awaiting_delivery",
   /** Outside purchase: customer paid service & handling only at checkout. */
   "paid_outside_purchase_service_fee",
+  /** In-hub catalog: paid, awaiting staff US domestic shipment. */
+  "hub_stock_pending_us_shipment",
+  /** In-hub catalog: paid, awaiting pack into an overseas container. */
+  "hub_stock_pending_container",
+  /** In-hub catalog: staff recorded US carrier tracking to the customer. */
+  "hub_stock_us_in_transit",
+  /** In-hub catalog: US carrier delivered the warehouse package to the customer. */
+  "hub_stock_us_delivered",
 ]);
 
 export const orderStatusEnum = pgEnum("order_status", [
@@ -259,6 +270,12 @@ export const specialFeaturePackagingModeEnum = pgEnum(
   ["in_app", "outside"],
 );
 
+/** Checkout destination for admin-listed in-hub inventory. */
+export const hubStockDestinationEnum = pgEnum("hub_stock_destination", [
+  "us_address",
+  "overseas_container",
+]);
+
 /** Shipping / delivery destinations (saved labels). Source of truth for where barrels ship. */
 export const addresses = pgTable(
   "addresses",
@@ -275,6 +292,8 @@ export const addresses = pgTable(
     parish: text("parish"),
     postalCode: text("postal_code"),
     country: text("country").notNull().default("Jamaica"),
+    recipientName: text("recipient_name"),
+    recipientPhone: text("recipient_phone"),
     isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -1443,6 +1462,23 @@ export const hubContactSettings = pgTable("hub_contact_settings", {
     .notNull(),
 });
 
+/** Singleton: US warehouse origin used for Shippo in-hub shipping rates. */
+export const hubShipFromSettings = pgTable("hub_ship_from_settings", {
+  singletonKey: text("singleton_key").primaryKey().default("default"),
+  name: text("name"),
+  phone: text("phone"),
+  line1: text("line1"),
+  line2: text("line2"),
+  city: text("city"),
+  state: text("state"),
+  postalCode: text("postal_code"),
+  country: text("country").notNull().default("United States"),
+  updatedByClerkUserId: text("updated_by_clerk_user_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+});
+
 /**
  * Singleton: minutes a customer has to accept/pay after staff quotes a product
  * (single line or batch). Default 7 days (10080 minutes). Min 1 minute.
@@ -2174,6 +2210,141 @@ export const userContainerCartLines = pgTable(
   ],
 );
 
+/**
+ * Admin-listed products already in the hub. Shoppers add these from the home page
+ * without requesting an estimate.
+ */
+export const hubStockProducts = pgTable(
+  "hub_stock_products",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    sizeLabel: text("size_label").notNull(),
+    colorLabel: text("color_label").notNull(),
+    description: text("description").notNull().default(""),
+    priceUsdCents: integer("price_usd_cents").notNull(),
+    stockQty: integer("stock_qty").notNull().default(0),
+    /** Packed weight in ounces (Shippo). */
+    parcelWeightOz: real("parcel_weight_oz"),
+    /** Outer carton inches (Shippo). */
+    parcelLengthIn: real("parcel_length_in"),
+    parcelWidthIn: real("parcel_width_in"),
+    parcelHeightIn: real("parcel_height_in"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdByClerkUserId: text("created_by_clerk_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("hub_stock_products_active_created_at_idx").on(t.isActive, t.createdAt),
+  ],
+);
+
+export const hubStockProductImages = pgTable(
+  "hub_stock_product_images",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => hubStockProducts.id, { onDelete: "cascade" }),
+    imageUrl: text("image_url").notNull(),
+    sortIndex: integer("sort_index").notNull().default(0),
+  },
+  (t) => [index("hub_stock_product_images_product_id_idx").on(t.productId)],
+);
+
+/** Shopper cart for in-hub catalog SKUs (cleared when a pending checkout reserves them). */
+export const hubStockCartItems = pgTable(
+  "hub_stock_cart_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => hubStockProducts.id, { onDelete: "cascade" }),
+    quantity: integer("quantity").notNull().default(1),
+    destination: hubStockDestinationEnum("destination").notNull(),
+    shipLine1: text("ship_line1"),
+    shipLine2: text("ship_line2"),
+    shipCity: text("ship_city"),
+    shipState: text("ship_state"),
+    shipPostalCode: text("ship_postal_code"),
+    shipCountry: text("ship_country"),
+    shippingCents: integer("shipping_cents").notNull().default(0),
+    shippingCarrier: text("shipping_carrier"),
+    shippingService: text("shipping_service"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("hub_stock_cart_items_user_product_destination_unique").on(
+      t.clerkUserId,
+      t.productId,
+      t.destination,
+    ),
+    index("hub_stock_cart_items_clerk_user_id_idx").on(t.clerkUserId),
+  ],
+);
+
+/**
+ * Paid / pending-checkout snapshot of in-hub catalog lines. Restored to the shopper
+ * cart if a pending order is released.
+ */
+export const hubStockOrderItems = pgTable(
+  "hub_stock_order_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    orderItemId: uuid("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "cascade" })
+      .unique(),
+    itemRequestId: uuid("item_request_id")
+      .notNull()
+      .references(() => itemRequests.id, { onDelete: "restrict" }),
+    productId: uuid("product_id").references(() => hubStockProducts.id, {
+      onDelete: "set null",
+    }),
+    destination: hubStockDestinationEnum("destination").notNull(),
+    quantity: integer("quantity").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    lineTotalCents: integer("line_total_cents").notNull(),
+    nameSnapshot: text("name_snapshot").notNull(),
+    sizeSnapshot: text("size_snapshot").notNull(),
+    colorSnapshot: text("color_snapshot").notNull(),
+    shipLine1: text("ship_line1"),
+    shipLine2: text("ship_line2"),
+    shipCity: text("ship_city"),
+    shipState: text("ship_state"),
+    shipPostalCode: text("ship_postal_code"),
+    shipCountry: text("ship_country"),
+    shippingCents: integer("shipping_cents").notNull().default(0),
+    shippingCarrier: text("shipping_carrier"),
+    shippingService: text("shipping_service"),
+    /** Packed carton snapshot used for the warehouse package (Shippo). */
+    parcelWeightOz: real("parcel_weight_oz"),
+    parcelLengthIn: real("parcel_length_in"),
+    parcelWidthIn: real("parcel_width_in"),
+    parcelHeightIn: real("parcel_height_in"),
+  },
+  (t) => [
+    index("hub_stock_order_items_order_id_idx").on(t.orderId),
+    index("hub_stock_order_items_item_request_id_idx").on(t.itemRequestId),
+  ],
+);
+
 /** Paid / pending-checkout snapshot of container lines (restored to user cart if pending order is released). */
 export const orderContainerItems = pgTable(
   "order_container_items",
@@ -2212,6 +2383,7 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
   barrels: many(barrels),
   payments: many(payments),
   containerCartLines: many(userContainerCartLines),
+  hubStockCartItems: many(hubStockCartItems),
   outboundShippingCartLines: many(userOutboundShippingCartLines),
   pricingPackage: one(customerPricingPackages, {
     fields: [profiles.clerkUserId],
@@ -2387,6 +2559,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   items: many(orderItems),
   payments: many(payments),
   containerItems: many(orderContainerItems),
+  hubStockItems: many(hubStockOrderItems),
 }));
 
 export const containerOfferingsRelations = relations(
@@ -2434,6 +2607,61 @@ export const orderContainerItemsRelations = relations(
       references: [containerOfferings.id],
     }),
     provisionedBarrels: many(barrels),
+  }),
+);
+
+export const hubStockProductsRelations = relations(
+  hubStockProducts,
+  ({ many }) => ({
+    cartItems: many(hubStockCartItems),
+    orderItems: many(hubStockOrderItems),
+    images: many(hubStockProductImages),
+  }),
+);
+
+export const hubStockProductImagesRelations = relations(
+  hubStockProductImages,
+  ({ one }) => ({
+    product: one(hubStockProducts, {
+      fields: [hubStockProductImages.productId],
+      references: [hubStockProducts.id],
+    }),
+  }),
+);
+
+export const hubStockCartItemsRelations = relations(
+  hubStockCartItems,
+  ({ one }) => ({
+    profile: one(profiles, {
+      fields: [hubStockCartItems.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+    product: one(hubStockProducts, {
+      fields: [hubStockCartItems.productId],
+      references: [hubStockProducts.id],
+    }),
+  }),
+);
+
+export const hubStockOrderItemsRelations = relations(
+  hubStockOrderItems,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [hubStockOrderItems.orderId],
+      references: [orders.id],
+    }),
+    orderItem: one(orderItems, {
+      fields: [hubStockOrderItems.orderItemId],
+      references: [orderItems.id],
+    }),
+    itemRequest: one(itemRequests, {
+      fields: [hubStockOrderItems.itemRequestId],
+      references: [itemRequests.id],
+    }),
+    product: one(hubStockProducts, {
+      fields: [hubStockOrderItems.productId],
+      references: [hubStockProducts.id],
+    }),
   }),
 );
 
@@ -2820,8 +3048,16 @@ export type NewBarrelPackageAssignmentEvent =
 export type OrderContainerItem = typeof orderContainerItems.$inferSelect;
 export type NewOrderContainerItem = typeof orderContainerItems.$inferInsert;
 
+export type HubStockProduct = typeof hubStockProducts.$inferSelect;
+export type NewHubStockProduct = typeof hubStockProducts.$inferInsert;
+export type HubStockProductImage = typeof hubStockProductImages.$inferSelect;
+export type HubStockCartItem = typeof hubStockCartItems.$inferSelect;
+export type HubStockOrderItem = typeof hubStockOrderItems.$inferSelect;
+export type HubStockDestination = HubStockCartItem["destination"];
+
 export type HubContactSetting = typeof hubContactSettings.$inferSelect;
 export type NewHubContactSetting = typeof hubContactSettings.$inferInsert;
+export type HubShipFromSetting = typeof hubShipFromSettings.$inferSelect;
 
 export type QuoteExpirySetting = typeof quoteExpirySettings.$inferSelect;
 export type NewQuoteExpirySetting = typeof quoteExpirySettings.$inferInsert;

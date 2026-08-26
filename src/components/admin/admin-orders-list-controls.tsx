@@ -3,8 +3,8 @@ import Link from "next/link";
 import type { AdminListQuery } from "@/lib/admin-customer-filter";
 import { ADMIN_CUSTOMER_FILTER_PARAM } from "@/lib/admin-customer-filter";
 import {
+  ADMIN_ORDER_SLIDE_LANE_AUDIENCE,
   orderSlideLaneNamesList,
-  ORDER_SLIDE_LANE_AUDIENCE,
 } from "@/lib/admin-orders-slide-filters";
 import {
   buildAdminOrdersListHref,
@@ -143,7 +143,7 @@ export function AdminOrdersListControls(props: {
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         Orders appear in horizontal lanes below —{" "}
         <span className="font-medium text-foreground">
-          {orderSlideLaneNamesList(ORDER_SLIDE_LANE_AUDIENCE)}
+          {orderSlideLaneNamesList(ADMIN_ORDER_SLIDE_LANE_AUDIENCE)}
         </span>{" "}
         — newest first in each
         lane. Double-click a card to open the full table grouped by batch and single. Pagination

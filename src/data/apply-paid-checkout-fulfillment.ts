@@ -24,6 +24,9 @@ import { ITEM_QUOTE_CHECKOUT_SNAPSHOT_PAID } from "@/lib/checkout-snapshot-kind"
 import { formatUsd } from "@/lib/admin-markup";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL } from "@/lib/outside-purchase-paid-status";
+import { ensureHubStockSchemaEnums } from "@/data/ensure-hub-stock-schema";
+import { getHubStockOrderItemByOrderItemId } from "@/data/hub-stock-cart";
+import { decrementHubStockForPaidOrder } from "@/data/hub-stock-products";
 
 function snapshotNoteWithPaidLine(
   reqNote: string | null | undefined,
@@ -43,6 +46,7 @@ export async function applyPaidCheckoutFulfillmentForOrder(
   orderId: string,
 ): Promise<void> {
   await ensurePaidOutsidePurchaseFulfillmentEnums();
+  await ensureHubStockSchemaEnums();
 
   const db = getDb();
   const lines = await db
@@ -57,9 +61,14 @@ export async function applyPaidCheckoutFulfillmentForOrder(
     if (!req) continue;
 
     const outsidePurchase = isOutsidePurchaseRequest(req);
-    const fulfillmentStatus = outsidePurchase
-      ? ("paid_outside_purchase_service_fee" as const)
-      : ("paid_pending_company_purchase" as const);
+    const hubStockLine = await getHubStockOrderItemByOrderItemId(line.id);
+    const fulfillmentStatus = hubStockLine
+      ? hubStockLine.destination === "us_address"
+        ? ("hub_stock_pending_us_shipment" as const)
+        : ("hub_stock_pending_container" as const)
+      : outsidePurchase
+        ? ("paid_outside_purchase_service_fee" as const)
+        : ("paid_pending_company_purchase" as const);
 
     try {
       await db
@@ -79,6 +88,13 @@ export async function applyPaidCheckoutFulfillmentForOrder(
         );
       }
       throw e;
+    }
+
+    if (hubStockLine?.productId) {
+      await decrementHubStockForPaidOrder(
+        hubStockLine.productId,
+        hubStockLine.quantity,
+      );
     }
 
     if (outsidePurchase) {

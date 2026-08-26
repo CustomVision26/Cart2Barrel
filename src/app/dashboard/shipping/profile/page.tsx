@@ -2,10 +2,9 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { ProfileForm } from "@/components/profile-form";
 import { DashboardShippingAddressHeader } from "@/components/dashboard/dashboard-shipping-address-header";
-import { ShippingAddressForm } from "@/components/shipping-address-form";
-import { getPrimaryShippingAddress } from "@/data/addresses";
+import { ShippingAddressBook } from "@/components/shipping/shipping-address-book";
+import { listShippingAddressesForUser } from "@/data/addresses";
 import {
   getOrCreateProfile,
   getProfileByClerkId,
@@ -13,7 +12,7 @@ import {
 } from "@/data/profiles";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 
-/** Shopper profile contact + shipping label (`/dashboard/shipping/profile`). */
+/** Shopper contact + shipping labels (`/dashboard/shipping/profile`). */
 export default async function DashboardShippingProfilePage() {
   const { userId } = await auth();
   if (!userId) {
@@ -35,21 +34,30 @@ export default async function DashboardShippingProfilePage() {
     redirect("/onboarding");
   }
 
-  const shipping = await getPrimaryShippingAddress(userId);
-  const afterSave = DASHBOARD_SHIPPING_ROUTES.address;
+  const addresses = await listShippingAddressesForUser(userId);
 
   return (
     <div className="space-y-8">
       <div className="space-y-2">
         <DashboardShippingAddressHeader />
       </div>
-      <div className="flex w-full max-w-lg flex-col gap-8">
-        <ProfileForm profile={profile} afterSaveRedirect={afterSave} />
-        <ShippingAddressForm address={shipping} afterSaveRedirect={afterSave} />
-      </div>
+      <ShippingAddressBook
+        addresses={addresses}
+        contactDefaults={{
+          fullName: profile.fullName ?? "",
+          phone: profile.phone ?? "",
+        }}
+      />
       <p className="text-xs text-muted-foreground">
         <Link href="/" className="underline hover:text-foreground">
           Back to marketing home
+        </Link>
+        <span className="mx-2 text-border">·</span>
+        <Link
+          href={DASHBOARD_SHIPPING_ROUTES.tracking}
+          className="underline hover:text-foreground"
+        >
+          Shipping tracking
         </Link>
       </p>
     </div>

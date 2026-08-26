@@ -5,8 +5,8 @@ import { Package } from "lucide-react";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import {
-  laneTitle,
-  ORDER_SLIDE_LANE_AUDIENCE,
+  orderSlideStatusLabel,
+  ADMIN_ORDER_SLIDE_LANE_AUDIENCE,
   type AdminOrderSlideGroup,
   type AdminOrdersSlideLane,
 } from "@/lib/admin-orders-slide-filters";
@@ -164,7 +164,7 @@ export function AdminOrderSlideCard({
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
         <p className="line-clamp-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {laneTitle(lane, ORDER_SLIDE_LANE_AUDIENCE)}
+          {orderSlideStatusLabel(group, lane, ADMIN_ORDER_SLIDE_LANE_AUDIENCE)}
         </p>
         <p className="line-clamp-1 text-sm font-semibold text-foreground">
           {customer}

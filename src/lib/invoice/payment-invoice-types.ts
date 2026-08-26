@@ -21,6 +21,11 @@ export type PaymentInvoiceBillTo = {
   email: string | null;
 };
 
+export type PaymentInvoicePackingNote = {
+  title: string;
+  detail: string;
+};
+
 export type PaymentInvoiceDocument = {
   orderId: string;
   invoiceNumber: string;
@@ -31,6 +36,7 @@ export type PaymentInvoiceDocument = {
   company: InvoiceCompanyProfile;
   billTo: PaymentInvoiceBillTo;
   lines: PaymentInvoiceLine[];
+  packingNotes: PaymentInvoicePackingNote[];
   subtotalCents: number;
   totalCents: number;
   payments: PaymentInvoicePaymentRow[];

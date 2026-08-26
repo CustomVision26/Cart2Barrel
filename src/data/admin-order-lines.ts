@@ -6,6 +6,7 @@ import type { PaidOrdersQueryInput } from "@/lib/paid-orders-list-params";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 
 import { backfillOutsidePurchasePaidServiceFeeFulfillment } from "@/data/backfill-outside-purchase-paid-fulfillment";
+import { ensureHubStockSchemaEnums } from "@/data/ensure-hub-stock-schema";
 import type { PaidOrderLineListRow, PaidOrderLinesPageResult } from "@/data/paid-orders-queries";
 import { listPaidOrderLinesPage } from "@/data/paid-orders-queries";
 
@@ -30,6 +31,7 @@ export async function listAdminPaidOrderLinesPage(
       query: queryInput,
     };
   }
+  await ensureHubStockSchemaEnums();
   await backfillOutsidePurchasePaidServiceFeeFulfillment();
   return listPaidOrderLinesPage({
     scope: resolveAdminPaidOrdersScope(queryInput.userId),

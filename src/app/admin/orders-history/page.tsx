@@ -11,6 +11,7 @@ import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsByRequestIds,
 } from "@/data/item-request-line-snapshots";
+import { listHubStockOrderPackingByOrderIds } from "@/data/hub-stock-order-packing";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
 import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
 import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
@@ -72,6 +73,10 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
   const orderContainerLinesByOrderId =
     admin && orderIdsOnPage.length > 0
       ? Object.fromEntries(await listOrderContainerItemsByOrderIds(orderIdsOnPage))
+      : {};
+  const hubStockPackingByOrderId =
+    admin && orderIdsOnPage.length > 0
+      ? Object.fromEntries(await listHubStockOrderPackingByOrderIds(orderIdsOnPage))
       : {};
 
   const staffProfilesByClerkUserId =
@@ -139,6 +144,7 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
               orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+              hubStockPackingByOrderId={hubStockPackingByOrderId}
               staffProfilesByClerkUserId={staffProfilesByClerkUserId}
             />
           ) : null}

@@ -1,6 +1,7 @@
 import { OutsidePurchaseReceiptLink } from "@/components/outside-purchase-receipt-link";
 import { CartCheckoutProductUrlReveal } from "@/components/dashboard/cart-checkout-product-url-reveal";
 import { isOutsidePurchaseProductUrl } from "@/lib/outside-purchase";
+import { isHubStockProductUrl } from "@/lib/hub-stock";
 
 type CartLineUrlOrReceiptProps = {
   lineId: string;
@@ -21,6 +22,10 @@ export function CartLineUrlOrReceipt({
     return (
       <p className="text-xs text-muted-foreground">Receipt not uploaded yet.</p>
     );
+  }
+
+  if (isHubStockProductUrl(productUrl)) {
+    return <p className="text-xs text-muted-foreground">In-hub catalog</p>;
   }
 
   return <CartCheckoutProductUrlReveal lineId={lineId} productUrl={productUrl} />;

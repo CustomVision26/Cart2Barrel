@@ -37,6 +37,8 @@ export function applyAdminOrdersQueueFulfillmentWhere(paidWhere: SQL): SQL {
     w = and(w, ne(orderItems.fulfillmentStatus, status))!;
   }
   w = and(w, ne(orderItems.fulfillmentStatus, "product_return_awaiting_delivery"))!;
+  w = and(w, ne(orderItems.fulfillmentStatus, "hub_stock_pending_container"))!;
+  w = and(w, ne(orderItems.fulfillmentStatus, "hub_stock_us_delivered"))!;
   return w;
 }
 

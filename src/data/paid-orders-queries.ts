@@ -39,6 +39,7 @@ import {
   type PendingRefundRequestBrief,
 } from "@/data/order-item-refund-requests";
 import { sumRefundedCentsByOrderItemIds } from "@/data/order-item-refunds";
+import { resolveHubStockDisplayImageUrls } from "@/data/hub-stock-products";
 import {
   isLikelyOrderFulfillmentEnumInQueryFailure,
   isUndefinedColumnError,
@@ -284,6 +285,27 @@ export async function attachPaidOrderLineWorkflowRequests(
   const withRefunds = await attachRefundedCents(rows);
   const withRefundReq = await attachPendingRefundRequestsToPaidLines(withRefunds);
   return attachProductReturnRequestsToPaidLines(withRefundReq);
+}
+
+async function withHubStockCatalogImages(
+  rows: PaidOrderLineListRow[],
+): Promise<PaidOrderLineListRow[]> {
+  if (rows.length === 0) return rows;
+  const imageByRequestId = await resolveHubStockDisplayImageUrls(
+    rows.map((row) => row.request),
+  );
+  if (imageByRequestId.size === 0) return rows;
+  return rows.map((row) => {
+    const imageUrl = imageByRequestId.get(row.request.id);
+    if (!imageUrl) return row;
+    return {
+      ...row,
+      request: {
+        ...row.request,
+        productImageUrl: imageUrl,
+      },
+    };
+  });
 }
 
 export function dedupePaidLineRows(
@@ -596,7 +618,8 @@ async function paginatePaidOrderLinesInner(opts: {
   }
 
   const sorted = sortPaidOrderLinesWithinPage(bareLines, orderIds);
-  const rows = await attachPaidOrderLineWorkflowRequests(sorted);
+  const withWorkflow = await attachPaidOrderLineWorkflowRequests(sorted);
+  const rows = await withHubStockCatalogImages(withWorkflow);
 
   return {
     rows,

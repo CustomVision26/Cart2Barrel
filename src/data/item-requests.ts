@@ -313,7 +313,9 @@ async function listActiveItemRequestsForUserQuery(
 }
 
 function filterCustomerVisibleActiveRequests(rows: ItemRequest[]): ItemRequest[] {
-  return rows.filter(isOutsidePurchasePublishedToCustomer);
+  return rows.filter(
+    (row) => row.source !== "hub_stock" && isOutsidePurchasePublishedToCustomer(row),
+  );
 }
 
 async function prepareCustomerActiveItemRequests(
@@ -400,22 +402,28 @@ export async function listActiveItemRequestsForUser(
   }
 }
 
+function excludeHubStockRequests(rows: ItemRequest[]): ItemRequest[] {
+  return rows.filter((row) => row.source !== "hub_stock");
+}
+
 /** Approved (in cart), removed-from-cart, and rejected records. */
 export async function listProductHistoryForUser(
   clerkUserId: string
 ): Promise<ItemRequest[]> {
   const db = getDb();
   try {
-    return await db
-      .select()
-      .from(itemRequests)
-      .where(
-        and(
-          eq(itemRequests.clerkUserId, clerkUserId),
-          inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+    return excludeHubStockRequests(
+      await db
+        .select()
+        .from(itemRequests)
+        .where(
+          and(
+            eq(itemRequests.clerkUserId, clerkUserId),
+            inArray(itemRequests.status, [...PRODUCT_HISTORY_STATUSES])
+          )
         )
-      )
-      .orderBy(desc(itemRequests.createdAt));
+        .orderBy(desc(itemRequests.createdAt)),
+    );
   } catch (e) {
     if (isMissingOutsidePurchaseReceiptImageUrlColumnError(e)) {
       const rows = await db
@@ -428,7 +436,7 @@ export async function listProductHistoryForUser(
           )
         )
         .orderBy(desc(itemRequests.createdAt));
-      return rows.map(itemRequestFromRowWithoutReceiptImage);
+      return excludeHubStockRequests(rows.map(itemRequestFromRowWithoutReceiptImage));
     }
     if (!isMissingBatchQuoteSessionIdColumnError(e)) throw e;
     try {
@@ -442,7 +450,7 @@ export async function listProductHistoryForUser(
           )
         )
         .orderBy(desc(itemRequests.createdAt));
-      return rows.map(withLegacyItemRequestDefaults);
+      return excludeHubStockRequests(rows.map(withLegacyItemRequestDefaults));
     } catch (legacyErr) {
       if (!isMissingOutsidePurchaseReceiptImageUrlColumnError(legacyErr)) {
         throw legacyErr;
@@ -457,7 +465,7 @@ export async function listProductHistoryForUser(
           )
         )
         .orderBy(desc(itemRequests.createdAt));
-      return rows.map(withLegacyItemRequestDefaults);
+      return excludeHubStockRequests(rows.map(withLegacyItemRequestDefaults));
     }
   }
 }

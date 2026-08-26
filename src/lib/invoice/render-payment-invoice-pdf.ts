@@ -192,7 +192,29 @@ export async function renderPaymentInvoicePdf(
         align: "right",
       });
       doc.font("Helvetica");
-      totalsY += 18;
+      totalsY += 16;
+    }
+
+    if (invoice.packingNotes.length > 0) {
+      if (totalsY > doc.page.height - 160) {
+        doc.addPage();
+        totalsY = doc.page.margins.top;
+      }
+      doc.y = totalsY + 16;
+      doc.font("Helvetica-Bold").fontSize(14).text("Warehouse packing");
+      doc.moveDown(0.4);
+      doc.font("Helvetica").fontSize(10);
+      for (const note of invoice.packingNotes) {
+        doc.font("Helvetica-Bold").text(note.title);
+        doc
+          .font("Helvetica")
+          .fillColor("#6b7280")
+          .fontSize(9)
+          .text(note.detail);
+        doc.fillColor("#111111").fontSize(10);
+        doc.moveDown(0.4);
+      }
+      totalsY = doc.y;
     }
 
     doc.font("Helvetica-Bold").fontSize(18).text("Payment history", doc.page.margins.left, totalsY + 18);

@@ -15,6 +15,7 @@ const CUSTOMER_LINE_PRODUCT_RETURN_FULFILLMENTS: OrderItem["fulfillmentStatus"][
     "delivery_received_item_missing",
     "delivery_received_item_damaged",
     "delivery_received_wrong_item",
+    "hub_stock_us_delivered",
   ];
 
 export function orderLineFulfillmentAllowsProductReturnRequest(

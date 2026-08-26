@@ -192,6 +192,71 @@ export function AdminOrderLineActions({
   }
 
   if (
+    fulfillmentStatus === "hub_stock_pending_us_shipment" ||
+    fulfillmentStatus === "hub_stock_pending_container" ||
+    fulfillmentStatus === "hub_stock_us_in_transit" ||
+    fulfillmentStatus === "hub_stock_us_delivered"
+  ) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        {pendingRefundRequest ?
+          <AdminRefundRequestControls
+            refundRequest={pendingRefundRequest}
+            linePriceCents={linePriceCents}
+            refundedCents={refundedCents}
+            productLabel={productLabel}
+            productNumber={orderItemId}
+            orderNumber={orderNumber}
+            batchNumber={batchNumber}
+            batchSessionId={batchSessionId}
+          />
+        : null}
+        {fulfillmentStatus === "hub_stock_us_in_transit" ||
+        fulfillmentStatus === "hub_stock_us_delivered" ?
+          <div className="flex flex-wrap items-center gap-2">
+            <AdminPurchaseTrackingLink trackingUrl={purchaseTracking?.trackingUrl} />
+            {fulfillmentStatus === "hub_stock_us_delivered" ?
+              <span className="text-xs text-muted-foreground">
+                Delivered to the customer.
+              </span>
+            : (
+              <AdminPurchaseTrackingDialog
+                orderItemId={orderItemId}
+                productLabel={productLabel}
+                initialTrackingUrl={purchaseTracking?.trackingUrl ?? null}
+                initialRetailerTrackingCompany={
+                  purchaseTracking?.retailerTrackingCompany ?? null
+                }
+                initialRetailerTrackingNumber={
+                  purchaseTracking?.retailerTrackingNumber ?? null
+                }
+                initialReceiptImageUrls={retailerReceiptImageUrls}
+                variant="inbound"
+                triggerLabel="tracking"
+              />
+            )}
+          </div>
+        : (
+          <span className="text-xs text-muted-foreground">
+            {fulfillmentStatus === "hub_stock_pending_us_shipment"
+              ? "Awaiting staff shipping to the customer US address."
+              : "In hub — pack into the overseas packaging container."}
+          </span>
+        )}
+        {!pendingRefundRequest && refundableCents > 0 && !isOutsidePurchase ?
+          <AdminRefundOrderLineButton
+            orderItemId={orderItemId}
+            linePriceCents={linePriceCents}
+            refundedCents={refundedCents}
+            productLabel={productLabel}
+            triggerLabel="Refund line"
+          />
+        : null}
+      </div>
+    );
+  }
+
+  if (
     fulfillmentStatus === "company_purchase_pending_delivery" ||
     fulfillmentStatus === "delivery_requested_pending_fulfillment" ||
     fulfillmentStatus === "delivery_received_good_awaiting_barrel" ||

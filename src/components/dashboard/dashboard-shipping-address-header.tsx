@@ -9,8 +9,9 @@ export function DashboardShippingAddressHeader() {
       tooltipClassName="w-80"
       help={
         <>
-          Account contact (billing / legal) and your international shipping label used for
-          barrel delivery.
+          Name, phone, and street are saved together on each shipping record. You
+          can keep several addresses; one must be marked primary for barrels and
+          invoices.
         </>
       }
     />

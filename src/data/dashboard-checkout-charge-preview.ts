@@ -14,7 +14,14 @@ import {
   orders,
   type BatchQuoteEstimate,
   type ItemQuote,
+  type ItemRequest,
 } from "@/db/schema";
+import { listHubStockOrderItemsByOrderId } from "@/data/hub-stock-cart";
+import {
+  findHubStockPackageShippingShare,
+  partitionCheckoutHubStockPackages,
+  type CartCheckoutHubStockPackage,
+} from "@/data/hub-stock-checkout-summary";
 import { listItemQuotesForOwnerByRequestIds } from "@/data/item-quotes";
 import {
   listPaidMerchandiseTopupAddOnsForOrderItems,
@@ -73,6 +80,7 @@ export type CheckoutChargesPreview = {
   description: string;
   summaryRows: CheckoutChargeSummaryRow[];
   productLines: CheckoutChargesProductLine[];
+  hubStockPackages?: CartCheckoutHubStockPackage[];
   productSummary?: CheckoutChargesProductSummary;
   /** Later purchase-price top-up add-ons paid for these merchandise lines. */
   paidTopupAddOns?: PaidMerchandiseTopupAddOnView[];
@@ -83,6 +91,7 @@ type OrderLineRow = {
   itemRequestId: string;
   productName: string | null;
   productUrl: string;
+  source: ItemRequest["source"];
   quantity: number;
   priceCents: number;
   resolvedBatchSessionId: string | null;
@@ -134,6 +143,7 @@ async function loadOrderMerchandiseLines(
       itemRequestId: itemRequests.id,
       productName: itemRequests.productName,
       productUrl: itemRequests.productUrl,
+      source: itemRequests.source,
       quantity: orderItems.quantity,
       priceCents: orderItems.price,
       requestBatchSessionId: itemRequests.batchQuoteSessionId,
@@ -159,6 +169,7 @@ async function loadOrderMerchandiseLines(
     itemRequestId: r.itemRequestId,
     productName: r.productName,
     productUrl: r.productUrl,
+    source: r.source,
     quantity: r.quantity,
     priceCents: r.priceCents,
     resolvedBatchSessionId:
@@ -219,6 +230,23 @@ async function resolveBatchEstimateForSession(
   return latest ?? null;
 }
 
+function toCheckoutSummaryLine(row: OrderLineRow) {
+  return {
+    itemRequestId: row.itemRequestId,
+    orderItemId: row.orderItemId,
+    productName: row.productName,
+    productUrl: row.productUrl,
+    source: row.source,
+    outsidePurchaseReference: null,
+    quantity: row.quantity,
+    lineTotalCents: row.priceCents,
+    outsidePurchaseReceiptImageUrl: null,
+    chargeCaption: null,
+    batchNumber: row.resolvedBatchNumber,
+    productReferenceDetail: `Qty ${row.quantity}`,
+  };
+}
+
 function productLineFromOrderRow(
   row: OrderLineRow,
   summaryRows?: CheckoutChargeSummaryRow[],
@@ -226,7 +254,7 @@ function productLineFromOrderRow(
   const name = row.productName?.trim() || "Unnamed product";
   return {
     name,
-    detail: `Qty ${row.quantity} · charged at checkout`,
+    detail: `Qty ${row.quantity}`,
     amountCents: row.priceCents,
     ...(summaryRows && summaryRows.length > 0 ? { summaryRows } : {}),
   };
@@ -293,6 +321,50 @@ function batchShareSummaryRows(share: BatchLineShare): CheckoutChargeSummaryRow[
       emphasis: true,
     },
   ];
+}
+
+function applyHubPackageShippingShare(
+  quoteRows: CheckoutChargeSummaryRow[] | null,
+  share: {
+    merchandiseCents: number;
+    shippingShareCents: number;
+    packageShippingCents: number;
+    packageLineCount: number;
+    shippingLabel: string | null;
+  },
+): CheckoutChargeSummaryRow[] {
+  const itemCost =
+    quoteRows?.find((row) => row.label === "Item cost")?.amountCents ??
+    share.merchandiseCents;
+  const service =
+    quoteRows?.find((row) => row.label === "Service & handling")?.amountCents ??
+    0;
+  const tax = quoteRows?.find((row) => row.label === "Tax")?.amountCents ?? 0;
+  const shippingDetail =
+    share.packageLineCount > 1 ?
+      `${formatUsd(share.packageShippingCents)} warehouse package split across ${share.packageLineCount} products`
+    : share.shippingLabel || "US carrier rate";
+
+  const rows: CheckoutChargeSummaryRow[] = [
+    { label: "Item cost", amountCents: itemCost },
+  ];
+  if (service > 0) {
+    rows.push({ label: "Service & handling", amountCents: service });
+  }
+  rows.push({
+    label: "Package shipping",
+    amountCents: share.shippingShareCents,
+    detail: shippingDetail,
+  });
+  if (tax > 0) {
+    rows.push({ label: "Tax", amountCents: tax });
+  }
+  rows.push({
+    label: "This product",
+    amountCents: itemCost + service + share.shippingShareCents + tax,
+    emphasis: true,
+  });
+  return rows;
 }
 
 function latestQuoteForRequest(
@@ -501,6 +573,7 @@ export async function loadLineCheckoutChargesPreview(
       siteName: itemRequests.siteName,
       productSize: itemRequests.productSize,
       productColor: itemRequests.productColor,
+      source: itemRequests.source,
       quantity: orderItems.quantity,
       priceCents: orderItems.price,
       requestBatchSessionId: itemRequests.batchQuoteSessionId,
@@ -535,9 +608,26 @@ export async function loadLineCheckoutChargesPreview(
   }
 
   const quoteRows = await loadStandaloneQuoteBreakdown(row.itemRequestId);
+  const merchandiseLines = await loadOrderMerchandiseLines(clerkUserId, orderId);
+  const hubSnapshots = await listHubStockOrderItemsByOrderId(orderId);
+  const { packages: hubPackages } = partitionCheckoutHubStockPackages(
+    merchandiseLines.map(toCheckoutSummaryLine),
+    hubSnapshots,
+  );
+  const hubShippingShare = findHubStockPackageShippingShare(
+    hubPackages,
+    row.itemRequestId,
+  );
+
   const merchandiseCents =
-    quoteRows?.find((r) => r.label === "Item cost")?.amountCents ?? null;
+    hubShippingShare?.merchandiseCents ??
+    quoteRows?.find((r) => r.label === "Item cost")?.amountCents ??
+    null;
+
   const summaryRows: CheckoutChargeSummaryRow[] = (() => {
+    if (hubShippingShare) {
+      return applyHubPackageShippingShare(quoteRows, hubShippingShare);
+    }
     if (!quoteRows) {
       return [
         {
@@ -564,6 +654,9 @@ export async function loadLineCheckoutChargesPreview(
     );
   })();
 
+  const displayLineTotalCents =
+    summaryRows.find((r) => r.emphasis)?.amountCents ?? row.priceCents;
+
   const productName = row.productName?.trim() || "Unnamed product";
 
   const paidTopupAddOns = await listPaidMerchandiseTopupAddOnsForOrderItems({
@@ -578,6 +671,8 @@ export async function loadLineCheckoutChargesPreview(
       description:
         paidTopupAddOns.length > 0 ?
           "Checkout charges for this product, plus any later purchase-price top-up add-ons."
+        : hubShippingShare && hubShippingShare.packageLineCount > 1 ?
+          "This product's catalog price plus its share of the warehouse package shipping."
         : "Checkout charges for this single product (staff estimate + your charged line amount).",
       summaryRows,
       productLines: [
@@ -586,8 +681,9 @@ export async function loadLineCheckoutChargesPreview(
           itemRequestId: row.itemRequestId,
           productName: row.productName,
           productUrl: row.productUrl,
+          source: row.source,
           quantity: row.quantity,
-          priceCents: row.priceCents,
+          priceCents: displayLineTotalCents,
           resolvedBatchSessionId: null,
           resolvedBatchNumber: null,
         }),
@@ -599,7 +695,7 @@ export async function loadLineCheckoutChargesPreview(
         quantity: row.quantity,
         sizeLabel: row.productSize?.trim() || null,
         colorLabel: row.productColor?.trim() || null,
-        linePriceCents: row.priceCents,
+        linePriceCents: displayLineTotalCents,
         quotedMerchandiseCostCents: merchandiseCents,
       },
       paidTopupAddOns,
@@ -709,43 +805,33 @@ export async function loadOrderCheckoutChargesPreview(
 
   const summaryRows: CheckoutChargeSummaryRow[] = [];
   const productLines: CheckoutChargesProductLine[] = [];
+  const standaloneForHub: OrderLineRow[] = [];
 
   for (const bucket of buckets) {
     if (bucket.kind === "batch") {
-      const batchSubtotal = bucket.lines.reduce((s, l) => s + l.priceCents, 0);
-      const label = bucket.batchNumber ?? bucket.batchSessionId.slice(0, 8);
-      summaryRows.push({
-        label: `Batch ${label}`,
-        detail: `${bucket.lines.length} product${bucket.lines.length === 1 ? "" : "s"}`,
-        amountCents: batchSubtotal,
-      });
       for (const line of bucket.lines) {
         productLines.push(productLineFromOrderRow(line));
       }
     } else {
-      for (const line of bucket.lines) {
-        const quoteRows = await loadStandaloneQuoteBreakdown(line.itemRequestId);
-        if (quoteRows && bucket.lines.length === 1 && buckets.length === 1) {
-          summaryRows.push(...quoteRows);
-        } else {
-          summaryRows.push({
-            label: line.productName?.trim() || "Single item",
-            detail: `Qty ${line.quantity}`,
-            amountCents: line.priceCents,
-          });
-        }
-        productLines.push(productLineFromOrderRow(line));
-      }
+      standaloneForHub.push(...bucket.lines);
     }
   }
 
-  const merchandiseSubtotal = merchandiseLines.reduce((s, l) => s + l.priceCents, 0);
-  if (summaryRows.length > 1) {
-    summaryRows.push({
-      label: "Product subtotal",
-      amountCents: merchandiseSubtotal,
-    });
+  const hubSnapshots = await listHubStockOrderItemsByOrderId(orderId);
+  const { packages: hubStockPackages, remainingStandalone } =
+    partitionCheckoutHubStockPackages(
+      standaloneForHub.map(toCheckoutSummaryLine),
+      hubSnapshots,
+    );
+  const remainingByRequestId = new Set(
+    remainingStandalone.map((line) => line.itemRequestId),
+  );
+  for (const line of standaloneForHub) {
+    if (!remainingByRequestId.has(line.itemRequestId)) continue;
+    productLines.push(productLineFromOrderRow(line));
   }
+
+  const merchandiseSubtotal = merchandiseLines.reduce((s, l) => s + l.priceCents, 0);
 
   const containerRows = await loadContainerChargeRows(clerkUserId, orderId);
   summaryRows.push(...containerRows);
@@ -800,6 +886,7 @@ export async function loadOrderCheckoutChargesPreview(
         : `Charges recorded when you paid on ${new Date(order.createdAt).toLocaleString()}.`,
       summaryRows,
       productLines,
+      hubStockPackages,
       paidTopupAddOns,
     },
   };

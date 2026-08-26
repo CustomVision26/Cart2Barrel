@@ -208,3 +208,10 @@ export function isKnownShippingCountry(country: string): country is ShippingCoun
 export function isJamaicaShippingCountry(country: string | null | undefined): boolean {
   return country?.trim().toLowerCase() === "jamaica";
 }
+
+export function isUnitedStatesShippingCountry(
+  country: string | null | undefined,
+): boolean {
+  const value = country?.trim().toLowerCase() ?? "";
+  return value === "united states" || value === "usa" || value === "us";
+}

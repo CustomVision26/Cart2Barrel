@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/carousel";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
+import type { HubStockOrderPackingPackage } from "@/lib/hub-stock-box";
 import type {
   BatchQuoteEstimate,
   ItemQuote,
@@ -21,10 +22,10 @@ import type {
 } from "@/db/schema";
 import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
 import {
+  ADMIN_ORDER_SLIDE_LANE_AUDIENCE,
   groupOrdersForSlideLane,
   laneDescription,
   laneTitle,
-  ORDER_SLIDE_LANE_AUDIENCE,
   type AdminOrderSlideGroup,
   type AdminOrdersSlideLane,
 } from "@/lib/admin-orders-slide-filters";
@@ -49,6 +50,7 @@ export function AdminOrdersCarouselView({
   latestQuotesByRequestId = {},
   batchEstimatesBySessionId = {},
   orderContainerLinesByOrderId = {},
+  hubStockPackingByOrderId = {},
   staffProfilesByClerkUserId = {},
   highlightOrderId = null,
 }: {
@@ -57,6 +59,7 @@ export function AdminOrdersCarouselView({
   latestQuotesByRequestId?: Record<string, ItemQuote>;
   batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  hubStockPackingByOrderId?: Record<string, HubStockOrderPackingPackage[]>;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
   highlightOrderId?: string | null;
 }) {
@@ -89,7 +92,7 @@ export function AdminOrdersCarouselView({
     () =>
       LANES.map((lane) => ({
         lane,
-        groups: groupOrdersForSlideLane(rows, lane, "admin"),
+        groups: groupOrdersForSlideLane(rows, lane, ADMIN_ORDER_SLIDE_LANE_AUDIENCE),
       })),
     [rows],
   );
@@ -112,10 +115,10 @@ export function AdminOrdersCarouselView({
           >
             <div className="space-y-1.5">
               <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                {laneTitle(lane, ORDER_SLIDE_LANE_AUDIENCE)}
+                {laneTitle(lane, ADMIN_ORDER_SLIDE_LANE_AUDIENCE)}
               </h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                {laneDescription(lane, "admin")}
+                {laneDescription(lane, ADMIN_ORDER_SLIDE_LANE_AUDIENCE)}
                 {groups.length > 0 ?
                   <>
                     {" "}
@@ -180,6 +183,7 @@ export function AdminOrdersCarouselView({
         latestQuotesByRequestId={latestQuotesByRequestId}
         batchEstimatesBySessionId={batchEstimatesBySessionId}
         orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+        hubStockPackingByOrderId={hubStockPackingByOrderId}
         staffProfilesByClerkUserId={staffProfilesByClerkUserId}
       />
     </>

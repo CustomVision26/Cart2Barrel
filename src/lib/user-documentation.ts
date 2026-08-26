@@ -55,7 +55,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Hero section and spotlight carousel highlight US retailer products.",
         "Guests see Sign in / Sign up; signed-in users see Dashboard.",
-        "New users may be sent to onboarding before Home loads.",
+        "In-hub products can be added to cart from Home; US delivery uses a saved United States address. Multiple in-hub SKUs to the same address ship as one warehouse package with a single Shippo rate.",
         "After skip or complete onboarding, Home works normally.",
       ],
       requirements: [
@@ -78,7 +78,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Browse the hero section for a high-level overview of the service.",
-        "Scroll to the spotlight carousel for featured product highlights from US retailers.",
+        "Scroll to In-hub products to add warehouse stock to your cart. For US delivery, choose a saved United States address—shipping is one warehouse-package rate from Shippo for all in-hub items going to that address. Overseas packing does not require a US address and has no carrier shipping charge.",
         "Use the header: How it works (public guide), Sign in, Sign up, or Dashboard (when signed in).",
         "If you are a new signed-in user who has not completed or skipped onboarding, visiting Home redirects you to the onboarding page.",
         "After you skip or finish onboarding, Home loads normally and you can move freely between marketing pages and the dashboard.",
@@ -148,8 +148,8 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Collects contact name, phone, and delivery address—or lets you skip and finish later.",
       location: "Automatic redirect from Home for new users, or visit /onboarding.",
       bullets: [
-        "Step 1: Account contact (name and phone).",
-        "Step 2: Shipping address for barrel delivery.",
+        "One form: name, phone, and delivery address saved together.",
+        "That first save is your primary shipping record.",
         "Skip sends you to Home without saving details.",
         "Checkout still requires a saved address later.",
       ],
@@ -169,19 +169,18 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Onboarding is the first account setup step after sign-up. It collects your legal contact information and primary delivery address—the label used when barrels ship to you anywhere in the world.",
-        "You are not forced to complete every field immediately. The Skip control on the contact form lets you browse the storefront and dashboard first. Skipping does not save your details; you must add them under Dashboard → Shipping → Address before you can pay for cart items.",
+        "Onboarding is the first account setup step after sign-up. It collects your name, phone, and primary delivery address as one shipping record—the label used when barrels ship to you anywhere in the world.",
+        "You are not forced to complete every field immediately. The Skip control lets you browse the storefront and dashboard first. Skipping does not save your details; you must add them under Dashboard → Shipping → Address before you can pay for cart items.",
       ],
       walkthrough: [
         "New signed-in users are directed here from Home until they complete or skip onboarding.",
-        "Step 1 — Account contact: enter your full name and phone number used for billing and hub communication.",
-        "Step 2 — Shipping address: enter the worldwide delivery address for barrel shipments.",
-        "Optional — Skip: on the contact form, click Skip to bypass onboarding and go to Home immediately.",
-        "After saving both steps without skipping, you are redirected to Home or the dashboard.",
-        "If you skipped, return later to Dashboard → Shipping → Address to add contact and delivery details before checkout.",
+        "Enter your full name, phone, and worldwide delivery address on one form. Saving creates your primary shipping record.",
+        "Optional — Skip: click Skip to bypass onboarding and go to Home immediately.",
+        "After saving without skipping, you are redirected to Home.",
+        "If you skipped, return later to Dashboard → Shipping → Address to add contact and delivery details before checkout. You can save more than one address and mark one as primary.",
       ],
       notes: [
-        "Account contact (name/phone) and shipping address are stored separately—both may be needed for orders and delivery.",
+        "Name, phone, and street are saved together on each shipping address. One address is primary.",
       ],
       requirements: [
         "You must be signed in.",
@@ -382,7 +381,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     article: {
       overview: [
         "Manage account is your Clerk-powered identity hub inside Cart2Barrel. It handles everything related to how you sign in—profile details, password, device sessions, and account deletion—plus a custom Billing Receipt tab for payment records.",
-        "Cart2Barrel-specific data such as legal contact name and shipping address live separately under Dashboard → Shipping → Address. Keep both your Clerk profile and Cart2Barrel shipping details up to date.",
+        "Cart2Barrel shipping records (name, phone, and street on each address) live under Dashboard → Shipping → Address. Keep both your Clerk profile and Cart2Barrel shipping details up to date.",
       ],
       walkthrough: [
         "Click your avatar in the top-right corner of the dashboard header.",
@@ -403,7 +402,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       donts: [
         "Do not change your Clerk email to one you cannot access—you may lock yourself out.",
-        "Do not use the Clerk profile name as a substitute for the legal contact name on Dashboard → Shipping → Address; both may be needed for different purposes.",
+        "Do not use the Clerk profile name as a substitute for the recipient name on Dashboard → Shipping → Address; shipping records include contact and street together.",
         "Do not share session or security codes.",
         "Do not delete your account from the Security tab unless you understand that deletion is permanent and Cart2Barrel data cannot be restored—read the Security tab guide first.",
       ],
@@ -741,10 +740,14 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Review payable lines and pay securely via Stripe.",
       location: "Sidebar → Cart, or header cart icon.",
       bullets: [
-        "Lists quotes, bundles, containers, outbound charges.",
+        "Lists quotes, bundles, containers, in-hub products, outbound charges.",
+        "In-hub US items are highlighted as a warehouse package with one bundled Shippo rate; hover the info balloon next to In-hub warehouse package for how hub SKUs ship. View shipping address / Change address apply to the package.",
+        "Checkout order summary groups in-hub products the same way, lists the destination US address, and shows package shipping as its own fee.",
+        "After payment, Preview checkout charges on Orders shows the same warehouse grouping, destination address, and shipping fee without duplicating product lines.",
+        "Paid order receipts include the warehouse box size for in-hub US packages.",
         "Remove unwanted lines before checkout.",
         "Stripe embedded checkout for payment.",
-        "Success page links to orders after payment.",
+        "Success page View orders opens that paid order's product list.",
       ],
       requirements: [
         "Signed-in account.",
@@ -769,10 +772,13 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open Cart from the sidebar or click the cart icon in the header.",
         "Review each payable line with fees and running totals.",
+        "For in-hub products shipping to a US address, the highlighted warehouse package shows one bundled Shippo rate for every SKU going to that address. Hover the info balloon next to In-hub warehouse package to read how hub SKUs ship. Open View shipping address or Change address to pick a saved United States address; the package rate refreshes when you change address or check out.",
         "Remove lines you no longer want before starting checkout.",
         "Click checkout to open the secure Stripe embedded payment session.",
+        "On checkout, in-hub products stay grouped in a highlighted warehouse package with merchandise, the bundled shipping fee, and the destination US address listed separately. New checkouts also split that fee onto each SKU by catalog price.",
+        "After you pay, Preview checkout charges on Orders shows the same warehouse grouping, destination address, merchandise, and shipping fee—without a second product list.",
         "Complete payment in one session when possible.",
-        "After success, the confirmation page summarizes your order and links to active orders.",
+        "After success, the confirmation page summarizes your order. View orders (on the summary and in the payment toast) opens that paid order's product list on Orders.",
       ],
       requirements: [
         "Signed-in account.",
@@ -803,6 +809,10 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Active orders: in-progress hub fulfillment.",
         "History: completed or closed orders.",
         "Line details, tracking, refund/return actions.",
+        "In-hub catalog photos appear on order cards. Paid in-hub US packages show as Awaiting shipment in In progress until staff enter tracking, then In transit to you. After staff mark the package delivered, it moves to Orders history as Delivered to you.",
+        "Preview checkout charges groups in-hub products as a warehouse package, shows the destination US address, lists merchandise and package shipping separately, and does not repeat the product list in a second breakdown.",
+        "Opening Line charges for one in-hub SKU shows that product's share of the warehouse package shipping (split by catalog price), not the full package rate on a single line.",
+        "When staff ship an in-hub US package, a notification includes carrier and tracking; Orders then shows Track shipment / Tracking details. When the package arrives, a delivered notification links to Orders history.",
         "Actions depend on current order status.",
       ],
       requirements: ["Signed-in account.", "Paid order for data to appear."],
@@ -823,7 +833,10 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open Orders from the sidebar for in-progress purchases.",
         "Visit Orders history for completed or closed orders.",
-        "Select an order to view line details, tracking numbers, and status.",
+        "Select an order to view line details, tracking numbers, and status. In-hub catalog photos appear on each product card when staff uploaded them on the SKU. Paid in-hub US packages in transit show as In transit to you; after delivery they appear in Orders history as Delivered to you.",
+        "Preview checkout charges shows the warehouse package, destination US address, merchandise, and package shipping.",
+        "Open Line charges on a single in-hub product to see that SKU's catalog price plus its share of the warehouse package shipping.",
+        "When an in-hub US package ships, the bell notification includes carrier and tracking; open the order to view Track shipment or Tracking details. When staff mark it delivered, a notification links to Orders history.",
         "Use in-order actions such as accept delivery or request refund/return when the status allows them.",
         "Watch the notifications bell for purchase, tracking, and warehouse updates.",
       ],
@@ -906,7 +919,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Tracking: shipment intake and carrier status.",
         "Pricing: pay outbound charges when containers are ready.",
-        "Address: legal contact and delivery address.",
+        "Address: name, phone, and delivery street on each record; multiple addresses, one primary.",
         "/dashboard/settings redirects here.",
       ],
       requirements: [
@@ -926,12 +939,12 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     article: {
       overview: [
         "Shipping covers everything after products reach the hub and barrels enter the outbound pipeline: your delivery address, shipment tracking, customs/intake forms, and freight charges when containers are ready to leave.",
-        "Account contact and shipping address are managed on the Address tab. /dashboard/settings redirects here for account shipping settings.",
+        "Account contact and shipping street are saved together on each address under the Address tab. You may keep several addresses and mark one as primary. /dashboard/settings redirects here for account shipping settings.",
       ],
       walkthrough: [
         "Tracking tab: submit and view barrel shipment intake details and carrier tracking.",
         "Pricing tab: appears when containers are ready—review and pay outbound freight and customs charges.",
-        "Address tab: update legal contact (name, phone) and your primary worldwide delivery address.",
+        "Address tab: add or edit shipping records (name, phone, and street together). Mark one as primary for barrels and invoices.",
         "Complete any customs or intake forms when prompted to avoid shipment delays.",
       ],
       requirements: [

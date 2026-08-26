@@ -13,13 +13,14 @@ import {
 import { CartBatchBundleCard } from "@/components/dashboard/cart-batch-bundle-card";
 import { CartContainerLineItem } from "@/components/dashboard/cart-container-line-item";
 import { CartMerchandiseTopupLineItem } from "@/components/dashboard/cart-merchandise-topup-line-item";
+import { CartHubStockPackage } from "@/components/dashboard/cart-hub-stock-package";
 import { CartOutboundShippingLineItem } from "@/components/dashboard/cart-outbound-shipping-line-item";
 import { CartOrderSummaryPanel } from "@/components/dashboard/cart-order-summary-panel";
 import { CartQuoteLineItem } from "@/components/dashboard/cart-quote-line-item";
 import { CartSection } from "@/components/dashboard/cart-section";
 import { buttonVariants } from "@/components/ui/button";
 import { abandonPendingOrderFromStripeCheckoutSession } from "@/data/abandon-stripe-checkout-session";
-import { getPrimaryShippingAddress } from "@/data/addresses";
+import { getPrimaryShippingAddress, listShippingAddressesForUser, toSerializableShippingAddress } from "@/data/addresses";
 import { assembleApprovedCartForUser } from "@/data/cart";
 import { syncPendingCartCheckoutsBeforeCartPage } from "@/data/sync-pending-cart-checkouts";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
@@ -38,6 +39,12 @@ import {
   listUserMerchandiseTopupCartLines,
   sumMerchandiseTopupCartLinesCents,
 } from "@/data/merchandise-topup-cart";
+import {
+  groupHubStockCartPackages,
+  listHubStockCartLinesForUser,
+  refreshHubStockCartShippingForUser,
+  sumHubStockCartLinesCents,
+} from "@/data/hub-stock-cart";
 import {
   checkoutProcessingFeeRegionLabel,
   computeCheckoutProcessingSurchargeCents,
@@ -125,6 +132,17 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
   const merchandiseTopupSubtotalCents = sumMerchandiseTopupCartLinesCents(
     merchandiseTopupCartLines,
   );
+  let hubStockCartLines = await listHubStockCartLinesForUser(userId);
+  if (
+    hubStockCartLines.some((line) => line.cartItem.destination === "us_address")
+  ) {
+    const rated = await refreshHubStockCartShippingForUser(userId);
+    if (rated.ok) {
+      hubStockCartLines = await listHubStockCartLinesForUser(userId);
+    }
+  }
+  const hubStockPackages = groupHubStockCartPackages(hubStockCartLines);
+  const hubStockSubtotalCents = sumHubStockCartLinesCents(hubStockCartLines);
 
   const hasQuotedLines =
     assembled.batchGroups.length > 0 || assembled.standaloneLines.length > 0;
@@ -132,7 +150,8 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
     hasQuotedLines ||
     containerCartRows.length > 0 ||
     outboundShippingCartLines.length > 0 ||
-    merchandiseTopupCartLines.length > 0;
+    merchandiseTopupCartLines.length > 0 ||
+    hubStockCartLines.length > 0;
   const quotedLineCount =
     assembled.batchGroups.reduce((n, g) => n + g.lines.length, 0) +
     assembled.standaloneLines.length;
@@ -140,15 +159,20 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
     quotedLineCount +
     containerCartRows.length +
     outboundShippingCartLines.length +
-    merchandiseTopupCartLines.length;
+    merchandiseTopupCartLines.length +
+    hubStockCartLines.length;
 
   const merchandiseSubtotalCents =
     assembled.estimatedTotalCents +
     containerSubtotalCents +
     containerPacking.totalPackingFeeCents +
     outboundShippingSubtotalCents +
-    merchandiseTopupSubtotalCents;
+    merchandiseTopupSubtotalCents +
+    hubStockSubtotalCents;
   const shipAddr = hasAny ? await getPrimaryShippingAddress(userId) : undefined;
+  const savedAddresses = hubStockCartLines.length > 0
+    ? (await listShippingAddressesForUser(userId)).map(toSerializableShippingAddress)
+    : [];
   const processingFeeRegion = processingFeeRegionFromShippingCountry(
     shipAddr?.country,
   );
@@ -229,7 +253,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
             </div>
           </div>
           <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Accepted estimates and shipping containers from{" "}
+            Accepted estimates, in-hub products, and shipping containers from{" "}
             <Link
               href="/dashboard/barrels"
               className="font-medium text-primary underline-offset-4 hover:underline"
@@ -260,8 +284,8 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
             <div className="space-y-1">
               <CardTitle className="font-heading text-xl">Your cart is empty</CardTitle>
               <CardDescription className="max-w-md text-sm leading-relaxed">
-                Accept a quote on a requested item, or add barrels and bins from the
-                Barrels page.
+                Accept a quote on a requested item, add an in-hub product from the home page,
+                or add barrels and bins from the Barrels page.
               </CardDescription>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -335,6 +359,25 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                       />
                     ),
                   )}
+                </ul>
+              </CartSection>
+            : null}
+
+            {hubStockCartLines.length > 0 ?
+              <CartSection
+                tone="warehouse"
+                title="In-hub warehouse package"
+                help="These SKUs ship from hub inventory, separate from retailer quotes, containers, specials, and outside purchases. US items to the same address pack as one shipment with a single Shippo rate."
+                count={hubStockCartLines.length}
+              >
+                <ul className="divide-y divide-primary/20" role="list">
+                  {hubStockPackages.map((pkg) => (
+                    <CartHubStockPackage
+                      key={pkg.key}
+                      pkg={pkg}
+                      savedAddresses={savedAddresses}
+                    />
+                  ))}
                 </ul>
               </CartSection>
             : null}
@@ -413,7 +456,9 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
               merchandiseSubtotalCents={merchandiseSubtotalCents}
               estimatedTotalCents={estimatedChargeAtCheckoutCents}
               quotedAndContainerSubtotalCents={
-                assembled.estimatedTotalCents + containerSubtotalCents
+                assembled.estimatedTotalCents +
+                containerSubtotalCents +
+                hubStockSubtotalCents
               }
               containerPacking={containerPacking}
               outboundShippingSubtotalCents={outboundShippingSubtotalCents}

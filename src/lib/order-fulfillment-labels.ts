@@ -100,6 +100,14 @@ export function dashboardOrderLineStatusLabel(
       return "Payment pending";
     case "paid_outside_purchase_service_fee":
       return PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL;
+    case "hub_stock_pending_us_shipment":
+      return "Awaiting staff shipping";
+    case "hub_stock_pending_container":
+      return "In hub — pack for overseas container";
+    case "hub_stock_us_in_transit":
+      return "In transit to you";
+    case "hub_stock_us_delivered":
+      return "Delivered to you";
     default: {
       const _exhaustive: never = fulfillmentStatus;
       return _exhaustive;
@@ -143,6 +151,14 @@ export function adminOrderLineStatusLabel(
       return "Payment pending";
     case "paid_outside_purchase_service_fee":
       return PAID_OUTSIDE_PURCHASE_SERVICE_FEE_LABEL;
+    case "hub_stock_pending_us_shipment":
+      return "Awaiting staff shipping";
+    case "hub_stock_pending_container":
+      return "In hub — pack for overseas container";
+    case "hub_stock_us_in_transit":
+      return "In transit to customer";
+    case "hub_stock_us_delivered":
+      return "Delivered to customer";
     default: {
       const _exhaustive: never = fulfillmentStatus;
       return _exhaustive;

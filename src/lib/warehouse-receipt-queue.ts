@@ -41,6 +41,7 @@ export const ADMIN_PURCHASE_ORDERS_QUEUE_BASE_FULFILLMENT_STATUSES: OrderItem["f
   [
     "company_purchase_pending_delivery",
     "delivery_requested_pending_fulfillment",
+    "hub_stock_pending_container",
     ...DELIVERY_RECEIVED_PROBLEM_FULFILLMENT_STATUSES,
   ];
 

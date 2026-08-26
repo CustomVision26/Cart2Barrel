@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { HomeMarketingHero } from "@/components/marketing/home-marketing-hero";
 import { HomePageHeader } from "@/components/marketing/home-page-header";
+import { HomeHubStockSection } from "@/components/marketing/home-hub-stock-section";
 import { HomeSpotlightCarouselFallback } from "@/components/marketing/home-spotlight-carousel-fallback";
 import { HomeSpotlightSection } from "@/components/marketing/home-spotlight-section";
 import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
@@ -34,6 +35,9 @@ export default async function Home() {
             </Suspense>
           }
         />
+        <Suspense fallback={null}>
+          <HomeHubStockSection isSignedIn={isSignedIn} />
+        </Suspense>
         <Suspense fallback={<HomeSpotlightCarouselFallback />}>
           <HomeSpotlightSection isSignedIn={isSignedIn} />
         </Suspense>

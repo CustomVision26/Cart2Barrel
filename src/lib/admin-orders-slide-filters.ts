@@ -27,6 +27,9 @@ export type OrderLaneAudience = "customer" | "admin";
 /** Default lane rules for customer dashboard carousels. */
 export const ORDER_SLIDE_LANE_AUDIENCE: OrderLaneAudience = "customer";
 
+/** Lane rules and card copy for admin Orders. */
+export const ADMIN_ORDER_SLIDE_LANE_AUDIENCE: OrderLaneAudience = "admin";
+
 function lineRefundable(row: PaidOrderLineListRow): boolean {
   return Math.max(0, row.orderItem.price - row.refundedCents) > 0;
 }
@@ -209,6 +212,45 @@ export function laneTitle(
   return laneTitleForLane(lane);
 }
 
+/** Card headline: hub-stock US packages are fulfillment, not retailer purchase. */
+export function orderSlideStatusLabel(
+  group: OrderSlideGroup,
+  lane: OrdersSlideLane,
+  audience: OrderLaneAudience = ORDER_SLIDE_LANE_AUDIENCE,
+): string {
+  const statuses = group.lines.map((row) =>
+    effectiveOrderItemFulfillmentStatus(row.orderItem, row.order),
+  );
+  const active = statuses.filter(
+    (status) => status !== "refunded" && status !== "pending_payment",
+  );
+  if (active.length === 0) {
+    return laneTitle(lane, audience);
+  }
+  if (active.every((status) => status === "hub_stock_pending_us_shipment")) {
+    return "Awaiting shipment";
+  }
+  if (active.every((status) => status === "hub_stock_us_in_transit")) {
+    return audience === "customer" ? "In transit to you" : "In transit to customer";
+  }
+  if (active.every((status) => status === "hub_stock_us_delivered")) {
+    return audience === "customer" ? "Delivered to you" : "Delivered to customer";
+  }
+  if (
+    active.every(
+      (status) =>
+        status === "hub_stock_pending_us_shipment" ||
+        status === "hub_stock_us_in_transit",
+    )
+  ) {
+    return "Awaiting shipment";
+  }
+  if (active.every((status) => status === "hub_stock_pending_container")) {
+    return "Pack for overseas container";
+  }
+  return laneTitle(lane, audience);
+}
+
 export function laneDescription(
   lane: OrdersSlideLane,
   audience: OrderLaneAudience = ORDER_SLIDE_LANE_AUDIENCE,
@@ -218,7 +260,7 @@ export function laneDescription(
       case "awaiting_purchase":
         return "Awaiting company purchase, or a return request awaiting staff action and retailer refund.";
       case "funded":
-        return "Paid orders moving through purchase, shipping, and warehouse. Nothing needed from you right now.";
+        return "Paid orders moving through purchase, warehouse packing, and shipping. Nothing needed from you right now.";
       case "need_corrections":
         return "Inbound shipments, refund requests, and warehouse receipt issues that need your attention.";
       default: {
@@ -232,7 +274,7 @@ export function laneDescription(
     case "awaiting_purchase":
       return "Paid orders with lines that still need review and approve.";
     case "funded":
-      return "Paid lines moving through fulfillment — no pending purchase or correction request.";
+      return "Paid lines in fulfillment — warehouse shipping, inbound delivery, and packing. No pending retailer purchase or correction request.";
     case "need_corrections":
       return "Refund or return requests and problem warehouse receipts awaiting staff or customer action.";
     default: {

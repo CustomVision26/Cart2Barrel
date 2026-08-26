@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /** pdfkit reads Helvetica.afm from disk — must not be bundled by Turbopack. */
-  serverExternalPackages: ["pdfkit"],
+  serverExternalPackages: ["pdfkit", "shippo"],
   experimental: {
     serverActions: {
       // Out-of-stock / receipt uploads allow up to 8 MB per image (see lib validators).

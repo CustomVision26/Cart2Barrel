@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 
 import { getOrderPaidTopupAddOnTotalAction } from "@/actions/dashboard-checkout-charge-preview";
+import { AdminHubStockOrderPacking } from "@/components/admin/admin-hub-stock-order-packing";
 import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { AdminBatchHeaderOps } from "@/components/admin/admin-batch-header-ops";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
+import { AdminShipHubStockPackageForm } from "@/components/admin/admin-ship-hub-stock-package-form";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
+import { DashboardCheckoutChargesPreviewDialog } from "@/components/dashboard/dashboard-checkout-charges-preview-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Dialog,
@@ -20,6 +25,9 @@ import {
 } from "@/components/ui/dialog";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
+import type {
+  HubStockOrderPackingPackage,
+} from "@/lib/hub-stock-box";
 import type {
   BatchQuoteEstimate,
   ItemQuote,
@@ -37,6 +45,7 @@ import {
 } from "@/lib/batch-line-share";
 import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
+import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { effectiveOutsidePurchasePaidFulfillment } from "@/lib/outside-purchase-order-fulfillment";
 import { partitionPaidLinesIntoBatchBuckets } from "@/lib/partition-paid-order-batch-groups";
@@ -253,6 +262,7 @@ export function AdminOrderLinesDetailDialog({
   latestQuotesByRequestId = {},
   batchEstimatesBySessionId = {},
   orderContainerLinesByOrderId = {},
+  hubStockPackingByOrderId = {},
   staffProfilesByClerkUserId = {},
 }: {
   open: boolean;
@@ -262,6 +272,7 @@ export function AdminOrderLinesDetailDialog({
   latestQuotesByRequestId?: Record<string, ItemQuote>;
   batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  hubStockPackingByOrderId?: Record<string, HubStockOrderPackingPackage[]>;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
   const baseId = useId();
@@ -270,7 +281,14 @@ export function AdminOrderLinesDetailDialog({
   const [linePageSize, setLinePageSize] = useState<10 | 5 | 25 | 50>(10);
   const [linePage, setLinePage] = useState(1);
   const [paidTopupCents, setPaidTopupCents] = useState(0);
+  const [shipFormOpen, setShipFormOpen] = useState(false);
   const [, startTopupTransition] = useTransition();
+
+  useEffect(() => {
+    if (!open) {
+      setShipFormOpen(false);
+    }
+  }, [open, group?.order.id]);
 
   useEffect(() => {
     if (!open || !group) {
@@ -337,8 +355,28 @@ export function AdminOrderLinesDetailDialog({
     clerkUserId: group.order.clerkUserId,
   });
   const containerLines = orderContainerLinesByOrderId[group.order.id] ?? [];
+  const hubStockPackages = hubStockPackingByOrderId[group.order.id] ?? [];
   const checkoutTotalCents = group.order.totalAmount;
   const adjustedOrderTotalCents = checkoutTotalCents + paidTopupCents;
+  const usHubLines = group.lines.filter((row) => {
+    const fulfillment = effectiveOrderItemFulfillmentStatus(
+      row.orderItem,
+      row.order,
+    );
+    return (
+      fulfillment === "hub_stock_pending_us_shipment" ||
+      fulfillment === "hub_stock_us_in_transit"
+    );
+  });
+  const shipIsUpdate = usHubLines.every(
+    (row) =>
+      effectiveOrderItemFulfillmentStatus(row.orderItem, row.order) ===
+      "hub_stock_us_in_transit",
+  );
+  const trackingSeed = usHubLines.find(
+    (row) => row.orderItem.companyPurchaseRetailerTrackingNumber?.trim(),
+  ) ?? usHubLines[0];
+  const usPacking = hubStockPackages.find((pkg) => pkg.destination === "us_address");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -358,20 +396,43 @@ export function AdminOrderLinesDetailDialog({
                 Products on this paid order, grouped by batch and singles.
               </DialogDescription>
             </div>
-            <div className="shrink-0 text-right">
-              <span className="block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                {paidTopupCents > 0 ? "New total" : "Order total"}
-              </span>
-              <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
-                {formatUsd(adjustedOrderTotalCents)}
-              </span>
-              {paidTopupCents > 0 ?
-                <p className="mt-1 max-w-[14rem] text-[11px] leading-snug text-muted-foreground">
-                  Checkout {formatUsd(checkoutTotalCents)}
-                  {" + "}
-                  top-ups {formatUsd(paidTopupCents)}
-                </p>
-              : null}
+            <div className="shrink-0 space-y-2 text-right">
+              <div>
+                <span className="block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                  {paidTopupCents > 0 ? "New total" : "Order total"}
+                </span>
+                <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
+                  {formatUsd(adjustedOrderTotalCents)}
+                </span>
+                {paidTopupCents > 0 ?
+                  <p className="mt-1 max-w-[14rem] text-[11px] leading-snug text-muted-foreground">
+                    Checkout {formatUsd(checkoutTotalCents)}
+                    {" + "}
+                    top-ups {formatUsd(paidTopupCents)}
+                  </p>
+                : null}
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <DashboardCheckoutChargesPreviewDialog
+                  scope="order"
+                  orderId={group.order.id}
+                  triggerLabel="Preview"
+                  triggerClassName={buttonVariants({ variant: "outline", size: "sm" })}
+                />
+                {usHubLines.length > 0 ?
+                  <Button
+                    type="button"
+                    size="sm"
+                    aria-expanded={shipFormOpen}
+                    onClick={() => setShipFormOpen((openForm) => !openForm)}
+                  >
+                    {shipIsUpdate ? "Update tracking" : "Next"}
+                    {shipIsUpdate ? null : (
+                      <ChevronRight className="size-3.5" aria-hidden />
+                    )}
+                  </Button>
+                : null}
+              </div>
             </div>
           </div>
 
@@ -406,6 +467,25 @@ export function AdminOrderLinesDetailDialog({
               </dd>
             </div>
           </dl>
+          {shipFormOpen && usHubLines.length > 0 ?
+            <AdminShipHubStockPackageForm
+              orderId={group.order.id}
+              isUpdate={shipIsUpdate}
+              initialCarrier={
+                trackingSeed?.orderItem.companyPurchaseRetailerTrackingCompany ??
+                usPacking?.shippingLabel ??
+                null
+              }
+              initialTrackingNumber={
+                trackingSeed?.orderItem.companyPurchaseRetailerTrackingNumber ??
+                null
+              }
+              initialTrackingUrl={
+                trackingSeed?.orderItem.companyPurchaseTrackingUrl ?? null
+              }
+              onClose={() => setShipFormOpen(false)}
+            />
+          : null}
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
@@ -439,6 +519,12 @@ export function AdminOrderLinesDetailDialog({
           />
 
           <div className="space-y-4">
+            {hubStockPackages.length > 0 ?
+              <AdminHubStockOrderPacking
+                orderId={group.order.id}
+                packages={hubStockPackages}
+              />
+            : null}
             {pagedBuckets.map((bucket, bi) => {
               if (bucket.kind === "batch") {
                 const batchEstimate =

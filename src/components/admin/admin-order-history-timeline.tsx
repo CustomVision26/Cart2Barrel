@@ -4,6 +4,7 @@ import { ChevronDown, Package } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
+import { AdminHubStockOrderPacking } from "@/components/admin/admin-hub-stock-order-packing";
 import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
@@ -15,6 +16,7 @@ import { ProductRequestThumbnail } from "@/components/product-request-thumbnail"
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
+import type { HubStockOrderPackingPackage } from "@/lib/hub-stock-box";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -479,11 +481,13 @@ export function AdminOrderHistoryTimeline({
   rows,
   snapshotsByRequestId = {},
   orderContainerLinesByOrderId = {},
+  hubStockPackingByOrderId = {},
   staffProfilesByClerkUserId = {},
 }: {
   rows: AdminPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  hubStockPackingByOrderId?: Record<string, HubStockOrderPackingPackage[]>;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
   const baseId = useId();
@@ -610,6 +614,7 @@ export function AdminOrderHistoryTimeline({
           ).map(({ order, lines }) => {
             const buckets = partitionPaidLinesIntoBatchBuckets(lines);
             const containerLines = orderContainerLinesByOrderId[order.id] ?? [];
+            const hubStockPackages = hubStockPackingByOrderId[order.id] ?? [];
             return (
               <ToggleSection
                 key={order.id}
@@ -647,6 +652,12 @@ export function AdminOrderHistoryTimeline({
                 className="bg-card"
                 bodyClassName="space-y-3"
               >
+                {hubStockPackages.length > 0 ?
+                  <AdminHubStockOrderPacking
+                    orderId={order.id}
+                    packages={hubStockPackages}
+                  />
+                : null}
                 {buckets.map((bucket, index) => {
                   const bucketKey =
                     bucket.kind === "batch"

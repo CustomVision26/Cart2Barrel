@@ -145,6 +145,20 @@ export function renderPaymentInvoiceHtml(invoice: PaymentInvoiceDocument): strin
     }
     .line-title { font-weight: 500; }
     .line-detail { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .packing {
+      margin: 28px 0 0;
+      padding: 16px 18px;
+      border: 1px solid var(--border);
+    }
+    .packing-title {
+      font-weight: 700;
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
+    .packing-item { margin: 0 0 10px; }
+    .packing-item:last-child { margin-bottom: 0; }
+    .packing-item-title { font-weight: 600; }
+    .packing-item-detail { color: var(--muted); font-size: 12px; margin-top: 2px; }
     .totals {
       width: 280px;
       margin-left: auto;
@@ -253,6 +267,20 @@ export function renderPaymentInvoiceHtml(invoice: PaymentInvoiceDocument): strin
         </tr>
       </tbody>
     </table>
+
+    ${invoice.packingNotes.length > 0 ?
+      `<div class="packing">
+      <p class="packing-title">Warehouse packing</p>
+      ${invoice.packingNotes
+        .map(
+          (note) => `<div class="packing-item">
+        <div class="packing-item-title">${escapeHtml(note.title)}</div>
+        <div class="packing-item-detail">${escapeHtml(note.detail)}</div>
+      </div>`,
+        )
+        .join("")}
+    </div>`
+    : ""}
 
     <h2 class="section-title">Payment history</h2>
     <table class="payment-history-table">

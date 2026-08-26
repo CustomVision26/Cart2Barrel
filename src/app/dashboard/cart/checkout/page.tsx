@@ -148,6 +148,7 @@ export default async function CartEmbeddedCheckoutPage({ searchParams }: PagePro
     return (
       dbSummary.batchBundles.some((b) => b.lines.length > 0) ||
       dbSummary.standaloneLines.length > 0 ||
+      dbSummary.hubStockPackages.length > 0 ||
       dbSummary.containerLines.length > 0
     );
   })();

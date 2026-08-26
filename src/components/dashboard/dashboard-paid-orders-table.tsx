@@ -74,6 +74,8 @@ function dashboardShowLineTracking(row: DashboardPaidOrderLineRow): boolean {
     );
   }
   if (fulfillment === "product_return_awaiting_delivery") return true;
+  if (fulfillment === "hub_stock_us_in_transit") return true;
+  if (fulfillment === "hub_stock_us_delivered") return true;
   return false;
 }
 
