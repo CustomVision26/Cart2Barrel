@@ -30,7 +30,7 @@ import {
 } from "@/lib/special-feature-notes";
 import { US_OPERATING_AIRLINES } from "@/lib/us-airlines";
 import { cn } from "@/lib/utils";
-import { getSpecialFeatureWindowStatus } from "@/data/special-feature-offers";
+import { getSpecialFeatureWindowStatus } from "@/lib/special-feature-window-label";
 import {
   datetimeLocalValueToIso,
   isoToDatetimeLocalValue,

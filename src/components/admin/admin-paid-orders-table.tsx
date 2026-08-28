@@ -31,6 +31,7 @@ import {
 import {
   groupPaidRowsStableByOrder,
   partitionPaidLinesIntoBatchBuckets,
+  type BatchGroupPartition,
 } from "@/lib/partition-paid-order-batch-groups";
 import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
@@ -204,7 +205,7 @@ export function AdminPaidOrdersTable({
 }
 
 function buildBatchShareByRequestId(
-  buckets: ReturnType<typeof partitionPaidLinesIntoBatchBuckets>,
+  buckets: BatchGroupPartition<AdminPaidOrderLineRow>[],
   quotesByRequestId: Record<string, ItemQuote>,
   estimatesBySessionId: Record<string, BatchQuoteEstimate>,
 ): Record<string, BatchLineShare> {

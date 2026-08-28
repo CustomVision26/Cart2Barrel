@@ -100,7 +100,7 @@ export async function upsertProductQuoteExpirySettingsAction(
         .delete(batchQuoteSessionLines)
         .where(
           and(
-            eq(batchQuoteSessionLines.sessionId, existing.batchQuoteSessionId),
+            eq(batchQuoteSessionLines.batchQuoteSessionId, existing.batchQuoteSessionId),
             eq(batchQuoteSessionLines.itemRequestId, existing.id),
           ),
         );

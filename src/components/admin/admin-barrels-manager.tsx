@@ -27,7 +27,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { formatUsd } from "@/lib/admin-markup";
-import type { SpecialFeatureContainerFormRef } from "@/data/special-feature-offers";
+import type { SpecialFeatureContainerFormRef } from "@/lib/special-feature-window-label";
 import {
   containerOfferingKindLabel,
   type ContainerOfferingKind,

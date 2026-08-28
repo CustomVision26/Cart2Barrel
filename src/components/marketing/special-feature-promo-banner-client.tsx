@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarRange, Clock, Luggage } from "lucide-react";
 
-import type { SpecialFeatureWindowStatus } from "@/data/special-feature-offers";
+import type { SpecialFeatureWindowStatus } from "@/lib/special-feature-window-label";
 import {
   Dialog,
   DialogContent,

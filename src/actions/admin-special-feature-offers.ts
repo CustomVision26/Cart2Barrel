@@ -10,6 +10,7 @@ import {
   unlinkContainersFromSpecialOffer,
 } from "@/lib/special-feature-container-link";
 import { getDb } from "@/db";
+import { ensureSpecialFeatureOfferSchema } from "@/data/ensure-special-feature-schema";
 import { specialFeatureOffers } from "@/db/schema";
 import { estimateAirlineCheckedBagFeeWithOpenAI } from "@/lib/ai/estimate-airline-checked-bag-fee";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
@@ -24,6 +25,11 @@ import {
   specialFeatureDateTimeToIso,
   usdStringToCentsOrZero,
 } from "@/lib/validations/special-feature-offer";
+
+async function getSpecialFeatureDb() {
+  await ensureSpecialFeatureOfferSchema();
+  return getDb();
+}
 
 export type AdminSpecialFeatureMutationState =
   | { ok: true }
@@ -104,7 +110,7 @@ export async function adminCreateSpecialFeatureOfferAction(
       0
     : priceUsdStringToCents(priceUsd);
 
-  const db = getDb();
+  const db = await getSpecialFeatureDb();
 
   const travelAtIso = specialFeatureDateTimeToIso(travelAt);
   const startsAtIso = specialFeatureDateTimeToIso(startsAt);
@@ -178,7 +184,7 @@ export async function adminUpdateSpecialFeatureOfferAction(
       0
     : priceUsdStringToCents(priceUsd);
 
-  const db = getDb();
+  const db = await getSpecialFeatureDb();
   const [existing] = await db
     .select()
     .from(specialFeatureOffers)
@@ -291,7 +297,7 @@ export async function adminPublishSpecialFeatureOfferAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  const db = getDb();
+  const db = await getSpecialFeatureDb();
   const [offer] = await db
     .select()
     .from(specialFeatureOffers)
@@ -339,7 +345,7 @@ export async function adminUnpublishSpecialFeatureOfferAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  const db = getDb();
+  const db = await getSpecialFeatureDb();
   const [offer] = await db
     .select()
     .from(specialFeatureOffers)
@@ -381,7 +387,7 @@ export async function adminDeleteSpecialFeatureOfferAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  const db = getDb();
+  const db = await getSpecialFeatureDb();
   const [existing] = await db
     .select()
     .from(specialFeatureOffers)

@@ -7,6 +7,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 
+import { ensureSpecialFeatureOfferSchema } from "@/data/ensure-special-feature-schema";
 import { getDb } from "@/db";
 import {
   containerOfferingImages,
@@ -118,6 +119,7 @@ export async function adminPublishSpecialFeatureContainerAction(
   }
 
   const db = getDb();
+  await ensureSpecialFeatureOfferSchema();
   const [offering] = await db
     .select()
     .from(containerOfferings)
@@ -134,12 +136,22 @@ export async function adminPublishSpecialFeatureContainerAction(
   let offer;
   if (offering.specialFeatureOfferId) {
     [offer] = await db
-      .select()
+      .select({
+        id: specialFeatureOffers.id,
+        endsAt: specialFeatureOffers.endsAt,
+      })
       .from(specialFeatureOffers)
       .where(eq(specialFeatureOffers.id, offering.specialFeatureOfferId))
       .limit(1);
   } else {
-    const allSpecials = await db.select().from(specialFeatureOffers);
+    const allSpecials = await db
+      .select({
+        id: specialFeatureOffers.id,
+        name: specialFeatureOffers.name,
+        containerOfferingId: specialFeatureOffers.containerOfferingId,
+        endsAt: specialFeatureOffers.endsAt,
+      })
+      .from(specialFeatureOffers);
     offer =
       resolveSpecialFeatureForContainer(
         {
@@ -211,6 +223,7 @@ export async function adminUnpublishSpecialFeatureContainerAction(
   }
 
   const db = getDb();
+  await ensureSpecialFeatureOfferSchema();
   const [offering] = await db
     .select()
     .from(containerOfferings)
@@ -230,12 +243,18 @@ export async function adminUnpublishSpecialFeatureContainerAction(
   let offer;
   if (offering.specialFeatureOfferId) {
     [offer] = await db
-      .select()
+      .select({ id: specialFeatureOffers.id })
       .from(specialFeatureOffers)
       .where(eq(specialFeatureOffers.id, offering.specialFeatureOfferId))
       .limit(1);
   } else {
-    const allSpecials = await db.select().from(specialFeatureOffers);
+    const allSpecials = await db
+      .select({
+        id: specialFeatureOffers.id,
+        name: specialFeatureOffers.name,
+        containerOfferingId: specialFeatureOffers.containerOfferingId,
+      })
+      .from(specialFeatureOffers);
     offer =
       resolveSpecialFeatureForContainer(
         {

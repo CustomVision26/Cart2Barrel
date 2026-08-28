@@ -90,7 +90,7 @@ export async function resubmitExpiredQuoteAction(
       .delete(batchQuoteSessionLines)
       .where(
         and(
-          eq(batchQuoteSessionLines.sessionId, request.batchQuoteSessionId),
+          eq(batchQuoteSessionLines.batchQuoteSessionId, request.batchQuoteSessionId),
           eq(batchQuoteSessionLines.itemRequestId, request.id),
         ),
       );

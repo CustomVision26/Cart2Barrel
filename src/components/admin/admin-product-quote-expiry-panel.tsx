@@ -531,7 +531,7 @@ export function AdminProductQuoteExpiryPanel({
                   Revive
                 </Button>
               : (
-                <Button type="button" disabled={pending} onClick={handlePublish}>
+                <Button type="button" disabled={pending} onClick={() => handlePublish()}>
                   {pending
                     ? "Saving…"
                     : selectedRevived

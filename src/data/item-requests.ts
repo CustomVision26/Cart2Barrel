@@ -38,8 +38,10 @@ export const itemRequestsRowLegacySelect = {
   outsidePurchaseReceivedCondition: itemRequests.outsidePurchaseReceivedCondition,
   outsidePurchaseMissingReason: itemRequests.outsidePurchaseMissingReason,
   outsidePurchaseMissingResolvedAt: itemRequests.outsidePurchaseMissingResolvedAt,
-  outsidePurchaseShelfLocation: itemRequests.outsidePurchaseShelfLocation,
-  createdAt: itemRequests.createdAt,
+    outsidePurchaseShelfLocation: itemRequests.outsidePurchaseShelfLocation,
+    quoteExpiryMinutesOverride: itemRequests.quoteExpiryMinutesOverride,
+    quoteExpiryOverrideAnchoredAt: itemRequests.quoteExpiryOverrideAnchoredAt,
+    createdAt: itemRequests.createdAt,
 } as const;
 
 /** Legacy select when `outside_purchase_receipt_image_url` is not migrated yet. */
@@ -65,6 +67,8 @@ export const itemRequestsRowLegacySelectWithoutReceiptImage = {
 export const itemRequestsRowSelectWithoutReceiptImage = {
   ...itemRequestsRowLegacySelectWithoutReceiptImage,
   batchQuoteSessionId: itemRequests.batchQuoteSessionId,
+  quoteExpiryMinutesOverride: itemRequests.quoteExpiryMinutesOverride,
+  quoteExpiryOverrideAnchoredAt: itemRequests.quoteExpiryOverrideAnchoredAt,
 } as const;
 
 type ItemRequestLegacyRow = Omit<
@@ -156,11 +160,17 @@ export function withLegacyItemRequestDefaults(
 export function itemRequestFromRowWithoutReceiptImage(
   row: Omit<
     ItemRequest,
-    OutsidePurchaseIntakeOptionalColumns | "outOfStockStaffNote" | "outOfStockAttachmentImageUrls"
+    | OutsidePurchaseIntakeOptionalColumns
+    | "outOfStockStaffNote"
+    | "outOfStockAttachmentImageUrls"
+    | "quoteExpiryMinutesOverride"
+    | "quoteExpiryOverrideAnchoredAt"
   > & {
     batchQuoteSessionId?: string | null;
     outOfStockStaffNote?: ItemRequest["outOfStockStaffNote"];
     outOfStockAttachmentImageUrls?: ItemRequest["outOfStockAttachmentImageUrls"];
+    quoteExpiryMinutesOverride?: ItemRequest["quoteExpiryMinutesOverride"];
+    quoteExpiryOverrideAnchoredAt?: ItemRequest["quoteExpiryOverrideAnchoredAt"];
   },
 ): ItemRequest {
   return {

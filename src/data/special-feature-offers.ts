@@ -9,32 +9,17 @@ import {
   type SpecialFeatureOffer,
 } from "@/db/schema";
 import { resolveSpecialFeatureForContainer } from "@/lib/special-feature-container-link";
+import {
+  getSpecialFeatureWindowStatus,
+  type SpecialFeatureContainerFormRef,
+  type SpecialFeatureWindowStatus,
+} from "@/lib/special-feature-window-label";
 
 export type SpecialFeatureOfferRow = SpecialFeatureOffer;
 
-export type SpecialFeatureWindowStatus = "Draft" | "Scheduled" | "Live" | "Ended";
+export type { SpecialFeatureContainerFormRef, SpecialFeatureWindowStatus };
 
-export type SpecialFeatureContainerFormRef = {
-  id: string;
-  name: string;
-  status: SpecialFeatureWindowStatus;
-  priceUsdCents: number;
-};
-
-export function getSpecialFeatureWindowStatus(
-  startsAt: string,
-  endsAt: string,
-  isActive: boolean,
-): SpecialFeatureWindowStatus {
-  if (!isActive) return "Draft";
-  const now = Date.now();
-  const start = new Date(startsAt).getTime();
-  const end = new Date(endsAt).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end)) return "Scheduled";
-  if (now < start) return "Scheduled";
-  if (now > end) return "Ended";
-  return "Live";
-}
+export { getSpecialFeatureWindowStatus };
 
 export function isSpecialFeatureOfferLiveNow(
   offer: Pick<SpecialFeatureOfferRow, "startsAt" | "endsAt" | "isActive">,
