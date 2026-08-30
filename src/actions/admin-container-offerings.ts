@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import {
   adminCreateContainerOfferingSchema,
+  adminSetContainerOfferingPublishedSchema,
   adminUpdateContainerOfferingSchema,
   priceUsdStringToCents,
 } from "@/lib/validations/container-offering";
@@ -284,6 +285,59 @@ export async function adminUnpublishSpecialFeatureContainerAction(
   revalidatePath("/dashboard/barrels");
   revalidatePath("/");
   revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+function revalidateContainerCatalogPaths() {
+  revalidatePath("/admin/barrels");
+  revalidatePath("/admin/overview");
+  revalidatePath("/dashboard/barrels");
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+}
+
+/**
+ * Publishes or unpublishes a barrel or bin so shoppers see it on `/dashboard/barrels`.
+ * Special-feature suitcases use the dedicated suitcase publish actions.
+ */
+export async function adminSetContainerOfferingPublishedAction(
+  input: unknown,
+): Promise<AdminContainerOfferingMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+  const parsed = adminSetContainerOfferingPublishedSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const db = getDb();
+  const [offering] = await db
+    .select({
+      id: containerOfferings.id,
+      kind: containerOfferings.kind,
+    })
+    .from(containerOfferings)
+    .where(eq(containerOfferings.id, parsed.data.offeringId))
+    .limit(1);
+
+  if (!offering) {
+    return { ok: false, message: "Container not found." };
+  }
+  if (offering.kind !== "barrel" && offering.kind !== "bin") {
+    return {
+      ok: false,
+      message: "Use Publish on special-feature suitcases, not this control.",
+    };
+  }
+
+  await db
+    .update(containerOfferings)
+    .set({ isActive: parsed.data.published })
+    .where(eq(containerOfferings.id, offering.id));
+
+  revalidateContainerCatalogPaths();
   return { ok: true };
 }
 

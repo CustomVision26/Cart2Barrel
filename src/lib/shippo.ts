@@ -26,6 +26,10 @@ export type ShippoQuotedRate = {
   cents: number;
   carrier: string;
   service: string;
+  estimatedDays: number | null;
+  durationTerms: string | null;
+  /** Shippo rate `object_id` for purchasing a label. Empty when the quote cannot be bought. */
+  objectId: string;
 };
 
 function shippoApiKey(): string | null {
@@ -60,33 +64,56 @@ function toShippoAddress(address: ShippoAddressInput) {
   };
 }
 
-function lowestUsdRate(
-  rates: {
-    amount: string;
-    currency: string;
-    provider: string;
-    servicelevel?: { name?: string; token?: string };
-  }[],
-): ShippoQuotedRate | null {
-  let best: ShippoQuotedRate | null = null;
-  for (const rate of rates) {
-    const currency = (rate.currency ?? "USD").toUpperCase();
+function mapUsdRates(rates: unknown[]): ShippoQuotedRate[] {
+  const mapped: ShippoQuotedRate[] = [];
+  for (const raw of rates) {
+    if (!raw || typeof raw !== "object") continue;
+    const rate = raw as Record<string, unknown>;
+    const currency = String(rate.currency ?? "USD").toUpperCase();
     if (currency !== "USD") continue;
-    const amount = Number.parseFloat(rate.amount ?? "");
+    const amount = Number.parseFloat(String(rate.amount ?? ""));
     if (!Number.isFinite(amount) || amount < 0) continue;
-    const cents = Math.round(amount * 100);
-    if (!best || cents < best.cents) {
-      best = {
-        cents,
-        carrier: rate.provider?.trim() || "Carrier",
-        service:
-          rate.servicelevel?.name?.trim() ||
-          rate.servicelevel?.token?.trim() ||
-          "Ground",
-      };
-    }
+    const servicelevel =
+      rate.servicelevel && typeof rate.servicelevel === "object" ?
+        (rate.servicelevel as { name?: string; token?: string })
+      : undefined;
+    const estimatedRaw = rate.estimatedDays ?? rate.estimated_days;
+    const estimatedDays =
+      typeof estimatedRaw === "number" && Number.isFinite(estimatedRaw) && estimatedRaw > 0
+        ? Math.round(estimatedRaw)
+        : typeof estimatedRaw === "string" && Number.parseInt(estimatedRaw, 10) > 0
+          ? Number.parseInt(estimatedRaw, 10)
+          : null;
+    const durationRaw = rate.durationTerms ?? rate.duration_terms;
+    mapped.push({
+      cents: Math.round(amount * 100),
+      carrier: String(rate.provider ?? "").trim() || "Carrier",
+      service:
+        servicelevel?.name?.trim() ||
+        servicelevel?.token?.trim() ||
+        "Ground",
+      estimatedDays,
+      durationTerms:
+        typeof durationRaw === "string" && durationRaw.trim() ?
+          durationRaw.trim()
+        : null,
+      objectId: String(rate.objectId ?? rate.object_id ?? "").trim(),
+    });
   }
-  return best;
+  mapped.sort((a, b) => a.cents - b.cents || a.carrier.localeCompare(b.carrier));
+  return mapped;
+}
+
+export function isCompareShippingCarrier(carrier: string): boolean {
+  const name = carrier.trim().toLowerCase();
+  return (
+    name === "usps" ||
+    name.startsWith("usps ") ||
+    name === "ups" ||
+    name.startsWith("ups ") ||
+    name === "fedex" ||
+    name.startsWith("fedex ")
+  );
 }
 
 function shippoErrorMessage(error: unknown): string {
@@ -256,12 +283,38 @@ export async function lookupShippoTrackingStatus(input: {
   }
 }
 
+/** Creates a Shippo shipment and returns USD rates (cheapest first). */
+export async function listShippoUsdRates(input: {
+  from: ShippoAddressInput;
+  to: ShippoAddressInput;
+  parcel: ShippoParcelInput;
+}): Promise<{ ok: true; rates: ShippoQuotedRate[] } | { ok: false; message: string }> {
+  return createShippoUsdRates(input);
+}
+
 /** Creates a Shippo shipment and returns the cheapest USD rate. */
 export async function quoteShippoUsdRate(input: {
   from: ShippoAddressInput;
   to: ShippoAddressInput;
   parcel: ShippoParcelInput;
 }): Promise<{ ok: true; rate: ShippoQuotedRate } | { ok: false; message: string }> {
+  const listed = await createShippoUsdRates(input);
+  if (!listed.ok) return listed;
+  const rate = listed.rates[0];
+  if (!rate) {
+    return {
+      ok: false,
+      message: "Shippo did not return a US shipping rate for this address and package.",
+    };
+  }
+  return { ok: true, rate };
+}
+
+async function createShippoUsdRates(input: {
+  from: ShippoAddressInput;
+  to: ShippoAddressInput;
+  parcel: ShippoParcelInput;
+}): Promise<{ ok: true; rates: ShippoQuotedRate[] } | { ok: false; message: string }> {
   const apiKey = shippoApiKey();
   if (!apiKey) {
     return {
@@ -310,8 +363,8 @@ export async function quoteShippoUsdRate(input: {
       ],
     });
 
-    const rate = lowestUsdRate(shipment.rates ?? []);
-    if (!rate) {
+    const rates = mapUsdRates(shipment.rates ?? []);
+    if (rates.length === 0) {
       const hint = shipment.messages
         ?.map((row) => row.text?.trim())
         .find(Boolean);
@@ -322,8 +375,85 @@ export async function quoteShippoUsdRate(input: {
           "Shippo did not return a US shipping rate for this address and package.",
       };
     }
-    return { ok: true, rate };
+    return { ok: true, rates };
   } catch (error) {
     return { ok: false, message: shippoErrorMessage(error) };
   }
 }
+
+export type ShippoPurchasedLabel = {
+  transactionId: string;
+  trackingNumber: string;
+  trackingUrl: string | null;
+  carrier: string;
+  service: string;
+  labelUrl: string | null;
+  trackingStatus: string | null;
+};
+
+/** Purchases a domestic PDF label for a rate returned by `listShippoUsdRates`. */
+export async function purchaseShippoDomesticLabel(input: {
+  rateObjectId: string;
+  metadata?: string;
+}): Promise<{ ok: true; label: ShippoPurchasedLabel } | { ok: false; message: string }> {
+  const apiKey = shippoApiKey();
+  if (!apiKey) {
+    return {
+      ok: false,
+      message: "Shippo is not configured. Add SHIPPO_API_KEY on the server.",
+    };
+  }
+  const rateObjectId = input.rateObjectId.trim();
+  if (!rateObjectId) {
+    return { ok: false, message: "That shipping rate can no longer be purchased. Compare rates again." };
+  }
+
+  const client = new Shippo({ apiKeyHeader: shippoAuthHeader(apiKey) });
+  try {
+    const transaction = await client.transactions.create({
+      rate: rateObjectId,
+      labelFileType: "PDF",
+      async: false,
+      metadata: input.metadata?.trim() || undefined,
+    });
+    if (transaction.status && transaction.status !== "SUCCESS") {
+      const hint = transaction.messages
+        ?.map((row) => row.text?.trim())
+        .find(Boolean);
+      return {
+        ok: false,
+        message:
+          hint ||
+          `Shippo could not purchase this label (${transaction.status.toLowerCase()}). Try again or enter tracking manually.`,
+      };
+    }
+    const trackingNumber = transaction.trackingNumber?.trim() ?? "";
+    if (!trackingNumber) {
+      return {
+        ok: false,
+        message:
+          "Shippo purchased the label but did not return a tracking number. Open the Shippo dashboard or enter tracking manually.",
+      };
+    }
+    const rate =
+      transaction.rate && typeof transaction.rate === "object" ? transaction.rate : null;
+    const carrier = rate?.provider?.trim() || "Carrier";
+    const service =
+      rate?.servicelevelName?.trim() || rate?.servicelevelToken?.trim() || "Ground";
+    return {
+      ok: true,
+      label: {
+        transactionId: transaction.objectId?.trim() || rateObjectId,
+        trackingNumber,
+        trackingUrl: transaction.trackingUrlProvider?.trim() || null,
+        carrier,
+        service,
+        labelUrl: transaction.labelUrl?.trim() || null,
+        trackingStatus: transaction.trackingStatus?.trim() || "PRE_TRANSIT",
+      },
+    };
+  } catch (error) {
+    return { ok: false, message: shippoErrorMessage(error) };
+  }
+}
+

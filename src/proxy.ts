@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/signup(.*)",
   "/api/webhooks/stripe(.*)",
   "/api/webhooks/clerk(.*)",
+  "/api/webhooks/shippo(.*)",
 ]);
 
 const jwtKey = parseClerkJwtKeyForMiddleware();

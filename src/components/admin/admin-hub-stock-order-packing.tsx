@@ -1,5 +1,6 @@
 import { ExternalLink, Package } from "lucide-react";
 
+import { AdminGenerateHubStockLabelButton } from "@/components/admin/admin-generate-hub-stock-label-button";
 import {
   adminPaidOrderReceiptHref,
   type HubStockOrderPackingPackage,
@@ -15,6 +16,11 @@ export function AdminHubStockOrderPacking({
   const usPackages = packages.filter((pkg) => pkg.destination === "us_address");
   const overseas = packages.filter((pkg) => pkg.destination === "overseas_container");
   const receiptHref = adminPaidOrderReceiptHref(orderId);
+  const firstUs = usPackages[0];
+  const canGenerate = usPackages.some((pkg) => pkg.canGenerateLabel);
+  const labelUrl =
+    usPackages.map((pkg) => pkg.shippoLabelUrl).find((url) => Boolean(url)) ?? null;
+  const dashboardUrl = firstUs?.shippoDashboardUrl ?? "https://apps.goshippo.com/";
 
   return (
     <section className="overflow-hidden rounded-2xl border border-primary/45 bg-primary/8 ring-2 ring-primary/25">
@@ -29,15 +35,35 @@ export function AdminHubStockOrderPacking({
             order receipt.
           </p>
         </div>
-        <a
-          href={receiptHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
-        >
-          View order receipt
-          <ExternalLink className="size-3" aria-hidden />
-        </a>
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          <a
+            href={receiptHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+          >
+            View order receipt
+            <ExternalLink className="size-3" aria-hidden />
+          </a>
+          {usPackages.length > 0 ?
+            <a
+              href={dashboardUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Shippo dashboard
+              <ExternalLink className="size-3" aria-hidden />
+            </a>
+          : null}
+          {usPackages.length > 0 ?
+            <AdminGenerateHubStockLabelButton
+              orderId={orderId}
+              canGenerate={canGenerate}
+              labelUrl={labelUrl}
+            />
+          : null}
+        </div>
       </header>
       <ul className="space-y-2.5 p-3" role="list">
         {usPackages.map((pkg) => (

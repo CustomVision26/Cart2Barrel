@@ -90,3 +90,27 @@ export const cancelProductReturnRequestSchema = z.object({
 export type CancelProductReturnRequestInput = z.infer<
   typeof cancelProductReturnRequestSchema
 >;
+
+export const generateHubStockUsReturnLabelSchema = z.object({
+  orderItemId: z.string().uuid(),
+  customerNotes: z
+    .string()
+    .trim()
+    .min(1, "Add a note for the customer.")
+    .max(2000),
+  carrier: z.string().trim().min(1).max(120).optional(),
+  service: z.string().trim().min(1).max(200).optional(),
+  cents: z.number().int().nonnegative().optional(),
+});
+
+export type GenerateHubStockUsReturnLabelInput = z.infer<
+  typeof generateHubStockUsReturnLabelSchema
+>;
+
+export const markHubStockUsReturnReceivedSchema = z.object({
+  orderItemId: z.string().uuid(),
+});
+
+export type MarkHubStockUsReturnReceivedInput = z.infer<
+  typeof markHubStockUsReturnReceivedSchema
+>;

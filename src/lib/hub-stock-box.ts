@@ -9,7 +9,15 @@ export type HubStockOrderPackingPackage = {
   boxType: string | null;
   boxSizeLabel: string | null;
   shippingLabel: string | null;
+  canGenerateLabel: boolean;
+  shippoLabelUrl: string | null;
+  shippoDashboardUrl: string;
 };
+
+export function shippoDashboardHref(): string {
+  const raw = process.env.SHIPPO_DASHBOARD_URL?.trim() ?? "";
+  return raw || "https://apps.goshippo.com/";
+}
 
 function formatParcelMeasure(value: number): string {
   const rounded = Math.round(value * 10) / 10;

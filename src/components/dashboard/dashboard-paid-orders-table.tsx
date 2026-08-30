@@ -36,6 +36,7 @@ import {
   isProblemDeliveryReceiptFulfillment,
   problemDeliveryWarehouseCondition,
 } from "@/lib/delivery-condition-acceptance";
+import { dashboardShowLineTracking } from "@/lib/dashboard-line-tracking";
 import { dashboardOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { warehouseReceiveConditionLabel } from "@/lib/warehouse-receive-condition";
@@ -49,34 +50,6 @@ import { displaySiteName } from "@/lib/site-name";
 
 function subgroupColSpan(): number {
   return 12;
-}
-
-function dashboardShowLineTracking(row: DashboardPaidOrderLineRow): boolean {
-  const fulfillment = effectiveOrderItemFulfillmentStatus(
-    row.orderItem,
-    row.order,
-  );
-  const oi = row.orderItem;
-  if (fulfillment === "company_purchase_pending_delivery") return true;
-  if (fulfillment === "delivery_requested_pending_fulfillment") return true;
-  if (
-    fulfillment === "delivery_received_item_missing" ||
-    fulfillment === "delivery_received_item_damaged" ||
-    fulfillment === "delivery_received_wrong_item"
-  ) {
-    return true;
-  }
-  if (fulfillment === "delivery_received_good_awaiting_barrel") {
-    return !!(
-      oi.companyPurchaseTrackingUrl?.trim() ||
-      oi.companyPurchaseRetailerTrackingNumber?.trim() ||
-      oi.companyPurchaseRetailerTrackingCompany?.trim()
-    );
-  }
-  if (fulfillment === "product_return_awaiting_delivery") return true;
-  if (fulfillment === "hub_stock_us_in_transit") return true;
-  if (fulfillment === "hub_stock_us_delivered") return true;
-  return false;
 }
 
 export function DashboardPaidOrdersTable({
@@ -425,12 +398,12 @@ export function DashboardOrderDataRow(props: {
     row.resolvedBatchSessionId?.trim() || row.resolvedBatchNumber?.trim()
   );
   const showTracking =
-    !pendingReturn && fulfillment !== "product_return_awaiting_delivery" &&
-    dashboardShowLineTracking(row);
+    !pendingReturn && dashboardShowLineTracking(row);
   const returnWorkflowActive =
     pendingReturn ||
     fulfilledReturn ||
-    fulfillment === "product_return_awaiting_delivery";
+    fulfillment === "product_return_awaiting_delivery" ||
+    fulfillment === "hub_stock_return_requested";
 
   const problemWarehouseCondition = isProblemDeliveryReceiptFulfillment(fulfillment) ?
     problemDeliveryWarehouseCondition(
@@ -525,6 +498,8 @@ export function DashboardOrderDataRow(props: {
             trackingUrl={row.orderItem.companyPurchaseTrackingUrl}
             retailerCompany={row.orderItem.companyPurchaseRetailerTrackingCompany}
             trackingNumber={row.orderItem.companyPurchaseRetailerTrackingNumber}
+            trackingStatus={row.hubTrackingStatus}
+            trackingStatusDetails={row.hubTrackingStatusDetails}
             productLabel={r.productName?.trim() || "Item"}
           />
         : (

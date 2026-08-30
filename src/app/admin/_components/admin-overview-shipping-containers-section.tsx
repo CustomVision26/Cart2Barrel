@@ -45,9 +45,12 @@ export async function AdminOverviewShippingContainersSection() {
           specials under{" "}
           <span className="font-medium text-foreground">Special features</span>, then link suitcase
           SKU(s) here with{" "}
-          <span className="font-medium text-foreground">Special feature offer</span> and use{" "}
-          <span className="font-medium text-foreground">Publish</span> on the catalog card. Upload
-          photos per SKU; use the arrows beside each thumbnail to change carousel order.
+          <span className="font-medium text-foreground">Special feature offer</span>. Use{" "}
+          <span className="font-medium text-foreground">Publish</span> or{" "}
+          <span className="font-medium text-foreground">Unpublish</span> on each catalog
+          card after double-clicking a color-coded table row (barrels, bins, and special
+          suitcases). Upload photos per SKU; use the arrows beside each thumbnail to change
+          carousel order.
         </p>
       </div>
       <AdminBarrelsManager

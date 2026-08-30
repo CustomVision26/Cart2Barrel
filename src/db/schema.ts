@@ -189,6 +189,8 @@ export const orderItemFulfillmentEnum = pgEnum("order_item_fulfillment_status", 
   "hub_stock_us_in_transit",
   /** In-hub catalog: US carrier delivered the warehouse package to the customer. */
   "hub_stock_us_delivered",
+  /** In-hub US catalog: customer requested a return; awaiting staff return label. */
+  "hub_stock_return_requested",
 ]);
 
 export const orderStatusEnum = pgEnum("order_status", [
@@ -1462,7 +1464,7 @@ export const hubContactSettings = pgTable("hub_contact_settings", {
     .notNull(),
 });
 
-/** Singleton: US warehouse origin used for Shippo in-hub shipping rates. */
+/** Legacy singleton ship-from row. Kept for backfill into `hub_ship_from_addresses`. */
 export const hubShipFromSettings = pgTable("hub_ship_from_settings", {
   singletonKey: text("singleton_key").primaryKey().default("default"),
   name: text("name"),
@@ -1478,6 +1480,31 @@ export const hubShipFromSettings = pgTable("hub_ship_from_settings", {
     .defaultNow()
     .notNull(),
 });
+
+/** US warehouse origins used for Shippo in-hub shipping rates. One row is primary. */
+export const hubShipFromAddresses = pgTable(
+  "hub_ship_from_addresses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    line1: text("line1").notNull(),
+    line2: text("line2"),
+    city: text("city").notNull(),
+    state: text("state").notNull(),
+    postalCode: text("postal_code").notNull(),
+    country: text("country").notNull().default("United States"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    updatedByClerkUserId: text("updated_by_clerk_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("hub_ship_from_addresses_is_primary_idx").on(t.isPrimary)],
+);
 
 /**
  * Singleton: minutes a customer has to accept/pay after staff quotes a product
@@ -2338,6 +2365,17 @@ export const hubStockOrderItems = pgTable(
     parcelLengthIn: real("parcel_length_in"),
     parcelWidthIn: real("parcel_width_in"),
     parcelHeightIn: real("parcel_height_in"),
+    /** Purchased domestic label (one physical US warehouse box; copied onto every US line). */
+    shippoTransactionId: text("shippo_transaction_id"),
+    shippoLabelUrl: text("shippo_label_url"),
+    trackingStatus: text("tracking_status"),
+    trackingStatusDetails: text("tracking_status_details"),
+    trackingUpdatedAt: timestamp("tracking_updated_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    shippoReturnTransactionId: text("shippo_return_transaction_id"),
+    shippoReturnLabelUrl: text("shippo_return_label_url"),
   },
   (t) => [
     index("hub_stock_order_items_order_id_idx").on(t.orderId),
@@ -3058,6 +3096,8 @@ export type HubStockDestination = HubStockCartItem["destination"];
 export type HubContactSetting = typeof hubContactSettings.$inferSelect;
 export type NewHubContactSetting = typeof hubContactSettings.$inferInsert;
 export type HubShipFromSetting = typeof hubShipFromSettings.$inferSelect;
+export type HubShipFromAddressRow = typeof hubShipFromAddresses.$inferSelect;
+export type NewHubShipFromAddress = typeof hubShipFromAddresses.$inferInsert;
 
 export type QuoteExpirySetting = typeof quoteExpirySettings.$inferSelect;
 export type NewQuoteExpirySetting = typeof quoteExpirySettings.$inferInsert;

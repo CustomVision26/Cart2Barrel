@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 
 import { getShippingAddressForUser } from "@/data/addresses";
 import {
+  applyHubStockPackageShippingRateForUser,
+  listHubStockPackageShippingRatesForUser,
   removeHubStockCartItemForUser,
   refreshHubStockCartShippingForUser,
   updateHubStockCartItemShipAddress,
@@ -14,7 +16,9 @@ import { getOrCreateProfile } from "@/data/profiles";
 import { savedAddressToHubStockUsAddress, usDeliveryAddressPrompt } from "@/lib/hub-stock";
 import {
   addHubStockToCartSchema,
+  listHubStockShippingRatesSchema,
   removeHubStockCartItemSchema,
+  selectHubStockShippingRateSchema,
   updateHubStockCartAddressSchema,
 } from "@/lib/validations/hub-stock";
 
@@ -113,6 +117,63 @@ export async function removeHubStockCartItemAction(
   }
   await removeHubStockCartItemForUser(userId, parsed.data.cartItemId);
   await refreshHubStockCartShippingForUser(userId);
+  revalidateHubStockCart();
+  return { ok: true };
+}
+
+export type HubStockShippingRateOption = {
+  cents: number;
+  carrier: string;
+  service: string;
+  estimatedDays: number | null;
+  durationTerms: string | null;
+};
+
+export type ListHubStockShippingRatesState =
+  | { ok: true; rates: HubStockShippingRateOption[] }
+  | { ok: false; message: string };
+
+export async function listHubStockPackageShippingRatesAction(
+  input: unknown,
+): Promise<ListHubStockShippingRatesState> {
+  const { userId } = await auth();
+  if (!userId) {
+    return { ok: false, message: "You must be signed in." };
+  }
+  const parsed = listHubStockShippingRatesSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+  const listed = await listHubStockPackageShippingRatesForUser(userId, parsed.data.cartItemId);
+  if (!listed.ok) return listed;
+  return {
+    ok: true,
+    rates: listed.rates.map((rate) => ({
+      cents: rate.cents,
+      carrier: rate.carrier,
+      service: rate.service,
+      estimatedDays: rate.estimatedDays,
+      durationTerms: rate.durationTerms,
+    })),
+  };
+}
+
+export async function selectHubStockPackageShippingRateAction(
+  input: unknown,
+): Promise<HubStockCartActionState> {
+  const { userId } = await auth();
+  if (!userId) {
+    return { ok: false, message: "You must be signed in." };
+  }
+  const parsed = selectHubStockShippingRateSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid rate." };
+  }
+  const result = await applyHubStockPackageShippingRateForUser({
+    clerkUserId: userId,
+    ...parsed.data,
+  });
+  if (!result.ok) return result;
   revalidateHubStockCart();
   return { ok: true };
 }

@@ -149,6 +149,7 @@ export function DashboardProductReturnRequestDialog({
   const isBarrelStage = isProductReturnBarrelStageFulfillment(fulfillment);
   const isMissingDelivery = fulfillment === "delivery_received_item_missing";
   const outcomeContext = productReturnDesiredOutcomeContextFromFulfillment(fulfillment);
+  const isHubStockUsReturn = outcomeContext === "hub_stock_us";
 
   const canRequest = dashboardShowsProductReturnButton({
     request: row.request,
@@ -220,6 +221,8 @@ export function DashboardProductReturnRequestDialog({
           <DialogDescription className="text-sm leading-relaxed">
             {isMissingDelivery ?
               "Submit a report for this missing item. Our team will contact the retailer on your behalf."
+            : isHubStockUsReturn ?
+              "Submit a return request. Staff will generate a shipping label so you can send this product back to the warehouse."
             : "Submit a return request. Our team will coordinate the physical return and retailer transaction on your behalf."}
           </DialogDescription>
         </DialogHeader>
@@ -241,6 +244,18 @@ export function DashboardProductReturnRequestDialog({
                   After submission, your request will be reviewed and this order
                   will be updated when the retailer responds or further action is
                   required.
+                </li>
+              </ul>
+            : isHubStockUsReturn ?
+              <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-muted-foreground">
+                <li>
+                  After you submit, this product moves back to Orders while staff
+                  generate a return shipping label.
+                </li>
+                <li>
+                  Print the label from this order, drop the package at a USPS, UPS,
+                  or FedEx location, and we will notify you when the warehouse
+                  receives it.
                 </li>
               </ul>
             : <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-muted-foreground">
@@ -276,6 +291,8 @@ export function DashboardProductReturnRequestDialog({
               placeholder={
                 isMissingDelivery ?
                   "Describe how the delivery was incomplete (for example, the package arrived without this item). Include any carrier or retailer details that may assist our team."
+                : isHubStockUsReturn ?
+                  "Describe the issue (for example, incorrect size, damage, or a change of mind). We will use this when generating your warehouse return label."
                 : "Describe the issue (for example, incorrect size, damage, or a change of mind). Our team will use this information when arranging the return."
               }
               maxLength={2000}

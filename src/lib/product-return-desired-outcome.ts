@@ -16,13 +16,19 @@ export type ProductReturnDesiredOutcome = z.infer<
 >;
 
 /** UI copy variant for product-return outcome radios and summaries. */
-export type ProductReturnDesiredOutcomeContext = "default" | "delivery_item_missing";
+export type ProductReturnDesiredOutcomeContext =
+  | "default"
+  | "delivery_item_missing"
+  | "hub_stock_us";
 
 export function productReturnDesiredOutcomeContextFromFulfillment(
   fulfillment: OrderItem["fulfillmentStatus"],
 ): ProductReturnDesiredOutcomeContext {
   return fulfillment === "delivery_received_item_missing" ?
       "delivery_item_missing"
+    : fulfillment === "hub_stock_us_delivered" ||
+        fulfillment === "hub_stock_return_requested" ?
+      "hub_stock_us"
     : "default";
 }
 
@@ -38,6 +44,13 @@ export function resolveProductReturnDesiredOutcomeContext(input: {
     input.warehouseReceivedCondition === "missing"
   ) {
     return "delivery_item_missing";
+  }
+  if (
+    input.fulfillmentStatus === "hub_stock_us_delivered" ||
+    input.fulfillmentStatus === "hub_stock_return_requested" ||
+    input.heldFulfillmentStatus === "hub_stock_us_delivered"
+  ) {
+    return "hub_stock_us";
   }
   return "default";
 }
@@ -97,6 +110,15 @@ export function productReturnDesiredOutcomeDescription(
     }
   }
 
+  if (context === "hub_stock_us") {
+    switch (outcome) {
+      case "money_back":
+        return "Staff will generate a return shipping label to the warehouse. Print it from Orders, drop the package at a carrier location, and this line is refunded after the warehouse receives it. Return shipping may be deducted.";
+      case "replacement":
+        return "Staff will generate a return shipping label to the warehouse. Print it from Orders and drop the package at a carrier location. After it arrives, we ship a replacement from hub stock. Additional shipping may apply.";
+    }
+  }
+
   switch (outcome) {
     case "money_back":
       return "Our team will return the item to the retailer. If the return is accepted, you will receive a refund for this line. Additional service or shipping charges may apply.";
@@ -116,7 +138,11 @@ export function productReturnDesiredOutcomeFieldLegend(
 export function productReturnDesiredOutcomeFieldIntro(
   context: ProductReturnDesiredOutcomeContext = "default",
 ): string {
-  return context === "delivery_item_missing" ?
-      "This item was marked missing at delivery. Select how our team should communicate with the retailer on your behalf."
-    : "Our team will manage the physical return and shipping. Select the outcome you prefer below.";
+  if (context === "delivery_item_missing") {
+    return "This item was marked missing at delivery. Select how our team should communicate with the retailer on your behalf.";
+  }
+  if (context === "hub_stock_us") {
+    return "You will print a Shippo return label and drop the package at a carrier location. Select the outcome you prefer after the warehouse receives it.";
+  }
+  return "Our team will manage the physical return and shipping. Select the outcome you prefer below.";
 }

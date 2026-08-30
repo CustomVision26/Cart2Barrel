@@ -78,7 +78,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Browse the hero section for a high-level overview of the service.",
-        "Scroll to In-hub products to add warehouse stock to your cart. For US delivery, choose a saved United States address—shipping is one warehouse-package rate from Shippo for all in-hub items going to that address. Overseas packing does not require a US address and has no carrier shipping charge.",
+        "Scroll to In-hub products to add warehouse stock to your cart. For US delivery, the item uses your default saved United States address. Shipping is one warehouse-package rate from Shippo for all in-hub items going to that address. Overseas packing does not require a US address and has no carrier shipping charge.",
         "Use the header: How it works (public guide), Sign in, Sign up, or Dashboard (when signed in).",
         "If you are a new signed-in user who has not completed or skipped onboarding, visiting Home redirects you to the onboarding page.",
         "After you skip or finish onboarding, Home loads normally and you can move freely between marketing pages and the dashboard.",
@@ -362,7 +362,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Profile: image, display name, primary email.",
         "Security: password, devices, delete account.",
-        "Billing Receipt: invoices and Stripe receipts.",
+        "Billing Receipt: invoices for checkout (including in-hub products) and Stripe proration receipts.",
         "Sign out ends session on this device only.",
       ],
       requirements: [
@@ -388,7 +388,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Select Manage account to open the account modal.",
         "Profile tab: update your profile image, display name, and primary email (managed by Clerk).",
         "Security tab: change password, review active devices, or permanently delete your account—see the Security tab guide for detail.",
-        "Billing Receipt tab: view and download payment invoices, Stripe receipts, and refund records for your orders.",
+        "Billing Receipt tab: view and download payment invoices for checkout orders, including in-hub warehouse products, plus Stripe receipts and refund records. Filter Show to In-hub products. In-hub US invoices list Amani Cart2Barrel at the warehouse ship-from as From, the product US ship-to as Bill to, merchandise as its own lines, and warehouse package shipping as a separate charge.",
         "Sign out from the avatar menu ends your session on this device; use Security → Active devices to end sessions elsewhere.",
       ],
       requirements: [
@@ -741,10 +741,10 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Cart, or header cart icon.",
       bullets: [
         "Lists quotes, bundles, containers, in-hub products, outbound charges.",
-        "In-hub US items are highlighted as a warehouse package with one bundled Shippo rate; hover the info balloon next to In-hub warehouse package for how hub SKUs ship. View shipping address / Change address apply to the package.",
+        "In-hub US items are highlighted as a warehouse package. Click Shipping to compare Shippo rates from USPS, UPS, and FedEx (price and estimated delivery). View shipping address / Change address apply to the package.",
         "Checkout order summary groups in-hub products the same way, lists the destination US address, and shows package shipping as its own fee.",
         "After payment, Preview checkout charges on Orders shows the same warehouse grouping, destination address, and shipping fee without duplicating product lines.",
-        "Paid order receipts include the warehouse box size for in-hub US packages.",
+        "Paid order receipts include the warehouse box size for in-hub US packages. Merchandise and warehouse package shipping are listed separately (shipping also appears in the totals). For those orders, From is Amani Cart2Barrel at the primary hub ship-from address, and Bill to is the US ship-to on the warehouse package (not the Jamaica barrel address). The same invoice is listed under Manage account → Billing Receipt as In-hub product receipt.",
         "Remove unwanted lines before checkout.",
         "Stripe embedded checkout for payment.",
         "Success page View orders opens that paid order's product list.",
@@ -772,13 +772,13 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open Cart from the sidebar or click the cart icon in the header.",
         "Review each payable line with fees and running totals.",
-        "For in-hub products shipping to a US address, the highlighted warehouse package shows one bundled Shippo rate for every SKU going to that address. Hover the info balloon next to In-hub warehouse package to read how hub SKUs ship. Open View shipping address or Change address to pick a saved United States address; the package rate refreshes when you change address or check out.",
+        "For in-hub products shipping to a US address, the highlighted warehouse package groups every SKU going to that address. Click Shipping to have Shippo retrieve USPS, UPS, and FedEx rates so you can compare price and estimated delivery, then apply the rate you want. Hover the info balloon next to In-hub warehouse package for how hub SKUs ship. Open View shipping address or Change address to pick a saved United States address; the package rate refreshes when you change address or check out.",
         "Remove lines you no longer want before starting checkout.",
         "Click checkout to open the secure Stripe embedded payment session.",
         "On checkout, in-hub products stay grouped in a highlighted warehouse package with merchandise, the bundled shipping fee, and the destination US address listed separately. New checkouts also split that fee onto each SKU by catalog price.",
         "After you pay, Preview checkout charges on Orders shows the same warehouse grouping, destination address, merchandise, and shipping fee—without a second product list.",
         "Complete payment in one session when possible.",
-        "After success, the confirmation page summarizes your order. View orders (on the summary and in the payment toast) opens that paid order's product list on Orders.",
+        "After success, the confirmation page summarizes your order. View orders (on the summary and in the payment toast) opens that paid order's product list on Orders. Paid in-hub checkouts also appear under Manage account → Billing Receipt as In-hub product receipt (filter Show to In-hub products).",
       ],
       requirements: [
         "Signed-in account.",
@@ -809,10 +809,10 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Active orders: in-progress hub fulfillment.",
         "History: completed or closed orders.",
         "Line details, tracking, refund/return actions.",
-        "In-hub catalog photos appear on order cards. Paid in-hub US packages show as Awaiting shipment in In progress until staff enter tracking, then In transit to you. After staff mark the package delivered, it moves to Orders history as Delivered to you.",
+        "In-hub catalog photos appear on order cards. Paid in-hub US packages show as Awaiting shipment in In progress until staff generate a Shippo label (or enter tracking), then In transit to you. Order products keeps one Track shipment control in the header for the warehouse package (not on each product card), plus live carrier status from Shippo. After the package is delivered, it moves to Orders history as Delivered to you. Request return from history for in-hub US items; the line returns to Orders while staff generate a return label. Print the label from Preview request, drop the package at a carrier location, and watch live return tracking until the warehouse receives it.",
         "Preview checkout charges groups in-hub products as a warehouse package, shows the destination US address, lists merchandise and package shipping separately, and does not repeat the product list in a second breakdown.",
         "Opening Line charges for one in-hub SKU shows that product's share of the warehouse package shipping (split by catalog price), not the full package rate on a single line.",
-        "When staff ship an in-hub US package, a notification includes carrier and tracking; Orders then shows Track shipment / Tracking details. When the package arrives, a delivered notification links to Orders history.",
+        "When staff ship an in-hub US package, a notification includes carrier and tracking; Order products shows one Track shipment / Tracking details control in the header, plus live carrier status. When the package arrives (staff Next or a Shippo delivered webhook), a delivered notification links to Orders history.",
         "Actions depend on current order status.",
       ],
       requirements: ["Signed-in account.", "Paid order for data to appear."],
@@ -822,7 +822,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       donts: [
         "Don't request refund after accepting final delivery unless allowed.",
-        "Tracking may not update in real time.",
+        "Live status updates when Shippo sends a tracking event; refresh if it still looks stale.",
       ],
     },
     article: {
@@ -833,10 +833,11 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open Orders from the sidebar for in-progress purchases.",
         "Visit Orders history for completed or closed orders.",
-        "Select an order to view line details, tracking numbers, and status. In-hub catalog photos appear on each product card when staff uploaded them on the SKU. Paid in-hub US packages in transit show as In transit to you; after delivery they appear in Orders history as Delivered to you.",
+        "Select an order to view line details, tracking numbers, and status. In-hub catalog photos appear on each product card when staff uploaded them on the SKU. Paid in-hub US packages in transit show as In transit to you; Track shipment sits in the Order products header for the warehouse package. After delivery they appear in Orders history as Delivered to you.",
+        "For an in-hub US product in Orders history, Request return submits a warehouse return. After staff generate the label, open Preview request to download the PDF, then drop the package at USPS, UPS, or FedEx. Live return tracking appears on the order; you are notified when the warehouse receives it.",
         "Preview checkout charges shows the warehouse package, destination US address, merchandise, and package shipping.",
         "Open Line charges on a single in-hub product to see that SKU's catalog price plus its share of the warehouse package shipping.",
-        "When an in-hub US package ships, the bell notification includes carrier and tracking; open the order to view Track shipment or Tracking details. When staff mark it delivered, a notification links to Orders history.",
+        "When an in-hub US package ships, the bell notification includes carrier and tracking; open the order and use Track shipment in the Order products header (one control for the warehouse package) plus live carrier status. When the package is marked delivered (including via Shippo), a notification links to Orders history.",
         "Use in-order actions such as accept delivery or request refund/return when the status allows them.",
         "Watch the notifications bell for purchase, tracking, and warehouse updates.",
       ],
@@ -847,11 +848,12 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       dos: [
         "Monitor tracking updates and warehouse receipt notifications.",
         "Use in-order actions only when the status allows them.",
+        "For an in-hub US return, print the label from Preview request and drop the package at a carrier location.",
         "Contact support with your order ID if something looks wrong.",
       ],
       donts: [
         "Do not request a refund after accepting final delivery unless policy allows.",
-        "Do not assume carrier tracking updates in real time—refresh or check notifications.",
+        "Do not assume carrier tracking is instant—live status arrives when Shippo sends a tracking event; refresh or check notifications if it still looks stale.",
       ],
     },
   },

@@ -1,15 +1,18 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
+import { ensureHubStockSchemaEnums } from "@/data/ensure-hub-stock-schema";
 import { getDb } from "@/db";
 import {
   batchQuoteSessionLines,
   batchQuoteSessions,
+  hubStockOrderItems,
   itemRequests,
   orderItemRefunds,
   orderItems,
   orders,
 } from "@/db/schema";
+import { combinedErrorText } from "@/lib/db-column-missing";
 import type {
   BillingReceiptCategory,
   BillingReceiptScope,
@@ -51,29 +54,39 @@ function paymentRecord(row: {
   totalAmount: number;
   stripePaymentIntentId: string | null;
   createdAt: string;
+  hubProductNames: string[];
+  hasHubStock: boolean;
 }): CustomerBillingReceiptRecord {
   const orderId = row.id;
   const stripePaymentIntentId = row.stripePaymentIntentId?.trim() || null;
+  const uniqueNames = [...new Set(row.hubProductNames.map((name) => name.trim()).filter(Boolean))];
+  const hubSubtitle =
+    uniqueNames.length === 0 ? null
+    : uniqueNames.length === 1 ? uniqueNames[0]!
+    : uniqueNames.length === 2 ? uniqueNames.join(" · ")
+    : `${uniqueNames.slice(0, 2).join(" · ")} +${uniqueNames.length - 2} more`;
 
   return {
     id: `payment:${orderId}`,
-    scope: "order",
+    scope: row.hasHubStock ? "hub" : "order",
     category: "payment",
-    label: "Order checkout receipt",
-    subtitle: `Order ${orderId}`,
+    label: row.hasHubStock ? "In-hub product receipt" : "Order checkout receipt",
+    subtitle: row.hasHubStock ? hubSubtitle ?? `Order ${orderId}` : `Order ${orderId}`,
     amountCents: row.totalAmount,
     createdAt: row.createdAt,
     orderId,
     orderItemId: null,
     batchNumber: null,
     batchSessionId: null,
-    productName: null,
+    productName: uniqueNames[0] ?? null,
     stripePaymentIntentId,
     stripeRefundId: null,
     searchHaystack: buildSearchHaystack([
       "order checkout receipt payment",
+      row.hasHubStock ? "in-hub warehouse product receipt" : null,
       orderId,
       stripePaymentIntentId,
+      ...uniqueNames,
     ]),
   };
 }
@@ -129,7 +142,7 @@ function prorationRecord(row: {
   };
 }
 
-/** All Stripe billing receipts for a customer (order payments and proration refunds). */
+/** Paid checkout invoices and proration refunds for the signed-in customer. */
 export async function listCustomerBillingReceipts(
   clerkUserId: string,
 ): Promise<CustomerBillingReceiptRecord[]> {
@@ -143,14 +156,34 @@ export async function listCustomerBillingReceipts(
       createdAt: orders.createdAt,
     })
     .from(orders)
-    .where(
-      and(
-        eq(orders.clerkUserId, clerkUserId),
-        eq(orders.status, "paid"),
-        isNotNull(orders.stripePaymentIntentId),
-      ),
-    )
+    .where(and(eq(orders.clerkUserId, clerkUserId), eq(orders.status, "paid")))
     .orderBy(desc(orders.createdAt));
+
+  const orderIds = paidOrders.map((row) => row.id);
+  const hubNamesByOrderId = new Map<string, string[]>();
+  if (orderIds.length > 0) {
+    await ensureHubStockSchemaEnums();
+    try {
+      const hubRows = await db
+        .select({
+          orderId: hubStockOrderItems.orderId,
+          nameSnapshot: hubStockOrderItems.nameSnapshot,
+        })
+        .from(hubStockOrderItems)
+        .where(inArray(hubStockOrderItems.orderId, orderIds));
+      for (const row of hubRows) {
+        const list = hubNamesByOrderId.get(row.orderId) ?? [];
+        const name = row.nameSnapshot.trim();
+        if (name) list.push(name);
+        hubNamesByOrderId.set(row.orderId, list);
+      }
+    } catch (error) {
+      const text = combinedErrorText(error).toLowerCase();
+      if (!text.includes("hub_stock_order_items") && !text.includes("does not exist")) {
+        throw error;
+      }
+    }
+  }
 
   const refundRows = await db
     .select({
@@ -181,7 +214,14 @@ export async function listCustomerBillingReceipts(
     .orderBy(desc(orderItemRefunds.createdAt));
 
   const records: CustomerBillingReceiptRecord[] = [
-    ...paidOrders.map(paymentRecord),
+    ...paidOrders.map((row) => {
+      const hubProductNames = hubNamesByOrderId.get(row.id) ?? [];
+      return paymentRecord({
+        ...row,
+        hubProductNames,
+        hasHubStock: hubNamesByOrderId.has(row.id),
+      });
+    }),
     ...refundRows.map(prorationRecord),
   ];
 

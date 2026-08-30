@@ -5,8 +5,11 @@ import type {
 import type { PendingRefundRequestBrief } from "@/data/order-item-refund-requests";
 import type { PaidOrdersQueryInput } from "@/lib/paid-orders-list-params";
 
-import type { PaidOrderLinesPageResult } from "@/data/paid-orders-queries";
-import { listPaidOrderLinesPage } from "@/data/paid-orders-queries";
+import { listHubStockOrderItemsByOrderItemIds } from "@/data/hub-stock-cart";
+import {
+  listPaidOrderLinesPage,
+  type PaidOrderLinesPageResult,
+} from "@/data/paid-orders-queries";
 import { ensureHubStockSchemaEnums } from "@/data/ensure-hub-stock-schema";
 import {
   listOrderItemRefundDetailsByOrderItemIds,
@@ -30,6 +33,10 @@ export type DashboardPaidOrderLineRow = {
   customerFullName: string | null;
   resolvedBatchSessionId: string | null;
   resolvedBatchNumber: string | null;
+  hubTrackingStatus: string | null;
+  hubTrackingStatusDetails: string | null;
+  hubReturnLabelUrl: string | null;
+  hubStockUsLine: boolean;
 };
 
 export type DashboardPaidOrderLinesPageResult = Omit<
@@ -56,6 +63,7 @@ const DASHBOARD_ORDERS_LINE_FULFILLMENTS: OrderItem["fulfillmentStatus"][] = [
   "hub_stock_pending_us_shipment",
   "hub_stock_pending_container",
   "hub_stock_us_in_transit",
+  "hub_stock_return_requested",
   "refunded",
 ];
 
@@ -65,20 +73,30 @@ async function withDashboardRefundDetails(
   const refundDetailsByOrderItemId = await listOrderItemRefundDetailsByOrderItemIds(
     pack.rows.map((r) => r.orderItem.id),
   );
-  const rows: DashboardPaidOrderLineRow[] = pack.rows.map((r) => ({
-    orderItem: r.orderItem,
-    order: r.order,
-    request: r.request,
-    refundedCents: r.refundedCents,
-    pendingRefundRequest: r.pendingRefundRequest,
-    pendingProductReturnRequest: r.pendingProductReturnRequest,
-    fulfilledProductReturnRequest: r.fulfilledProductReturnRequest,
-    customerEmail: r.customerEmail,
-    customerFullName: r.customerFullName,
-    resolvedBatchSessionId: r.resolvedBatchSessionId,
-    resolvedBatchNumber: r.resolvedBatchNumber,
-    refundDetails: refundDetailsByOrderItemId.get(r.orderItem.id) ?? [],
-  }));
+  const hubByOrderItemId = await listHubStockOrderItemsByOrderItemIds(
+    pack.rows.map((r) => r.orderItem.id),
+  );
+  const rows: DashboardPaidOrderLineRow[] = pack.rows.map((r) => {
+    const hub = hubByOrderItemId.get(r.orderItem.id);
+    return {
+      orderItem: r.orderItem,
+      order: r.order,
+      request: r.request,
+      refundedCents: r.refundedCents,
+      pendingRefundRequest: r.pendingRefundRequest,
+      pendingProductReturnRequest: r.pendingProductReturnRequest,
+      fulfilledProductReturnRequest: r.fulfilledProductReturnRequest,
+      customerEmail: r.customerEmail,
+      customerFullName: r.customerFullName,
+      resolvedBatchSessionId: r.resolvedBatchSessionId,
+      resolvedBatchNumber: r.resolvedBatchNumber,
+      refundDetails: refundDetailsByOrderItemId.get(r.orderItem.id) ?? [],
+      hubTrackingStatus: hub?.trackingStatus ?? null,
+      hubTrackingStatusDetails: hub?.trackingStatusDetails ?? null,
+      hubReturnLabelUrl: hub?.shippoReturnLabelUrl ?? null,
+      hubStockUsLine: hub?.destination === "us_address",
+    };
+  });
   return {
     rows,
     totalOrders: pack.totalOrders,

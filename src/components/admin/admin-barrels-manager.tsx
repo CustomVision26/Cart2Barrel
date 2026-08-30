@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,6 +11,7 @@ import {
   adminDeleteContainerOfferingImageAction,
   adminMoveContainerOfferingImageAction,
   adminPublishSpecialFeatureContainerAction,
+  adminSetContainerOfferingPublishedAction,
   adminUnpublishSpecialFeatureContainerAction,
   adminUpdateContainerOfferingAction,
   adminUploadContainerOfferingImagesAction,
@@ -19,6 +20,8 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Card,
   CardContent,
@@ -68,23 +71,48 @@ type AdminBarrelsManagerProps = {
   specialFeatures: SpecialFeatureContainerFormRef[];
 };
 
-function specialFeatureStatusClassName(
-  status: SpecialFeatureContainerFormRef["status"],
-): string {
-  if (status === "Live") {
-    return "border-primary/40 bg-primary/15 text-primary";
-  }
-  if (status === "Draft") {
-    return "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300";
-  }
-  if (status === "Ended") {
-    return "border-border/80 bg-muted/60 text-muted-foreground";
-  }
-  return "border-border/80 bg-muted text-muted-foreground";
-}
-
 function centsToUsdInput(cents: number): string {
   return (cents / 100).toFixed(2);
+}
+
+function isSpecialFeatureOffering(offering: AdminSerializableOffering): boolean {
+  return (
+    offering.kind === "suitcase" &&
+    Boolean(offering.specialFeatureOfferId ?? offering.linkedSpecialFeatureOfferId)
+  );
+}
+
+function catalogStatusLabel(offering: AdminSerializableOffering): string {
+  if (isSpecialFeatureOffering(offering)) {
+    if (!offering.isActive) return "Draft";
+    if (offering.specialFeaturePublished) return "Published";
+    return "Live SKU";
+  }
+  return offering.isActive ? "Published" : "Unpublished";
+}
+
+function catalogRowClassName(
+  kind: ContainerOfferingKind,
+  selected: boolean,
+  published: boolean,
+): string {
+  return cn(
+    "cursor-pointer select-none border-l-4 transition-colors",
+    kind === "barrel" &&
+      "border-l-amber-400 bg-amber-500/20 hover:bg-amber-500/35",
+    kind === "bin" && "border-l-sky-400 bg-sky-500/20 hover:bg-sky-500/35",
+    kind === "suitcase" &&
+      "border-l-violet-400 bg-violet-500/20 hover:bg-violet-500/35",
+    !published && "opacity-80",
+    selected && "ring-2 ring-inset ring-foreground/55",
+  );
+}
+
+function coverImage(
+  images: AdminSerializableImage[],
+): AdminSerializableImage | null {
+  const sorted = [...images].sort((a, b) => a.sortIndex - b.sortIndex);
+  return sorted[0] ?? null;
 }
 
 export function AdminBarrelsManager({
@@ -95,6 +123,8 @@ export function AdminBarrelsManager({
   const [catalogOpen, setCatalogOpen] = useState(true);
   const [pending, startTransition] = useTransition();
   const createFormRef = useRef<HTMLFormElement>(null);
+  const [editorId, setEditorId] = useState<string | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [specialFeatureOffer, setSpecialFeatureOffer] = useState(false);
   const [suitcaseSizes, setSuitcaseSizes] = useState<
     Record<SuitcaseSizeOption, boolean>
@@ -133,6 +163,17 @@ export function AdminBarrelsManager({
     setSuitcaseSizes((prev) => ({ ...prev, [size]: !prev[size] }));
   }
 
+  const editorRow =
+    editorId ?
+      offerings.find((row) => row.offering.id === editorId) ?? null
+    : null;
+
+  useEffect(() => {
+    if (editorId && !offerings.some((row) => row.offering.id === editorId)) {
+      setEditorId(null);
+    }
+  }, [editorId, offerings]);
+
   return (
     <div className="space-y-8">
       <Card>
@@ -140,8 +181,8 @@ export function AdminBarrelsManager({
           <CardTitle className="text-lg">New container</CardTitle>
           <CardDescription>
             {specialFeatureOffer ?
-              "Link suitcase SKU(s) to an existing special, pick sizes and price, then Publish from the catalog card."
-            : "Add a name, type (barrel or bin), size label, and price. Upload one or more photos after the container is created."}
+              "Link suitcase SKU(s) to an existing special, pick sizes and price, then Publish from the catalog table."
+            : "Add a name, type (barrel or bin), size label, and price. After create, double-click the row to edit, then Publish or Unpublish. Upload photos after the container is created."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -178,8 +219,8 @@ export function AdminBarrelsManager({
                 });
                 toast.success(
                   wasSpecial ?
-                    "Suitcase container(s) created. Use Publish on the catalog card to show shoppers."
-                  : "Container created.",
+                    "Suitcase container(s) created. Double-click the row, then Publish to show shoppers."
+                  : "Container created. Double-click the row to edit photos and publish settings.",
                 );
                 router.refresh();
               });
@@ -355,7 +396,12 @@ export function AdminBarrelsManager({
           aria-expanded={catalogOpen}
           aria-controls="admin-barrels-catalog-panel"
         >
-          <span className="text-lg font-semibold text-foreground">Catalog</span>
+          <span className="min-w-0">
+            <span className="block text-lg font-semibold text-foreground">Catalog</span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              Double-click a row to open the container editor.
+            </span>
+          </span>
           {catalogOpen ?
             <ChevronUp className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           : <ChevronDown className="size-5 shrink-0 text-muted-foreground" aria-hidden />}
@@ -367,22 +413,123 @@ export function AdminBarrelsManager({
             aria-labelledby="admin-barrels-catalog-heading"
             className="space-y-4"
           >
-            {offerings.length === 0 ?
+            {editorRow ?
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditorId(null)}
+                >
+                  <ArrowLeft className="size-4" aria-hidden />
+                  Back to catalog
+                </Button>
+                <AdminOfferingRow
+                  offering={editorRow.offering}
+                  images={editorRow.images}
+                  specialFeatures={specialFeatures}
+                  disabledAll={pending}
+                  onRefresh={() => router.refresh()}
+                  onDeleted={() => setEditorId(null)}
+                />
+              </div>
+            : offerings.length === 0 ?
               <p className="text-sm text-muted-foreground">No containers yet.</p>
             : (
-              <ul className="space-y-6">
-                {offerings.map(({ offering: o, images }) => (
-                  <li key={o.id}>
-                    <AdminOfferingRow
-                      offering={o}
-                      images={images}
-                      specialFeatures={specialFeatures}
-                      disabledAll={pending}
-                      onRefresh={() => router.refresh()}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-amber-400" aria-hidden />
+                    Barrel
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-sky-400" aria-hidden />
+                    Bin
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-violet-400" aria-hidden />
+                    Suitcase
+                  </span>
+                </div>
+                <FloatingHorizontalScroll className="rounded-lg border border-border">
+                  <table className="w-full min-w-[48rem] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="px-3 py-2.5 font-medium">Photo</th>
+                        <th className="px-3 py-2.5 font-medium">Name</th>
+                        <th className="px-3 py-2.5 font-medium">Type</th>
+                        <th className="px-3 py-2.5 font-medium">Size</th>
+                        <th className="px-3 py-2.5 font-medium">Price</th>
+                        <th className="px-3 py-2.5 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {offerings.map(({ offering: o, images }) => {
+                        const cover = coverImage(images);
+                        const selected = selectedRowId === o.id;
+                        return (
+                          <tr
+                            key={o.id}
+                            className={catalogRowClassName(o.kind, selected, o.isActive)}
+                            title="Double-click to edit this container"
+                            onClick={() => setSelectedRowId(o.id)}
+                            onDoubleClick={() => {
+                              setSelectedRowId(o.id);
+                              setEditorId(o.id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                setSelectedRowId(o.id);
+                                setEditorId(o.id);
+                              }
+                            }}
+                            tabIndex={0}
+                          >
+                            <td className="px-3 py-2">
+                              {cover ?
+                                <div className="size-12 overflow-hidden rounded border border-border/60 bg-muted">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={cover.imageUrl}
+                                    alt=""
+                                    className="size-full object-cover"
+                                  />
+                                </div>
+                              : (
+                                <span className="text-xs text-muted-foreground">
+                                  No photo
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <p className="font-medium text-foreground">{o.name}</p>
+                              {isSpecialFeatureOffering(o) ?
+                                <p className="text-xs text-primary">Special feature</p>
+                              : null}
+                            </td>
+                            <td className="px-3 py-2.5 text-foreground">
+                              {containerOfferingKindLabel(o.kind)}
+                            </td>
+                            <td className="px-3 py-2.5 text-muted-foreground">
+                              {o.sizeLabel}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-foreground">
+                              {formatUsd(o.priceUsdCents)}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <StatusBadge
+                                kind={o.isActive ? "fullyReceived" : "draft"}
+                              >
+                                {catalogStatusLabel(o)}
+                              </StatusBadge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </FloatingHorizontalScroll>
+              </div>
             )}
           </div>
         : null}
@@ -397,12 +544,14 @@ function AdminOfferingRow({
   specialFeatures,
   disabledAll,
   onRefresh,
+  onDeleted,
 }: {
   offering: AdminSerializableOffering;
   images: AdminSerializableImage[];
   specialFeatures: SpecialFeatureContainerFormRef[];
   disabledAll: boolean;
   onRefresh: () => void;
+  onDeleted?: () => void;
 }) {
   const [removeOpen, setRemoveOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
@@ -412,6 +561,7 @@ function AdminOfferingRow({
   const isSpecialFeature =
     offering.kind === "suitcase" &&
     Boolean(offering.specialFeatureOfferId ?? offering.linkedSpecialFeatureOfferId);
+  const isBarrelOrBin = offering.kind === "barrel" || offering.kind === "bin";
   const specialWindowLive = Boolean(offering.specialFeaturePublished);
   const isPublished = offering.isActive;
   const isShopperVisible = offering.isActive && specialWindowLive;
@@ -424,7 +574,6 @@ function AdminOfferingRow({
   const [sizeLabel, setSizeLabel] = useState(offering.sizeLabel);
   const [kind, setKind] = useState<ContainerOfferingKind>(offering.kind);
   const [priceUsd, setPriceUsd] = useState(centsToUsdInput(offering.priceUsdCents));
-  const [isActive, setIsActive] = useState(offering.isActive);
 
   const selectedSpecial =
     specialFeatures.find((special) => special.id === selectedSpecialId) ?? null;
@@ -434,7 +583,6 @@ function AdminOfferingRow({
     setSizeLabel(offering.sizeLabel);
     setKind(offering.kind);
     setPriceUsd(centsToUsdInput(offering.priceUsdCents));
-    setIsActive(offering.isActive);
 
     const linked =
       offering.linkedSpecialFeatureOfferId ?? offering.specialFeatureOfferId ?? "";
@@ -482,7 +630,7 @@ function AdminOfferingRow({
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-xs font-medium",
-                isPublished || (isActive && !isSpecialFeature) ?
+                isPublished ?
                   "bg-emerald-500/15 text-emerald-200"
                 : "bg-muted text-muted-foreground",
               )}
@@ -493,9 +641,9 @@ function AdminOfferingRow({
                     "Published"
                   : "Live SKU"
                 : "Draft"
-              : isActive ?
-                "Active"
-              : "Hidden"}
+              : isPublished ?
+                "Published"
+              : "Unpublished"}
             </span>
           </div>
         </div>
@@ -512,7 +660,7 @@ function AdminOfferingRow({
                 sizeLabel,
                 kind,
                 priceUsd,
-                isActive,
+                isActive: offering.isActive,
                 ...(isSpecialFeature && selectedSpecialId ?
                   { specialFeatureOfferId: selectedSpecialId }
                 : {}),
@@ -622,18 +770,13 @@ function AdminOfferingRow({
             />
           </div>
           {!isSpecialFeature ?
-            <div className="flex items-center gap-2 sm:col-span-2">
-              <input
-                type="checkbox"
-                id={`active-${offering.id}`}
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="size-4 rounded border-border accent-primary"
-              />
-              <Label htmlFor={`active-${offering.id}`} className="text-sm font-normal">
-                Visible on shopper catalog
-              </Label>
-            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Use Publish to show this {containerOfferingKindLabel(kind).toLowerCase()} on{" "}
+              <span className="font-medium text-foreground">/dashboard/barrels</span>
+              {isPublished ?
+                ". Shoppers can see it now."
+              : ". It is hidden from shoppers until you publish."}
+            </p>
           : (
             <p className="text-xs text-muted-foreground sm:col-span-2">
               Each special suitcase SKU is published separately. Click Publish to show this size on{" "}
@@ -653,6 +796,42 @@ function AdminOfferingRow({
             <Button type="submit" size="sm" disabled={disabled}>
               Save changes
             </Button>
+            {isBarrelOrBin && !isPublished ?
+              <Button
+                type="button"
+                size="sm"
+                disabled={disabled}
+                onClick={() => {
+                  startTransition(async () => {
+                    const res = await adminSetContainerOfferingPublishedAction({
+                      offeringId: offering.id,
+                      published: true,
+                    });
+                    if (!res.ok) {
+                      toast.error(res.message);
+                      return;
+                    }
+                    toast.success(
+                      `Published — shoppers can see this ${containerOfferingKindLabel(offering.kind).toLowerCase()} now.`,
+                    );
+                    onRefresh();
+                  });
+                }}
+              >
+                {pending ? "Publishing…" : "Publish"}
+              </Button>
+            : null}
+            {isBarrelOrBin && isPublished ?
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={disabled}
+                onClick={() => setUnpublishOpen(true)}
+              >
+                Unpublish
+              </Button>
+            : null}
             {isSpecialFeature && !offering.isActive ?
               <Button
                 type="button"
@@ -702,20 +881,38 @@ function AdminOfferingRow({
         <AdminConfirmDialog
           open={unpublishOpen}
           onOpenChange={setUnpublishOpen}
-          title="Remove this suitcase from live?"
-          description="Shoppers will no longer see this special suitcase on /dashboard/barrels. The catalog entry and photos are kept — use Publish to show it again."
-          confirmLabel="Remove from live"
+          title={
+            isSpecialFeature ?
+              "Remove this suitcase from live?"
+            : `Unpublish this ${containerOfferingKindLabel(offering.kind).toLowerCase()}?`
+          }
+          description={
+            isSpecialFeature ?
+              "Shoppers will no longer see this special suitcase on /dashboard/barrels. The catalog entry and photos are kept — use Publish to show it again."
+            : `Shoppers will no longer see this ${containerOfferingKindLabel(offering.kind).toLowerCase()} on /dashboard/barrels. The catalog entry and photos are kept — use Publish to show it again.`
+          }
+          confirmLabel={isSpecialFeature ? "Remove from live" : "Unpublish"}
           pending={pending}
           onConfirm={() => {
             startTransition(async () => {
-              const res = await adminUnpublishSpecialFeatureContainerAction({
-                offeringId: offering.id,
-              });
+              const res =
+                isSpecialFeature ?
+                  await adminUnpublishSpecialFeatureContainerAction({
+                    offeringId: offering.id,
+                  })
+                : await adminSetContainerOfferingPublishedAction({
+                    offeringId: offering.id,
+                    published: false,
+                  });
               if (!res.ok) {
                 toast.error(res.message);
                 return;
               }
-              toast.success("Removed from live — hidden from shoppers.");
+              toast.success(
+                isSpecialFeature ?
+                  "Removed from live — hidden from shoppers."
+                : `Unpublished — hidden from shoppers.`,
+              );
               setUnpublishOpen(false);
               onRefresh();
             });
@@ -739,6 +936,7 @@ function AdminOfferingRow({
               }
               setRemoveOpen(false);
               toast.success("Container removed.");
+              onDeleted?.();
               onRefresh();
             });
           }}

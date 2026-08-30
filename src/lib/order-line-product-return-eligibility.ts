@@ -38,7 +38,7 @@ export function dashboardShowsProductReturnButton(input: {
   if (input.pendingProductReturnRequest) return false;
   if (input.pendingRefundRequest) return false;
   const f = effectiveOrderItemFulfillmentStatus(input.orderItem, input.order);
-  if (f === "product_return_awaiting_delivery" || f === "refunded") {
+  if (f === "product_return_awaiting_delivery" || f === "refunded" || f === "hub_stock_return_requested") {
     return false;
   }
   if (

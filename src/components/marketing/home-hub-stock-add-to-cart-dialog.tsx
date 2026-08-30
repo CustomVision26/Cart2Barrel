@@ -26,9 +26,7 @@ import { Label } from "@/components/ui/label";
 import type { SerializableShippingAddress } from "@/data/addresses";
 import type { PublicHubStockProduct } from "@/data/hub-stock-products";
 import { formatUsd } from "@/lib/admin-markup";
-import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import { hubStockQtyIsLow, usDeliveryAddressPrompt } from "@/lib/hub-stock";
-import { formatShippingStreetOneLine } from "@/lib/shipping-address-format";
 import { cn } from "@/lib/utils";
 import type { HubStockDestinationInput } from "@/lib/validations/hub-stock";
 
@@ -57,7 +55,6 @@ export function HomeHubStockAddToCartDialog({
     useState<HubStockDestinationInput>("us_address");
   const [quantity, setQuantity] = useState(1);
   const [addressId, setAddressId] = useState<string | null>(null);
-  const [pickingAddress, setPickingAddress] = useState(false);
 
   const maxQty = Math.max(1, product.stockQty);
   const images = product.imageUrls.map((url) => url.trim()).filter(Boolean);
@@ -71,7 +68,6 @@ export function HomeHubStockAddToCartDialog({
     setQuantity(1);
     setDestination("us_address");
     setAddressId(defaultAddressId(savedAddresses));
-    setPickingAddress(false);
   }, [open, product.id, savedAddresses]);
 
   return (
@@ -122,7 +118,6 @@ export function HomeHubStockAddToCartDialog({
                 const prompt = usDeliveryAddressPrompt(selectedAddress);
                 if (prompt) {
                   toast.error(prompt);
-                  setPickingAddress(true);
                   return;
                 }
               }
@@ -226,97 +221,6 @@ export function HomeHubStockAddToCartDialog({
                 </span>
               </label>
             </fieldset>
-
-            {destination === "us_address" ?
-              <div className="space-y-2 rounded-xl border border-border/70 bg-muted/20 p-3">
-                {savedAddresses.length === 0 ?
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Add a United States shipping address before choosing US delivery.
-                    </p>
-                    <Link
-                      href={DASHBOARD_SHIPPING_ROUTES.address}
-                      className={buttonVariants({ size: "sm" })}
-                    >
-                      Add an address
-                    </Link>
-                  </div>
-                : pickingAddress ?
-                  <ul className="space-y-2" role="list">
-                    {savedAddresses.map((address) => {
-                      const checked = address.id === addressId;
-                      return (
-                        <li key={address.id}>
-                          <label
-                            className={cn(
-                              "flex cursor-pointer items-start gap-3 rounded-lg border p-2.5 text-sm",
-                              checked ?
-                                "border-primary/50 bg-primary/8 ring-1 ring-primary/20"
-                              : "border-border/80 hover:bg-muted/35",
-                            )}
-                          >
-                            <input
-                              type="radio"
-                              name="hub-stock-address"
-                              className="mt-1"
-                              checked={checked}
-                              onChange={() => setAddressId(address.id)}
-                            />
-                            <span className="min-w-0">
-                              <span className="font-medium text-foreground">
-                                {address.recipientName || "Shipping address"}
-                              </span>
-                              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                                {formatShippingStreetOneLine(address)}
-                              </span>
-                            </span>
-                          </label>
-                        </li>
-                      );
-                    })}
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setPickingAddress(false)}
-                      >
-                        Done
-                      </Button>
-                    </div>
-                  </ul>
-                : (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Shipping address
-                    </p>
-                    {selectedAddress ?
-                      <p className="text-sm text-foreground">
-                        {selectedAddress.recipientName || "Saved address"}
-                      </p>
-                    : (
-                      <p className="text-sm text-muted-foreground">No address selected.</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setPickingAddress(true)}
-                      >
-                        Change address
-                      </Button>
-                      <Link
-                        href={DASHBOARD_SHIPPING_ROUTES.address}
-                        className={buttonVariants({ variant: "ghost", size: "sm" })}
-                      >
-                        Manage addresses
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </div>
-            : null}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

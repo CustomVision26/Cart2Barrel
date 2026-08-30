@@ -1,11 +1,14 @@
 import type { InvoiceCompanyProfile } from "@/lib/invoice/company-profile";
 
+export type PaymentInvoiceLineKind = "item" | "shipping";
+
 export type PaymentInvoiceLine = {
   description: string;
   detail: string | null;
   quantity: number;
   unitPriceCents: number;
   amountCents: number;
+  kind: PaymentInvoiceLineKind;
 };
 
 export type PaymentInvoicePaymentRow = {
@@ -38,6 +41,7 @@ export type PaymentInvoiceDocument = {
   lines: PaymentInvoiceLine[];
   packingNotes: PaymentInvoicePackingNote[];
   subtotalCents: number;
+  shippingCents: number;
   totalCents: number;
   payments: PaymentInvoicePaymentRow[];
 };

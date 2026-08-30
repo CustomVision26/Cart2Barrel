@@ -15,7 +15,11 @@ import {
   setHubStockProductPublished,
   updateHubStockProduct,
 } from "@/data/hub-stock-products";
-import { upsertHubShipFromSettings } from "@/data/hub-ship-from";
+import {
+  deleteHubShipFromAddress,
+  setPrimaryHubShipFromAddress,
+  upsertHubShipFromAddress,
+} from "@/data/hub-ship-from";
 import {
   HUB_STOCK_PRODUCT_IMAGES_MAX,
   HUB_STOCK_PRODUCT_IMAGE_UPLOAD_BATCH_MAX,
@@ -33,6 +37,7 @@ import {
   adminSetHubStockProductPublishedSchema,
   adminUpdateHubStockProductSchema,
   adminUploadHubStockProductImagesSchema,
+  adminHubShipFromIdSchema,
   adminHubShipFromSchema,
   hubStockPriceUsdToCents,
 } from "@/lib/validations/hub-stock";
@@ -290,9 +295,10 @@ export async function adminSaveHubShipFromAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid address." };
   }
   try {
-    await upsertHubShipFromSettings({
+    await upsertHubShipFromAddress({
       ...parsed.data,
       line2: parsed.data.line2 ?? "",
+      isPrimary: parsed.data.isPrimary ?? false,
       updatedByClerkUserId: user.id,
     });
   } catch (error) {
@@ -301,6 +307,44 @@ export async function adminSaveHubShipFromAction(
       message:
         error instanceof Error ? error.message : "Could not save the ship-from address.",
     };
+  }
+  revalidateHubStockAdmin();
+  return { ok: true };
+}
+
+export async function adminSetHubShipFromPrimaryAction(
+  input: unknown,
+): Promise<AdminHubStockMutationState> {
+  const user = await currentUser();
+  if (!user || !isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+  const parsed = adminHubShipFromIdSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid address." };
+  }
+  const ok = await setPrimaryHubShipFromAddress(parsed.data.id);
+  if (!ok) {
+    return { ok: false, message: "Address not found." };
+  }
+  revalidateHubStockAdmin();
+  return { ok: true };
+}
+
+export async function adminDeleteHubShipFromAction(
+  input: unknown,
+): Promise<AdminHubStockMutationState> {
+  const user = await currentUser();
+  if (!user || !isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+  const parsed = adminHubShipFromIdSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid address." };
+  }
+  const result = await deleteHubShipFromAddress(parsed.data.id);
+  if (!result.ok) {
+    return result;
   }
   revalidateHubStockAdmin();
   return { ok: true };

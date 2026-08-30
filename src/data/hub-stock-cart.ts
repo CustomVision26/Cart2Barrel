@@ -10,7 +10,7 @@ import {
   type HubStockCartItem,
   type HubStockProduct,
 } from "@/db/schema";
-import { quoteHubStockUsBundleShipping } from "@/data/hub-stock-shipping";
+import { listHubStockUsBundleShippingRates, quoteHubStockUsBundleShipping } from "@/data/hub-stock-shipping";
 import { getShippingAddressForUser } from "@/data/addresses";
 import type { CheckoutOrderLineInput, StripeCheckoutPriceDataLine } from "@/data/cart";
 import { insertItemQuoteForRequest } from "@/data/item-quotes";
@@ -28,6 +28,7 @@ import {
   usDeliveryAddressPrompt,
 } from "@/lib/hub-stock";
 import type { HubStockDestinationInput } from "@/lib/validations/hub-stock";
+import type { ShippoQuotedRate } from "@/lib/shippo";
 import { allocateCentsByWeight } from "@/lib/allocate-cents";
 
 export type HubStockCartLine = {
@@ -433,30 +434,136 @@ export async function refreshHubStockCartShippingForUser(
       };
     }
 
-    const ordered = [...pkg.lines].sort((a, b) =>
-      a.cartItem.id.localeCompare(b.cartItem.id),
-    );
-    const shippingShares = allocateCentsByWeight(
-      quote.rate.cents,
-      ordered.map((line) => hubStockLineMerchandiseCents(line)),
-    );
-    for (const [index, line] of ordered.entries()) {
-      await db
-        .update(hubStockCartItems)
-        .set({
-          shippingCents: shippingShares[index] ?? 0,
-          shippingCarrier: quote.rate.carrier,
-          shippingService: quote.rate.service,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(hubStockCartItems.id, line.cartItem.id),
-            eq(hubStockCartItems.clerkUserId, clerkUserId),
-          ),
-        );
-    }
+    await applyRateToPackageLines(clerkUserId, pkg, quote.rate);
   }
+  return { ok: true };
+}
+
+function packageQuoteInput(pkg: HubStockCartPackage) {
+  const sample = pkg.lines[0]?.cartItem;
+  if (
+    !sample?.shipLine1 ||
+    !sample.shipCity ||
+    !sample.shipState ||
+    !sample.shipPostalCode
+  ) {
+    return null;
+  }
+  return {
+    products: pkg.lines.map((line) => ({
+      product: line.product,
+      quantity: line.cartItem.quantity,
+      name: line.product.name,
+    })),
+    to: {
+      line1: sample.shipLine1,
+      line2: sample.shipLine2,
+      city: sample.shipCity,
+      state: sample.shipState,
+      postalCode: sample.shipPostalCode,
+    },
+  };
+}
+
+async function applyRateToPackageLines(
+  clerkUserId: string,
+  pkg: HubStockCartPackage,
+  rate: Pick<ShippoQuotedRate, "cents" | "carrier" | "service">,
+): Promise<void> {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const ordered = [...pkg.lines].sort((a, b) =>
+    a.cartItem.id.localeCompare(b.cartItem.id),
+  );
+  const shippingShares = allocateCentsByWeight(
+    rate.cents,
+    ordered.map((line) => hubStockLineMerchandiseCents(line)),
+  );
+  for (const [index, line] of ordered.entries()) {
+    await db
+      .update(hubStockCartItems)
+      .set({
+        shippingCents: shippingShares[index] ?? 0,
+        shippingCarrier: rate.carrier,
+        shippingService: rate.service,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(hubStockCartItems.id, line.cartItem.id),
+          eq(hubStockCartItems.clerkUserId, clerkUserId),
+        ),
+      );
+  }
+}
+
+function findOwnedUsPackage(
+  lines: HubStockCartLine[],
+  cartItemId: string,
+): HubStockCartPackage | null {
+  const packages = groupHubStockCartPackages(lines);
+  return (
+    packages.find(
+      (pkg) =>
+        pkg.destination === "us_address" &&
+        pkg.lines.some((line) => line.cartItem.id === cartItemId),
+    ) ?? null
+  );
+}
+
+export async function listHubStockPackageShippingRatesForUser(
+  clerkUserId: string,
+  cartItemId: string,
+): Promise<{ ok: true; rates: ShippoQuotedRate[] } | { ok: false; message: string }> {
+  const lines = await listHubStockCartLinesForUser(clerkUserId);
+  const pkg = findOwnedUsPackage(lines, cartItemId);
+  if (!pkg) {
+    return { ok: false, message: "Warehouse package not found." };
+  }
+  const input = packageQuoteInput(pkg);
+  if (!input) {
+    return {
+      ok: false,
+      message: `${pkg.lines[0]?.product.name ?? "An in-hub product"} needs a US shipping address before rates can be compared.`,
+    };
+  }
+  return listHubStockUsBundleShippingRates(input);
+}
+
+export async function applyHubStockPackageShippingRateForUser(input: {
+  clerkUserId: string;
+  cartItemId: string;
+  cents: number;
+  carrier: string;
+  service: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const lines = await listHubStockCartLinesForUser(input.clerkUserId);
+  const pkg = findOwnedUsPackage(lines, input.cartItemId);
+  if (!pkg) {
+    return { ok: false, message: "Warehouse package not found." };
+  }
+  const quoteInput = packageQuoteInput(pkg);
+  if (!quoteInput) {
+    return {
+      ok: false,
+      message: `${pkg.lines[0]?.product.name ?? "An in-hub product"} needs a US shipping address before a rate can be saved.`,
+    };
+  }
+  const listed = await listHubStockUsBundleShippingRates(quoteInput);
+  if (!listed.ok) return listed;
+  const match = listed.rates.find(
+    (rate) =>
+      rate.cents === input.cents &&
+      rate.carrier === input.carrier &&
+      rate.service === input.service,
+  );
+  if (!match) {
+    return {
+      ok: false,
+      message: "That shipping rate is no longer available. Compare rates again.",
+    };
+  }
+  await applyRateToPackageLines(input.clerkUserId, pkg, match);
   return { ok: true };
 }
 

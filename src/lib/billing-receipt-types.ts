@@ -1,4 +1,4 @@
-export type BillingReceiptScope = "order" | "single" | "batch";
+export type BillingReceiptScope = "order" | "single" | "batch" | "hub";
 export type BillingReceiptCategory = "payment" | "proration";
 
 export type CustomerBillingReceiptRecord = {

@@ -1,4 +1,28 @@
 import { formatUsd } from "@/lib/admin-markup";
+import type { PaymentInvoiceDocument } from "@/lib/invoice/payment-invoice-types";
+
+export type PaymentInvoiceSummaryRow = {
+  label: string;
+  amountCents: number;
+  emphasize?: boolean;
+};
+
+/** Totals block: merchandise subtotal, warehouse shipping when charged, then total / paid. */
+export function paymentInvoiceSummaryRows(
+  invoice: PaymentInvoiceDocument,
+): PaymentInvoiceSummaryRow[] {
+  const rows: PaymentInvoiceSummaryRow[] = [
+    { label: "Subtotal", amountCents: invoice.subtotalCents },
+  ];
+  if (invoice.shippingCents > 0) {
+    rows.push({ label: "Shipping", amountCents: invoice.shippingCents });
+  }
+  rows.push(
+    { label: "Total", amountCents: invoice.totalCents, emphasize: true },
+    { label: "Amount paid", amountCents: invoice.amountPaidCents, emphasize: true },
+  );
+  return rows;
+}
 
 export function formatInvoiceDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {

@@ -39,6 +39,7 @@ import { effectiveOutsidePurchasePaidFulfillment } from "@/lib/outside-purchase-
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { orderItemFulfillmentBadgeKind } from "@/lib/status-badge-map";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
+import { isHubStockProductUrl } from "@/lib/hub-stock";
 import { displaySiteName } from "@/lib/site-name";
 import {
   adminCustomerDisplayLabel,
@@ -675,8 +676,10 @@ function AdminOrderDataRow(props: {
             pendingRefundRequest={row.pendingRefundRequest}
             pendingProductReturnRequest={row.pendingProductReturnRequest}
             fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
+            warehouseReceivedCondition={row.orderItem.warehouseReceivedCondition}
             isOutsidePurchase={isOutside}
             inBatchGroup={inBatchGroup}
+            isHubStockUsLine={isHubStockProductUrl(r.productUrl)}
           />
         }
         {warehouseFulfillment === "delivery_received_item_missing" &&

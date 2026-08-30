@@ -42,6 +42,8 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
     expiryTabRaw === "customer" ? "customer"
     : expiryTabRaw === "product" ? "product"
     : "hub";
+  const hubStockTabRaw = first(rawSp.hubStockTab)?.toLowerCase() ?? "";
+  const hubStockTab = hubStockTabRaw === "products" ? "products" : "addresses";
   const tab =
     tabRaw === "finance" ? "finance"
     : tabRaw === "set-fee-n-rate" ? "set-fee-n-rate"
@@ -89,7 +91,7 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
           selectedClerkUserId={selectedUserId}
         />
       ) : tab === "in-hub-products" ? (
-        <AdminOverviewHubStockSection />
+        <AdminOverviewHubStockSection hubStockTab={hubStockTab} />
       ) : (
         <div className="space-y-4">
           <AdminRefundQueueBanner />

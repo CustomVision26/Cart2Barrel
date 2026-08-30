@@ -82,6 +82,8 @@ function scopeLabel(scope: BillingReceiptScope): string {
       return "Single product";
     case "batch":
       return "Batch";
+    case "hub":
+      return "In-hub";
   }
 }
 
@@ -237,8 +239,8 @@ export function BillingReceiptsAccountPanel() {
       <div>
         <h2 className={panelClass.heading}>Billing receipts</h2>
         <p className={panelClass.description}>
-          View or download PDF invoices for checkout payments. Proration refunds still open
-          Stripe-hosted receipts when available.
+          View or download PDF invoices for checkout payments, including in-hub warehouse
+          products. Proration refunds still open Stripe-hosted receipts when available.
         </p>
       </div>
 
@@ -269,6 +271,7 @@ export function BillingReceiptsAccountPanel() {
             onChange={(e) => setScopeFilter(e.target.value as ScopeFilter)}
           >
             <option value="all">All receipts</option>
+            <option value="hub">In-hub products</option>
             <option value="order">Order checkout</option>
             <option value="single">Single product</option>
             <option value="batch">Batch</option>
@@ -300,7 +303,7 @@ export function BillingReceiptsAccountPanel() {
       : filteredRecords.length === 0 ?
         <p className={panelClass.empty}>
           {records.length === 0 ?
-            "No billing receipts yet. Receipts appear here after you pay for an order or receive a proration refund."
+            "No billing receipts yet. Receipts appear here after you pay for an order (including in-hub products) or receive a proration refund."
           : "No receipts match your search or filter."}
         </p>
       : (

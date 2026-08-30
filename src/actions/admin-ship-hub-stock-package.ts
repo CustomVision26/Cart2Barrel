@@ -1,21 +1,19 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-
-import { ensureHubStockSchemaEnums } from "@/data/ensure-hub-stock-schema";
 import {
-  recordHubStockPackageDeliveredActivity,
-  recordHubStockPackageShippedActivity,
-} from "@/data/user-status-update-events";
-import { getDb } from "@/db";
-import { hubStockOrderItems, orderItems, orders } from "@/db/schema";
+  generateHubStockUsDomesticLabel,
+  loadPaidUsHubPackage,
+  persistHubStockUsPackageDelivered,
+  persistHubStockUsPackageShipped,
+  type GenerateHubStockUsLabelResult,
+} from "@/data/hub-stock-us-package";
 import { getClerkSessionGate } from "@/lib/clerk-session";
-import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { lookupShippoTrackingStatus } from "@/lib/shippo";
 import {
+  generateHubStockUsLabelSchema,
   hubStockUsPackageOrderIdSchema,
   shipHubStockUsPackageSchema,
+  type GenerateHubStockUsLabelInput,
   type HubStockUsPackageOrderIdInput,
   type ShipHubStockUsPackageInput,
 } from "@/lib/validations/admin-hub-stock-shipment";
@@ -24,79 +22,7 @@ export type ShipHubStockUsPackageState =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
-function revalidateHubStockUsPackagePaths(): void {
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/orders-history");
-  revalidatePath("/dashboard/orders");
-  revalidatePath("/dashboard/orders-history");
-  revalidateDashboardAddItem();
-}
-
-async function loadPaidUsHubPackage(orderId: string): Promise<
-  | {
-      ok: true;
-      order: { id: string; clerkUserId: string };
-      lines: {
-        id: string;
-        fulfillmentStatus: (typeof orderItems.$inferSelect)["fulfillmentStatus"];
-        companyPurchaseRetailerTrackingCompany: string | null;
-        companyPurchaseRetailerTrackingNumber: string | null;
-      }[];
-    }
-  | { ok: false; message: string }
-> {
-  await ensureHubStockSchemaEnums();
-  const db = getDb();
-  const [order] = await db
-    .select({
-      id: orders.id,
-      clerkUserId: orders.clerkUserId,
-      status: orders.status,
-    })
-    .from(orders)
-    .where(eq(orders.id, orderId))
-    .limit(1);
-
-  if (!order || order.status !== "paid") {
-    return { ok: false, message: "Paid order not found." };
-  }
-
-  const hubRows = await db
-    .select({
-      orderItemId: hubStockOrderItems.orderItemId,
-      destination: hubStockOrderItems.destination,
-    })
-    .from(hubStockOrderItems)
-    .where(eq(hubStockOrderItems.orderId, order.id));
-
-  const usItemIds = hubRows
-    .filter((row) => row.destination === "us_address")
-    .map((row) => row.orderItemId);
-
-  if (usItemIds.length === 0) {
-    return { ok: false, message: "This order has no US in-hub warehouse package." };
-  }
-
-  const lines = await db
-    .select({
-      id: orderItems.id,
-      fulfillmentStatus: orderItems.fulfillmentStatus,
-      companyPurchaseRetailerTrackingCompany:
-        orderItems.companyPurchaseRetailerTrackingCompany,
-      companyPurchaseRetailerTrackingNumber:
-        orderItems.companyPurchaseRetailerTrackingNumber,
-    })
-    .from(orderItems)
-    .where(
-      and(eq(orderItems.orderId, order.id), inArray(orderItems.id, usItemIds)),
-    );
-
-  return {
-    ok: true,
-    order: { id: order.id, clerkUserId: order.clerkUserId },
-    lines,
-  };
-}
+export type GenerateHubStockUsLabelState = GenerateHubStockUsLabelResult;
 
 export async function shipHubStockUsPackageAction(
   raw: ShipHubStockUsPackageInput,
@@ -133,41 +59,45 @@ export async function shipHubStockUsPackageAction(
     };
   }
 
-  const trackingUrl = parsed.data.trackingUrl ?? null;
-  const company = parsed.data.retailerTrackingCompany;
-  const trackingNumber = parsed.data.retailerTrackingNumber;
-  const db = getDb();
-
-  await db
-    .update(orderItems)
-    .set({
-      fulfillmentStatus: "hub_stock_us_in_transit",
-      companyPurchaseTrackingUrl: trackingUrl,
-      companyPurchaseRetailerTrackingCompany: company,
-      companyPurchaseRetailerTrackingNumber: trackingNumber,
-      companyPurchaseUpdatedByClerkUserId: gate.userId,
-    })
-    .where(
-      inArray(
-        orderItems.id,
-        eligible.map((line) => line.id),
-      ),
-    );
-
-  await recordHubStockPackageShippedActivity({
-    clerkUserId: pack.order.clerkUserId,
-    orderId: pack.order.id,
-    carrier: company,
-    trackingNumber,
-    productCount: eligible.length,
+  await persistHubStockUsPackageShipped({
+    order: pack.order,
+    lines: eligible,
+    carrier: parsed.data.retailerTrackingCompany,
+    trackingNumber: parsed.data.retailerTrackingNumber,
+    trackingUrl: parsed.data.trackingUrl ?? null,
+    updatedByClerkUserId: gate.userId,
+    notifyCustomer: true,
   });
-
-  revalidateHubStockUsPackagePaths();
 
   return {
     ok: true,
-    message: `Shipment saved. The customer was notified with ${company} tracking ${trackingNumber}.`,
+    message: `Shipment saved. The customer was notified with ${parsed.data.retailerTrackingCompany} tracking ${parsed.data.retailerTrackingNumber}.`,
   };
+}
+
+export async function generateHubStockUsLabelAction(
+  raw: GenerateHubStockUsLabelInput,
+): Promise<GenerateHubStockUsLabelState> {
+  const gate = await getClerkSessionGate();
+  if (!gate.ok || !gate.isAdmin) {
+    return { ok: false, message: "You do not have admin access." };
+  }
+
+  const parsed = generateHubStockUsLabelSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.flatten().fieldErrors.orderId?.[0] ?? "Invalid order.",
+    };
+  }
+
+  return generateHubStockUsDomesticLabel({
+    orderId: parsed.data.orderId,
+    staffClerkUserId: gate.userId,
+    carrier: parsed.data.carrier,
+    service: parsed.data.service,
+    cents: parsed.data.cents,
+  });
 }
 
 export async function checkHubStockUsPackageTrackingAction(
@@ -255,33 +185,11 @@ export async function markHubStockUsPackageDeliveredAction(
     };
   }
 
-  const seeded =
-    inTransit.find((line) => line.companyPurchaseRetailerTrackingNumber?.trim()) ??
-    inTransit[0]!;
-  const db = getDb();
-
-  await db
-    .update(orderItems)
-    .set({
-      fulfillmentStatus: "hub_stock_us_delivered",
-      companyPurchaseUpdatedByClerkUserId: gate.userId,
-    })
-    .where(
-      inArray(
-        orderItems.id,
-        inTransit.map((line) => line.id),
-      ),
-    );
-
-  await recordHubStockPackageDeliveredActivity({
-    clerkUserId: pack.order.clerkUserId,
-    orderId: pack.order.id,
-    carrier: seeded.companyPurchaseRetailerTrackingCompany,
-    trackingNumber: seeded.companyPurchaseRetailerTrackingNumber,
-    productCount: inTransit.length,
+  await persistHubStockUsPackageDelivered({
+    order: pack.order,
+    lines: inTransit,
+    updatedByClerkUserId: gate.userId,
   });
-
-  revalidateHubStockUsPackagePaths();
 
   return {
     ok: true,

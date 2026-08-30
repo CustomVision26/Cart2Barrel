@@ -4,9 +4,10 @@ import { eq, inArray } from "drizzle-orm";
 
 import { ensureHubStockSchemaEnums } from "@/data/ensure-hub-stock-schema";
 import { getDb } from "@/db";
-import { hubStockOrderItems, hubStockProducts } from "@/db/schema";
+import { hubStockOrderItems, hubStockProducts, orderItems } from "@/db/schema";
 import {
   formatHubStockBoxSize,
+  shippoDashboardHref,
   type HubStockOrderPackingPackage,
 } from "@/lib/hub-stock-box";
 import { hubStockUsShipToKey } from "@/lib/hub-stock";
@@ -64,9 +65,12 @@ export async function listHubStockOrderPackingByOrderIds(
       liveLengthIn: hubStockProducts.parcelLengthIn,
       liveWidthIn: hubStockProducts.parcelWidthIn,
       liveHeightIn: hubStockProducts.parcelHeightIn,
+      shippoLabelUrl: hubStockOrderItems.shippoLabelUrl,
+      fulfillmentStatus: orderItems.fulfillmentStatus,
     })
     .from(hubStockOrderItems)
     .leftJoin(hubStockProducts, eq(hubStockOrderItems.productId, hubStockProducts.id))
+    .innerJoin(orderItems, eq(orderItems.id, hubStockOrderItems.orderItemId))
     .where(inArray(hubStockOrderItems.orderId, orderIds));
 
   const byOrder = new Map<string, typeof rows>();
@@ -131,6 +135,8 @@ function toPackingPackage(
     liveLengthIn: number | null;
     liveWidthIn: number | null;
     liveHeightIn: number | null;
+    shippoLabelUrl: string | null;
+    fulfillmentStatus: (typeof orderItems.$inferSelect)["fulfillmentStatus"];
   }[],
   usIndex: number,
 ): HubStockOrderPackingPackage {
@@ -180,5 +186,15 @@ function toPackingPackage(
       rated?.shippingCarrier ?? null,
       rated?.shippingService ?? null,
     ),
+    canGenerateLabel:
+      destination === "us_address" &&
+      group.some(
+        (row) =>
+          row.fulfillmentStatus === "hub_stock_pending_us_shipment" ||
+          row.fulfillmentStatus === "hub_stock_us_in_transit",
+      ),
+    shippoLabelUrl:
+      group.map((row) => row.shippoLabelUrl?.trim()).find(Boolean) ?? null,
+    shippoDashboardUrl: shippoDashboardHref(),
   };
 }

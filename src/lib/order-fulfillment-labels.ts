@@ -108,6 +108,8 @@ export function dashboardOrderLineStatusLabel(
       return "In transit to you";
     case "hub_stock_us_delivered":
       return "Delivered to you";
+    case "hub_stock_return_requested":
+      return "Return requested — awaiting label";
     default: {
       const _exhaustive: never = fulfillmentStatus;
       return _exhaustive;
@@ -159,6 +161,8 @@ export function adminOrderLineStatusLabel(
       return "In transit to customer";
     case "hub_stock_us_delivered":
       return "Delivered to customer";
+    case "hub_stock_return_requested":
+      return "Return requested — awaiting label";
     default: {
       const _exhaustive: never = fulfillmentStatus;
       return _exhaustive;

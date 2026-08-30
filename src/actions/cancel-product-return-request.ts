@@ -120,6 +120,11 @@ export async function cancelProductReturnRequestAction(
           throw restoreErr;
         }
       }
+    } else if (fulfillment === "hub_stock_return_requested") {
+      await db
+        .update(orderItems)
+        .set({ fulfillmentStatus: "hub_stock_us_delivered" })
+        .where(eq(orderItems.id, scoped.orderItem.id));
     }
 
     const req = await getItemRequestById(scoped.itemRequest.id);
@@ -162,12 +167,15 @@ export async function cancelProductReturnRequestAction(
   const restoredFulfillment =
     hadBarrelHold && scoped.returnRequest.heldFulfillmentStatus ?
       scoped.returnRequest.heldFulfillmentStatus
+    : fulfillment === "hub_stock_return_requested" ?
+      "hub_stock_us_delivered"
     : fulfillment;
   const statusLabel = dashboardOrderLineStatusLabel(restoredFulfillment, {
     warehouseReceivedCondition: scoped.orderItem.warehouseReceivedCondition,
   });
 
   revalidatePath("/dashboard/orders");
+  revalidatePath("/dashboard/orders-history");
   revalidatePath("/admin/orders");
   revalidateDashboardAddItem();
   if (hadBarrelHold) {

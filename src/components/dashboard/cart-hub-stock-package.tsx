@@ -4,11 +4,10 @@ import { useState } from "react";
 import { Package, Warehouse } from "lucide-react";
 
 import { CartHubStockLineItem } from "@/components/dashboard/cart-hub-stock-line-item";
-import { CartLinePriceBreakdown } from "@/components/dashboard/cart-line-price-breakdown";
+import { CartHubStockShippingRatesButton } from "@/components/dashboard/cart-hub-stock-shipping-rates-button";
 import { HubStockCartChangeAddressButton } from "@/components/dashboard/hub-stock-cart-change-address-button";
 import type { SerializableShippingAddress } from "@/data/addresses";
 import type { HubStockCartPackage } from "@/data/hub-stock-cart";
-import { formatUsd } from "@/lib/admin-markup";
 import { formatHubStockUsAddress } from "@/lib/hub-stock";
 
 export function CartHubStockPackage({
@@ -31,9 +30,6 @@ export function CartHubStockPackage({
           country: first.shipCountry,
         })
       : null;
-  const shippingLabel = [pkg.shippingCarrier, pkg.shippingService]
-    .filter((part) => Boolean(part?.trim()))
-    .join(" ");
   const productCount = pkg.lines.reduce(
     (sum, line) => sum + line.cartItem.quantity,
     0,
@@ -82,19 +78,13 @@ export function CartHubStockPackage({
             </p>
           : null}
         </div>
-        {isUsPackage && pkg.shippingCents > 0 ?
-          <div className="w-full sm:w-48">
-            <CartLinePriceBreakdown
-              rows={[
-                {
-                  label: "Package shipping",
-                  detail: shippingLabel || "Carrier rate",
-                  amountCents: pkg.shippingCents,
-                  emphasis: true,
-                },
-              ]}
-            />
-          </div>
+        {isUsPackage && first ?
+          <CartHubStockShippingRatesButton
+            cartItemId={first.id}
+            selectedCents={pkg.shippingCents}
+            selectedCarrier={pkg.shippingCarrier}
+            selectedService={pkg.shippingService}
+          />
         : null}
       </div>
       <ul className="divide-y divide-primary/15" role="list">

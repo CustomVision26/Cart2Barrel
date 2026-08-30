@@ -236,6 +236,9 @@ export function orderSlideStatusLabel(
   if (active.every((status) => status === "hub_stock_us_delivered")) {
     return audience === "customer" ? "Delivered to you" : "Delivered to customer";
   }
+  if (active.every((status) => status === "hub_stock_return_requested")) {
+    return "Return requested";
+  }
   if (
     active.every(
       (status) =>
@@ -258,7 +261,7 @@ export function laneDescription(
   if (audience === "customer") {
     switch (lane) {
       case "awaiting_purchase":
-        return "Awaiting company purchase, or a return request awaiting staff action and retailer refund.";
+        return "Awaiting company purchase, or a return request awaiting staff action (including a warehouse return label).";
       case "funded":
         return "Paid orders moving through purchase, warehouse packing, and shipping. Nothing needed from you right now.";
       case "need_corrections":

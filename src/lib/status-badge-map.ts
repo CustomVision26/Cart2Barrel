@@ -68,6 +68,8 @@ export function orderItemFulfillmentBadgeKind(
       return "companyPurchasePendingDelivery";
     case "hub_stock_us_delivered":
       return "fullyReceived";
+    case "hub_stock_return_requested":
+      return "customerResend";
     default: {
       const _exhaustive: never = f;
       return _exhaustive;

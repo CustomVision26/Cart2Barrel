@@ -1190,6 +1190,7 @@ function PurchaseQueueRow(props: {
             pendingProductReturnRequest={row.pendingProductReturnRequest}
             fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
             warehouseReceivedCondition={row.orderItem.warehouseReceivedCondition}
+            isHubStockUsLine={isHubStockProductUrl(row.request.productUrl)}
           />
           {fulfillment === "delivery_received_item_missing" &&
           row.orderItem.warehouseReceivedAt ?

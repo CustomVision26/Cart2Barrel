@@ -15,6 +15,7 @@ const CUSTOMER_LINE_REFUND_FULFILLMENTS: OrderItem["fulfillmentStatus"][] = [
   "hub_stock_pending_container",
   "hub_stock_us_in_transit",
   "hub_stock_us_delivered",
+  "hub_stock_return_requested",
 ];
 
 export function orderLineFulfillmentAllowsRefundWorkflow(

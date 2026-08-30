@@ -1,9 +1,16 @@
-import { AdminHubStockProductsManager } from "@/components/admin/admin-hub-stock-products-manager";
+import {
+  AdminHubStockHub,
+  type HubStockSubTab,
+} from "@/components/admin/admin-hub-stock-hub";
 import { listHubStockProductsForAdmin } from "@/data/hub-stock-products";
-import { loadHubShipFromSettings } from "@/data/hub-ship-from";
+import { listHubShipFromAddresses } from "@/data/hub-ship-from";
 import { isShippoConfigured } from "@/lib/shippo";
 
-export async function AdminOverviewHubStockSection() {
+export async function AdminOverviewHubStockSection({
+  hubStockTab,
+}: {
+  hubStockTab: HubStockSubTab;
+}) {
   let rows: Awaited<ReturnType<typeof listHubStockProductsForAdmin>> = [];
   try {
     rows = await listHubStockProductsForAdmin();
@@ -26,7 +33,12 @@ export async function AdminOverviewHubStockSection() {
     images: r.images,
   }));
 
-  const shipFrom = await loadHubShipFromSettings();
+  let shipFromAddresses: Awaited<ReturnType<typeof listHubShipFromAddresses>> = [];
+  try {
+    shipFromAddresses = await listHubShipFromAddresses();
+  } catch {
+    shipFromAddresses = [];
+  }
 
   return (
     <div className="space-y-4">
@@ -45,9 +57,20 @@ export async function AdminOverviewHubStockSection() {
           <span className="font-medium text-foreground">/admin/purchase-orders</span>.
         </p>
       </div>
-      <AdminHubStockProductsManager
+      <AdminHubStockHub
+        hubStockTab={hubStockTab}
         products={products}
-        shipFrom={shipFrom}
+        shipFromAddresses={shipFromAddresses.map((row) => ({
+          id: row.id,
+          name: row.name,
+          phone: row.phone,
+          line1: row.line1,
+          line2: row.line2,
+          city: row.city,
+          state: row.state,
+          postalCode: row.postalCode,
+          isPrimary: row.isPrimary,
+        }))}
         shippoConfigured={isShippoConfigured()}
       />
     </div>

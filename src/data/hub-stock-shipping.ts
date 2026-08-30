@@ -9,11 +9,11 @@ import {
   combineHubStockParcels,
   hubStockParcelFromProduct,
 } from "@/lib/hub-stock-parcel";
-import { quoteShippoUsdRate, type ShippoQuotedRate } from "@/lib/shippo";
+import { quoteShippoUsdRate, listShippoUsdRates, isCompareShippingCarrier, type ShippoQuotedRate } from "@/lib/shippo";
 
 export { combineHubStockParcels, hubStockParcelFromProduct } from "@/lib/hub-stock-parcel";
 
-export async function quoteHubStockUsBundleShipping(input: {
+type HubStockUsBundleQuoteInput = {
   products: {
     product: Pick<
       HubStockProduct,
@@ -31,8 +31,39 @@ export async function quoteHubStockUsBundleShipping(input: {
     state: string;
     postalCode: string;
   };
-}): Promise<
-  { ok: true; rate: ShippoQuotedRate } | { ok: false; message: string }
+};
+
+async function hubStockUsBundleShippoPayload(input: HubStockUsBundleQuoteInput): Promise<
+  | {
+      ok: true;
+      from: {
+        name: string;
+        phone: string;
+        street1: string;
+        street2: string;
+        city: string;
+        state: string;
+        zip: string;
+        country: "US";
+      };
+      to: {
+        name?: string | null;
+        phone?: string | null;
+        street1: string;
+        street2?: string | null;
+        city: string;
+        state: string;
+        zip: string;
+        country: "US";
+      };
+      parcel: {
+        weightOz: number;
+        lengthIn: number;
+        widthIn: number;
+        heightIn: number;
+      };
+    }
+  | { ok: false; message: string }
 > {
   const parcels: {
     parcel: { weightOz: number; lengthIn: number; widthIn: number; heightIn: number };
@@ -63,11 +94,11 @@ export async function quoteHubStockUsBundleShipping(input: {
     return {
       ok: false,
       message:
-        "The hub ship-from address is incomplete. Staff must save a US warehouse address on In-hub products.",
+        "The hub ship-from address is incomplete. Staff must save a primary US warehouse address on In-hub products.",
     };
   }
-
-  return quoteShippoUsdRate({
+  return {
+    ok: true,
     from: {
       name: from.name,
       phone: from.phone,
@@ -89,7 +120,26 @@ export async function quoteHubStockUsBundleShipping(input: {
       country: "US",
     },
     parcel: combined,
-  });
+  };
+}
+
+export async function quoteHubStockUsBundleShipping(
+  input: HubStockUsBundleQuoteInput,
+): Promise<{ ok: true; rate: ShippoQuotedRate } | { ok: false; message: string }> {
+  const payload = await hubStockUsBundleShippoPayload(input);
+  if (!payload.ok) return payload;
+  return quoteShippoUsdRate(payload);
+}
+
+export async function listHubStockUsBundleShippingRates(
+  input: HubStockUsBundleQuoteInput,
+): Promise<{ ok: true; rates: ShippoQuotedRate[] } | { ok: false; message: string }> {
+  const payload = await hubStockUsBundleShippoPayload(input);
+  if (!payload.ok) return payload;
+  const listed = await listShippoUsdRates(payload);
+  if (!listed.ok) return listed;
+  const compare = listed.rates.filter((rate) => isCompareShippingCarrier(rate.carrier));
+  return { ok: true, rates: compare.length > 0 ? compare : listed.rates };
 }
 
 export async function quoteHubStockUsShipping(input: {

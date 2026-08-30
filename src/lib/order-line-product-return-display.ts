@@ -52,6 +52,9 @@ export function orderLineProductReturnStatusLabel(
   input: OrderLineProductReturnDisplayInput,
 ): string | null {
   if (input.pendingProductReturnRequest) {
+    if (input.fulfillmentStatus === "hub_stock_return_requested") {
+      return null;
+    }
     return PRODUCT_RETURN_REQUEST_PENDING_LABEL;
   }
   if (isMoneyBackReturnFullyRefunded(input)) {

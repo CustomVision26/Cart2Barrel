@@ -37,6 +37,7 @@ import {
   isProblemDeliveryReceiptFulfillment,
   problemDeliveryWarehouseCondition,
 } from "@/lib/delivery-condition-acceptance";
+import { collectOrderHeaderTrackings } from "@/lib/dashboard-line-tracking";
 import { dashboardOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
@@ -48,34 +49,6 @@ import { cn } from "@/lib/utils";
 
 function shortOrderId(orderId: string): string {
   return `${orderId.slice(0, 8)}…`;
-}
-
-function dashboardShowLineTracking(row: DashboardPaidOrderLineRow): boolean {
-  const fulfillment = effectiveOrderItemFulfillmentStatus(
-    row.orderItem,
-    row.order,
-  );
-  const oi = row.orderItem;
-  if (fulfillment === "company_purchase_pending_delivery") return true;
-  if (fulfillment === "delivery_requested_pending_fulfillment") return true;
-  if (
-    fulfillment === "delivery_received_item_missing" ||
-    fulfillment === "delivery_received_item_damaged" ||
-    fulfillment === "delivery_received_wrong_item"
-  ) {
-    return true;
-  }
-  if (fulfillment === "delivery_received_good_awaiting_barrel") {
-    return !!(
-      oi.companyPurchaseTrackingUrl?.trim() ||
-      oi.companyPurchaseRetailerTrackingNumber?.trim() ||
-      oi.companyPurchaseRetailerTrackingCompany?.trim()
-    );
-  }
-  if (fulfillment === "product_return_awaiting_delivery") return true;
-  if (fulfillment === "hub_stock_us_in_transit") return true;
-  if (fulfillment === "hub_stock_us_delivered") return true;
-  return false;
 }
 
 function DashboardOrderProductCard({
@@ -92,18 +65,15 @@ function DashboardOrderProductCard({
     row.orderItem,
     row.order,
   );
-  const pendingRefund = row.pendingRefundRequest != null;
   const pendingReturn = row.pendingProductReturnRequest != null;
+  const pendingRefund = row.pendingRefundRequest != null;
   const fulfilledReturn = row.fulfilledProductReturnRequest != null;
   const isOutside = isOutsidePurchaseRequest(r);
-  const showTracking =
-    !pendingReturn &&
-    fulfillment !== "product_return_awaiting_delivery" &&
-    dashboardShowLineTracking(row);
   const returnWorkflowActive =
     pendingReturn ||
     fulfilledReturn ||
-    fulfillment === "product_return_awaiting_delivery";
+    fulfillment === "product_return_awaiting_delivery" ||
+    fulfillment === "hub_stock_return_requested";
 
   const problemWarehouseCondition =
     isProblemDeliveryReceiptFulfillment(fulfillment) ?
@@ -196,18 +166,6 @@ function DashboardOrderProductCard({
           >
             {dashboardOrderLineStatusLabel(fulfillment, lineStatusLabelOpts)}
           </StatusBadge>
-          {showTracking ?
-            <DashboardOrderLineTracking
-              trackingUrl={row.orderItem.companyPurchaseTrackingUrl}
-              retailerCompany={
-                row.orderItem.companyPurchaseRetailerTrackingCompany
-              }
-              trackingNumber={
-                row.orderItem.companyPurchaseRetailerTrackingNumber
-              }
-              productLabel={r.productName?.trim() || "Item"}
-            />
-          : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-2.5">
@@ -294,6 +252,7 @@ export function DashboardOrderLinesDetailDialog({
   const buckets = partitionPaidLinesIntoBatchBuckets(group.lines);
   const checkoutTotalCents = group.order.totalAmount;
   const adjustedOrderTotalCents = checkoutTotalCents + paidTopupCents;
+  const headerTrackings = collectOrderHeaderTrackings(group.lines);
 
   function handleRefresh() {
     startRefresh(() => {
@@ -319,19 +278,37 @@ export function DashboardOrderLinesDetailDialog({
                 Products on this paid order, grouped by batch and singles.
               </DialogDescription>
             </div>
-            <div className="shrink-0 text-right">
-              <span className="block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                {paidTopupCents > 0 ? "New total" : "Order total"}
-              </span>
-              <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
-                {formatUsd(adjustedOrderTotalCents)}
-              </span>
-              {paidTopupCents > 0 ?
-                <p className="mt-1 max-w-[14rem] text-[11px] leading-snug text-muted-foreground">
-                  Checkout {formatUsd(checkoutTotalCents)}
-                  {" + "}
-                  top-ups {formatUsd(paidTopupCents)}
-                </p>
+            <div className="shrink-0 space-y-2 text-right">
+              <div>
+                <span className="block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                  {paidTopupCents > 0 ? "New total" : "Order total"}
+                </span>
+                <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
+                  {formatUsd(adjustedOrderTotalCents)}
+                </span>
+                {paidTopupCents > 0 ?
+                  <p className="mt-1 max-w-[14rem] text-[11px] leading-snug text-muted-foreground">
+                    Checkout {formatUsd(checkoutTotalCents)}
+                    {" + "}
+                    top-ups {formatUsd(paidTopupCents)}
+                  </p>
+                : null}
+              </div>
+              {headerTrackings.length > 0 ?
+                <div className="flex flex-col items-end gap-1.5">
+                  {headerTrackings.map((tracking) => (
+                    <DashboardOrderLineTracking
+                      key={tracking.key}
+                      trackingUrl={tracking.trackingUrl}
+                      retailerCompany={tracking.retailerCompany}
+                      trackingNumber={tracking.trackingNumber}
+                      trackingStatus={tracking.trackingStatus}
+                      trackingStatusDetails={tracking.trackingStatusDetails}
+                      productLabel={tracking.productLabel}
+                      className="justify-end"
+                    />
+                  ))}
+                </div>
               : null}
             </div>
           </div>

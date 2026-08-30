@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
 import { adminFulfillProductReturnRequestAction } from "@/actions/admin-fulfill-product-return-request";
+import { AdminGenerateHubStockReturnLabelButton } from "@/components/admin/admin-generate-hub-stock-return-label-button";
 import { AdminRetailerReceiptImagesField } from "@/components/admin/admin-retailer-receipt-images-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -48,6 +49,7 @@ export function AdminProductReturnRequestDialog({
     fulfillmentStatus,
     warehouseReceivedCondition,
   });
+  const isHubStockUsReturn = outcomeContext === "hub_stock_us";
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState("");
@@ -61,10 +63,13 @@ export function AdminProductReturnRequestDialog({
   useEffect(() => {
     if (open) {
       setNotesForCustomer(
-        defaultProductReturnStaffCustomerNote(returnRequest.desiredOutcome),
+        defaultProductReturnStaffCustomerNote(
+          returnRequest.desiredOutcome,
+          isHubStockUsReturn ? "hub_stock_us" : "retailer",
+        ),
       );
     }
-  }, [open, returnRequest.desiredOutcome]);
+  }, [open, returnRequest.desiredOutcome, isHubStockUsReturn]);
 
   const submit = useCallback(() => {
     setFeedback(null);
@@ -120,8 +125,10 @@ export function AdminProductReturnRequestDialog({
           <DialogTitle>Product return request</DialogTitle>
           <DialogDescription>
             Customer asked Cart2Barrel to return{" "}
-            <span className="font-medium text-foreground">{productLabel}</span>. Staff complete
-            the physical return and carrier transaction, then save tracking and receipt here.
+            <span className="font-medium text-foreground">{productLabel}</span>
+            {isHubStockUsReturn ?
+              ". Generate a Shippo return label so the customer can ship the product back to the warehouse."
+            : ". Staff complete the physical return and carrier transaction, then save tracking and receipt here."}
           </DialogDescription>
         </DialogHeader>
 
@@ -153,9 +160,48 @@ export function AdminProductReturnRequestDialog({
             </dl>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor={`admin-return-customer-note-${orderItemId}`}>
+              Notes for customer
+            </Label>
+            <textarea
+              id={`admin-return-customer-note-${orderItemId}`}
+              className="min-h-[6rem] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
+              value={notesForCustomer}
+              onChange={(e) => setNotesForCustomer(e.target.value)}
+              disabled={pending}
+              maxLength={2000}
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown to the customer on their order when return tracking is saved. You
+              can edit this before generating a label or saving tracking.
+            </p>
+          </div>
+
+          {isHubStockUsReturn ?
+            <div className="space-y-3 rounded-lg border border-primary/25 bg-primary/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Warehouse return label
+              </p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Buy a Shippo label from the customer address back to the primary hub
+                ship-from. The customer prints it from Orders. Tracking updates live
+                from Shippo; use Mark return received on Purchase orders if a webhook
+                is not configured.
+              </p>
+              <AdminGenerateHubStockReturnLabelButton
+                orderItemId={orderItemId}
+                customerNotes={notesForCustomer}
+                disabled={pending}
+              />
+            </div>
+          : null}
+
           <div className="space-y-3 rounded-lg border border-border p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Return shipment & receipt
+              {isHubStockUsReturn ?
+                "Or enter return tracking manually"
+              : "Return shipment & receipt"}
             </p>
             <AdminRetailerReceiptImagesField
               orderItemId={orderItemId}
@@ -189,23 +235,6 @@ export function AdminProductReturnRequestDialog({
                 disabled={pending}
               />
             </fieldset>
-            <div className="space-y-2">
-              <Label htmlFor={`admin-return-customer-note-${orderItemId}`}>
-                Notes for customer
-              </Label>
-              <textarea
-                id={`admin-return-customer-note-${orderItemId}`}
-                className="min-h-[6rem] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
-                value={notesForCustomer}
-                onChange={(e) => setNotesForCustomer(e.target.value)}
-                disabled={pending}
-                maxLength={2000}
-              />
-              <p className="text-xs text-muted-foreground">
-                Shown to the customer on their order when return tracking is saved. You
-                can edit this before saving.
-              </p>
-            </div>
           </div>
 
           {feedback ?
@@ -222,7 +251,11 @@ export function AdminProductReturnRequestDialog({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button type="button" disabled={pending} onClick={submit}>
-            {pending ? "Saving…" : "Save return tracking"}
+            {pending ?
+              "Saving…"
+            : isHubStockUsReturn ?
+              "Save manual tracking"
+            : "Save return tracking"}
           </Button>
         </DialogFooter>
       </DialogContent>

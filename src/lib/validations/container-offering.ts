@@ -109,6 +109,15 @@ export type AdminUpdateContainerOfferingInput = z.infer<
   typeof adminUpdateContainerOfferingSchema
 >;
 
+export const adminSetContainerOfferingPublishedSchema = z.object({
+  offeringId: z.string().uuid(),
+  published: z.boolean(),
+});
+
+export type AdminSetContainerOfferingPublishedInput = z.infer<
+  typeof adminSetContainerOfferingPublishedSchema
+>;
+
 export function priceUsdStringToCents(usd: string): number {
   const n = Number.parseFloat(usd.trim());
   if (!Number.isFinite(n) || n < 0) return 0;

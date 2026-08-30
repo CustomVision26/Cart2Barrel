@@ -5,6 +5,7 @@ import {
   AdminPurchaseTrackingDialog,
   AdminPurchaseTrackingLink,
 } from "@/components/admin/admin-purchase-tracking-dialog";
+import { AdminMarkHubStockReturnReceivedButton } from "@/components/admin/admin-mark-hub-stock-return-received-button";
 import { AdminProductReturnRequestDialog } from "@/components/admin/admin-product-return-request-dialog";
 import { AdminRefundOrderLineButton } from "@/components/admin/admin-refund-order-line-button";
 import { AdminRefundRequestControls } from "@/components/admin/admin-refund-request-controls";
@@ -62,6 +63,7 @@ export function AdminOrderLineActions({
   isOutsidePurchase = false,
   /** Batch header owns Review and approve + Refund for batch members. */
   inBatchGroup = false,
+  isHubStockUsLine = false,
 }: {
   orderItemId: string;
   fulfillmentStatus: OrderItem["fulfillmentStatus"];
@@ -82,6 +84,8 @@ export function AdminOrderLineActions({
   /** Outside purchases use the return-to-retailer workflow — no Stripe refund line. */
   isOutsidePurchase?: boolean;
   inBatchGroup?: boolean;
+  /** US in-hub warehouse line — return label / warehouse receipt actions. */
+  isHubStockUsLine?: boolean;
 }) {
   const refundableCents = Math.max(0, linePriceCents - refundedCents);
   const returnRefundContext = {
@@ -195,7 +199,8 @@ export function AdminOrderLineActions({
     fulfillmentStatus === "hub_stock_pending_us_shipment" ||
     fulfillmentStatus === "hub_stock_pending_container" ||
     fulfillmentStatus === "hub_stock_us_in_transit" ||
-    fulfillmentStatus === "hub_stock_us_delivered"
+    fulfillmentStatus === "hub_stock_us_delivered" ||
+    fulfillmentStatus === "hub_stock_return_requested"
   ) {
     return (
       <div className="flex flex-col items-start gap-2">
@@ -238,9 +243,11 @@ export function AdminOrderLineActions({
           </div>
         : (
           <span className="text-xs text-muted-foreground">
-            {fulfillmentStatus === "hub_stock_pending_us_shipment"
-              ? "Awaiting staff shipping to the customer US address."
-              : "In hub — pack into the overseas packaging container."}
+            {fulfillmentStatus === "hub_stock_pending_us_shipment" ?
+              "Awaiting staff shipping to the customer US address."
+            : fulfillmentStatus === "hub_stock_return_requested" ?
+              "Customer return requested — generate a warehouse return label from View return."
+            : "In hub — pack into the overseas packaging container."}
           </span>
         )}
         {!pendingRefundRequest && refundableCents > 0 && !isOutsidePurchase ?
@@ -311,6 +318,10 @@ export function AdminOrderLineActions({
               : undefined
             }
           />
+          {fulfillmentStatus === "product_return_awaiting_delivery" &&
+          isHubStockUsLine ?
+            <AdminMarkHubStockReturnReceivedButton orderItemId={orderItemId} />
+          : null}
           {showRefundLine ?
             <AdminRefundOrderLineButton
               orderItemId={orderItemId}

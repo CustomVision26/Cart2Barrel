@@ -14,8 +14,9 @@ import {
   orders,
 } from "@/db/schema";
 import { lineSnapshotPayloadFromItemRequest } from "@/data/item-request-line-snapshots";
-import { recordProductReturnRequestedActivity } from "@/data/admin-user-activity-events";
 import { getItemRequestById } from "@/data/item-requests";
+import { recordProductReturnRequestedActivity } from "@/data/admin-user-activity-events";
+import { getHubStockOrderItemByOrderItemId } from "@/data/hub-stock-cart";
 import {
   captureProductReturnBarrelHold,
   releaseProductReturnBarrelHold,
@@ -302,7 +303,17 @@ export async function submitProductReturnRequestAction(
     productName: scoped.itemRequest.productName,
   });
 
+  const hubSnap = await getHubStockOrderItemByOrderItemId(scoped.orderItem.id);
+  const isHubUsReturn = hubSnap?.destination === "us_address";
+  if (isHubUsReturn && effectiveFulfillment === "hub_stock_us_delivered") {
+    await db
+      .update(orderItems)
+      .set({ fulfillmentStatus: "hub_stock_return_requested" })
+      .where(eq(orderItems.id, scoped.orderItem.id));
+  }
+
   revalidatePath("/dashboard/orders");
+  revalidatePath("/dashboard/orders-history");
   revalidatePath("/admin/orders");
   revalidateDashboardAddItem();
   if (barrelHold) {
@@ -312,7 +323,9 @@ export async function submitProductReturnRequestAction(
   return {
     ok: true,
     message:
-      barrelHold ?
+      isHubUsReturn ?
+        "Return request submitted. Staff will generate a return shipping label so you can send the product back to the warehouse."
+      : barrelHold ?
         "Return request submitted. This product was removed from container packing until staff review your request."
       : "Return request submitted. Cart2Barrel staff will handle the physical return and shipping.",
   };

@@ -45,6 +45,7 @@ import {
 } from "@/lib/batch-line-share";
 import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
+import { isHubStockProductUrl } from "@/lib/hub-stock";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { effectiveOutsidePurchasePaidFulfillment } from "@/lib/outside-purchase-order-fulfillment";
@@ -217,8 +218,10 @@ function DetailProductCard({
               pendingRefundRequest={row.pendingRefundRequest}
               pendingProductReturnRequest={row.pendingProductReturnRequest}
               fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
+              warehouseReceivedCondition={row.orderItem.warehouseReceivedCondition}
               isOutsidePurchase={isOutsidePurchase}
               inBatchGroup={inBatchGroup}
+              isHubStockUsLine={isHubStockProductUrl(r.productUrl)}
             />
           : null}
           <ItemRequestLineAuditDialog

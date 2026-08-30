@@ -3,6 +3,7 @@ import {
   formatInvoiceDate,
   formatInvoiceDateTime,
   formatInvoiceMoney,
+  paymentInvoiceSummaryRows,
 } from "@/lib/invoice/payment-invoice-format";
 import type { PaymentInvoiceDocument } from "@/lib/invoice/payment-invoice-types";
 
@@ -225,7 +226,8 @@ export function renderPaymentInvoiceHtml(invoice: PaymentInvoiceDocument): strin
 
     <div class="columns">
       <div>
-        <div class="block-title">${escapeHtml(invoice.company.name)}</div>
+        <div class="block-title">From</div>
+        <div>${escapeHtml(invoice.company.name)}</div>
         ${renderAddressBlock(invoice.company.addressLines)}
         ${companyContact ? `<div style="margin-top:8px">${companyContact}</div>` : ""}
       </div>
@@ -253,18 +255,14 @@ export function renderPaymentInvoiceHtml(invoice: PaymentInvoiceDocument): strin
 
     <table class="totals">
       <tbody>
-        <tr>
-          <td class="label">Subtotal</td>
-          <td class="value">${escapeHtml(formatInvoiceMoney(invoice.subtotalCents))}</td>
-        </tr>
-        <tr class="grand">
-          <td class="label">Total</td>
-          <td class="value">${escapeHtml(formatInvoiceMoney(invoice.totalCents))}</td>
-        </tr>
-        <tr class="grand">
-          <td class="label">Amount paid</td>
-          <td class="value">${escapeHtml(formatInvoiceMoney(invoice.amountPaidCents))}</td>
-        </tr>
+        ${paymentInvoiceSummaryRows(invoice)
+          .map(
+            (row) => `<tr${row.emphasize ? ' class="grand"' : ""}>
+          <td class="label">${escapeHtml(row.label)}</td>
+          <td class="value">${escapeHtml(formatInvoiceMoney(row.amountCents))}</td>
+        </tr>`,
+          )
+          .join("")}
       </tbody>
     </table>
 

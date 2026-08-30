@@ -9,7 +9,6 @@ import {
   adminCreateHubStockProductAction,
   adminDeleteHubStockProductAction,
   adminDeleteHubStockProductImageAction,
-  adminSaveHubShipFromAction,
   adminSetHubStockProductPublishedAction,
   adminUpdateHubStockProductAction,
   adminUploadHubStockProductImagesAction,
@@ -31,13 +30,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ImageFileInput } from "@/components/ui/image-file-input";
-import { Input, inputFieldClassName, nativeSelectFieldClassName } from "@/components/ui/input";
+import { Input, inputFieldClassName } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatUsd } from "@/lib/admin-markup";
 import { HUB_STOCK_PRODUCT_IMAGES_MAX } from "@/lib/hub-stock";
-import { US_STATES } from "@/lib/us-states";
 import { validateProductImageFile } from "@/lib/staged-product-image";
 import { cn } from "@/lib/utils";
 
@@ -89,20 +87,8 @@ function appendValidImageFiles(current: File[], fileList: FileList | null): File
 
 export function AdminHubStockProductsManager({
   products,
-  shipFrom,
-  shippoConfigured,
 }: {
   products: AdminHubStockProductRow[];
-  shipFrom: {
-    name: string;
-    phone: string;
-    line1: string;
-    line2: string;
-    city: string;
-    state: string;
-    postalCode: string;
-  };
-  shippoConfigured: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -118,33 +104,6 @@ export function AdminHubStockProductsManager({
 
   return (
     <div className="space-y-6">
-      <Card className="border-border/80">
-        <CardHeader>
-          <CardTitle>Hub ship-from address</CardTitle>
-          <CardDescription>
-            Shippo rates US delivery from this warehouse to the shopper.{" "}
-            {shippoConfigured ?
-              "Shippo API key is configured."
-            : "Add SHIPPO_API_KEY to the server environment before rates will work."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <HubShipFromForm
-            key={[
-              shipFrom.name,
-              shipFrom.phone,
-              shipFrom.line1,
-              shipFrom.line2,
-              shipFrom.city,
-              shipFrom.state,
-              shipFrom.postalCode,
-            ].join("\0")}
-            pending={pending}
-            initial={shipFrom}
-          />
-        </CardContent>
-      </Card>
-
       <Card className="border-border/80">
         <CardHeader>
           <CardTitle>Add in-hub product</CardTitle>
@@ -880,142 +839,5 @@ function AdminHubStockProductEditor({
         </div>
       </form>
     </div>
-  );
-}
-
-function HubShipFromForm({
-  pending,
-  initial,
-}: {
-  pending: boolean;
-  initial: {
-    name: string;
-    phone: string;
-    line1: string;
-    line2: string;
-    city: string;
-    state: string;
-    postalCode: string;
-  };
-}) {
-  const router = useRouter();
-  const [saving, startSave] = useTransition();
-  const [fields, setFields] = useState(initial);
-  const busy = pending || saving;
-
-  function setField(name: keyof typeof fields, value: string) {
-    setFields((current) => ({ ...current, [name]: value }));
-  }
-
-  return (
-    <form
-      className="grid gap-3 sm:grid-cols-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        startSave(async () => {
-          const result = await adminSaveHubShipFromAction({
-            name: fields.name,
-            phone: fields.phone,
-            line1: fields.line1,
-            line2: fields.line2,
-            city: fields.city,
-            state: fields.state,
-            postalCode: fields.postalCode,
-          });
-          if (!result.ok) {
-            toast.error(result.message);
-            return;
-          }
-          toast.success("Ship-from address saved.");
-          router.refresh();
-        });
-      }}
-    >
-      <div className="space-y-1.5">
-        <Label htmlFor="ship-from-name">Warehouse / company name</Label>
-        <Input
-          id="ship-from-name"
-          name="name"
-          value={fields.name}
-          onChange={(e) => setField("name", e.target.value)}
-          required
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="ship-from-phone">Phone</Label>
-        <Input
-          id="ship-from-phone"
-          name="phone"
-          value={fields.phone}
-          onChange={(e) => setField("phone", e.target.value)}
-          required
-        />
-      </div>
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label htmlFor="ship-from-line1">Street address</Label>
-        <Input
-          id="ship-from-line1"
-          name="line1"
-          value={fields.line1}
-          onChange={(e) => setField("line1", e.target.value)}
-          required
-        />
-      </div>
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label htmlFor="ship-from-line2">
-          Address line 2 <span className="font-normal text-muted-foreground">(optional)</span>
-        </Label>
-        <Input
-          id="ship-from-line2"
-          name="line2"
-          value={fields.line2}
-          onChange={(e) => setField("line2", e.target.value)}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="ship-from-city">City</Label>
-        <Input
-          id="ship-from-city"
-          name="city"
-          value={fields.city}
-          onChange={(e) => setField("city", e.target.value)}
-          required
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="ship-from-state">State</Label>
-        <select
-          id="ship-from-state"
-          name="state"
-          value={fields.state}
-          onChange={(e) => setField("state", e.target.value)}
-          required
-          className={nativeSelectFieldClassName}
-        >
-          <option value="">Select state</option>
-          {US_STATES.map((state) => (
-            <option key={state} value={state}>
-              {state}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="ship-from-zip">ZIP</Label>
-        <Input
-          id="ship-from-zip"
-          name="postalCode"
-          value={fields.postalCode}
-          onChange={(e) => setField("postalCode", e.target.value)}
-          required
-          placeholder="12345"
-        />
-      </div>
-      <div className="sm:col-span-2">
-        <Button type="submit" disabled={busy}>
-          {busy ? "Saving…" : "Save ship-from address"}
-        </Button>
-      </div>
-    </form>
   );
 }

@@ -348,6 +348,27 @@ export async function recordRefundRejectedActivity(params: {
   });
 }
 
+export async function recordHubStockReturnReceivedActivity(params: {
+  clerkUserId: string;
+  orderId: string;
+  productCount: number;
+  productName: string | null;
+}): Promise<void> {
+  const label =
+    params.productCount === 1 ?
+      params.productName?.trim() || "1 in-hub product"
+    : `${params.productCount} in-hub products`;
+  await recordUserStatusUpdateEvent({
+    clerkUserId: params.clerkUserId,
+    kind: "warehouse_delivery_received",
+    title: "Return received at warehouse",
+    body: `${label} arrived back at the hub. Refund or replacement will follow your request.`,
+    href: userStatusHrefForOrders(params.orderId),
+    entityType: "order",
+    entityId: params.orderId,
+  });
+}
+
 export async function recordProductReturnFulfilledActivity(params: {
   clerkUserId: string;
   orderId: string;

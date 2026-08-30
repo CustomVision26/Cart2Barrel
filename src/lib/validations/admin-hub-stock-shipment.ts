@@ -36,3 +36,14 @@ export const hubStockUsPackageOrderIdSchema = z.object({
 export type HubStockUsPackageOrderIdInput = z.infer<
   typeof hubStockUsPackageOrderIdSchema
 >;
+
+export const generateHubStockUsLabelSchema = z.object({
+  orderId: z.string().uuid(),
+  carrier: z.string().trim().min(1).max(120).optional(),
+  service: z.string().trim().min(1).max(200).optional(),
+  cents: z.number().int().nonnegative().optional(),
+});
+
+export type GenerateHubStockUsLabelInput = z.infer<
+  typeof generateHubStockUsLabelSchema
+>;

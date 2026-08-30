@@ -1,15 +1,12 @@
-import { createRequire } from "node:module";
-import path from "node:path";
+import "server-only";
 
+import PDFDocument from "pdfkit";
 import type PDFKit from "pdfkit";
-
-/** Resolve pdfkit from project node_modules (Turbopack breaks bundled AFM font paths). */
-const loadPdfKit = createRequire(path.join(process.cwd(), "package.json"));
-const PDFDocument = loadPdfKit("pdfkit") as typeof import("pdfkit");
 
 import {
   formatInvoiceDate,
   formatInvoiceMoney,
+  paymentInvoiceSummaryRows,
 } from "@/lib/invoice/payment-invoice-format";
 import type { PaymentInvoiceDocument } from "@/lib/invoice/payment-invoice-types";
 
@@ -90,11 +87,11 @@ export async function renderPaymentInvoicePdf(
     const columnTop = doc.y;
     const columnWidth = pageWidth / 2 - 12;
 
-    doc.font("Helvetica-Bold").text(invoice.company.name, doc.page.margins.left, columnTop, {
+    doc.font("Helvetica-Bold").text("From", doc.page.margins.left, columnTop, {
       width: columnWidth,
     });
     doc.font("Helvetica");
-    writeAddressBlock(doc, invoice.company.addressLines);
+    writeAddressBlock(doc, [invoice.company.name, ...invoice.company.addressLines]);
     if (invoice.company.phone?.trim()) doc.text(invoice.company.phone.trim());
     if (invoice.company.email?.trim()) {
       doc.fillColor("#2563eb").text(invoice.company.email.trim());
@@ -180,14 +177,9 @@ export async function renderPaymentInvoicePdf(
     const totalsX = rightX - 220;
     let totalsY = tableY + 8;
     doc.font("Helvetica").fontSize(10);
-    const totalRows = [
-      ["Subtotal", formatInvoiceMoney(invoice.subtotalCents)],
-      ["Total", formatInvoiceMoney(invoice.totalCents)],
-      ["Amount paid", formatInvoiceMoney(invoice.amountPaidCents)],
-    ];
-    for (const [label, value] of totalRows) {
-      doc.text(label, totalsX, totalsY, { width: 100, align: "right" });
-      doc.font("Helvetica-Bold").text(value, totalsX + 108, totalsY, {
+    for (const row of paymentInvoiceSummaryRows(invoice)) {
+      doc.text(row.label, totalsX, totalsY, { width: 100, align: "right" });
+      doc.font("Helvetica-Bold").text(formatInvoiceMoney(row.amountCents), totalsX + 108, totalsY, {
         width: 112,
         align: "right",
       });

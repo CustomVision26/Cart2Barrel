@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import type { DashboardPaidOrderLineRow } from "@/data/dashboard-order-lines";
 import { formatUsd } from "@/lib/admin-markup";
+import { formatShippoLiveTrackingStatus } from "@/lib/dashboard-line-tracking";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { dashboardOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { resolveProductReturnDesiredOutcomeContext } from "@/lib/product-return-desired-outcome";
@@ -42,6 +43,12 @@ function StaffReturnSection({ row }: { row: DashboardPaidOrderLineRow }) {
   const number = oi.companyPurchaseRetailerTrackingNumber?.trim();
   const receipts = oi.companyPurchaseReceiptImageUrls ?? [];
   const staffCustomerNote = row.fulfilledProductReturnRequest?.customerNotes?.trim();
+  const returnLabelUrl = row.hubReturnLabelUrl?.trim();
+  const liveStatus = formatShippoLiveTrackingStatus(
+    row.hubTrackingStatus,
+    row.hubTrackingStatusDetails,
+  );
+  const isHubStockUsReturn = row.hubStockUsLine;
 
   return (
     <section className="space-y-4 rounded-xl border border-border/80 bg-muted/40 p-4 text-sm">
@@ -52,9 +59,27 @@ function StaffReturnSection({ row }: { row: DashboardPaidOrderLineRow }) {
         </p>
       : (
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Our team returned this product and coordinated shipping with the carrier.
+          {isHubStockUsReturn ?
+            "Print the return shipping label, drop the package at a carrier location, and we will update this order when the warehouse receives it."
+          : "Our team returned this product and coordinated shipping with the carrier."}
         </p>
       )}
+      {returnLabelUrl ?
+        <a
+          href={returnLabelUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            buttonVariants({ variant: "default", size: "sm" }),
+            "inline-flex",
+          )}
+        >
+          Download return label
+        </a>
+      : null}
+      {liveStatus ?
+        <p className="text-sm font-medium text-foreground">Status: {liveStatus}</p>
+      : null}
       <dl className="grid gap-4 sm:grid-cols-2">
         {url ?
           <div className="sm:col-span-2">
@@ -189,8 +214,9 @@ export function DashboardProductReturnPreviewDialog({
             <StaffReturnSection row={row} />
           : pending ?
             <p className="rounded-lg border border-border/70 bg-muted/30 px-3.5 py-3 text-sm leading-relaxed text-muted-foreground">
-              Our team is arranging the physical return and carrier shipment. Return
-              tracking will appear here once it has been recorded.
+              {row.hubStockUsLine ?
+                "Staff is generating a return shipping label. You can print it here once it is ready, then drop the package at a carrier location."
+              : "Our team is arranging the physical return and carrier shipment. Return tracking will appear here once it has been recorded."}
             </p>
           : null}
         </div>

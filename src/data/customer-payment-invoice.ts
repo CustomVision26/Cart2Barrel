@@ -4,7 +4,9 @@ import { eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type Stripe from "stripe";
 
-import { getPrimaryShippingAddress } from "@/data/addresses";
+import { getPrimaryShippingAddress, listShippingAddressesForUser } from "@/data/addresses";
+import { listHubStockOrderItemsByOrderId } from "@/data/hub-stock-cart";
+import { loadHubShipFromSettings } from "@/data/hub-ship-from";
 import { listHubStockOrderPackingByOrderIds } from "@/data/hub-stock-order-packing";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
 import { getDb } from "@/db";
@@ -15,9 +17,17 @@ import {
   orderItems,
   orders,
   profiles,
+  type HubStockOrderItem,
 } from "@/db/schema";
 import type { HubStockOrderPackingPackage } from "@/lib/hub-stock-box";
+import { formatHubStockUsAddress, hubStockUsShipToKey } from "@/lib/hub-stock";
 import { getInvoiceCompanyProfile } from "@/lib/invoice/company-profile";
+import {
+  billToFromHubUsShipTo,
+  invoiceCompanyFromHubShipFrom,
+  matchSavedAddressToHubUsShipTo,
+  pickHubUsShipToSnapshot,
+} from "@/lib/invoice/hub-us-receipt-addresses";
 import { buildPaymentInvoiceProductDetail } from "@/lib/invoice/payment-invoice-line-detail";
 import {
   buildInvoiceNumber,
@@ -28,6 +38,7 @@ import type {
   PaymentInvoiceBillTo,
   PaymentInvoiceDocument,
   PaymentInvoiceLine,
+  PaymentInvoiceLineKind,
   PaymentInvoicePackingNote,
   PaymentInvoicePaymentRow,
 } from "@/lib/invoice/payment-invoice-types";
@@ -118,6 +129,7 @@ function toInvoiceLine(
   detail: string | null,
   quantity: number,
   amountCents: number,
+  kind: PaymentInvoiceLineKind = "item",
 ): PaymentInvoiceLine {
   const qty = Math.max(1, quantity);
   const unitPriceCents = Math.round(amountCents / qty);
@@ -127,7 +139,71 @@ function toInvoiceLine(
     quantity: qty,
     unitPriceCents,
     amountCents,
+    kind,
   };
+}
+
+function carrierServiceLabel(carrier: string | null, service: string | null): string | null {
+  const label = [carrier, service]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .join(" ");
+  return label || null;
+}
+
+function warehousePackageShippingLines(
+  shares: Array<{ item: HubStockOrderItem; shippingCents: number }>,
+): PaymentInvoiceLine[] {
+  const usGroups = new Map<string, typeof shares>();
+  for (const share of shares) {
+    if (share.item.destination !== "us_address") continue;
+    const key =
+      hubStockUsShipToKey(share.item) ?? `incomplete:${share.item.orderItemId}`;
+    const group = usGroups.get(key) ?? [];
+    group.push(share);
+    usGroups.set(key, group);
+  }
+
+  const lines: PaymentInvoiceLine[] = [];
+  for (const group of usGroups.values()) {
+    const shippingCents = group.reduce(
+      (sum, row) => sum + Math.max(0, row.shippingCents),
+      0,
+    );
+    if (shippingCents <= 0) continue;
+    const rated = group.find(
+      (row) => row.item.shippingCarrier || row.item.shippingService,
+    );
+    const shipToSource = group.find(
+      (row) => row.item.shipLine1?.trim() || row.item.shipCity?.trim(),
+    )?.item;
+    const detailParts = [
+      carrierServiceLabel(
+        rated?.item.shippingCarrier ?? null,
+        rated?.item.shippingService ?? null,
+      ),
+      shipToSource ?
+        formatHubStockUsAddress({
+          line1: shipToSource.shipLine1,
+          line2: shipToSource.shipLine2,
+          city: shipToSource.shipCity,
+          state: shipToSource.shipState,
+          postalCode: shipToSource.shipPostalCode,
+          country: shipToSource.shipCountry,
+        })
+      : null,
+    ].filter((part): part is string => Boolean(part));
+    lines.push(
+      toInvoiceLine(
+        "Warehouse package shipping",
+        detailParts.length > 0 ? detailParts.join(" · ") : "US in-hub warehouse package",
+        1,
+        shippingCents,
+        "shipping",
+      ),
+    );
+  }
+  return lines;
 }
 
 function linesFromStripeSession(session: Stripe.Checkout.Session): StripeCheckoutLine[] {
@@ -164,7 +240,10 @@ function linesFromStripeSession(session: Stripe.Checkout.Session): StripeCheckou
     .filter((line): line is StripeCheckoutLine => line !== null);
 }
 
-async function linesFromDatabase(orderId: string): Promise<PaymentInvoiceLine[]> {
+async function linesFromDatabase(
+  orderId: string,
+  hubOrderItems: HubStockOrderItem[],
+): Promise<PaymentInvoiceLine[]> {
   const db = getDb();
   const productRows = await db
     .select({
@@ -193,11 +272,23 @@ async function linesFromDatabase(orderId: string): Promise<PaymentInvoiceLine[]>
 
   const containerMap = await listOrderContainerItemsByOrderIds([orderId]);
   const containerRows = containerMap.get(orderId) ?? [];
+  const hubByOrderItemId = new Map(
+    hubOrderItems.map((row) => [row.orderItemId, row] as const),
+  );
 
   const lines: PaymentInvoiceLine[] = [];
+  const hubShippingShares: Array<{ item: HubStockOrderItem; shippingCents: number }> = [];
 
   for (const row of productRows) {
     const name = row.productName?.trim() || "Requested item";
+    const hub = hubByOrderItemId.get(row.orderItemId);
+    const merchandiseCents =
+      hub != null ? Math.max(0, hub.unitPriceCents * hub.quantity) : row.price;
+    if (hub != null && hub.destination === "us_address") {
+      const shippingCents =
+        hub.shippingCents > 0 ? hub.shippingCents : Math.max(0, row.price - merchandiseCents);
+      hubShippingShares.push({ item: hub, shippingCents });
+    }
     const detail = buildPaymentInvoiceProductDetail({
       siteName: row.siteName,
       batchNumber: row.batchNumber,
@@ -207,7 +298,7 @@ async function linesFromDatabase(orderId: string): Promise<PaymentInvoiceLine[]>
       source: row.source,
       quantity: row.quantity,
     });
-    lines.push(toInvoiceLine(name, detail, row.quantity, row.price));
+    lines.push(toInvoiceLine(name, detail, row.quantity, merchandiseCents));
   }
 
   for (const row of containerRows) {
@@ -223,6 +314,8 @@ async function linesFromDatabase(orderId: string): Promise<PaymentInvoiceLine[]>
       ),
     );
   }
+
+  lines.push(...warehousePackageShippingLines(hubShippingShares));
 
   return lines;
 }
@@ -374,14 +467,33 @@ export async function getCustomerPaymentInvoice(opts: {
     .limit(1);
 
   const shippingAddress = await getPrimaryShippingAddress(opts.clerkUserId);
+  const hubOrderItems = await listHubStockOrderItemsByOrderId(orderId);
+  const hubUsShipTo = pickHubUsShipToSnapshot(hubOrderItems);
 
-  const billTo: PaymentInvoiceBillTo = {
+  let company = getInvoiceCompanyProfile();
+  let billTo: PaymentInvoiceBillTo = {
     name: profile?.fullName?.trim() || "Customer",
     addressLines: addressLinesFromProfile(profile?.fullName ?? null, shippingAddress),
     email: profile?.email?.trim() || null,
   };
 
-  const dbLines = await linesFromDatabase(orderId);
+  if (hubUsShipTo) {
+    const hubFrom = await loadHubShipFromSettings();
+    company = invoiceCompanyFromHubShipFrom(hubFrom, company);
+    const savedAddresses = await listShippingAddressesForUser(opts.clerkUserId);
+    const matchedUsAddress = matchSavedAddressToHubUsShipTo(
+      savedAddresses,
+      hubUsShipTo,
+    );
+    billTo = billToFromHubUsShipTo({
+      snap: hubUsShipTo,
+      matchedAddress: matchedUsAddress,
+      fallbackName: profile?.fullName?.trim() || "Customer",
+      email: profile?.email?.trim() || null,
+    });
+  }
+
+  const dbLines = await linesFromDatabase(orderId, hubOrderItems);
   const stripeLines = await loadStripeCheckoutLines(order.stripeCheckoutSessionId);
   const rawLines =
     dbLines.length > 0
@@ -408,7 +520,12 @@ export async function getCustomerPaymentInvoice(opts: {
     receiptNumber,
   };
 
-  const subtotalCents = lines.reduce((sum, line) => sum + line.amountCents, 0);
+  const shippingCents = lines
+    .filter((line) => line.kind === "shipping")
+    .reduce((sum, line) => sum + line.amountCents, 0);
+  const subtotalCents = lines
+    .filter((line) => line.kind !== "shipping")
+    .reduce((sum, line) => sum + line.amountCents, 0);
 
   const packingMap = await listHubStockOrderPackingByOrderIds([orderId]);
   const packingNotes = packingNotesFromPackages(packingMap.get(orderId) ?? []);
@@ -422,11 +539,12 @@ export async function getCustomerPaymentInvoice(opts: {
       datePaid,
       amountPaidCents: order.totalAmount,
       currency: "USD",
-      company: getInvoiceCompanyProfile(),
+      company,
       billTo,
       lines,
       packingNotes,
       subtotalCents,
+      shippingCents,
       totalCents: order.totalAmount,
       payments: [paymentRow],
     },

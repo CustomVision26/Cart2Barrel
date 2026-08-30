@@ -132,6 +132,17 @@ export type UpdateHubStockCartAddressInput = z.infer<
   typeof updateHubStockCartAddressSchema
 >;
 
+export const listHubStockShippingRatesSchema = z.object({
+  cartItemId: z.string().uuid(),
+});
+
+export const selectHubStockShippingRateSchema = z.object({
+  cartItemId: z.string().uuid(),
+  cents: z.number().int().min(0).max(1_000_000),
+  carrier: z.string().trim().min(1).max(80),
+  service: z.string().trim().min(1).max(120),
+});
+
 export const removeHubStockCartItemSchema = z.object({
   cartItemId: z.string().uuid(),
 });
@@ -145,6 +156,7 @@ export function hubStockPriceUsdToCents(usd: string): number {
 }
 
 export const adminHubShipFromSchema = z.object({
+  id: z.string().uuid().optional(),
   name: z.string().trim().min(2, "Enter the warehouse or company name").max(120),
   phone: z.string().trim().min(10, "Enter a phone number").max(40),
   line1: z.string().trim().min(3, "Enter street address").max(300),
@@ -156,8 +168,13 @@ export const adminHubShipFromSchema = z.object({
     .min(1, "Select a state")
     .refine((s) => isUsState(s), { message: "Select a valid US state" }),
   postalCode: usZipSchema,
+  isPrimary: z.boolean().optional().default(false),
 });
 
 export type AdminHubShipFromInput = z.infer<typeof adminHubShipFromSchema>;
+
+export const adminHubShipFromIdSchema = z.object({
+  id: z.string().uuid(),
+});
 
 export { US_STATES };
