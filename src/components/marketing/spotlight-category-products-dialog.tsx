@@ -42,7 +42,7 @@ export function SpotlightCategoryProductsDialog({
           <DialogTitle className="text-xl sm:text-2xl">{category.title}</DialogTitle>
           <DialogDescription className="text-pretty text-sm sm:text-base">
             {products.length > 0 ?
-              "Swipe through curated products—view on the store or start a request from any slide."
+              "Pick color and size for each product—view on the store or start a request for the selected variant."
             : "No curated products in this category yet. Check back soon or request any item from your dashboard."}
           </DialogDescription>
         </DialogHeader>

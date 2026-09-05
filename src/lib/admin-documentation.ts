@@ -533,7 +533,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Open Spotlight from the Catalog & team section.",
         "Add a category with New category, or select an existing tab.",
         "Add products to a category; new rows start unpublished.",
-        "Double-click a record to edit price, size, color, image, and variants.",
+        "Double-click a record to edit price, size, color, image, and variants. Shoppers see one compact card per product; double-clicking a card with options opens color swatches and size pills.",
         "Publish a product to make it available to shoppers, then Publish category so the group appears on Home.",
         "Unpublish a product or category to hide it from the public carousel without deleting it.",
         "Delete category (after confirmation) removes the group and its products. Keep at least one category.",

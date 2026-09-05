@@ -130,11 +130,11 @@ export function SpotlightAllCategoriesCatalogDialog({
       const products = productsByCategory[cat.slug] ?? [];
       map.set(cat.slug, {
         products: products.length,
-        offers: countCategoryOffers(products, isSignedIn),
+        offers: countCategoryOffers(products),
       });
     }
     return map;
-  }, [productsByCategory, isSignedIn, visibleCategories]);
+  }, [productsByCategory, visibleCategories]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -148,8 +148,8 @@ export function SpotlightAllCategoriesCatalogDialog({
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 sm:px-6">
           <DialogTitle className="text-xl sm:text-2xl">Spotlight catalog</DialogTitle>
           <DialogDescription className="text-sm sm:text-base">
-            Choose a category, then swipe through every curated offer—view on the
-            store or start a request.
+            Choose a category, then pick color and size for each product—view on
+            the store or start a request.
           </DialogDescription>
         </DialogHeader>
 

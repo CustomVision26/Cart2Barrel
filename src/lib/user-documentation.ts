@@ -54,8 +54,9 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Visit / or click Home in the dashboard header.",
       bullets: [
         "Hero section and spotlight carousel highlight US retailer products.",
+        "Spotlight carousel cards stay compact. Double-click a product with color or size options to open the swatch and size picker; View and Request follow the selected variant.",
         "Guests see Sign in / Sign up; signed-in users see Dashboard. Sign up collects first name, last name, email, password, and confirm password on a glass card over Home. Back to home, clicking outside the card, or Escape returns to Home.",
-        "Request Product estimate (next to the hero badge) opens the AI-assisted item request at /dashboard/items/requested-items/ai-assisted-request. Sign in is required if you are not already signed in.",
+        "Get an estimate (next to the hero badge) opens the AI-assisted item request at /dashboard/items/requested-items/ai-assisted-request. Sign in is required if you are not already signed in.",
         "In-hub products can be added to cart from Home; US delivery uses a saved United States address. Multiple in-hub SKUs to the same address ship as one warehouse package with a single Shippo rate.",
         "After skip or complete onboarding, Home works normally.",
       ],
@@ -78,7 +79,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "For signed-in customers, Home acts as a bridge between marketing content and the dashboard. Depending on your onboarding status, you may be routed to complete contact details—or you can skip onboarding to explore first.",
       ],
       walkthrough: [
-        "Browse the hero section for a high-level overview of the service. Use Request Product estimate to open the AI-assisted request flow for items that are not already in the warehouse.",
+        "Browse featured spotlight products. Cards show photo, price, View, and Request. Double-click a product that has colors or sizes to open a larger dialog with swatches and size pills—the photo, price, View link, and Request follow the selected variant. Use View all N when there are many colors.",
         "Scroll to In-hub products to add warehouse stock to your cart. For US delivery, the item uses your default saved United States address. Shipping is one warehouse-package rate from Shippo for all in-hub items going to that address. Overseas packing does not require a US address and has no carrier shipping charge.",
         "Use the header: How it works (public guide), Sign in, Sign up (first name, last name, email, password, and confirm password on a glass card over Home; Back to home, click outside, or Escape returns to Home), or Dashboard (when signed in).",
         "If you are a new signed-in user who has not completed or skipped onboarding, visiting Home redirects you to the onboarding page.",
@@ -579,7 +580,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     category: "Shopping",
     quickReference: {
       summary: "Submit new US retailer requests and track quote status.",
-      location: "Sidebar → Requested items, or Home → Request Product estimate.",
+      location: "Sidebar → Requested items, or Home → Get an estimate.",
       bullets: [
         "AI-assisted request: paste product URLs.",
         "Staff publish quotes you accept into the cart.",
@@ -606,7 +607,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "This area also tracks everything already in the pipeline—so you can see which requests are waiting, ready, out of stock, or withdrawn.",
       ],
       walkthrough: [
-        "Open Requested items from the dashboard sidebar, or click Request Product estimate on Home to open the AI-assisted request flow.",
+        "Open Requested items from the dashboard sidebar, or click Get an estimate on Home to open the AI-assisted request flow.",
         "Choose AI-assisted request to paste US retailer URLs and build a structured submission.",
         "Staff review your request and publish quotes when ready.",
         "Track status: pending review, estimate ready, out of stock, withdrawn, and more.",

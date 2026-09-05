@@ -1,14 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { ExternalLink, ImageIcon, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
   SpotlightProductCarouselNext,
   SpotlightProductCarouselPrevious,
 } from "@/components/marketing/spotlight-carousel-nav";
-import { Button } from "@/components/ui/button";
+import { SpotlightVariantShop } from "@/components/marketing/spotlight-variant-shop";
 import {
   Carousel,
   CarouselContent,
@@ -24,7 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatUsd } from "@/lib/admin-markup";
+import {
+  hasSpotlightVariantPicker,
+  type SpotlightVariantSku,
+} from "@/lib/spotlight-variant-axes";
 import { cn } from "@/lib/utils";
 
 export type SpotlightGalleryImage = {
@@ -44,15 +45,10 @@ export type SpotlightOfferSlide = {
   retailerName: string;
   galleryImages: SpotlightGalleryImage[];
   badge?: string;
+  variantSkus: SpotlightVariantSku[];
 };
 
-const CARD_IMAGE_CLASS =
-  "relative aspect-square w-full max-h-28 shrink-0 bg-muted sm:max-h-32";
-const CARD_BODY_CLASS = "flex flex-1 flex-col gap-2 p-2.5";
-const CARD_SHELL_CLASS =
-  "flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card text-xs shadow-sm";
-
-function galleryStartIndex(
+export function galleryStartIndex(
   gallery: SpotlightGalleryImage[],
   imageUrl: string | null,
   id: string,
@@ -66,14 +62,14 @@ function galleryStartIndex(
   return byId >= 0 ? byId : 0;
 }
 
-type ImageViewerState = {
+export type ImageViewerState = {
   title: string;
   retailerName: string;
   images: SpotlightGalleryImage[];
   startIndex: number;
 };
 
-function SpotlightImageViewer({
+export function SpotlightImageViewer({
   viewer,
   onClose,
 }: {
@@ -145,8 +141,9 @@ function SpotlightImageViewer({
   );
 }
 
-/** Uniform small product card for carousel slides. */
+/** Compact carousel card. Variant pickers open in a dialog on double-click. */
 export function SpotlightOfferCard({
+  id,
   title,
   imageUrl,
   priceUsdCents,
@@ -156,114 +153,37 @@ export function SpotlightOfferCard({
   retailerName,
   galleryImages,
   badge,
+  variantSkus,
   onImageDoubleClick,
+  onCardDoubleClick,
 }: SpotlightOfferSlide & {
   onImageDoubleClick?: () => void;
+  onCardDoubleClick?: () => void;
 }) {
   const extraGalleryCount = Math.max(0, (galleryImages ?? []).length - 1);
 
   return (
-    <article className={cn(CARD_SHELL_CLASS, "transition-shadow hover:shadow-md")}>
-      {imageUrl && onImageDoubleClick ?
-        <button
-          type="button"
-          className={cn(
-            CARD_IMAGE_CLASS,
-            "block w-full cursor-zoom-in p-0 text-left",
-            "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          )}
-          title="Double-click to enlarge"
-          aria-label={`View photos for ${title}`}
-          onDoubleClick={(event) => {
-            event.preventDefault();
-            onImageDoubleClick();
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageUrl}
-            alt=""
-            className="size-full object-cover"
-            draggable={false}
-          />
-          {badge ?
-            <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-foreground shadow-sm backdrop-blur">
-              {badge}
-            </span>
-          : null}
-          {extraGalleryCount > 0 ?
-            <span className="pointer-events-none absolute right-1.5 top-1.5 rounded bg-background/90 px-1 py-0.5 text-[9px] font-semibold tabular-nums text-foreground shadow-sm backdrop-blur">
-              +{extraGalleryCount}
-            </span>
-          : null}
-          <span className="pointer-events-none absolute bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded bg-background/90 px-1.5 py-0.5 text-[9px] font-semibold text-foreground shadow-sm backdrop-blur">
-            {retailerName}
-          </span>
-        </button>
-      : <div className={CARD_IMAGE_CLASS}>
-          {imageUrl ?
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imageUrl} alt="" className="size-full object-cover" />
-          : <div className="flex size-full items-center justify-center bg-muted text-muted-foreground">
-              <ImageIcon className="size-5" aria-hidden />
-            </div>
-          }
-          {badge ?
-            <span className="absolute left-1.5 top-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-foreground shadow-sm backdrop-blur">
-              {badge}
-            </span>
-          : null}
-          <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded bg-background/90 px-1.5 py-0.5 text-[9px] font-semibold text-foreground shadow-sm backdrop-blur">
-            {retailerName}
-          </span>
-        </div>
-      }
-      <div className={CARD_BODY_CLASS}>
-        <div className="min-h-[2.75rem] space-y-0.5">
-          <h3 className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">
-            {title}
-          </h3>
-          {priceUsdCents != null && priceUsdCents > 0 ?
-            <p className="text-sm font-bold text-primary">
-              {formatUsd(priceUsdCents)}
-            </p>
-          : null}
-          {attributes ?
-            <p className="line-clamp-1 text-[10px] text-muted-foreground">
-              {attributes}
-            </p>
-          : null}
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 min-w-0 px-2 text-[11px]"
-            nativeButton={false}
-            render={
-              <a href={storeUrl} target="_blank" rel="noopener noreferrer" />
-            }
-          >
-            <ExternalLink className="size-3 shrink-0" aria-hidden />
-            <span className="truncate">View</span>
-          </Button>
-          <Button
-            size="sm"
-            className="h-7 min-w-0 px-2 text-[11px]"
-            nativeButton={false}
-            render={<Link href={addHref} />}
-          >
-            <Plus className="size-3 shrink-0" aria-hidden />
-            <span className="truncate">Request</span>
-          </Button>
-        </div>
-      </div>
-    </article>
+    <SpotlightVariantShop
+      key={`${id}:${(variantSkus ?? []).map((sku) => sku.id).join("\0")}`}
+      layout="card"
+      title={title}
+      retailerName={retailerName}
+      fallbackImageUrl={imageUrl}
+      fallbackPriceUsdCents={priceUsdCents}
+      fallbackStoreUrl={storeUrl}
+      fallbackAddHref={addHref}
+      fallbackAttributes={attributes}
+      skus={variantSkus ?? []}
+      badge={badge}
+      extraGalleryCount={extraGalleryCount}
+      onImageDoubleClick={onImageDoubleClick}
+      onCardDoubleClick={onCardDoubleClick}
+    />
   );
 }
 
 const SLIDE_BASIS =
-  "basis-[72%] pl-3 sm:basis-[48%] md:basis-[36%] lg:basis-[28%] xl:basis-[22%]";
+  "basis-[88%] pl-3 sm:basis-[62%] md:basis-[48%] lg:basis-[40%] xl:basis-[34%]";
 
 type SpotlightProductOffersCarouselProps = {
   offers: SpotlightOfferSlide[];
@@ -279,10 +199,25 @@ export function SpotlightProductOffersCarousel({
   className,
 }: SpotlightProductOffersCarouselProps) {
   const [viewer, setViewer] = useState<ImageViewerState | null>(null);
+  const [shopOffer, setShopOffer] = useState<SpotlightOfferSlide | null>(null);
 
   if (offers.length === 0) return null;
 
   const enableLoop = loop && offers.length > 2;
+
+  function openGallery(offer: SpotlightOfferSlide) {
+    if ((offer.galleryImages ?? []).length === 0) return;
+    setViewer({
+      title: offer.title,
+      retailerName: offer.retailerName,
+      images: offer.galleryImages ?? [],
+      startIndex: galleryStartIndex(
+        offer.galleryImages ?? [],
+        offer.imageUrl,
+        offer.id,
+      ),
+    });
+  }
 
   return (
     <>
@@ -292,28 +227,24 @@ export function SpotlightProductOffersCarousel({
       >
         <div className="relative px-0.5 sm:px-1">
           <CarouselContent className="-ml-3">
-            {offers.map((offer) => (
-              <CarouselItem key={offer.id} className={SLIDE_BASIS}>
-                <SpotlightOfferCard
-                  {...offer}
-                  onImageDoubleClick={
-                    (offer.galleryImages ?? []).length > 0 ?
-                      () =>
-                        setViewer({
-                          title: offer.title,
-                          retailerName: offer.retailerName,
-                          images: offer.galleryImages ?? [],
-                          startIndex: galleryStartIndex(
-                            offer.galleryImages ?? [],
-                            offer.imageUrl,
-                            offer.id,
-                          ),
-                        })
-                    : undefined
-                  }
-                />
-              </CarouselItem>
-            ))}
+            {offers.map((offer) => {
+              const hasPicker = hasSpotlightVariantPicker(offer.variantSkus ?? []);
+              return (
+                <CarouselItem key={offer.id} className={SLIDE_BASIS}>
+                  <SpotlightOfferCard
+                    {...offer}
+                    onCardDoubleClick={
+                      hasPicker ? () => setShopOffer(offer) : undefined
+                    }
+                    onImageDoubleClick={
+                      !hasPicker && (offer.galleryImages ?? []).length > 0
+                        ? () => openGallery(offer)
+                        : undefined
+                    }
+                  />
+                </CarouselItem>
+              );
+            })}
           </CarouselContent>
           {showControls && offers.length > 1 ?
             <>
@@ -323,6 +254,52 @@ export function SpotlightProductOffersCarousel({
           : null}
         </div>
       </Carousel>
+
+      <Dialog
+        open={shopOffer != null}
+        onOpenChange={(open) => !open && setShopOffer(null)}
+      >
+        <DialogContent
+          showCloseButton
+          className="flex max-h-[min(94vh,900px)] w-[min(98vw,56rem)] max-w-none flex-col gap-3 overflow-hidden sm:max-w-none"
+        >
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg leading-snug sm:text-xl">
+              {shopOffer?.title ?? "Product options"}
+            </DialogTitle>
+            <DialogDescription>
+              Pick a color and size. The photo, price, View link, and Request
+              follow the selected variant.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {shopOffer ?
+              <SpotlightVariantShop
+                key={shopOffer.id}
+                layout="dialog"
+                title={shopOffer.title}
+                retailerName={shopOffer.retailerName}
+                fallbackImageUrl={shopOffer.imageUrl}
+                fallbackPriceUsdCents={shopOffer.priceUsdCents}
+                fallbackStoreUrl={shopOffer.storeUrl}
+                fallbackAddHref={shopOffer.addHref}
+                fallbackAttributes={shopOffer.attributes}
+                skus={shopOffer.variantSkus ?? []}
+                badge={shopOffer.badge}
+                extraGalleryCount={Math.max(
+                  0,
+                  (shopOffer.galleryImages ?? []).length - 1,
+                )}
+                onImageDoubleClick={
+                  (shopOffer.galleryImages ?? []).length > 0
+                    ? () => openGallery(shopOffer)
+                    : undefined
+                }
+              />
+            : null}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <SpotlightImageViewer viewer={viewer} onClose={() => setViewer(null)} />
     </>
