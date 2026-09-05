@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Layers, Loader2 } from "lucide-react";
+import { Layers, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
@@ -14,7 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatUsd } from "@/lib/admin-markup";
 import {
   dashItemsTableCardHeader,
   dashItemsTableHead,
@@ -23,11 +22,10 @@ import {
 } from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE_OPTIONS = [5, 10, 20] as const;
+const PAGE_SIZE = 10;
 
 type ItemRequestProductVariantsProps = {
   variants: ProductVariantOffer[];
-  /** SerpApi listing hero image when variant rows share one photo. */
   listingImageUrl?: string | null;
   retailer: string | null;
   method: string | null;
@@ -35,23 +33,15 @@ type ItemRequestProductVariantsProps = {
   isVariantsPending: boolean;
   isApplyVariantPending: boolean;
   applyingVariantId: string | null;
+  selectedVariantId?: string | null;
   isSubmitPending: boolean;
   onLoadVariants: () => void;
   onApplyVariant: (variant: ProductVariantOffer) => void;
-  onSubmitVariant: (variant: ProductVariantOffer) => void;
   canLoadVariants: boolean;
   loadVariantsDisabledTitle?: string;
-  /** Hide the load button when variants are fetched from the product URL card. */
   hideLoadButton?: boolean;
-  /** Render table + status only (no outer card) for embedding in the product URL panel. */
   embedded?: boolean;
 };
-
-function stockLabel(inStock: boolean | null): string {
-  if (inStock === true) return "In stock";
-  if (inStock === false) return "Out of stock";
-  return "—";
-}
 
 function isVariantsInfoNotice(message: string): boolean {
   return (
@@ -69,13 +59,7 @@ function variantsNoticeClassName(message: string): string {
 }
 
 export const VARIANT_APPLY_TOOLTIP =
-  "Copy this variant's URL, price, size, color, and image into the request form.";
-
-export const VARIANT_SUBMIT_TOOLTIP =
-  "Submit a staff review request using this variant's details.";
-
-export const VARIANT_OPEN_TOOLTIP =
-  "Open this variant's product page on the retailer site in a new tab.";
+  "Select this variant to copy its name, URL, price, size, color, and photo into the request form.";
 
 function variantImageSrc(
   row: ProductVariantOffer,
@@ -96,53 +80,53 @@ export function ItemRequestProductVariants({
   isVariantsPending,
   isApplyVariantPending,
   applyingVariantId,
+  selectedVariantId = null,
   isSubmitPending,
   onLoadVariants,
   onApplyVariant,
-  onSubmitVariant,
   canLoadVariants,
   loadVariantsDisabledTitle,
   hideLoadButton = false,
   embedded = false,
 }: ItemRequestProductVariantsProps) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] =
-    useState<(typeof PAGE_SIZE_OPTIONS)[number]>(5);
 
   useEffect(() => {
     setPage(1);
   }, [variants]);
 
-  const totalPages = Math.max(1, Math.ceil(variants.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(variants.length / PAGE_SIZE));
   const pageSafe = Math.min(page, totalPages);
   const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return variants.slice(start, start + pageSize);
-  }, [variants, pageSafe, pageSize]);
+    const start = (pageSafe - 1) * PAGE_SIZE;
+    return variants.slice(start, start + PAGE_SIZE);
+  }, [variants, pageSafe]);
   const showFrom =
-    variants.length === 0 ? 0 : (pageSafe - 1) * pageSize + 1;
-  const showTo = Math.min(pageSafe * pageSize, variants.length);
+    variants.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1;
+  const showTo = Math.min(pageSafe * PAGE_SIZE, variants.length);
+  const rowsLocked =
+    isSubmitPending || isApplyVariantPending || isVariantsPending;
+  const showLoadToolbar = !hideLoadButton;
 
   const body = (
     <>
+      {showLoadToolbar ?
         <div className="flex flex-wrap items-center gap-2">
-          {!hideLoadButton ?
-            <Button
-              type="button"
-              variant="secondary"
-              className={cn(!canLoadVariants && "opacity-50")}
-              disabled={!canLoadVariants || isVariantsPending || isSubmitPending}
-              title={loadVariantsDisabledTitle}
-              onClick={onLoadVariants}
-            >
-              {isVariantsPending ?
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                  Loading variants…
-                </>
-              : "Load store variants"}
-            </Button>
-          : null}
+          <Button
+            type="button"
+            variant="secondary"
+            className={cn(!canLoadVariants && "opacity-50")}
+            disabled={!canLoadVariants || isVariantsPending || isSubmitPending}
+            title={loadVariantsDisabledTitle}
+            onClick={onLoadVariants}
+          >
+            {isVariantsPending ?
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                Loading variants…
+              </>
+            : "Load store variants"}
+          </Button>
           {retailer ?
             <span className="text-sm text-muted-foreground">{retailer}</span>
           : null}
@@ -152,164 +136,108 @@ export function ItemRequestProductVariants({
             </span>
           : null}
         </div>
+      : null}
 
-        {variantsMessage ?
-          <p
-            role={isVariantsInfoNotice(variantsMessage) ? "note" : "status"}
-            className={variantsNoticeClassName(variantsMessage)}
-          >
-            {variantsMessage}
-          </p>
-        : null}
+      {variantsMessage ?
+        <p
+          role={isVariantsInfoNotice(variantsMessage) ? "note" : "status"}
+          className={variantsNoticeClassName(variantsMessage)}
+        >
+          {variantsMessage}
+        </p>
+      : null}
 
-        {variants.length > 0 ?
-          <div className="space-y-3">
-            <div className={cn("overflow-x-auto", dashItemsTableScroll)}>
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className={dashItemsTableHead}>
-                  <tr>
-                    <th className="w-16 px-3 py-2 font-medium">Image</th>
-                    <th className="px-3 py-2 font-medium">Variant</th>
-                    <th className="px-3 py-2 font-medium">Price</th>
-                    <th className="px-3 py-2 font-medium">Stock</th>
-                    <th className="px-3 py-2 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map((row) => {
-                    const imgSrc = variantImageSrc(row, listingImageUrl);
-                    return (
+      {variants.length > 0 ?
+        <div className="space-y-3">
+          <div className={cn("overflow-x-auto", dashItemsTableScroll)}>
+            <table className="w-full text-left text-sm">
+              <thead className={dashItemsTableHead}>
+                <tr>
+                  <th className="w-16 px-3 py-2 font-medium">Image</th>
+                  <th className="px-3 py-2 font-medium">Variant</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map((row) => {
+                  const imgSrc = variantImageSrc(row, listingImageUrl);
+                  const selected =
+                    selectedVariantId === row.id ||
+                    (selectedVariantId == null && row.isCurrent);
+                  const applying = applyingVariantId === row.id;
+                  const subtitle =
+                    [row.color, row.size, row.packLabel]
+                      .filter(Boolean)
+                      .join(" · ") || null;
+                  return (
                     <tr
                       key={row.id}
                       className={cn(
                         "border-b border-border/80 last:border-0",
-                        row.isCurrent && dashItemsVariantRowCurrent,
+                        selected && dashItemsVariantRowCurrent,
+                        !rowsLocked && "cursor-pointer hover:bg-muted/70",
+                        rowsLocked && "opacity-80",
                       )}
+                      onClick={(event) => {
+                        if (rowsLocked) return;
+                        event.preventDefault();
+                        onApplyVariant(row);
+                      }}
+                      onKeyDown={(event) => {
+                        if (rowsLocked) return;
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onApplyVariant(row);
+                        }
+                      }}
+                      tabIndex={rowsLocked ? -1 : 0}
+                      aria-selected={selected}
+                      aria-label={`Select ${row.label || row.productTitle || "variant"}`}
+                      title={VARIANT_APPLY_TOOLTIP}
                     >
-                      <td className="px-3 py-2.5 align-top">
+                      <td className="px-3 py-2.5 align-middle">
                         <ProductRequestThumbnail
                           imageUrl={imgSrc}
                           productLabel={row.label}
                           variant="list"
-                          className="size-14 max-w-14"
+                          className="size-12 max-w-12 rounded-md border-border/60 bg-white sm:size-14 sm:max-w-14"
                         />
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2.5 align-middle">
                         <div className="font-medium text-foreground">
                           {row.label || row.productTitle || "Default"}
-                          {row.isCurrent ?
-                            <span className="ml-2 text-[10px] font-semibold uppercase text-primary">
-                              Current
+                          {applying ?
+                            <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                              <Loader2 className="size-3 animate-spin" aria-hidden />
+                              Loading
                             </span>
                           : null}
                         </div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          {[row.color, row.size, row.packLabel]
-                            .filter(Boolean)
-                            .join(" · ") || "—"}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 tabular-nums">
-                        {formatUsd(row.priceUsdCents)}
-                      </td>
-                      <td className="px-3 py-2.5 text-muted-foreground">
-                        {stockLabel(row.inStock)}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              isSubmitPending ||
-                              isApplyVariantPending ||
-                              isVariantsPending
-                            }
-                            title={VARIANT_APPLY_TOOLTIP}
-                            onClick={() => onApplyVariant(row)}
-                          >
-                            {isApplyVariantPending &&
-                            applyingVariantId === row.id ?
-                              <>
-                                <Loader2
-                                  className="size-3.5 animate-spin"
-                                  aria-hidden
-                                />
-                                Applying…
-                              </>
-                            : "Apply"}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={isSubmitPending}
-                            title={VARIANT_SUBMIT_TOOLTIP}
-                            onClick={() => onSubmitVariant(row)}
-                          >
-                            Submit for review
-                          </Button>
-                          {row.productUrl ?
-                            <a
-                              href={row.productUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={VARIANT_OPEN_TOOLTIP}
-                              className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            >
-                              <ExternalLink className="size-3.5" aria-hidden />
-                              Open
-                            </a>
-                          : null}
-                        </div>
+                        {subtitle ?
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {subtitle}
+                          </div>
+                        : null}
                       </td>
                     </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
+          {totalPages > 1 ?
             <div className="flex flex-col items-stretch gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Showing{" "}
-                  <span className="font-medium tabular-nums text-foreground">
-                    {showFrom}-{showTo}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-medium tabular-nums text-foreground">
-                    {variants.length}
-                  </span>
-                  {" · "}Page{" "}
-                  <span className="font-medium tabular-nums text-foreground">
-                    {pageSafe}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-medium tabular-nums text-foreground">
-                    {totalPages}
-                  </span>
-                </p>
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  Per page
-                  <select
-                    className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(
-                        Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number],
-                      );
-                      setPage(1);
-                    }}
-                  >
-                    {PAGE_SIZE_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Showing{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {showFrom}-{showTo}
+                </span>{" "}
+                of{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {variants.length}
+                </span>
+              </p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -331,8 +259,9 @@ export function ItemRequestProductVariants({
                 </Button>
               </div>
             </div>
-          </div>
-        : null}
+          : null}
+        </div>
+      : null}
     </>
   );
 
@@ -348,8 +277,7 @@ export function ItemRequestProductVariants({
           Store variants
         </CardTitle>
         <CardDescription className="text-sm leading-relaxed">
-          Sizes, colors, and pack options from the retailer (via SerpAPI when available).
-          Apply copies variant details into the request form.
+          Select a row to fill Request details.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-6 py-5">{body}</CardContent>

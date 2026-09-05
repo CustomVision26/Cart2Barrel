@@ -19,11 +19,13 @@ import { fetchProductVariantsAction } from "@/actions/product-variants";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import {
   normalizeRetailerImageUrl,
+  resolveAppliedVariantImageUrl,
   resolveListingImageUrl,
   resolveVariantDraftImageUrl,
 } from "@/lib/product-variants/variant-images";
+import { variantFormSnapshot } from "@/lib/product-variants/variant-form-snapshot";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
-import { ItemRequestProductVariants, VARIANT_APPLY_TOOLTIP } from "@/components/dashboard/item-request-product-variants";
+import { ItemRequestProductVariants } from "@/components/dashboard/item-request-product-variants";
 import { createItemRequestAction } from "@/actions/item-request";
 import { ItemRequestCompareRetailers } from "@/components/dashboard/item-request-compare-retailers";
 import { uploadItemRequestProductImageAction } from "@/actions/upload-item-request-product-image";
@@ -179,6 +181,9 @@ export function ItemRequestWorkspace({
   const [applyingVariantId, setApplyingVariantId] = useState<string | null>(
     null,
   );
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    null,
+  );
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("request");
   const [variantRows, setVariantRows] = useState<ProductVariantOffer[]>([]);
   const [variantRetailer, setVariantRetailer] = useState<string | null>(null);
@@ -245,6 +250,7 @@ export function ItemRequestWorkspace({
   const [spotlightPrefillDismissed, setSpotlightPrefillDismissed] = useState(false);
 
   const spotlightAppliedIdRef = useRef<string | null>(null);
+  const lastAppliedVariantIdRef = useRef<string | null>(null);
 
   const applyUnitPriceFromCatalog = useCallback((cents: number | null | undefined) => {
     setUnitPriceUserEdited(false);
@@ -461,6 +467,8 @@ export function ItemRequestWorkspace({
         setVariantRetailer(null);
         setVariantMethod(null);
         setVariantListingImageUrl(null);
+        setSelectedVariantId(null);
+        lastAppliedVariantIdRef.current = null;
         setVariantsMessage(res.message);
         return;
       }
@@ -486,6 +494,8 @@ export function ItemRequestWorkspace({
         findVariantMatchingColor(res.variants, productColor) ??
         res.variants.find((v) => v.isCurrent) ??
         res.variants[0];
+      setSelectedVariantId(matched?.id ?? null);
+      lastAppliedVariantIdRef.current = matched?.id ?? null;
       const draftImage =
         matched ?
           resolveVariantDraftImageUrl(matched, listingHero)
@@ -514,11 +524,6 @@ export function ItemRequestWorkspace({
           formatVariantsLoadedMessage(res.variants.length, res.retailer, res.method)
         : `No variants were returned for this listing. Enter the product URL again or open the retailer's site in a new tab to verify the link.`,
       );
-      requestAnimationFrame(() => {
-        document
-          .getElementById("item-unit-price")
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      });
     });
   }, [
     previewInput,
@@ -607,6 +612,8 @@ export function ItemRequestWorkspace({
     setVariantRetailer(null);
     setVariantMethod(null);
     setVariantListingImageUrl(null);
+    setSelectedVariantId(null);
+    lastAppliedVariantIdRef.current = null;
     setVariantsMessage(null);
     setCompareOffers([]);
     setCompareSearchQuery(null);
@@ -731,7 +738,15 @@ export function ItemRequestWorkspace({
 
   const applyVariant = useCallback(
     (variant: ProductVariantOffer) => {
-      const url = normalizeUrlInput(variant.productUrl ?? productUrl);
+      if (lastAppliedVariantIdRef.current === variant.id) {
+        setSelectedVariantId(variant.id);
+        return;
+      }
+
+      const snap = variantFormSnapshot(variant);
+      const url =
+        normalizeUrlInput(snap.productUrl ?? "") ||
+        normalizeUrlInput(productUrl);
       if (!url) {
         toast.error("No product URL for this variant.");
         return;
@@ -742,20 +757,24 @@ export function ItemRequestWorkspace({
         return;
       }
 
+      lastAppliedVariantIdRef.current = variant.id;
+      setSelectedVariantId(variant.id);
       setPreviewInput(url);
       setProductUrl(url);
-      if (variant.size) setProductSize(variant.size);
-      if (variant.color) setProductColor(variant.color);
+      if (snap.productName) setProductName(snap.productName);
+      setProductSize(snap.productSize ?? "");
+      setProductColor(snap.productColor ?? "");
+      setUrlSyncHintDismissed(true);
 
-      const sizeNorm = (variant.size ?? productSize).trim().toLowerCase();
-      const colorNorm = (variant.color ?? productColor).trim().toLowerCase();
+      const sizeNorm = (snap.productSize ?? "").toLowerCase();
+      const colorNorm = (snap.productColor ?? "").toLowerCase();
 
-      if (variant.priceUsdCents != null) {
-        applyUnitPriceFromCatalog(variant.priceUsdCents);
+      if (snap.priceUsdCents != null) {
+        applyUnitPriceFromCatalog(snap.priceUsdCents);
         setAiMerchPreview({
           quantity: q,
-          unitPriceCents: variant.priceUsdCents,
-          merchandiseSubtotalCents: variant.priceUsdCents * q,
+          unitPriceCents: snap.priceUsdCents,
+          merchandiseSubtotalCents: snap.priceUsdCents * q,
           variantSizeNorm: sizeNorm,
           variantColorNorm: colorNorm,
         });
@@ -770,11 +789,21 @@ export function ItemRequestWorkspace({
         return true;
       };
 
-      applyListingImage(
-        resolveVariantDraftImageUrl(variant, variantListingImageUrl),
+      const hasPhoto = applyListingImage(
+        resolveAppliedVariantImageUrl(variant, variantListingImageUrl),
       );
 
       setActiveTab("request");
+
+      const needsScrape = !snap.productName || snap.priceUsdCents == null;
+      if (!needsScrape) {
+        toast.success(
+          `Variant applied: ${snap.productName}. Price, product link, and photo updated from the selected row.`,
+          { id: "item-request-variant-applied" },
+        );
+        return;
+      }
+
       setApplyingVariantId(variant.id);
 
       startApplyVariantTransition(async () => {
@@ -782,46 +811,43 @@ export function ItemRequestWorkspace({
           const res = await draftItemRequestFromSerpApiAction({
             productUrl: url,
             quantity: String(q),
-            productSize: variant.size?.trim() || productSize.trim() || undefined,
-            productColor:
-              variant.color?.trim() || productColor.trim() || undefined,
+            productSize: snap.productSize || undefined,
+            productColor: snap.productColor || undefined,
           });
 
           if (!res.ok) {
-            const fallbackName = variant.label?.trim();
-            if (fallbackName && isProductNameReadyForCompare(fallbackName)) {
-              setProductName(fallbackName);
-            }
             const hasImage = applyListingImage(
-              resolveVariantDraftImageUrl(variant, variantListingImageUrl),
+              resolveAppliedVariantImageUrl(variant, variantListingImageUrl),
             );
             const blocked = isRetailerPageFetchBlockedMessage(res.message ?? "");
             toast.error(
               blocked ?
-                `${MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}${hasImage ? " Listing image was applied from the variant when available." : ""}`
-              : `${res.message ?? "Could not read this listing."} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}${hasImage ? " Listing image was applied from the variant when available." : ""}`,
+                `${MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}${hasImage || hasPhoto ? " Product photo was taken from the selected variant." : ""}`
+              : `${res.message ?? "Could not read this listing."} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}${hasImage || hasPhoto ? " Product photo was taken from the selected variant." : ""}`,
               { duration: 10_000 },
             );
             return;
           }
 
-          const resolvedName =
-            res.productName?.trim() ||
-            (isProductNameReadyForCompare(variant.label ?? "")
-              ? variant.label!.trim()
-              : "");
-
-          if (resolvedName) {
-            setProductName(resolvedName);
+          if (!snap.productName) {
+            const resolvedName =
+              res.productName?.trim() ||
+              (isProductNameReadyForCompare(variant.label ?? "")
+                ? variant.label!.trim()
+                : "");
+            if (resolvedName) setProductName(resolvedName);
           }
 
           if (res.siteName) setDraftSiteName(res.siteName);
-          const hasListingImage = applyListingImage(
-            res.productImageUrl ??
-              resolveVariantDraftImageUrl(variant, variantListingImageUrl),
+          applyListingImage(
+            resolveAppliedVariantImageUrl(
+              variant,
+              variantListingImageUrl,
+              res.productImageUrl,
+            ),
           );
 
-          if (res.unitPriceCents != null) {
+          if (snap.priceUsdCents == null && res.unitPriceCents != null) {
             applyUnitPriceFromCatalog(res.unitPriceCents);
             setAiMerchPreview({
               quantity: q,
@@ -832,18 +858,10 @@ export function ItemRequestWorkspace({
             });
           }
 
-          const imageNote = hasListingImage ? " Product photo updated from the listing." : "";
-
-          if (isProductNameReadyForCompare(resolvedName)) {
-            toast.success(
-              `Variant applied with product name from the listing.${imageNote}`,
-            );
-          } else {
-            toast.warning(
-              `Variant applied (URL, size, color, price).${imageNote} ${MANUAL_PRODUCT_NAME_AFTER_BLOCKED_SCRAPE} ${MANUAL_PRODUCT_NAME_FOR_COMPARE_SHORT}`,
-              { duration: 10_000 },
-            );
-          }
+          toast.success(
+            "Variant applied. Missing fields were filled from the listing when available.",
+            { id: "item-request-variant-applied" },
+          );
         } finally {
           setApplyingVariantId(null);
         }
@@ -852,97 +870,8 @@ export function ItemRequestWorkspace({
     [
       productUrl,
       quantity,
-      productSize,
-      productColor,
       variantListingImageUrl,
       applyUnitPriceFromCatalog,
-    ],
-  );
-
-  const submitFromVariant = useCallback(
-    (variant: ProductVariantOffer) => {
-      const url = normalizeUrlInput(variant.productUrl ?? productUrl);
-      if (!url) {
-        toast.error("No product URL for this variant.");
-        return;
-      }
-      setFormMessage(null);
-      setFieldErrors(undefined);
-      const q = parseQuantity(quantity);
-      if (q == null) {
-        toast.error("Enter a quantity between 1 and 999.");
-        return;
-      }
-      const payload = {
-        productUrl: url,
-        productName: productName.trim() || undefined,
-        productSize: variant.size?.trim() || productSize.trim() || undefined,
-        productColor: variant.color?.trim() || productColor.trim() || undefined,
-        quantity: String(q),
-        note: note.trim() || undefined,
-        customerUnitPriceUsd:
-          unitPriceDollars.trim() ||
-          (variant.priceUsdCents != null
-            ? centsToUsdInput(variant.priceUsdCents)
-            : undefined),
-        siteName:
-          variantRetailer?.trim() || draftSiteName?.trim() || undefined,
-        productImageUrl:
-          resolveVariantDraftImageUrl(variant, variantListingImageUrl) ??
-          normalizeRetailerImageUrl(draftProductImageUrl) ??
-          normalizeRetailerImageUrl(spotlightPrefill?.imageUrl) ??
-          undefined,
-      };
-      const photoSnapshot = pendingProductPhoto;
-      startTransition(async () => {
-        const result = await createItemRequestAction(payload);
-        if (result.ok) {
-          let photoUploadError: string | undefined;
-          if (result.itemRequestId && photoSnapshot) {
-            const fd = new FormData();
-            fd.set("itemRequestId", result.itemRequestId);
-            fd.append("file", photoSnapshot);
-            const up = await uploadItemRequestProductImageAction(fd);
-            if (!up.ok) photoUploadError = up.message;
-          }
-          toast.success(
-            result.message?.trim() ||
-              "Your item request was submitted. Staff will review it soon.",
-          );
-          if (photoUploadError) {
-            toast.error(
-              `Request saved, but the product photo did not upload: ${photoUploadError}`,
-            );
-          }
-          router.refresh();
-          return;
-        }
-        if (result.fieldErrors) {
-          setFieldErrors(result.fieldErrors);
-          toast.error(
-            result.message ?? "Please fix the highlighted fields and try again.",
-          );
-          setActiveTab("request");
-          return;
-        }
-        toast.error(result.message ?? "Could not submit request.");
-      });
-    },
-    [
-      productUrl,
-      productName,
-      productSize,
-      productColor,
-      quantity,
-      note,
-      unitPriceDollars,
-      variantRetailer,
-      variantListingImageUrl,
-      draftSiteName,
-      draftProductImageUrl,
-      spotlightPrefill,
-      pendingProductPhoto,
-      router,
     ],
   );
 
@@ -1177,10 +1106,10 @@ export function ItemRequestWorkspace({
             isVariantsPending={isVariantsPending}
             isApplyVariantPending={isApplyVariantPending}
             applyingVariantId={applyingVariantId}
+            selectedVariantId={selectedVariantId}
             isSubmitPending={isPending}
             onLoadVariants={runLoadVariants}
             onApplyVariant={applyVariant}
-            onSubmitVariant={submitFromVariant}
             canLoadVariants={canLoadVariants}
             loadVariantsDisabledTitle={loadVariantsDisabledTitle}
           />
@@ -1232,18 +1161,8 @@ export function ItemRequestWorkspace({
                 <p className="inline-flex flex-wrap items-center gap-2 leading-relaxed">
                   {variantRows.length > 0 ?
                     <>
-                      This variant is loaded by{" "}
-                      <span className="font-medium text-foreground">
-                        Product from store
-                      </span>
-                      : select{" "}
-                      <span
-                        className="font-medium text-foreground underline decoration-dotted underline-offset-4"
-                        title={VARIANT_APPLY_TOOLTIP}
-                      >
-                        Apply
-                      </span>{" "}
-                      on another available product row above to populate the form.
+                      This variant is loaded. Select another available variant in the list to
+                      populate the form.
                     </>
                   : <>
                       <span>
@@ -1395,7 +1314,7 @@ export function ItemRequestWorkspace({
               <FieldLabelWithHelp
                 htmlFor="item-product-name"
                 label="Product name"
-                help="Required for price comparison (minimum 2 characters). If Apply could not read the page, copy the product title from the retailer listing."
+                help="Required for price comparison (minimum 2 characters). If loading a variant could not read the page, copy the product title from the retailer listing."
                 helpLabel="About Product name"
               />
               <FieldContent>
@@ -1567,21 +1486,22 @@ export function ItemRequestWorkspace({
                     <span className="font-normal text-muted-foreground">(optional)</span>
                   </>
                 }
-                help="Filled from the listing when you Apply a store variant or run AI. You can also upload your own file (JPEG, PNG, WebP, or GIF up to 8 MB)—upload replaces the listing image on submit."
+                help="Filled from the selected store variant (that row's thumbnail, not the parent listing). You can also upload your own file (JPEG, PNG, WebP, or GIF up to 8 MB)—upload replaces the listing image on submit."
                 helpLabel="About Product photo"
               />
               <FieldContent className="space-y-2">
                 {normalizeRetailerImageUrl(draftProductImageUrl) ?
                   <div className={cn(dashItemsTableStatusPanel, "flex flex-wrap items-start gap-3 p-2")}>
                     <ProductRequestThumbnail
+                      key={normalizeRetailerImageUrl(draftProductImageUrl) ?? "photo"}
                       imageUrl={normalizeRetailerImageUrl(draftProductImageUrl)}
                       productLabel={productName.trim() || "Product"}
                       variant="dialog"
                       className="h-20 w-20 max-w-20"
                     />
                     <p className="min-w-0 text-xs text-muted-foreground">
-                      Listing image from AI — saved with your request unless you pick your own file
-                      below (upload replaces it).
+                      Photo from the selected variant — saved with your request unless you pick
+                      your own file below (upload replaces it).
                     </p>
                   </div>
                 : null}
@@ -1658,7 +1578,7 @@ export function ItemRequestWorkspace({
               </p>
             )}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Button
                 type="button"
                 variant="outline"

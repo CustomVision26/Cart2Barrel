@@ -70,3 +70,19 @@ export function resolveVariantDraftImageUrl(
     normalizeRetailerImageUrl(listingImageUrl)
   );
 }
+
+/**
+ * Image to copy into the request form when applying a variant.
+ * The variant thumbnail wins; scraped listing/hero images are fallback only.
+ */
+export function resolveAppliedVariantImageUrl(
+  variant: Pick<ProductVariantOffer, "imageUrl">,
+  listingImageUrl?: string | null,
+  scrapedListingImageUrl?: string | null,
+): string | null {
+  return (
+    normalizeRetailerImageUrl(variant.imageUrl) ??
+    normalizeRetailerImageUrl(scrapedListingImageUrl) ??
+    normalizeRetailerImageUrl(listingImageUrl)
+  );
+}

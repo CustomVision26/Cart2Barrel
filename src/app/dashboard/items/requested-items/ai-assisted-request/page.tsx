@@ -34,7 +34,8 @@ const WORKFLOW_STEPS = [
   {
     step: "03",
     title: "Submit for review",
-    description: "Send the completed request to staff for verification and an official quote.",
+    description:
+      "Send the completed request to staff for verification and an official quote.",
   },
 ] as const;
 

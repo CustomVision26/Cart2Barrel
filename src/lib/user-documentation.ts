@@ -583,6 +583,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Requested items, or Home → Get an estimate.",
       bullets: [
         "AI-assisted request: paste product URLs.",
+        "Select a variant row to copy that row's photo into Request details.",
         "Staff publish quotes you accept into the cart.",
         "Statuses: pending, estimate ready, out of stock, withdrawn.",
         "Unread updates show in sidebar badge and bell.",
@@ -609,6 +610,8 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open Requested items from the dashboard sidebar, or click Get an estimate on Home to open the AI-assisted request flow.",
         "Choose AI-assisted request to paste US retailer URLs and build a structured submission.",
+        "Select a store variant in the list to copy that row's name, price, product link, size, color, and photo into Request details—not the parent listing.",
+        "Click Submit for staff review to send the request to staff for a quote.",
         "Staff review your request and publish quotes when ready.",
         "Track status: pending review, estimate ready, out of stock, withdrawn, and more.",
         "Unread quote updates appear in the sidebar badge and notifications bell.",

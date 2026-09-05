@@ -126,13 +126,13 @@
   --sidebar-ring: oklch(0.556 0 0);
   --brand-logo-glow: oklch(0.488 0.243 264.376);
   --brand-logo-halo: oklch(0.985 0 0);
-  --brand-watermark-opacity: 0.1;
-  --brand-watermark-grayscale-start: 0.85;
-  --brand-watermark-grayscale-end: 0.75;
-  --brand-watermark-saturate: 1;
-  --brand-watermark-brightness: 1.15;
-  --brand-watermark-contrast: 1.2;
-  --brand-watermark-blend: soft-light;
+  --brand-watermark-opacity: 0.16;
+  --brand-watermark-grayscale-start: 0.7;
+  --brand-watermark-grayscale-end: 0.55;
+  --brand-watermark-saturate: 1.05;
+  --brand-watermark-brightness: 1.25;
+  --brand-watermark-contrast: 1.15;
+  --brand-watermark-blend: normal;
 }
 
 :root[data-interface-color="blue"] {
@@ -285,7 +285,7 @@
   --accent: color-mix(in oklch, oklch(0.269 0 0) 66%, var(--primary));
   --sidebar: color-mix(in oklch, oklch(0.205 0 0) 70%, var(--primary));
   --sidebar-accent: color-mix(in oklch, oklch(0.269 0 0) 66%, var(--primary));
-  --brand-watermark-opacity: 0.065;
+  --brand-watermark-opacity: 0.14;
 }
 
 @layer base {

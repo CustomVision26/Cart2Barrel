@@ -16,7 +16,7 @@ export function HomePageContent({ userId }: Props) {
   const isSignedIn = Boolean(userId);
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-background">
+    <div className="flex min-h-full flex-1 flex-col">
       <HomePageHeader userId={userId} />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-12 px-4 py-10 md:py-14">
         <HomeMarketingHero

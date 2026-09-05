@@ -21,7 +21,7 @@ export default async function DashboardLayout({
   const userId = gate.ok ? gate.userId : null;
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-background">
+    <div className="flex min-h-full flex-1 flex-col">
       {userId ?
         <Suspense
           fallback={<DashboardHeaderFallback showAdminEntry={showAdminEntry} />}

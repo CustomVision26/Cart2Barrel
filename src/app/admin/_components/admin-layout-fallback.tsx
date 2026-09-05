@@ -11,7 +11,7 @@ export function AdminLayoutFallback({
 }) {
   return (
     <AdminCustomerFilterShell users={[]}>
-      <div className="flex min-h-full flex-1 flex-col bg-background">
+      <div className="flex min-h-full flex-1 flex-col">
         <header className="border-b border-border/80 px-4 py-3">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
             <div className="flex shrink-0 items-center gap-3">
