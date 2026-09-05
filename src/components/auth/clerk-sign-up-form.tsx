@@ -1,18 +1,269 @@
 "use client";
 
-import { SignUp } from "@clerk/nextjs";
+import { useClerk, useSignUp } from "@clerk/nextjs";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import { clerkAuthCardAppearance } from "@/components/auth/clerk-auth-appearance";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+function clerkNameParamRejected(error: unknown): boolean {
+  const text = clerkErrorMessage(error).toLowerCase();
+  return (
+    text.includes("first_name") ||
+    text.includes("last_name") ||
+    text.includes("first name") ||
+    text.includes("last name")
+  );
+}
+
+function clerkErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "errors" in error) {
+    const first = (
+      error as { errors?: { longMessage?: string; message?: string }[] }
+    ).errors?.[0];
+    const text = first?.longMessage?.trim() || first?.message?.trim();
+    if (text) return text;
+  }
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  return "Could not create your account. Try again.";
+}
 
 export function ClerkSignUpForm() {
+  const router = useRouter();
+  const clerk = useClerk();
+  const { isLoaded, signUp, setActive } = useSignUp();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [pendingVerify, setPendingVerify] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function finishIfComplete(
+    resource: { status: string | null; createdSessionId: string | null },
+  ): Promise<boolean> {
+    if (resource.status !== "complete" || !resource.createdSessionId) {
+      return false;
+    }
+    await setActive({ session: resource.createdSessionId });
+    try {
+      await clerk.user?.update({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      });
+    } catch {
+      // Name attributes may be disabled on this Clerk instance.
+    }
+    router.push("/welcome");
+    router.refresh();
+    return true;
+  }
+
+  async function onCreateAccount(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isLoaded || !signUp) return;
+    setError(null);
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setSubmitting(true);
+    const givenName = firstName.trim();
+    const familyName = lastName.trim();
+    const emailAddress = email.trim();
+    try {
+      let created;
+      try {
+        created = await signUp.create({
+          firstName: givenName,
+          lastName: familyName,
+          emailAddress,
+          password,
+        });
+      } catch (nameErr) {
+        if (!clerkNameParamRejected(nameErr)) throw nameErr;
+        created = await signUp.create({
+          emailAddress,
+          password,
+          unsafeMetadata: { firstName: givenName, lastName: familyName },
+        });
+      }
+      if (await finishIfComplete(created)) return;
+      if (created.unverifiedFields.includes("email_address")) {
+        await created.prepareEmailAddressVerification({
+          strategy: "email_code",
+        });
+        setPendingVerify(true);
+        return;
+      }
+      setError("Account created, but sign-in did not finish. Try Sign in.");
+    } catch (err) {
+      setError(clerkErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function onVerify(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isLoaded || !signUp) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const verified = await signUp.attemptEmailAddressVerification({
+        code: code.trim(),
+      });
+      if (await finishIfComplete(verified)) return;
+      setError("Verification did not complete. Check the code and try again.");
+    } catch (err) {
+      setError(clerkErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const glass =
+    "mx-auto w-full max-w-[420px] rounded-xl bg-background/35 p-6 shadow-xl ring-1 ring-white/15 backdrop-blur-md";
+  const field =
+    "h-9 bg-background/45 backdrop-blur-sm dark:bg-background/45";
+  const busy = !isLoaded || submitting;
+
+  if (pendingVerify) {
+    return (
+      <form onSubmit={onVerify} className={glass}>
+        <h1 className="text-xl font-semibold tracking-tight">Check your email</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Enter the verification code we sent to {email.trim() || "your email"}.
+        </p>
+        <div className="mt-4 space-y-1.5">
+          <Label htmlFor="signup-code">Verification code</Label>
+          <Input
+            id="signup-code"
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            className={field}
+            value={code}
+            onChange={(ev) => setCode(ev.target.value)}
+            required
+          />
+        </div>
+        {error ? (
+          <p className="mt-3 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <Button type="submit" className="mt-4 w-full" size="lg" disabled={busy}>
+          {submitting ? "Verifying…" : "Verify email"}
+        </Button>
+      </form>
+    );
+  }
+
   return (
-    <SignUp
-      routing="path"
-      path="/signup"
-      signInUrl="/login"
-      forceRedirectUrl="/welcome"
-      fallbackRedirectUrl="/welcome"
-      appearance={clerkAuthCardAppearance}
-    />
+    <form onSubmit={onCreateAccount} className={glass}>
+      <h1 className="text-xl font-semibold tracking-tight">Create your account</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Welcome! Fill in your details to get started.
+      </p>
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="signup-first-name">First name</Label>
+          <Input
+            id="signup-first-name"
+            name="firstName"
+            autoComplete="given-name"
+            placeholder="First name"
+            className={field}
+            value={firstName}
+            onChange={(ev) => setFirstName(ev.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="signup-last-name">Last name</Label>
+          <Input
+            id="signup-last-name"
+            name="lastName"
+            autoComplete="family-name"
+            placeholder="Last name"
+            className={field}
+            value={lastName}
+            onChange={(ev) => setLastName(ev.target.value)}
+            required
+          />
+        </div>
+      </div>
+      <div className="mt-3 space-y-1.5">
+        <Label htmlFor="signup-email">Email address</Label>
+        <Input
+          id="signup-email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          placeholder="Enter your email address"
+          className={field}
+          value={email}
+          onChange={(ev) => setEmail(ev.target.value)}
+          required
+        />
+      </div>
+      <div className="mt-3 space-y-1.5">
+        <Label htmlFor="signup-password">Password</Label>
+        <Input
+          id="signup-password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Create a password"
+          className={field}
+          value={password}
+          onChange={(ev) => setPassword(ev.target.value)}
+          required
+          minLength={8}
+        />
+      </div>
+      <div className="mt-3 space-y-1.5">
+        <Label htmlFor="signup-confirm-password">Confirm password</Label>
+        <Input
+          id="signup-confirm-password"
+          name="confirmPassword"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Confirm your password"
+          className={field}
+          value={confirmPassword}
+          onChange={(ev) => setConfirmPassword(ev.target.value)}
+          required
+          minLength={8}
+          aria-invalid={
+            confirmPassword.length > 0 && confirmPassword !== password
+          }
+        />
+        {confirmPassword.length > 0 && confirmPassword !== password ? (
+          <p className="text-sm text-destructive">Passwords do not match.</p>
+        ) : null}
+      </div>
+      {error ? (
+        <p className="mt-3 text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <Button type="submit" className="mt-4 w-full" size="lg" disabled={busy}>
+        {submitting ? "Creating account…" : "Continue"}
+      </Button>
+      <p className="mt-4 text-center text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link href="/login" className="font-medium text-primary hover:underline">
+          Sign in
+        </Link>
+      </p>
+    </form>
   );
 }

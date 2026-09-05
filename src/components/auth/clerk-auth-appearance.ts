@@ -38,9 +38,25 @@ export const clerkBaseAppearance: ClerkAuthAppearance = {
 
 export const clerkAuthCardAppearance: ClerkAuthAppearance = {
   ...clerkBaseAppearance,
+  layout: {
+    showOptionalFields: true,
+  },
+  variables: {
+    ...clerkBaseAppearance.variables,
+    colorBackground: "rgba(24, 24, 27, 0.32)",
+    colorInput: "rgba(39, 39, 42, 0.48)",
+  },
   elements: {
     rootBox: "mx-auto w-full max-w-[420px]",
-    card: "shadow-xl ring-1 ring-border/60",
+    cardBox: "bg-transparent shadow-none",
+    card: "bg-background/40 backdrop-blur-md shadow-xl ring-1 ring-white/15",
+    main: "bg-transparent",
+    headerTitle: "text-foreground",
+    headerSubtitle: "text-muted-foreground",
+    socialButtonsBlockButton: "bg-background/50 backdrop-blur-sm",
+    formFieldInput: "bg-background/50 backdrop-blur-sm",
+    footer: "bg-transparent",
+    footerAction: "bg-transparent",
   },
 };
 

@@ -8,7 +8,7 @@ function Bar({ className }: { className?: string }) {
 export function ClerkAuthFormSkeleton() {
   return (
     <div
-      className="mx-auto w-full max-w-[420px] space-y-4 rounded-xl bg-card p-6 shadow-xl ring-1 ring-border/60"
+      className="mx-auto w-full max-w-[420px] space-y-4 rounded-xl bg-background/35 p-6 shadow-xl ring-1 ring-white/15 backdrop-blur-md"
       aria-busy="true"
       aria-label="Loading sign-in form"
     >

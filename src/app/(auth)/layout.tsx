@@ -1,4 +1,5 @@
-import { AuthMarketingBackdrop } from "@/components/auth/auth-marketing-backdrop";
+import { AuthModalShell } from "@/components/auth/auth-modal-shell";
+import { HomePageContent } from "@/components/marketing/home-page-content";
 
 export default function AuthLayout({
   children,
@@ -7,16 +8,12 @@ export default function AuthLayout({
 }) {
   return (
     <div className="relative flex min-h-full flex-1 flex-col">
-      <div className="fixed inset-0 z-0 overflow-hidden">
-        <AuthMarketingBackdrop />
+      <div className="fixed inset-0 z-0 overflow-y-auto">
+        <div className="pointer-events-none min-h-full" aria-hidden inert>
+          <HomePageContent userId={null} />
+        </div>
       </div>
-      <div
-        className="fixed inset-0 z-[1] bg-card backdrop-blur-sm"
-        aria-hidden
-      />
-      <div className="relative z-10 flex min-h-full flex-1 items-center justify-center p-4 sm:p-6">
-        {children}
-      </div>
+      <AuthModalShell>{children}</AuthModalShell>
     </div>
   );
 }
