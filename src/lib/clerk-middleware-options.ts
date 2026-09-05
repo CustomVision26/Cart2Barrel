@@ -47,6 +47,31 @@ export function clerkAuthorizedParties(): string[] | undefined {
   return Array.from(parties);
 }
 
+/**
+ * Clerk Frontend API proxy path. `*.vercel.app` cannot host `clerk.<host>` DNS,
+ * so production on Vercel must call `/__clerk` on the app origin.
+ * Override with NEXT_PUBLIC_CLERK_PROXY_URL (e.g. `/__clerk`).
+ */
+export function clerkFrontendApiProxyUrl(): string | undefined {
+  const explicit = process.env.NEXT_PUBLIC_CLERK_PROXY_URL?.trim();
+  if (explicit) return explicit;
+  const raw = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!raw) return undefined;
+  try {
+    const host = new URL(raw.includes("://") ? raw : `https://${raw}`).hostname;
+    if (host.endsWith(".vercel.app")) return "/__clerk";
+  } catch {
+    /* ignore invalid APP_URL */
+  }
+  return undefined;
+}
+
+export function clerkFrontendApiProxyEnabled(): boolean {
+  if (process.env.CLERK_FRONTEND_API_PROXY === "true") return true;
+  if (process.env.CLERK_FRONTEND_API_PROXY === "false") return false;
+  return Boolean(clerkFrontendApiProxyUrl());
+}
+
 /** PEM JWT public key for Edge — skip if missing or malformed (avoids middleware crash on Vercel). */
 export function parseClerkJwtKeyForMiddleware(): string | undefined {
   const raw = process.env.CLERK_JWT_KEY?.trim();

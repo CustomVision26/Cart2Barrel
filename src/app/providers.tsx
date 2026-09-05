@@ -5,10 +5,16 @@ import type { ReactNode } from "react";
 
 import { clerkBaseAppearance } from "@/components/auth/clerk-auth-appearance";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { clerkFrontendApiProxyUrl } from "@/lib/clerk-middleware-options";
 
 function ClerkWithTheme({ children }: { children: ReactNode }) {
+  const proxyUrl = clerkFrontendApiProxyUrl();
   return (
-    <ClerkProvider dynamic appearance={clerkBaseAppearance}>
+    <ClerkProvider
+      dynamic
+      appearance={clerkBaseAppearance}
+      {...(proxyUrl ? { proxyUrl } : {})}
+    >
       {children}
     </ClerkProvider>
   );

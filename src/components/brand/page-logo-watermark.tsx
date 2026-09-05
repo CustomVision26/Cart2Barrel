@@ -11,7 +11,7 @@ export function PageLogoWatermark({ className }: PageLogoWatermarkProps) {
     <div
       aria-hidden
       className={cn(
-        "pointer-events-none fixed inset-0 z-[2] flex items-center justify-center overflow-hidden",
+        "pointer-events-none fixed inset-0 z-0 flex items-center justify-center overflow-hidden",
         className,
       )}
     >

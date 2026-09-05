@@ -1,6 +1,10 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-import { clerkAuthorizedParties, parseClerkJwtKeyForMiddleware } from "@/lib/clerk-middleware-options";
+import {
+  clerkAuthorizedParties,
+  clerkFrontendApiProxyEnabled,
+  parseClerkJwtKeyForMiddleware,
+} from "@/lib/clerk-middleware-options";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -29,11 +33,10 @@ export default clerkMiddleware(
     ...(jwtKey ? { jwtKey } : {}),
     authorizedParties: clerkAuthorizedParties(),
     /**
-     * Only enable when browsers truly cannot reach Clerk directly. If enabled without
-     * matching Clerk Dashboard + client proxy setup, APIs may return `host_invalid`.
-     * Set CLERK_FRONTEND_API_PROXY=true to turn on.
+     * Proxy Clerk Frontend API through this app (`/__clerk`) on `*.vercel.app`.
+     * Override with CLERK_FRONTEND_API_PROXY=true|false.
      */
-    ...(process.env.CLERK_FRONTEND_API_PROXY === "true"
+    ...(clerkFrontendApiProxyEnabled()
       ? { frontendApiProxy: { enabled: true } as const }
       : {}),
   }
