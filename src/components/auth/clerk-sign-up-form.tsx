@@ -9,8 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-function clerkNameParamRejected(error: unknown): boolean {
-  const text = clerkErrorMessage(error).toLowerCase();
+function clerkErrorText(
+  error: { longMessage?: string; message?: string } | null | undefined,
+): string | null {
+  const text = error?.longMessage?.trim() || error?.message?.trim();
+  return text || null;
+}
+
+function clerkNameParamRejected(
+  error: { code?: string; message?: string; longMessage?: string } | null,
+): boolean {
+  if (!error) return false;
+  const text = `${error.code ?? ""} ${error.message ?? ""} ${error.longMessage ?? ""}`.toLowerCase();
   return (
     text.includes("first_name") ||
     text.includes("last_name") ||
@@ -19,22 +29,10 @@ function clerkNameParamRejected(error: unknown): boolean {
   );
 }
 
-function clerkErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "errors" in error) {
-    const first = (
-      error as { errors?: { longMessage?: string; message?: string }[] }
-    ).errors?.[0];
-    const text = first?.longMessage?.trim() || first?.message?.trim();
-    if (text) return text;
-  }
-  if (error instanceof Error && error.message.trim()) return error.message.trim();
-  return "Could not create your account. Try again.";
-}
-
 export function ClerkSignUpForm() {
   const router = useRouter();
   const clerk = useClerk();
-  const { isLoaded, signUp, setActive } = useSignUp();
+  const { signUp, errors, fetchStatus } = useSignUp();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,66 +43,90 @@ export function ClerkSignUpForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function finishIfComplete(
-    resource: { status: string | null; createdSessionId: string | null },
-  ): Promise<boolean> {
-    if (resource.status !== "complete" || !resource.createdSessionId) {
-      return false;
+  const givenName = firstName.trim();
+  const familyName = lastName.trim();
+
+  async function navigateAfterAuth(decorateUrl: (path: string) => string) {
+    const url = decorateUrl("/welcome");
+    if (url.startsWith("http")) {
+      window.location.href = url;
+      return;
     }
-    await setActive({ session: resource.createdSessionId });
+    router.push(url);
+    router.refresh();
+  }
+
+  async function applyCollectedNames() {
     try {
       await clerk.user?.update({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName: givenName,
+        lastName: familyName,
       });
     } catch {
       // Name attributes may be disabled on this Clerk instance.
     }
-    router.push("/welcome");
-    router.refresh();
+  }
+
+  async function finishIfComplete(): Promise<boolean> {
+    if (!signUp || signUp.status !== "complete") return false;
+    const { error: finalizeError } = await signUp.finalize({
+      navigate: async ({ decorateUrl }) => {
+        await navigateAfterAuth(decorateUrl);
+      },
+    });
+    if (finalizeError) {
+      setError(clerkErrorText(finalizeError) ?? "Could not finish sign-up.");
+      return false;
+    }
+    await applyCollectedNames();
     return true;
   }
 
   async function onCreateAccount(e: React.FormEvent) {
     e.preventDefault();
-    if (!isLoaded || !signUp) return;
+    if (!signUp) return;
     setError(null);
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
     setSubmitting(true);
-    const givenName = firstName.trim();
-    const familyName = lastName.trim();
     const emailAddress = email.trim();
     try {
-      let created;
-      try {
-        created = await signUp.create({
-          firstName: givenName,
-          lastName: familyName,
-          emailAddress,
-          password,
-        });
-      } catch (nameErr) {
-        if (!clerkNameParamRejected(nameErr)) throw nameErr;
-        created = await signUp.create({
+      let created = await signUp.password({
+        firstName: givenName,
+        lastName: familyName,
+        emailAddress,
+        password,
+      });
+      if (created.error && clerkNameParamRejected(created.error)) {
+        created = await signUp.password({
           emailAddress,
           password,
           unsafeMetadata: { firstName: givenName, lastName: familyName },
         });
       }
-      if (await finishIfComplete(created)) return;
-      if (created.unverifiedFields.includes("email_address")) {
-        await created.prepareEmailAddressVerification({
-          strategy: "email_code",
-        });
+      if (created.error) {
+        setError(clerkErrorText(created.error) ?? "Could not create your account. Try again.");
+        return;
+      }
+      if (await finishIfComplete()) return;
+      if (signUp.unverifiedFields.includes("email_address")) {
+        const sent = await signUp.verifications.sendEmailCode();
+        if (sent.error) {
+          setError(clerkErrorText(sent.error) ?? "Could not send a verification code.");
+          return;
+        }
         setPendingVerify(true);
         return;
       }
       setError("Account created, but sign-in did not finish. Try Sign in.");
     } catch (err) {
-      setError(clerkErrorMessage(err));
+      setError(
+        err instanceof Error && err.message.trim()
+          ? err.message.trim()
+          : "Could not create your account. Try again.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -112,17 +134,25 @@ export function ClerkSignUpForm() {
 
   async function onVerify(e: React.FormEvent) {
     e.preventDefault();
-    if (!isLoaded || !signUp) return;
+    if (!signUp) return;
     setError(null);
     setSubmitting(true);
     try {
-      const verified = await signUp.attemptEmailAddressVerification({
+      const verified = await signUp.verifications.verifyEmailCode({
         code: code.trim(),
       });
-      if (await finishIfComplete(verified)) return;
+      if (verified.error) {
+        setError(clerkErrorText(verified.error) ?? "Verification did not complete.");
+        return;
+      }
+      if (await finishIfComplete()) return;
       setError("Verification did not complete. Check the code and try again.");
     } catch (err) {
-      setError(clerkErrorMessage(err));
+      setError(
+        err instanceof Error && err.message.trim()
+          ? err.message.trim()
+          : "Verification did not complete. Check the code and try again.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -132,9 +162,23 @@ export function ClerkSignUpForm() {
     "mx-auto w-full max-w-[420px] rounded-xl bg-background/35 p-6 shadow-xl ring-1 ring-white/15 backdrop-blur-md";
   const field =
     "h-9 bg-background/45 backdrop-blur-sm dark:bg-background/45";
-  const busy = !isLoaded || submitting;
+  const busy = !signUp || fetchStatus === "fetching" || submitting;
+  const fieldError =
+    clerkErrorText(errors.fields.firstName) ||
+    clerkErrorText(errors.fields.lastName) ||
+    clerkErrorText(errors.fields.emailAddress) ||
+    clerkErrorText(errors.fields.password) ||
+    clerkErrorText(errors.fields.code) ||
+    clerkErrorText(errors.fields.captcha) ||
+    clerkErrorText(errors.global?.[0]);
+  const alert = error || fieldError;
+  const needsEmailVerify =
+    pendingVerify ||
+    (signUp?.status === "missing_requirements" &&
+      signUp.unverifiedFields.includes("email_address") &&
+      signUp.missingFields.length === 0);
 
-  if (pendingVerify) {
+  if (needsEmailVerify) {
     return (
       <form onSubmit={onVerify} className={glass}>
         <h1 className="text-xl font-semibold tracking-tight">Check your email</h1>
@@ -154,13 +198,13 @@ export function ClerkSignUpForm() {
             required
           />
         </div>
-        {error ? (
+        {alert ? (
           <p className="mt-3 text-sm text-destructive" role="alert">
-            {error}
+            {alert}
           </p>
         ) : null}
         <Button type="submit" className="mt-4 w-full" size="lg" disabled={busy}>
-          {submitting ? "Verifying…" : "Verify email"}
+          {submitting || fetchStatus === "fetching" ? "Verifying…" : "Verify email"}
         </Button>
       </form>
     );
@@ -250,13 +294,14 @@ export function ClerkSignUpForm() {
           <p className="text-sm text-destructive">Passwords do not match.</p>
         ) : null}
       </div>
-      {error ? (
+      <div id="clerk-captcha" className="mt-3" />
+      {alert ? (
         <p className="mt-3 text-sm text-destructive" role="alert">
-          {error}
+          {alert}
         </p>
       ) : null}
       <Button type="submit" className="mt-4 w-full" size="lg" disabled={busy}>
-        {submitting ? "Creating account…" : "Continue"}
+        {submitting || fetchStatus === "fetching" ? "Creating account…" : "Continue"}
       </Button>
       <p className="mt-4 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
