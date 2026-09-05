@@ -9,7 +9,8 @@ import {
   type AdminSpotlightVariantRow,
   type PublicSpotlightVariant,
 } from "@/data/spotlight-product-variants";
-import type { SpotlightCategorySlug } from "@/lib/spotlight-categories";
+import { listSpotlightCategoryRecords } from "@/data/spotlight-categories";
+import type { SpotlightCategoryDefinition, SpotlightCategorySlug } from "@/lib/spotlight-categories";
 import { sanitizeSpotlightUuidQueryParam } from "@/lib/spotlight-request-prefill";
 
 export type { PublicSpotlightVariant } from "@/data/spotlight-product-variants";
@@ -83,6 +84,28 @@ export async function listActiveSpotlightProductsByCategory(): Promise<
     );
   }
   return grouped;
+}
+
+/** Home carousel: published categories only, with published products. */
+export async function listPublishedSpotlightStorefront(): Promise<{
+  categories: SpotlightCategoryDefinition[];
+  productsByCategory: Partial<Record<SpotlightCategorySlug, PublicSpotlightProduct[]>>;
+  publishedSlugs: SpotlightCategorySlug[];
+}> {
+  const records = await listSpotlightCategoryRecords();
+  const published = records.filter((c) => c.isActive);
+  const publishedSlugs = published.map((c) => c.slug);
+  const categories: SpotlightCategoryDefinition[] = published.map(
+    ({ isActive: _isActive, sortIndex: _sortIndex, ...definition }) => definition,
+  );
+  const all = await listActiveSpotlightProductsByCategory();
+  const productsByCategory: Partial<
+    Record<SpotlightCategorySlug, PublicSpotlightProduct[]>
+  > = {};
+  for (const slug of publishedSlugs) {
+    productsByCategory[slug] = all[slug] ?? [];
+  }
+  return { categories, productsByCategory, publishedSlugs };
 }
 
 /** All rows for admin management (including inactive). */
@@ -241,5 +264,16 @@ export async function updateSpotlightProductDetails(
   await db
     .update(spotlightCategoryProducts)
     .set(patch)
+    .where(eq(spotlightCategoryProducts.id, id));
+}
+
+export async function setSpotlightProductPublished(
+  id: string,
+  published: boolean,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(spotlightCategoryProducts)
+    .set({ isActive: published })
     .where(eq(spotlightCategoryProducts.id, id));
 }

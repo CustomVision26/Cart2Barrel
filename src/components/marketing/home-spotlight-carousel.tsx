@@ -26,7 +26,7 @@ import { SpotlightProductOffersCarousel } from "@/components/marketing/spotlight
 import { buildOffersForProduct } from "@/components/marketing/spotlight-category-offers-panel";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
 import {
-  SPOTLIGHT_CATEGORIES,
+  spotlightCategoryIcon,
   type SpotlightCategoryDefinition,
   type SpotlightCategorySlug,
 } from "@/lib/spotlight-categories";
@@ -34,9 +34,11 @@ import { cn } from "@/lib/utils";
 
 type HomeSpotlightCarouselProps = {
   isSignedIn: boolean;
+  categories: SpotlightCategoryDefinition[];
   productsByCategory: Partial<
     Record<SpotlightCategorySlug, PublicSpotlightProduct[]>
   >;
+  publishedSlugs: SpotlightCategorySlug[];
 };
 
 function categorySlideOffers(
@@ -51,7 +53,9 @@ function categorySlideOffers(
 
 export function HomeSpotlightCarousel({
   isSignedIn,
+  categories,
   productsByCategory,
+  publishedSlugs,
 }: HomeSpotlightCarouselProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -63,8 +67,14 @@ export function HomeSpotlightCarousel({
     setDialogOpen(true);
   }, []);
 
+  const slides = categories.filter((slide) =>
+    publishedSlugs.includes(slide.slug),
+  );
+
   const activeProducts =
     activeCategory ? (productsByCategory[activeCategory.slug] ?? []) : [];
+
+  if (slides.length === 0) return null;
 
   return (
     <section className="space-y-5">
@@ -88,11 +98,11 @@ export function HomeSpotlightCarousel({
         </Button>
       </div>
 
-      <Carousel opts={{ align: "start", loop: true }} className="w-full">
+      <Carousel opts={{ align: "start", loop: slides.length > 1 }} className="w-full">
         <div className="relative px-2 sm:px-4">
           <CarouselContent className="-ml-3 md:-ml-4">
-            {SPOTLIGHT_CATEGORIES.map((slide) => {
-              const Icon = slide.icon;
+            {slides.map((slide) => {
+              const Icon = spotlightCategoryIcon(slide.iconName);
               const products = productsByCategory[slide.slug] ?? [];
               const slideOffers = categorySlideOffers(products, isSignedIn);
 
@@ -169,7 +179,9 @@ export function HomeSpotlightCarousel({
       <SpotlightAllCategoriesCatalogDialog
         open={catalogOpen}
         onOpenChange={setCatalogOpen}
+        categories={slides}
         productsByCategory={productsByCategory}
+        publishedSlugs={publishedSlugs}
         isSignedIn={isSignedIn}
       />
     </section>

@@ -1,22 +1,23 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
-import { ImageIcon, Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { ImageIcon, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { AdminSpotlightCategoryAddForm } from "@/components/admin/admin-spotlight-category-add-form";
 import { AdminSpotlightProductEditDialog } from "@/components/admin/admin-spotlight-product-edit-dialog";
-import { AdminSpotlightProductVariantsPanel } from "@/components/admin/admin-spotlight-product-variants-panel";
 
 import {
+  adminCreateSpotlightCategoryAction,
+  adminDeleteSpotlightCategoryAction,
   adminDeleteSpotlightProductAction,
   adminRefreshSpotlightProductImageAction,
-  adminSetSpotlightProductImageUrlAction,
-  adminUploadSpotlightProductImageAction,
+  adminSetSpotlightCategoryPublishedAction,
+  adminSetSpotlightProductPublishedAction,
 } from "@/actions/admin-spotlight-products";
-import { AdminSpotlightPreviewImageField } from "@/components/admin/admin-spotlight-preview-image-field";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Card,
   CardContent,
@@ -25,6 +26,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,10 +43,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input, inputFieldClassName, nativeSelectFieldClassName } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { AdminSpotlightProductRow } from "@/data/spotlight-category-products";
 import {
-  SPOTLIGHT_CATEGORIES,
-  type SpotlightCategoryDefinition,
+  SPOTLIGHT_CATEGORY_ICON_LABELS,
+  SPOTLIGHT_CATEGORY_ICON_NAMES,
+  spotlightCategoryIcon,
+  type SpotlightCategoryIconName,
+  type SpotlightCategoryRecord,
   type SpotlightCategorySlug,
 } from "@/lib/spotlight-categories";
 import { formatUsd } from "@/lib/admin-markup";
@@ -44,29 +60,34 @@ import { cn } from "@/lib/utils";
 
 type AdminSpotlightProductsManagerProps = {
   initialProducts: AdminSpotlightProductRow[];
+  categories: SpotlightCategoryRecord[];
 };
 
 function SpotlightCategoryPanel({
   category,
   products,
+  canDelete,
   pending,
   onStatusMessage,
   onRefresh,
   runMutation,
   onEditProduct,
 }: {
-  category: SpotlightCategoryDefinition;
+  category: SpotlightCategoryRecord;
   products: AdminSpotlightProductRow[];
+  canDelete: boolean;
   pending: boolean;
   onStatusMessage: (message: string | null) => void;
   onRefresh: () => void;
   runMutation: (fn: () => Promise<void>) => void;
   onEditProduct: (product: AdminSpotlightProductRow) => void;
 }) {
-  const Icon = category.icon;
+  const Icon = spotlightCategoryIcon(category.iconName);
+  const categoryPublished = category.isActive;
   const [removeTarget, setRemoveTarget] = useState<AdminSpotlightProductRow | null>(
     null,
   );
+  const [deleteCategoryOpen, setDeleteCategoryOpen] = useState(false);
 
   const confirmRemove = () => {
     if (!removeTarget) return;
@@ -86,29 +107,77 @@ function SpotlightCategoryPanel({
   };
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader className="border-b border-border/60">
-        <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br",
-              category.gradient,
-            )}
-          >
-            <Icon className="size-5 text-foreground/70" aria-hidden />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div
+              className={cn(
+                "flex size-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br",
+                category.gradient,
+              )}
+            >
+              <Icon className="size-5 text-foreground/70" aria-hidden />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="text-lg">{category.title}</CardTitle>
+              <CardDescription>{category.description}</CardDescription>
+              <p className="text-xs text-muted-foreground">
+                Slug: <code className="text-foreground/80">{category.slug}</code>
+                {" · "}
+                {products.length} product{products.length === 1 ? "" : "s"}
+                {" · "}
+                {products.filter((p) => p.isActive).length} published
+              </p>
+            </div>
           </div>
-          <div className="min-w-0 space-y-1">
-            <CardTitle className="text-lg">{category.title}</CardTitle>
-            <CardDescription>{category.description}</CardDescription>
-            <p className="text-xs text-muted-foreground">
-              Slug: <code className="text-foreground/80">{category.slug}</code>
-              {" · "}
-              {products.length} product{products.length === 1 ? "" : "s"}
-            </p>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <StatusBadge kind={categoryPublished ? "fullyReceived" : "draft"}>
+              {categoryPublished ? "Category published" : "Category unpublished"}
+            </StatusBadge>
+            <Button
+              type="button"
+              size="sm"
+              variant={categoryPublished ? "outline" : "default"}
+              disabled={pending}
+              onClick={() => {
+                onStatusMessage(null);
+                runMutation(async () => {
+                  const res = await adminSetSpotlightCategoryPublishedAction({
+                    categorySlug: category.slug,
+                    published: !categoryPublished,
+                  });
+                  if (res.ok) {
+                    toast.success(res.message);
+                    onRefresh();
+                  } else {
+                    toast.error(res.message);
+                    onStatusMessage(res.message);
+                  }
+                });
+              }}
+            >
+              {categoryPublished ? "Unpublish category" : "Publish category"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              disabled={pending || !canDelete}
+              title={
+                canDelete
+                  ? "Delete this category"
+                  : "Keep at least one spotlight category"
+              }
+              onClick={() => setDeleteCategoryOpen(true)}
+            >
+              Delete category
+            </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6 pt-6">
+      <CardContent className="min-w-0 space-y-6 pt-6">
         <AdminSpotlightCategoryAddForm
           categorySlug={category.slug}
           pending={pending}
@@ -118,148 +187,238 @@ function SpotlightCategoryPanel({
 
         {products.length === 0 ?
           <p className="text-sm text-muted-foreground">
-            No products yet. Use Add product to category with SerpApi, then save
-            rows to the spotlight carousel.
+            No products yet. Use Add product to category with SerpApi, then Publish
+            a row (and the category) so shoppers see it on Home.
           </p>
-        : <ul className="divide-y divide-border rounded-lg border border-border">
-            {products.map((product) => (
-              <li
-                key={product.id}
-                className="flex flex-col gap-3 p-4"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <div className="relative size-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
-                    {product.imageUrl ?
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={product.imageUrl}
-                        alt=""
-                        className="size-full object-cover"
-                      />
-                    : <div className="flex size-full items-center justify-center text-muted-foreground">
-                        <ImageIcon className="size-5" aria-hidden />
-                      </div>
-                    }
-                  </div>
-                  <div className="min-w-0 space-y-1">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {product.label?.trim() ||
-                        displaySiteName(null, product.productUrl)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {hostnameFromProductUrl(product.productUrl)}
-                      {product.priceUsdCents != null && product.priceUsdCents > 0 ?
-                        <span className="ml-2 font-medium text-foreground">
-                          · {formatUsd(product.priceUsdCents)}
-                        </span>
-                      : null}
-                      {product.productSize?.trim() ?
-                        <span className="ml-2">· {product.productSize.trim()}</span>
-                      : null}
-                      {product.productColor?.trim() ?
-                        <span className="ml-2">· {product.productColor.trim()}</span>
-                      : null}
-                      {!product.isActive ?
-                        <span className="ml-2 text-amber-600 dark:text-amber-400">
-                          (inactive)
-                        </span>
-                      : null}
-                    </p>
-                    <a
-                      href={product.productUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block truncate text-xs text-primary underline-offset-4 hover:underline"
-                    >
-                      {product.productUrl}
-                    </a>
-                    {!product.imageUrl ?
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        No preview image — refresh, upload, or paste a URL below.
-                      </p>
-                    : null}
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={pending}
-                    onClick={() => onEditProduct(product)}
-                  >
-                    <Pencil className="size-3.5" aria-hidden />
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={pending}
-                    onClick={() => {
-                      runMutation(async () => {
-                        const res = await adminRefreshSpotlightProductImageAction({
-                          id: product.id,
-                        });
-                        if (res.ok) {
-                          toast.success(res.message ?? "Image updated.");
-                          onRefresh();
-                        } else {
-                          toast.error(res.message);
-                        }
-                      });
-                    }}
-                  >
-                    <RefreshCw className="size-3.5" aria-hidden />
-                    Refresh image
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    disabled={pending}
-                    onClick={() => setRemoveTarget(product)}
-                  >
-                    <Trash2 className="size-3.5" aria-hidden />
-                    Remove
-                  </Button>
-                </div>
-                </div>
-                {!product.imageUrl ?
-                  <AdminSpotlightPreviewImageField
-                    label="Product image"
-                    imageUrl={product.imageUrl}
-                    pending={pending}
-                    compact
-                    entityIdField="productId"
-                    entityId={product.id}
-                    onRefresh={() =>
-                      adminRefreshSpotlightProductImageAction({ id: product.id })
-                    }
-                    onUpload={adminUploadSpotlightProductImageAction}
-                    onSetImageUrl={(url) =>
-                      adminSetSpotlightProductImageUrlAction({
-                        id: product.id,
-                        imageUrl: url,
-                      })
-                    }
-                    onSuccess={onRefresh}
-                    runMutation={runMutation}
-                  />
-                : null}
-                <AdminSpotlightProductVariantsPanel
-                  product={product}
-                  pending={pending}
-                  onStatusMessage={onStatusMessage}
-                  onRefresh={onRefresh}
-                  runMutation={runMutation}
-                />
-              </li>
-            ))}
-          </ul>
-        }
+        : (
+          <div className="min-w-0 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Double-click a record to edit. Use Publish on a row to show that
+              product to shoppers.
+            </p>
+            <div className="min-w-0 overflow-x-auto rounded-lg border border-border">
+              <table className="w-full table-fixed text-left text-sm">
+                <colgroup>
+                  <col />
+                  <col className="w-[5.75rem]" />
+                  <col className="w-[7.25rem]" />
+                  <col className="w-[13.75rem]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-border bg-muted/80 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">Product</th>
+                    <th className="px-3 py-2 font-medium">Price</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 text-right font-medium">Publish</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {products.map((product) => {
+                    const title =
+                      product.label?.trim() ||
+                      displaySiteName(null, product.productUrl);
+                    const retailer = hostnameFromProductUrl(product.productUrl);
+                    const sizeColor = [
+                      product.productSize?.trim(),
+                      product.productColor?.trim(),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    const meta = [
+                      retailer,
+                      sizeColor,
+                      product.variants.length > 0
+                        ? `${product.variants.length} variant${
+                            product.variants.length === 1 ? "" : "s"
+                          }`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <tr
+                        key={product.id}
+                        title="Double-click to edit"
+                        className="cursor-pointer bg-card hover:bg-muted/40"
+                        onDoubleClick={() => onEditProduct(product)}
+                      >
+                        <td className="px-3 py-2">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <div className="relative size-9 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted">
+                              {product.imageUrl ?
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={product.imageUrl}
+                                  alt=""
+                                  className="size-full object-cover"
+                                />
+                              : <div className="flex size-full items-center justify-center text-muted-foreground">
+                                  <ImageIcon className="size-3.5" aria-hidden />
+                                </div>}
+                            </div>
+                            <div className="min-w-0">
+                              <p
+                                className="truncate font-medium text-foreground"
+                                title={title}
+                              >
+                                {title}
+                              </p>
+                              {meta ?
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {meta}
+                                </p>
+                              : null}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 tabular-nums text-foreground">
+                          {product.priceUsdCents != null && product.priceUsdCents > 0
+                            ? formatUsd(product.priceUsdCents)
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <StatusBadge
+                            kind={product.isActive ? "fullyReceived" : "draft"}
+                          >
+                            {product.isActive ? "Published" : "Unpublished"}
+                          </StatusBadge>
+                        </td>
+                        <td
+                          className="whitespace-nowrap px-3 py-2"
+                          onClick={(e) => e.stopPropagation()}
+                          onDoubleClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex flex-nowrap items-center justify-end gap-0.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="min-w-[5.75rem]"
+                              variant={product.isActive ? "outline" : "default"}
+                              disabled={pending}
+                              onClick={() => {
+                                runMutation(async () => {
+                                  const res =
+                                    await adminSetSpotlightProductPublishedAction({
+                                      id: product.id,
+                                      published: !product.isActive,
+                                    });
+                                  if (res.ok) {
+                                    toast.success(res.message);
+                                    onRefresh();
+                                  } else {
+                                    toast.error(res.message);
+                                    onStatusMessage(res.message);
+                                  }
+                                });
+                              }}
+                            >
+                              {product.isActive ? "Unpublish" : "Publish"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={pending}
+                              title="Edit"
+                              aria-label={`Edit ${title}`}
+                              onClick={() => onEditProduct(product)}
+                            >
+                              <Pencil />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={pending}
+                              title="Refresh image"
+                              aria-label={`Refresh image for ${title}`}
+                              onClick={() => {
+                                runMutation(async () => {
+                                  const res =
+                                    await adminRefreshSpotlightProductImageAction({
+                                      id: product.id,
+                                    });
+                                  if (res.ok) {
+                                    toast.success(res.message ?? "Image updated.");
+                                    onRefresh();
+                                  } else {
+                                    toast.error(res.message);
+                                  }
+                                });
+                              }}
+                            >
+                              <RefreshCw />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-destructive hover:text-destructive"
+                              disabled={pending}
+                              title="Remove"
+                              aria-label={`Remove ${title}`}
+                              onClick={() => setRemoveTarget(product)}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </CardContent>
+
+      <AlertDialog open={deleteCategoryOpen} onOpenChange={setDeleteCategoryOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {category.title}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the category from Spotlight and Home
+              {products.length > 0
+                ? `, and permanently deletes ${products.length} product${
+                    products.length === 1 ? "" : "s"
+                  } in this group, including variants`
+                : ""}
+              . This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              render={<Button type="button" variant="outline" disabled={pending} />}
+            >
+              Keep category
+            </AlertDialogCancel>
+            <AlertDialogAction
+              render={
+                <Button type="button" variant="destructive" disabled={pending} />
+              }
+              onClick={() => {
+                setDeleteCategoryOpen(false);
+                onStatusMessage(null);
+                runMutation(async () => {
+                  const res = await adminDeleteSpotlightCategoryAction({
+                    categorySlug: category.slug,
+                  });
+                  if (res.ok) {
+                    toast.success(res.message);
+                    onRefresh();
+                  } else {
+                    toast.error(res.message);
+                    onStatusMessage(res.message);
+                  }
+                });
+              }}
+            >
+              {pending ? "Deleting…" : "Delete category"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={removeTarget != null}
@@ -310,20 +469,35 @@ function SpotlightCategoryPanel({
 
 export function AdminSpotlightProductsManager({
   initialProducts,
+  categories,
 }: AdminSpotlightProductsManagerProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [activeSlug, setActiveSlug] = useState<SpotlightCategorySlug>(
-    SPOTLIGHT_CATEGORIES[0].slug,
+    categories[0]?.slug ?? "",
   );
   const [editProduct, setEditProduct] = useState<AdminSpotlightProductRow | null>(
     null,
   );
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newTag, setNewTag] = useState("New");
+  const [newIconName, setNewIconName] =
+    useState<SpotlightCategoryIconName>("package");
+
+  const editRow =
+    initialProducts.find((p) => p.id === editProduct?.id) ?? editProduct;
+
+  useEffect(() => {
+    if (categories.some((c) => c.slug === activeSlug)) return;
+    setActiveSlug(categories[0]?.slug ?? "");
+  }, [categories, activeSlug]);
 
   const byCategory = useMemo(() => {
     const map = new Map<SpotlightCategorySlug, AdminSpotlightProductRow[]>();
-    for (const cat of SPOTLIGHT_CATEGORIES) {
+    for (const cat of categories) {
       map.set(cat.slug, []);
     }
     for (const row of initialProducts) {
@@ -332,10 +506,20 @@ export function AdminSpotlightProductsManager({
       map.set(row.categorySlug, list);
     }
     return map;
-  }, [initialProducts]);
+  }, [categories, initialProducts]);
 
-  const activeCategory = SPOTLIGHT_CATEGORIES.find((c) => c.slug === activeSlug)!;
-  const activeProducts = byCategory.get(activeSlug) ?? [];
+  const activeCategory =
+    categories.find((c) => c.slug === activeSlug) ?? categories[0] ?? null;
+  const activeProducts = activeCategory
+    ? (byCategory.get(activeCategory.slug) ?? [])
+    : [];
+
+  const resetCreateForm = () => {
+    setNewTitle("");
+    setNewDescription("");
+    setNewTag("New");
+    setNewIconName("package");
+  };
 
   const tabLinkClass = (selected: boolean) =>
     cn(
@@ -344,6 +528,12 @@ export function AdminSpotlightProductsManager({
         ? "border-primary text-foreground"
         : "border-transparent text-muted-foreground hover:text-foreground",
     );
+
+  const runMutation = (fn: () => Promise<void>) => {
+    startTransition(async () => {
+      await fn();
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -362,64 +552,191 @@ export function AdminSpotlightProductsManager({
         </p>
       : null}
 
-      <div
-        role="tablist"
-        aria-label="Spotlight categories"
-        className="-mx-1 flex gap-1 overflow-x-auto border-b border-border px-1 pb-px"
-      >
-        {SPOTLIGHT_CATEGORIES.map((category) => {
-          const count = byCategory.get(category.slug)?.length ?? 0;
-          const selected = activeSlug === category.slug;
-          return (
-            <button
-              key={category.slug}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              aria-controls={`spotlight-panel-${category.slug}`}
-              id={`spotlight-tab-${category.slug}`}
-              className={tabLinkClass(selected)}
-              onClick={() => setActiveSlug(category.slug)}
-            >
-              {category.title}
-              <span
-                className={cn(
-                  "ml-2 inline-flex rounded px-1.5 py-0.5 align-middle text-[10px] font-semibold",
-                  selected
-                    ? "bg-primary/15 text-primary"
-                    : "bg-muted text-muted-foreground",
-                )}
+      <div className="flex items-end gap-2 border-b border-border">
+        <div
+          role="tablist"
+          aria-label="Spotlight categories"
+          className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1 pb-px"
+        >
+          {categories.map((category) => {
+            const count = byCategory.get(category.slug)?.length ?? 0;
+            const selected = activeSlug === category.slug;
+            return (
+              <button
+                key={category.slug}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls={`spotlight-panel-${category.slug}`}
+                id={`spotlight-tab-${category.slug}`}
+                className={tabLinkClass(selected)}
+                onClick={() => setActiveSlug(category.slug)}
               >
-                {count}
-              </span>
-            </button>
-          );
-        })}
+                {category.title}
+                <span
+                  className={cn(
+                    "ml-2 inline-flex rounded px-1.5 py-0.5 align-middle text-[10px] font-semibold",
+                    selected
+                      ? "bg-primary/15 text-primary"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          className="mb-1.5 shrink-0"
+          disabled={pending}
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus data-icon="inline-start" />
+          New category
+        </Button>
       </div>
 
-      <div
-        role="tabpanel"
-        id={`spotlight-panel-${activeSlug}`}
-        aria-labelledby={`spotlight-tab-${activeSlug}`}
+      {activeCategory ?
+        <div
+          role="tabpanel"
+          id={`spotlight-panel-${activeCategory.slug}`}
+          aria-labelledby={`spotlight-tab-${activeCategory.slug}`}
+        >
+          <SpotlightCategoryPanel
+            key={activeCategory.slug}
+            category={activeCategory}
+            products={activeProducts}
+            canDelete={categories.length > 1}
+            pending={pending}
+            onStatusMessage={setStatusMessage}
+            onRefresh={() => router.refresh()}
+            onEditProduct={setEditProduct}
+            runMutation={runMutation}
+          />
+        </div>
+      : (
+        <p className="rounded-lg border border-border bg-muted px-4 py-6 text-sm text-muted-foreground">
+          No spotlight categories yet. Create one to start adding products.
+        </p>
+      )}
+
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) resetCreateForm();
+        }}
       >
-        <SpotlightCategoryPanel
-          key={activeSlug}
-          category={activeCategory}
-          products={activeProducts}
-          pending={pending}
-          onStatusMessage={setStatusMessage}
-          onRefresh={() => router.refresh()}
-          onEditProduct={setEditProduct}
-          runMutation={(fn) => {
-            startTransition(async () => {
-              await fn();
-            });
-          }}
-        />
-      </div>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New spotlight category</DialogTitle>
+            <DialogDescription>
+              Categories appear as Home carousel slides once you publish them.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="spotlight-new-category-title">Name</Label>
+              <Input
+                id="spotlight-new-category-title"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="e.g. Outdoor & sports"
+                maxLength={80}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="spotlight-new-category-description">
+                Description
+              </Label>
+              <textarea
+                id="spotlight-new-category-description"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                placeholder="Short copy shown on the Home carousel slide."
+                maxLength={240}
+                rows={3}
+                className={cn(inputFieldClassName, "min-h-20 py-2 text-sm")}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="spotlight-new-category-tag">Tag</Label>
+                <Input
+                  id="spotlight-new-category-tag"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  placeholder="New"
+                  maxLength={32}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="spotlight-new-category-icon">Icon</Label>
+                <select
+                  id="spotlight-new-category-icon"
+                  value={newIconName}
+                  onChange={(e) =>
+                    setNewIconName(e.target.value as SpotlightCategoryIconName)
+                  }
+                  className={nativeSelectFieldClassName}
+                >
+                  {SPOTLIGHT_CATEGORY_ICON_NAMES.map((name) => (
+                    <option key={name} value={name}>
+                      {SPOTLIGHT_CATEGORY_ICON_LABELS[name]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                setCreateOpen(false);
+                resetCreateForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setStatusMessage(null);
+                runMutation(async () => {
+                  const res = await adminCreateSpotlightCategoryAction({
+                    title: newTitle,
+                    description: newDescription,
+                    tag: newTag,
+                    iconName: newIconName,
+                  });
+                  if (res.ok) {
+                    toast.success(res.message);
+                    if (res.categorySlug) setActiveSlug(res.categorySlug);
+                    setCreateOpen(false);
+                    resetCreateForm();
+                    router.refresh();
+                  } else {
+                    toast.error(res.message);
+                    setStatusMessage(res.message);
+                  }
+                });
+              }}
+            >
+              {pending ? "Creating…" : "Create category"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AdminSpotlightProductEditDialog
-        product={editProduct}
+        product={editRow}
         open={editProduct != null}
         onOpenChange={(open) => {
           if (!open) setEditProduct(null);
@@ -427,12 +744,9 @@ export function AdminSpotlightProductsManager({
         pending={pending}
         onStatusMessage={setStatusMessage}
         onRefresh={() => router.refresh()}
-        runMutation={(fn) => {
-          startTransition(async () => {
-            await fn();
-          });
-        }}
+        runMutation={runMutation}
       />
     </div>
   );
 }
+

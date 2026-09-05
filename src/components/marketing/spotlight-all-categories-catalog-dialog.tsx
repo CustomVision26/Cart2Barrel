@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
 import {
-  SPOTLIGHT_CATEGORIES,
+  spotlightCategoryIcon,
   type SpotlightCategoryDefinition,
   type SpotlightCategorySlug,
 } from "@/lib/spotlight-categories";
@@ -24,9 +24,11 @@ import { cn } from "@/lib/utils";
 type SpotlightAllCategoriesCatalogDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  categories: SpotlightCategoryDefinition[];
   productsByCategory: Partial<
     Record<SpotlightCategorySlug, PublicSpotlightProduct[]>
   >;
+  publishedSlugs: SpotlightCategorySlug[];
   isSignedIn: boolean;
 };
 
@@ -43,7 +45,7 @@ function CategoryMenuButton({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const Icon = category.icon;
+  const Icon = spotlightCategoryIcon(category.iconName);
 
   return (
     <button
@@ -91,28 +93,40 @@ function CategoryMenuButton({
 export function SpotlightAllCategoriesCatalogDialog({
   open,
   onOpenChange,
+  categories,
   productsByCategory,
+  publishedSlugs,
   isSignedIn,
 }: SpotlightAllCategoriesCatalogDialogProps) {
+  const visibleCategories = useMemo(
+    () =>
+      categories.filter((category) => publishedSlugs.includes(category.slug)),
+    [categories, publishedSlugs],
+  );
   const [activeSlug, setActiveSlug] = useState<SpotlightCategorySlug>(
-    SPOTLIGHT_CATEGORIES[0].slug,
+    categories[0]?.slug ?? "",
   );
 
   useEffect(() => {
     if (!open) return;
-    setActiveSlug(SPOTLIGHT_CATEGORIES[0].slug);
-  }, [open]);
+    setActiveSlug(visibleCategories[0]?.slug ?? categories[0]?.slug ?? "");
+  }, [open, visibleCategories, categories]);
 
   const activeCategory = useMemo(
-    () => SPOTLIGHT_CATEGORIES.find((c) => c.slug === activeSlug)!,
-    [activeSlug],
+    () =>
+      visibleCategories.find((c) => c.slug === activeSlug) ??
+      visibleCategories[0] ??
+      null,
+    [activeSlug, visibleCategories],
   );
 
-  const activeProducts = productsByCategory[activeSlug] ?? [];
+  const activeProducts = activeCategory
+    ? (productsByCategory[activeCategory.slug] ?? [])
+    : [];
 
   const countsBySlug = useMemo(() => {
     const map = new Map<SpotlightCategorySlug, { products: number; offers: number }>();
-    for (const cat of SPOTLIGHT_CATEGORIES) {
+    for (const cat of visibleCategories) {
       const products = productsByCategory[cat.slug] ?? [];
       map.set(cat.slug, {
         products: products.length,
@@ -120,7 +134,7 @@ export function SpotlightAllCategoriesCatalogDialog({
       });
     }
     return map;
-  }, [productsByCategory, isSignedIn]);
+  }, [productsByCategory, isSignedIn, visibleCategories]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -148,7 +162,7 @@ export function SpotlightAllCategoriesCatalogDialog({
               aria-label="Spotlight categories"
               className="flex gap-2 overflow-x-auto p-3 lg:flex-col lg:overflow-y-auto lg:px-3 lg:pb-4 lg:pt-2"
             >
-              {SPOTLIGHT_CATEGORIES.map((category) => {
+              {visibleCategories.map((category) => {
                 const counts = countsBySlug.get(category.slug)!;
                 return (
                   <CategoryMenuButton
@@ -165,6 +179,8 @@ export function SpotlightAllCategoriesCatalogDialog({
           </aside>
 
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {activeCategory ?
+            <>
             <div
               className={cn(
                 "shrink-0 border-b border-border/60 bg-gradient-to-br px-5 py-4 sm:px-6",
@@ -183,7 +199,7 @@ export function SpotlightAllCategoriesCatalogDialog({
               <p className="mt-2 text-xs font-medium text-foreground/80">
                 {activeCategory.priceHint}
                 {activeProducts.length > 0
-                  ? ` · ${countsBySlug.get(activeSlug)?.offers ?? 0} offers available`
+                  ? ` · ${countsBySlug.get(activeCategory.slug)?.offers ?? 0} offers available`
                   : ""}
               </p>
             </div>
@@ -195,6 +211,8 @@ export function SpotlightAllCategoriesCatalogDialog({
                 isSignedIn={isSignedIn}
               />
             </div>
+            </>
+            : <p className="p-6 text-sm text-muted-foreground">No published categories.</p>}
           </main>
         </div>
       </DialogContent>

@@ -1,4 +1,8 @@
 import { AdminSpotlightProductsManager } from "@/components/admin/admin-spotlight-products-manager";
+import {
+  defaultSpotlightCategoryRecords,
+  listSpotlightCategoryRecords,
+} from "@/data/spotlight-categories";
 import { listAdminSpotlightProducts } from "@/data/spotlight-category-products";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
@@ -22,11 +26,17 @@ export default async function AdminSpotlightProductsPage() {
 
   const admin = isClerkAdmin(cu.user);
   let products: Awaited<ReturnType<typeof listAdminSpotlightProducts>> = [];
+  let categories = defaultSpotlightCategoryRecords();
   if (admin) {
     try {
       products = await listAdminSpotlightProducts();
     } catch {
       products = [];
+    }
+    try {
+      categories = await listSpotlightCategoryRecords();
+    } catch {
+      categories = defaultSpotlightCategoryRecords();
     }
   }
 
@@ -37,16 +47,22 @@ export default async function AdminSpotlightProductsPage() {
           Spotlight products
         </h1>
         <p className="text-sm text-muted-foreground">
-          Add retailer product URLs for each home page carousel category. Expand
-          Variants on a product to import SKU rows (SerpApi + page AI) or add them
-          manually—shoppers see those options in the category dialog.
+          Add retailer product URLs for each home page carousel category. New
+          products start unpublished. Publish a product and its category so
+          shoppers see them on Home. Double-click a record to edit details and
+          variants.
         </p>
       </div>
       {!admin ?
         <p className="rounded-lg border border-border bg-muted px-4 py-6 text-sm text-muted-foreground">
           Admin access is required to manage spotlight products.
         </p>
-      : <AdminSpotlightProductsManager initialProducts={products} />}
+      : (
+        <AdminSpotlightProductsManager
+          initialProducts={products}
+          categories={categories}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { currentUser } from "@clerk/nextjs/server";
 
 import {
   AdminCustomerFilterBar,
@@ -10,6 +11,7 @@ import { AdminNotificationsBell } from "@/components/admin/admin-notifications-b
 import { AdminNav } from "@/components/admin-nav";
 import { loadAdminActivityNotificationSummary } from "@/data/admin-user-activity-events";
 import { listProfilesForAdminPicker } from "@/data/customer-pricing-packages";
+import { getOrCreateProfile } from "@/data/profiles";
 import { countOpenSupportTickets } from "@/data/support-tickets";
 
 export async function AdminLayoutWithData({
@@ -19,6 +21,20 @@ export async function AdminLayoutWithData({
   userId: string;
   children: React.ReactNode;
 }) {
+  try {
+    const user = await currentUser();
+    const email =
+      user?.primaryEmailAddress?.emailAddress ??
+      user?.emailAddresses?.[0]?.emailAddress ??
+      null;
+    await getOrCreateProfile(userId, email);
+  } catch (error) {
+    console.warn(
+      "[Cart2Barrel] Could not ensure admin profile:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
   const [adminPickerUsers, activitySummary, openSupportCount] = await Promise.all([
     listProfilesForAdminPicker(),
     loadAdminActivityNotificationSummary(userId),

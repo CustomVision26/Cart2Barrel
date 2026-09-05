@@ -106,6 +106,18 @@ function safeRefresh(router: ReturnType<typeof useRouter>) {
   }
 }
 
+function formatSpecialFeatureTableDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function AirlineOptions({ extra }: { extra?: string }) {
   const extraTrim = extra?.trim() ?? "";
   const showExtra =
@@ -217,6 +229,9 @@ export function AdminSpecialFeaturesManager({
   const [airlineBagFeeExtraNote, setAirlineBagFeeExtraNote] = useState("");
   const [lookupPending, setLookupPending] = useState(false);
   const [notes, setNotes] = useState(SPECIAL_FEATURE_AUTO_NOTES);
+  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
+
+  const selectedOffer = offers.find((o) => o.id === selectedOfferId) ?? null;
 
   function runBagFeeLookup(nextAirline: string, nextTravelAt: string) {
     if (!nextAirline.trim()) return;
@@ -431,8 +446,8 @@ export function AdminSpecialFeaturesManager({
             </div>
             <div className="flex flex-col gap-2 sm:col-span-2">
               <p className="text-xs text-muted-foreground">
-                Saves as a draft. Use Publish on the catalog card to show the special
-                banner to users.
+                Saves as a draft. Double-click the catalog row to edit, then Publish
+                when ready for shoppers.
               </p>
               <Button type="submit" disabled={pending} className="w-fit">
                 {pending ? "Saving…" : "Create draft"}
@@ -443,22 +458,103 @@ export function AdminSpecialFeaturesManager({
       </Card>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground">Catalog</h3>
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold text-foreground">Catalog</h3>
+          <p className="text-sm text-muted-foreground">
+            Double-click a record to open the editor. Publish from the editor when
+            shoppers should see the banner.
+          </p>
+        </div>
         {offers.length === 0 ?
           <p className="text-sm text-muted-foreground">No special features yet.</p>
         : (
-          <ul className="space-y-6">
-            {offers.map((offer) => (
-              <li key={offer.id}>
-                <AdminSpecialFeatureRow
-                  offer={offer}
-                  disabledAll={pending}
-                  onRefresh={() => safeRefresh(router)}
-                />
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Packaging</th>
+                  <th className="px-3 py-2 font-medium">Starts</th>
+                  <th className="px-3 py-2 font-medium">Ends</th>
+                  <th className="px-3 py-2 font-medium">Airline</th>
+                  <th className="px-3 py-2 font-medium">Slots</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {offers.map((offer) => {
+                  const status = getSpecialFeatureWindowStatus(
+                    offer.startsAt,
+                    offer.endsAt,
+                    offer.isActive,
+                  );
+                  const selected = offer.id === selectedOfferId;
+                  return (
+                    <tr
+                      key={offer.id}
+                      title="Double-click to edit"
+                      className={cn(
+                        "cursor-pointer border-b border-border/70 last:border-b-0",
+                        selected ? "bg-primary/10" : "bg-card hover:bg-muted/40",
+                      )}
+                      onDoubleClick={() =>
+                        setSelectedOfferId((current) =>
+                          current === offer.id ? null : offer.id,
+                        )
+                      }
+                    >
+                      <td className="px-3 py-2.5 font-medium text-foreground">
+                        {offer.name}
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {specialFeaturePackagingModeLabel(offer.packagingMode)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
+                        {formatSpecialFeatureTableDate(offer.startsAt)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
+                        {formatSpecialFeatureTableDate(offer.endsAt)}
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {offer.airlineName || "—"}
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                        {offer.suitcaseSlotCapacity ?? "No limit"}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                            status === "Live" ?
+                              "border-primary/40 bg-primary/15 text-primary"
+                            : status === "Draft" ?
+                              "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                            : "border-border/80 bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
+        {selectedOffer ?
+          <AdminSpecialFeatureRow
+            key={selectedOffer.id}
+            offer={selectedOffer}
+            disabledAll={pending}
+            onRefresh={() => safeRefresh(router)}
+            onClose={() => setSelectedOfferId(null)}
+          />
+        : offers.length > 0 ?
+          <p className="text-sm text-muted-foreground">
+            Select a catalog record with a double-click to edit it.
+          </p>
+        : null}
       </div>
     </div>
   );
@@ -468,10 +564,12 @@ function AdminSpecialFeatureRow({
   offer,
   disabledAll,
   onRefresh,
+  onClose,
 }: {
   offer: AdminSerializableSpecialFeature;
   disabledAll: boolean;
   onRefresh: () => void;
+  onClose: () => void;
 }) {
   const [removeOpen, setRemoveOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -862,6 +960,14 @@ function AdminSpecialFeatureRow({
               type="button"
               variant="outline"
               disabled={disabled}
+              onClick={onClose}
+            >
+              Close editor
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
               onClick={() => setRemoveOpen(true)}
             >
               Delete
@@ -888,6 +994,7 @@ function AdminSpecialFeatureRow({
             }
             toast.success("Special feature deleted.");
             setRemoveOpen(false);
+            onClose();
             onRefresh();
           });
         }}

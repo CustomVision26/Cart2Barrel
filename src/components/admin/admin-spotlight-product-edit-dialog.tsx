@@ -10,6 +10,7 @@ import {
   adminUploadSpotlightProductImageAction,
 } from "@/actions/admin-spotlight-products";
 import { AdminSpotlightPreviewImageField } from "@/components/admin/admin-spotlight-preview-image-field";
+import { AdminSpotlightProductVariantsPanel } from "@/components/admin/admin-spotlight-product-variants-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -93,7 +94,7 @@ export function AdminSpotlightProductEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100%-2rem)] gap-4 overflow-hidden sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] max-w-[calc(100%-2rem)] gap-4 overflow-y-auto sm:max-w-2xl">
         <DialogHeader className="min-w-0 pr-8">
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="size-4 shrink-0" aria-hidden />
@@ -171,6 +172,14 @@ export function AdminSpotlightProductEditDialog({
                 })
               }
               onSuccess={onRefresh}
+              runMutation={runMutation}
+            />
+
+            <AdminSpotlightProductVariantsPanel
+              product={product}
+              pending={pending}
+              onStatusMessage={onStatusMessage}
+              onRefresh={onRefresh}
               runMutation={runMutation}
             />
 

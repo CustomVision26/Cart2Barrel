@@ -152,6 +152,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "One form: name, phone, and delivery address saved together.",
         "That first save is your primary shipping record.",
         "Skip sends you to Home without saving details.",
+        "Marketing Home stays visible behind the form.",
         "Checkout still requires a saved address later.",
       ],
       requirements: [
@@ -175,6 +176,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "New signed-in users are directed here from Home until they complete or skip onboarding.",
+        "The marketing Home page stays visible in the background; complete the form or use Skip.",
         "Enter your full name, phone, and worldwide delivery address on one form. Saving creates your primary shipping record.",
         "Optional — Skip: click Skip to bypass onboarding and go to Home immediately.",
         "After saving without skipping, you are redirected to Home.",

@@ -1,3 +1,16 @@
+/** True when Postgres reports the spotlight category publish table is missing. */
+export function isMissingSpotlightCategoriesTableError(err: unknown): boolean {
+  const msg =
+    err instanceof Error ? err.message : String(err ?? "");
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("spotlight_categories") &&
+    (lower.includes("does not exist") ||
+      lower.includes("relation") ||
+      lower.includes("failed query"))
+  );
+}
+
 /** True when Postgres reports the spotlight variants table is missing. */
 export function isMissingSpotlightVariantsTableError(err: unknown): boolean {
   const msg =

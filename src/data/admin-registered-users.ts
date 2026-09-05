@@ -7,6 +7,7 @@ import {
   type SerializableShippingAddress,
 } from "@/data/addresses";
 import { filterProfilesToActiveClerkUsers } from "@/data/filter-profiles-to-active-clerk-users";
+import { syncProfilesFromClerkUsers } from "@/data/sync-profiles-from-clerk";
 import type { AdminProfileAccountKind } from "@/data/customer-pricing-packages";
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
@@ -32,6 +33,15 @@ export async function listRegisteredUsersForAdmin(): Promise<
 > {
   const db = getDb();
   try {
+    try {
+      await syncProfilesFromClerkUsers();
+    } catch (error) {
+      console.warn(
+        "[Cart2Barrel] Clerk profile sync failed; listing existing profiles:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
     const rows = await db
       .select({
         clerkUserId: profiles.clerkUserId,
@@ -80,7 +90,11 @@ export async function listRegisteredUsersForAdmin(): Promise<
         addresses,
       };
     });
-  } catch {
+  } catch (error) {
+    console.warn(
+      "[Cart2Barrel] listRegisteredUsersForAdmin failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     return [];
   }
 }

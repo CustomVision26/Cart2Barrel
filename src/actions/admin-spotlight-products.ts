@@ -9,9 +9,16 @@ import { randomUUID } from "crypto";
 import {
   getSpotlightProductById,
   nextSpotlightSortIndex,
+  setSpotlightProductPublished,
   updateSpotlightProductDetails,
   updateSpotlightProductImage,
 } from "@/data/spotlight-category-products";
+import {
+  createSpotlightCategory,
+  deleteSpotlightCategory,
+  setSpotlightCategoryPublished,
+} from "@/data/spotlight-categories";
+import { nextSpotlightCategoryIconName } from "@/lib/spotlight-categories";
 import { getDb } from "@/db";
 import { spotlightCategoryProducts } from "@/db/schema";
 import { resolveSpotlightProductPreviewImage } from "@/lib/spotlight-product-preview";
@@ -26,17 +33,21 @@ import {
   getBlobReadWriteToken,
 } from "@/lib/vercel-blob-env";
 import {
+  adminCreateSpotlightCategorySchema,
   adminCreateSpotlightProductSchema,
+  adminDeleteSpotlightCategorySchema,
   adminDeleteSpotlightProductSchema,
   adminRefreshSpotlightProductImageSchema,
+  adminSetSpotlightCategoryPublishedSchema,
   adminSetSpotlightProductImageUrlSchema,
+  adminSetSpotlightProductPublishedSchema,
   adminUpdateSpotlightProductSchema,
   normalizeOptionalVariantField,
   parseOptionalPriceUsdToCents,
 } from "@/lib/validations/spotlight-category-product";
 
 export type AdminSpotlightProductMutationState =
-  | { ok: true; message?: string; productId?: string }
+  | { ok: true; message?: string; productId?: string; categorySlug?: string }
   | { ok: false; message: string };
 
 function revalidateSpotlightPaths(): void {
@@ -92,15 +103,15 @@ export async function adminCreateSpotlightProductAction(
       productColor: normalizeOptionalVariantField(productColor),
       label: label?.trim() || null,
       sortIndex,
-      isActive: true,
+      isActive: false,
     })
     .returning({ id: spotlightCategoryProducts.id });
 
   revalidateSpotlightPaths();
   const previewNote =
     imageUrl ?
-      "Product added with preview image."
-    : "Product added. Preview image could not be fetched—you can retry refresh.";
+      "Product added as unpublished with preview image. Publish the row when shoppers should see it."
+    : "Product added as unpublished. Preview image could not be fetched—you can retry refresh. Publish the row when shoppers should see it.";
   return {
     ok: true,
     message: previewNote,
@@ -306,4 +317,152 @@ export async function adminSetSpotlightProductImageUrlAction(
   await updateSpotlightProductImage(parsed.data.id, parsed.data.imageUrl.trim());
   revalidateSpotlightPaths();
   return { ok: true, message: "Preview image saved." };
+}
+
+export async function adminSetSpotlightProductPublishedAction(
+  input: unknown,
+): Promise<AdminSpotlightProductMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminSetSpotlightProductPublishedSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  const row = await getSpotlightProductById(parsed.data.id);
+  if (!row) {
+    return { ok: false, message: "Product not found." };
+  }
+
+  await setSpotlightProductPublished(parsed.data.id, parsed.data.published);
+  revalidateSpotlightPaths();
+  return {
+    ok: true,
+    message: parsed.data.published
+      ? "Published. Shoppers can see this product when the category is published."
+      : "Unpublished. Shoppers will no longer see this product.",
+  };
+}
+
+export async function adminSetSpotlightCategoryPublishedAction(
+  input: unknown,
+): Promise<AdminSpotlightProductMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminSetSpotlightCategoryPublishedSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  try {
+    await setSpotlightCategoryPublished(
+      parsed.data.categorySlug,
+      parsed.data.published,
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      message:
+        err instanceof Error && err.message.trim()
+          ? err.message.trim()
+          : "Could not update category publish state.",
+    };
+  }
+
+  revalidateSpotlightPaths();
+  return {
+    ok: true,
+    message: parsed.data.published
+      ? "Category published. Shoppers see this category and its published products on Home."
+      : "Category unpublished. Shoppers will not see this category on Home.",
+  };
+}
+
+export async function adminCreateSpotlightCategoryAction(
+  input: unknown,
+): Promise<AdminSpotlightProductMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminCreateSpotlightCategorySchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  try {
+    const category = await createSpotlightCategory({
+      title: parsed.data.title,
+      description: parsed.data.description,
+      tag: parsed.data.tag?.trim() || "New",
+      iconName:
+        parsed.data.iconName ?? nextSpotlightCategoryIconName(Date.now()),
+    });
+    revalidateSpotlightPaths();
+    return {
+      ok: true,
+      categorySlug: category.slug,
+      message:
+        "Category created. It starts unpublished—add products, then publish it for Home.",
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message:
+        err instanceof Error && err.message.trim()
+          ? err.message.trim()
+          : "Could not create category.",
+    };
+  }
+}
+
+export async function adminDeleteSpotlightCategoryAction(
+  input: unknown,
+): Promise<AdminSpotlightProductMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminDeleteSpotlightCategorySchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  try {
+    await deleteSpotlightCategory(parsed.data.categorySlug);
+  } catch (err) {
+    return {
+      ok: false,
+      message:
+        err instanceof Error && err.message.trim()
+          ? err.message.trim()
+          : "Could not delete category.",
+    };
+  }
+
+  revalidateSpotlightPaths();
+  return {
+    ok: true,
+    message: "Category deleted, including its spotlight products.",
+  };
 }

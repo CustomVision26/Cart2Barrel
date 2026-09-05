@@ -2147,6 +2147,30 @@ export const specialFeatureOffers = pgTable(
 );
 
 /**
+ * Home-page spotlight categories. Seeded defaults live in
+ * `src/lib/spotlight-categories.ts`; admins can add and delete extra groups.
+ */
+export const spotlightCategories = pgTable("spotlight_categories", {
+  slug: text("slug").primaryKey(),
+  title: text("title").notNull().default(""),
+  description: text("description").notNull().default(""),
+  tag: text("tag").notNull().default("New"),
+  priceHint: text("price_hint").notNull().default(""),
+  gradient: text("gradient").notNull().default(
+    "from-orange-500/25 via-amber-500/15 to-background dark:from-orange-400/15",
+  ),
+  iconName: text("icon_name").notNull().default("package"),
+  sortIndex: integer("sort_index").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+});
+
+/**
  * Admin-curated product links shown on the home page spotlight carousel
  * (`src/lib/spotlight-categories.ts` slugs).
  */
@@ -3065,6 +3089,10 @@ export type NewContainerOfferingImage =
 
 export type SpecialFeatureOffer = typeof specialFeatureOffers.$inferSelect;
 export type NewSpecialFeatureOffer = typeof specialFeatureOffers.$inferInsert;
+
+export type SpotlightCategory =
+  typeof spotlightCategories.$inferSelect;
+export type NewSpotlightCategory = typeof spotlightCategories.$inferInsert;
 
 export type SpotlightCategoryProduct =
   typeof spotlightCategoryProducts.$inferSelect;

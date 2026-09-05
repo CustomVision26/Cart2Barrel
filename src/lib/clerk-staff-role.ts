@@ -2,6 +2,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 
 import {
   CLERK_ADMIN_ROLE,
+  CLERK_SUPERADMIN_ROLE,
   clerkPublicMetadataRole,
   isClerkStaffRole,
 } from "@/lib/is-clerk-admin";
@@ -40,8 +41,15 @@ export async function getClerkStaffRoleForUser(
 export async function grantClerkAdminRole(
   clerkUserId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
+  return grantClerkStaffRole(clerkUserId, CLERK_ADMIN_ROLE);
+}
+
+export async function grantClerkStaffRole(
+  clerkUserId: string,
+  role: typeof CLERK_ADMIN_ROLE | typeof CLERK_SUPERADMIN_ROLE,
+): Promise<{ ok: true } | { ok: false; message: string }> {
   const existing = await getClerkStaffRoleForUser(clerkUserId);
-  if (isClerkStaffRole(existing)) {
+  if (role === CLERK_ADMIN_ROLE && isClerkStaffRole(existing)) {
     return {
       ok: false,
       message:
@@ -52,7 +60,7 @@ export async function grantClerkAdminRole(
   try {
     const client = await clerkClient();
     await client.users.updateUserMetadata(clerkUserId, {
-      publicMetadata: { role: CLERK_ADMIN_ROLE },
+      publicMetadata: { role },
     });
     return { ok: true };
   } catch (e) {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { priceUsdStringToCents } from "@/lib/validations/container-offering";
-import { spotlightCategorySlugSchema } from "@/lib/spotlight-categories";
+import { SPOTLIGHT_CATEGORY_ICON_NAMES } from "@/lib/spotlight-categories";
 
 const httpsProductUrl = z
   .string()
@@ -35,8 +35,17 @@ const optionalHttpsImageUrl = z
     message: "Image URL must start with https://",
   });
 
+export const spotlightCategorySlugInputSchema = z
+  .string()
+  .trim()
+  .min(2, "Category slug is required.")
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message: "Use lowercase letters, numbers, and hyphens.",
+  });
+
 export const adminCreateSpotlightProductSchema = z.object({
-  categorySlug: z.enum(spotlightCategorySlugSchema),
+  categorySlug: spotlightCategorySlugInputSchema,
   productUrl: httpsProductUrl,
   label: z.string().trim().max(200).optional(),
   /** USD dollars; omit or leave blank when unknown. */
@@ -69,6 +78,35 @@ export const adminSetSpotlightProductImageUrlSchema = z.object({
     .refine((s) => /^https:\/\//i.test(s), {
       message: "Image URL must start with https://",
     }),
+});
+
+export const adminSetSpotlightProductPublishedSchema = z.object({
+  id: z.string().uuid(),
+  published: z.boolean(),
+});
+
+export const adminSetSpotlightCategoryPublishedSchema = z.object({
+  categorySlug: spotlightCategorySlugInputSchema,
+  published: z.boolean(),
+});
+
+export const adminCreateSpotlightCategorySchema = z.object({
+  title: z.string().trim().min(2, "Enter a category name.").max(80),
+  description: z
+    .string()
+    .trim()
+    .min(8, "Enter a short description.")
+    .max(240),
+  tag: z.string().trim().max(32).optional(),
+  iconName: z.enum(SPOTLIGHT_CATEGORY_ICON_NAMES).optional(),
+});
+
+export type AdminCreateSpotlightCategoryInput = z.infer<
+  typeof adminCreateSpotlightCategorySchema
+>;
+
+export const adminDeleteSpotlightCategorySchema = z.object({
+  categorySlug: spotlightCategorySlugInputSchema,
 });
 
 export const adminUpdateSpotlightProductSchema = z.object({

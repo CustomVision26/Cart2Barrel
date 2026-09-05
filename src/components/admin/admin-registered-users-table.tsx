@@ -93,7 +93,8 @@ export function AdminRegisteredUsersTable({
   if (users.length === 0) {
     return (
       <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-        No registered accounts yet. Profiles are created when users sign in.
+        No registered accounts yet. Clerk sign-ups appear here after they sign
+        in, or after All users syncs them from Clerk.
       </p>
     );
   }
