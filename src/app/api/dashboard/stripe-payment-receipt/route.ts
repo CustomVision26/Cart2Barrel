@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-/** Legacy alias — redirects to the Cart2Barrel payment invoice PDF. */
+/** Legacy alias — redirects to the Amani Cart2Barrel payment invoice PDF. */
 export async function GET(request: Request) {
   const { userId } = await auth();
   if (!userId) {

@@ -105,7 +105,7 @@ export async function recordAdminUserActivityEvent(
     if (isMissingAdminUserActivityTablesError(e)) {
       return;
     }
-    console.error("[Cart2Barrel] recordAdminUserActivityEvent failed:", e);
+    console.error("[Amani Cart2Barrel] recordAdminUserActivityEvent failed:", e);
   }
 }
 

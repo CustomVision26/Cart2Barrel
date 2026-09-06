@@ -190,7 +190,7 @@ export async function submitCustomerRefundRequestAction(
       siteName: snapPayload.siteName,
     });
   } catch (e) {
-    console.error("[Cart2Barrel] Could not save refund request:", e);
+    console.error("[Amani Cart2Barrel] Could not save refund request:", e);
     return { ok: false, message: "Could not save your refund request. Try again." };
   }
 

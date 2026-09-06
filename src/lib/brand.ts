@@ -1,7 +1,7 @@
 import { statSync } from "node:fs";
 import path from "node:path";
 
-export const BRAND_NAME = "Cart2Barrel";
+export const BRAND_NAME = "Amani Cart2Barrel";
 
 export const BRAND_LOGO_FILENAME = "amani-cart2barrel-logo.png";
 

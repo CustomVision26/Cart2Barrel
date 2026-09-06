@@ -277,7 +277,7 @@ export function DashboardRequestRefundDialog({ row }: { row: DashboardPaidOrderL
                 onChange={(e) => setConfirmPolicy(e.target.checked)}
               />
               <span className="text-sm leading-snug text-muted-foreground">
-                I understand Cart2Barrel must approve this request before Stripe can send money
+                I understand Amani Cart2Barrel must approve this request before Stripe can send money
                 back to my payment method, and I may receive a Stripe refund receipt afterward.
               </span>
             </label>

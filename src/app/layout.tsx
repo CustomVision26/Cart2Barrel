@@ -15,7 +15,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Cart2Barrel",
+  title: "Amani Cart2Barrel",
   description: "Shop abroad — we consolidate and ship to Jamaica.",
   icons: {
     icon: [

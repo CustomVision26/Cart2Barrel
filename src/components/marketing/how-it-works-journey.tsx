@@ -43,7 +43,7 @@ const JOURNEY_STEPS: JourneyStep[] = [
     step: 3,
     title: "Approve & pay at checkout",
     description:
-      "Accept the estimate, add vetted items to your cart, and pay securely at checkout. Cart2Barrel purchases on your behalf and your order moves into fulfillment.",
+      "Accept the estimate, add vetted items to your cart, and pay securely at checkout. Amani Cart2Barrel purchases on your behalf and your order moves into fulfillment.",
     liveNote: "Orders and payment status update in real time after checkout.",
     icon: CreditCard,
   },
@@ -123,7 +123,7 @@ export function HowItWorksJourney() {
             Step by step: cart to barrel to your door
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Cart2Barrel is designed so you can follow your shipment hands-on — from
+            Amani Cart2Barrel is designed so you can follow your shipment hands-on — from
             the first request through packing and final delivery.
           </p>
         </RevealOnScroll>

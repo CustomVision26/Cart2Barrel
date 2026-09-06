@@ -40,7 +40,7 @@ export async function trySendOwnerPaidOrderReceiptEmail(
   const email = profile?.email?.trim();
   if (!email) {
     console.warn(
-      `[Cart2Barrel] No profile email for order ${orderId}; receipt not sent.`
+      `[Amani Cart2Barrel] No profile email for order ${orderId}; receipt not sent.`
     );
     return;
   }
@@ -67,7 +67,7 @@ export async function trySendOwnerPaidOrderReceiptEmail(
   } catch (e) {
     if (isUndefinedColumnError(e, "receipt_email_sent_at")) {
       console.warn(
-        "[Cart2Barrel] orders.receipt_email_sent_at missing; run npm run db:migrate. Skipping receipt email.",
+        "[Amani Cart2Barrel] orders.receipt_email_sent_at missing; run npm run db:migrate. Skipping receipt email.",
         combinedErrorText(e)
       );
       return;
@@ -95,7 +95,7 @@ export async function trySendOwnerPaidOrderReceiptEmail(
   });
 
   if (send.error) {
-    console.warn(`[Cart2Barrel] Paid order receipt failed: ${send.error}`);
+    console.warn(`[Amani Cart2Barrel] Paid order receipt failed: ${send.error}`);
     await db
       .update(orders)
       .set({ receiptEmailSentAt: null })

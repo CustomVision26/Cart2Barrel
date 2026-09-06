@@ -1200,6 +1200,6 @@ export function defaultMerchandiseTopupRevokedMessage(params: {
     `• Top-up #: ${params.topupNumber}\n` +
     `• Amount revoked: ${amount}\n\n` +
     `You no longer need to pay this add-on charge. It has been removed from Shopping → Add item → Products (Active).\n\n` +
-    `If you have questions or need more feedback, please reply here or contact Cart2Barrel Support.`
+    `If you have questions or need more feedback, please reply here or contact Amani Cart2Barrel Support.`
   );
 }

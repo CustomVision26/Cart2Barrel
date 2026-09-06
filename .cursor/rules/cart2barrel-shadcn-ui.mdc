@@ -1,5 +1,5 @@
 ---
-description: Use shadcn/ui for Cart2Barrel UI components
+description: Use shadcn/ui for Amani Cart2Barrel UI components
 globs: "**/*.tsx"
 alwaysApply: false
 ---

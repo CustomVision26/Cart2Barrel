@@ -75,7 +75,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The Home page is Cart2Barrel's public marketing storefront. It introduces the service, showcases featured US retailer products in a spotlight carousel, and gives visitors a clear path to sign in or create an account.",
+        "The Home page is Amani Cart2Barrel's public marketing storefront. It introduces the service, showcases featured US retailer products in a spotlight carousel, and gives visitors a clear path to sign in or create an account.",
         "For signed-in customers, Home acts as a bridge between marketing content and the dashboard. Depending on your onboarding status, you may be routed to complete contact details—or you can skip onboarding to explore first.",
       ],
       walkthrough: [
@@ -105,39 +105,46 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     category: "Getting started",
     quickReference: {
       summary:
-        "Public guide explaining the full Cart2Barrel journey from quote to delivery.",
+        "Public guide explaining the full Amani Cart2Barrel journey from quote to delivery.",
       location: "Marketing header → How it works, or visit /how-it-works.",
       bullets: [
-        "Explains service fees and container options.",
-        "Walks through the customer journey step by step.",
-        "Shows the container catalog and typical timelines.",
+        "Overview tab: services, journey, and typical costs. User guide tab: full customer documentation.",
+        "Pricing overview shows published service & handling, container catalog prices, and barrel/bin packing rates.",
+        "Packing fees follow barrel and bin counts (1 vs 2+ of each type)—not a fee per quoted product line.",
+        "Destination-country charges are not included in the US outbound quote.",
         "No sign-in required.",
       ],
       requirements: ["None—public page."],
       dos: [
-        "Read before your first item request.",
-        "Refer back when a fee or step is unclear.",
+        "Read Overview before your first item request.",
+        "Use the User guide tab for page-by-page reference.",
       ],
-      donts: ["Don't treat example fees as binding quotes."],
+      donts: [
+        "Don't treat published rates as binding quotes for your items.",
+        "Don't assume destination duties or inland delivery are in the US outbound quote.",
+      ],
     },
     article: {
       overview: [
-        "How it works is Cart2Barrel's public service explainer. It describes how US retailer shopping, hub processing, barrel consolidation, and international delivery fit together—so you know what to expect before you submit your first request.",
-        "The page covers service fees, shipping containers, and the end-to-end customer journey. Anyone can read it without signing in.",
+        "How it works is Amani Cart2Barrel's public explainer. Overview describes how US retailer shopping, hub processing, barrel consolidation, and international delivery fit together. User guide is the same customer documentation signed-in shoppers open from Documentation in the dashboard header.",
+        "Anyone can read both tabs without signing in. Overview includes a Pricing overview of current published rates; your signed-in dashboard shows exact totals at checkout.",
       ],
       walkthrough: [
-        "Open How it works from the marketing site header or go directly to /how-it-works.",
-        "Review the service fee structure and how charges apply to your orders.",
-        "Browse the container catalog to understand barrel size options.",
-        "Follow the illustrated customer journey from request through quote, payment, warehouse receipt, barrel packing, and final delivery.",
+        "Open How it works from the marketing header or go to /how-it-works (Overview tab by default).",
+        "Review Pricing overview: in-app and outside-purchase service & handling charts, container catalog prices, and barrel/bin packing fees (exactly 1 vs 2+ of each type).",
+        "Read services, the illustrated journey (request → quote → payment → warehouse receipt → barrel packing → delivery), and the four cost phases: product plus service & handling, container/barrel cost, US outbound freight, and destination-country charges.",
+        "Destination charges (duties, inland delivery, port or warehouse storage, local handling) are billed on arrival by customs or the local carrier. They are not included in the US outbound quote.",
+        "Switch to the User guide tab (or /how-it-works?tab=user-guide) for quick references and full articles on every customer page.",
       ],
       requirements: ["None—this page is public."],
       dos: [
-        "Read this page before submitting your first item request.",
+        "Read Overview before submitting your first item request.",
         "Refer back when you are unsure why a fee or step exists.",
+        "Use User guide when you need the exact location of a dashboard page or control.",
       ],
       donts: [
-        "Do not treat example fees as binding quotes for your specific items—actual quotes appear after staff review.",
+        "Do not treat published rates as binding quotes for your specific items—actual quotes appear after staff review.",
+        "Do not expect destination-country charges to appear in Shipping → Pricing; that tab is the US outbound quote.",
       ],
     },
   },
@@ -338,7 +345,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The settings gear controls how Cart2Barrel looks on your device. It affects theme mode and accent color only—it does not change your account contact, shipping address, password, or notification preferences.",
+        "The settings gear controls how Amani Cart2Barrel looks on your device. It affects theme mode and accent color only—it does not change your account contact, shipping address, password, or notification preferences.",
         "Preferences are saved in your browser's local storage, so they apply on this device unless your browser syncs storage across machines.",
       ],
       walkthrough: [
@@ -384,8 +391,8 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Manage account is your Clerk-powered identity hub inside Cart2Barrel. It handles everything related to how you sign in—profile details, password, device sessions, and account deletion—plus a custom Billing Receipt tab for payment records.",
-        "Cart2Barrel shipping records (name, phone, and street on each address) live under Dashboard → Shipping → Address. Keep both your Clerk profile and Cart2Barrel shipping details up to date.",
+        "Manage account is your Clerk-powered identity hub inside Amani Cart2Barrel. It handles everything related to how you sign in—profile details, password, device sessions, and account deletion—plus a custom Billing Receipt tab for payment records.",
+        "Amani Cart2Barrel shipping records (name, phone, and street on each address) live under Dashboard → Shipping → Address. Keep both your Clerk profile and Amani Cart2Barrel shipping details up to date.",
       ],
       walkthrough: [
         "Click your avatar in the top-right corner of the dashboard header.",
@@ -408,7 +415,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Do not change your Clerk email to one you cannot access—you may lock yourself out.",
         "Do not use the Clerk profile name as a substitute for the recipient name on Dashboard → Shipping → Address; shipping records include contact and street together.",
         "Do not share session or security codes.",
-        "Do not delete your account from the Security tab unless you understand that deletion is permanent and Cart2Barrel data cannot be restored—read the Security tab guide first.",
+        "Do not delete your account from the Security tab unless you understand that deletion is permanent and Amani Cart2Barrel data cannot be restored—read the Security tab guide first.",
       ],
     },
   },
@@ -423,8 +430,8 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Update password via the Password row.",
         "Active devices lists sessions; use ⋯ to sign out others.",
-        "Delete account is permanent and removes Cart2Barrel data.",
-        "No 2FA or backup codes in Cart2Barrel today.",
+        "Delete account is permanent and removes Amani Cart2Barrel data.",
+        "No 2FA or backup codes in Amani Cart2Barrel today.",
       ],
       requirements: [
         "Signed in to open Manage account.",
@@ -443,18 +450,18 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The Security tab protects your Cart2Barrel sign-in. In the current app, it shows three areas: Password, Active devices, and Delete account. Two-step verification and backup codes are not enabled for Cart2Barrel customers at this time—account protection relies on your password and reviewing where you are signed in.",
-        "Deleting your account from this tab is irreversible. It removes your Clerk login and triggers deletion of your Cart2Barrel profile, orders, and payment records.",
+        "The Security tab protects your Amani Cart2Barrel sign-in. In the current app, it shows three areas: Password, Active devices, and Delete account. Two-step verification and backup codes are not enabled for Amani Cart2Barrel customers at this time—account protection relies on your password and reviewing where you are signed in.",
+        "Deleting your account from this tab is irreversible. It removes your Clerk login and triggers deletion of your Amani Cart2Barrel profile, orders, and payment records.",
       ],
       walkthrough: [
         "Open your avatar → Manage account → Security.",
         "Password: your password appears as dots. Click Update password to set a new one—you may need to confirm your current password or verify by email.",
         "Active devices: each row shows device type, browser, location, IP, and last activity. This device is labeled This device. Use the ⋯ menu on other rows to sign out sessions you do not recognize.",
         "Delete account: at the bottom, click Delete account and complete Clerk's confirmation steps.",
-        "After deletion, you cannot sign in again. Cart2Barrel removes your profile, orders, and payment records. Downloaded PDFs on your device are kept; in-app copies are gone.",
+        "After deletion, you cannot sign in again. Amani Cart2Barrel removes your profile, orders, and payment records. Downloaded PDFs on your device are kept; in-app copies are gone.",
       ],
       notes: [
-        "Two-step verification and backup codes are not shown in Cart2Barrel's Security tab today. If added in a future update, they would appear as an additional section here.",
+        "Two-step verification and backup codes are not shown in Amani Cart2Barrel's Security tab today. If added in a future update, they would appear as an additional section here.",
         "If you forget your password, use Forgot password? on /login—do not delete your account to recover access.",
       ],
       requirements: [
@@ -472,8 +479,8 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       donts: [
         "Do not delete your account to fix a forgotten password—use password reset on /login or contact support instead.",
-        "Do not delete your account if you still have unpaid cart lines, orders in progress, or shipments you need to track—deletion removes your Cart2Barrel data and you will lose dashboard access.",
-        "Do not assume Cart2Barrel or Clerk can restore your profile, order history, or messages after deletion—once removed, that data is not recoverable.",
+        "Do not delete your account if you still have unpaid cart lines, orders in progress, or shipments you need to track—deletion removes your Amani Cart2Barrel data and you will lose dashboard access.",
+        "Do not assume Amani Cart2Barrel or Clerk can restore your profile, order history, or messages after deletion—once removed, that data is not recoverable.",
         "Do not share your password or password-reset links with anyone, including people claiming to be support.",
         "Do not leave unrecognized devices signed in—use Active devices to revoke them.",
         "Do not delete your account on a shared device without signing out of other sessions if others use that device (delete affects the whole identity, not just one browser tab).",
@@ -553,7 +560,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     article: {
       overview: [
         "Dashboard Overview is your command center after sign-in. It summarizes open quotes, cart activity, orders, and barrels at a glance, and provides shortcuts into the most common tasks.",
-        "Use it to understand where you are in the Cart2Barrel workflow—requesting items, checking out, tracking purchases, and preparing shipments.",
+        "Use it to understand where you are in the Amani Cart2Barrel workflow—requesting items, checking out, tracking purchases, and preparing shipments.",
       ],
       walkthrough: [
         "Open Overview from the sidebar or navigate to /dashboard.",
@@ -641,7 +648,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Manage active quotes, history, and batch estimate sessions.",
       location: "Sidebar → Add item.",
       bullets: [
-        "Products → Active: accept quotes; Quote expiry shows Time left, live HH:MM:SS, and remaining time under it.",
+        "Products → Active: Accept estimate is pinned on the right in Actions; Quote expiry shows Time left, live HH:MM:SS, and remaining time under it.",
         "Products → Expired Quotes: estimates that passed the payment window — preview or resubmit.",
         "Products → History: past quote sessions.",
         "Batch quotes → Active: Quote expiry card (Time left, live HH:MM:SS, remainder under it) on each line.",
@@ -669,11 +676,11 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       overview: [
         "Add item is your quote workspace after requests are submitted. It separates active product quotes from history, and supports batch quote sessions when you are bundling several items into one estimate.",
         "After staff quotes a product, you have a limited window (set by the hub under Admin → Quote Expiry Settings, commonly 7 days, and as short as 1 minute; staff may set a custom window for your account or a specific product) to accept it and complete payment—whether as a single line or in a batch. Retailer prices change randomly; the expiry keeps the locked estimate honest and helps avoid refunds or extra payment requests when the store price drifts. The Active table Quote expiry card shows Time left, a live HH:MM:SS timer, and remaining time underneath. When time runs out, the product moves to Expired Quotes so you can preview the old estimate or resubmit for a fresh price.",
-        "Accepting a quote moves it to your cart at the quoted price. Barrel and outbound shipping charges are typically billed later when containers are ready to ship.",
+        "Accepting a quote moves it to your cart at the quoted price. Quotes do not include a packing fee per product line. Barrel packing and outbound shipping are billed when you buy containers and when staff publish freight charges.",
       ],
       walkthrough: [
         "Navigate to Add item from the sidebar.",
-        "Products → Active: review quotes you can accept, compare, or withdraw; check Quote expiry.",
+        "Products → Active: review quotes you can accept, compare, or withdraw. Accept estimate and Preview stay visible in the pinned Actions column on the right; check Quote expiry before you accept.",
         "Products → Expired Quotes: preview expired estimates or resubmit as a new pending request.",
         "Products → History: browse past product quote sessions.",
         "Batch quotes → Active: manage bundled multi-item estimate sessions; check Quote expiry on each product.",
@@ -692,7 +699,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       donts: [
         "Do not accept quotes you do not intend to pay for—withdraw instead to keep your cart accurate.",
-        "Do not assume quoted prices include future shipping barrel charges; those are billed separately when containers ship.",
+        "Do not assume quoted prices include packing or future barrel freight; packing is charged on barrels and bins in the cart, and outbound freight is billed when containers ship.",
       ],
     },
   },
@@ -748,6 +755,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Cart, or header cart icon.",
       bullets: [
         "Lists quotes, bundles, containers, in-hub products, outbound charges.",
+        "Container packing in checkout follows barrel and bin counts (1 vs 2+), not a fee per quoted product.",
         "In-hub US items are highlighted as a warehouse package. Click Shipping to compare Shippo rates from USPS, UPS, and FedEx (price and estimated delivery). View shipping address / Change address apply to the package.",
         "Checkout order summary groups in-hub products the same way, lists the destination US address, and shows package shipping as its own fee.",
         "After payment, Preview checkout charges on Orders shows the same warehouse grouping, destination address, and shipping fee without duplicating product lines.",
@@ -773,7 +781,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The cart holds everything approved and waiting for payment—product quotes, batch bundles, shipping containers, and outbound freight. Checkout uses Stripe's embedded payment flow for secure card processing.",
+        "The cart holds everything approved and waiting for payment—product quotes, batch bundles, shipping containers, and outbound freight. Checkout uses Stripe's embedded payment flow for secure card processing. Packing fees on container lines follow how many barrels and bins you are buying (single vs 2+ rates), not a fee on each quoted product.",
         "Nothing in your cart is a paid order until checkout completes successfully. Review every line, fee, and total before paying.",
       ],
       walkthrough: [
@@ -872,7 +880,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Buy containers, assign received products, view assignment history.",
       location: "Sidebar → Barrels.",
       bullets: [
-        "Shop: add containers to cart.",
+        "Shop: add containers to cart. Packing fees use barrel and bin counts (1 vs 2+ of each type).",
         "Product to barrel: pack hub-received items.",
         "History: past assignments.",
         "Containers must be paid before packing.",
@@ -893,11 +901,11 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Barrels are Cart2Barrel's shipping containers for consolidated international delivery. Shop for containers, assign warehouse-received products into them, and review past assignments from this section.",
+        "Barrels are Amani Cart2Barrel's shipping containers for consolidated international delivery. Shop for containers, assign warehouse-received products into them, and review past assignments from this section.",
         "Containers must be purchased before products can be packed for outbound shipment. Assignment is how you tell the hub which items belong in which barrel.",
       ],
       walkthrough: [
-        "Shop tab: browse container offerings and add barrels to your cart.",
+        "Shop tab: browse container offerings and add barrels or bins to your cart. Checkout adds packing based on how many barrels and bins are in the cart—not a packing fee on each quoted product.",
         "Pay for containers through the normal cart checkout flow.",
         "Product to barrel tab: assign hub-received items into a paid container.",
         "History tab: review past product-to-barrel assignment sessions.",
@@ -927,7 +935,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Shipping.",
       bullets: [
         "Tracking: shipment intake and carrier status.",
-        "Pricing: pay outbound charges when containers are ready.",
+        "Pricing: pay the US outbound quote when containers are ready. Destination-country charges on arrival are not included.",
         "Address: name, phone, and delivery street on each record; multiple addresses, one primary.",
         "/dashboard/settings redirects here.",
       ],
@@ -943,6 +951,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Don't use gear settings for address—use Address tab.",
         "Don't ignore Pricing tab charges.",
+        "Don't assume destination duties are in the US outbound quote.",
       ],
     },
     article: {
@@ -952,7 +961,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Tracking tab: submit and view barrel shipment intake details and carrier tracking.",
-        "Pricing tab: appears when containers are ready—review and pay outbound freight and customs charges.",
+        "Pricing tab: appears when containers are ready—review and pay the US outbound quote (freight and any customs or pickup fees staff listed). Destination-country charges after arrival are billed locally and are not included in that quote.",
         "Address tab: add or edit shipping records (name, phone, and street together). Mark one as primary for barrels and invoices.",
         "Complete any customs or intake forms when prompted to avoid shipment delays.",
       ],
@@ -969,6 +978,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Do not use the Settings gear dialog for address changes—use Shipping → Address.",
         "Do not ignore Pricing tab charges—shipments may be held until paid.",
+        "Do not treat the US outbound quote as covering destination duties, inland delivery, or local handling.",
       ],
     },
   },
@@ -1072,7 +1082,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The User guide is Cart2Barrel's customer documentation. It explains every shopper-facing page, header control, and account feature with scannable quick references and deeper articles.",
+        "The User guide is Amani Cart2Barrel's customer documentation. It explains every shopper-facing page, header control, and account feature with scannable quick references and deeper articles. How it works → Overview is the public service explainer (pricing charts and cost phases); this User guide tab is the formal page-by-page reference.",
         "Guests can read it on How it works → User guide without an account. Signed-in customers can open the same content from the dashboard Documentation button.",
       ],
       walkthrough: [

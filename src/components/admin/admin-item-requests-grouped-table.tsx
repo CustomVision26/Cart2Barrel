@@ -964,8 +964,8 @@ export function AdminItemRequestsGroupedTable({
                         = pending after the shopper asked for a new estimate.{" "}
                         <span className="font-medium text-foreground">Quoted</span> = estimate
                         sent; awaiting acceptance.{" "}
-                        <span className="font-medium text-foreground">AI estimate</span> is
-                        available for new requests and customer resends only.
+                        <span className="font-medium text-foreground">Create Estimate with AI</span>{" "}
+                        is available for new requests and customer resends only.
                       </p>
                       {g.activeQueueRequests.length === 0 ? (
                         <p className="text-sm text-muted-foreground">

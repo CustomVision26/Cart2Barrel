@@ -18,7 +18,6 @@ export async function AdminOverviewSetFeeNRateSection() {
   return (
     <div className="space-y-6">
       <AdminSetFeeNRatePanel
-        initialPackingFeePerLineCents={pricing.packingFeePerLineCents}
         initialContainerPackingRates={pricing.containerPackingRates}
         initialTiers={inAppTierPayload}
       />

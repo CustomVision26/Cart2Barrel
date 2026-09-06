@@ -146,7 +146,7 @@ export async function performOrderItemStripeRefund(opts: {
     });
     if (!emailed.ok) {
       console.warn(
-        "[Cart2Barrel] Refund processed but customer email failed:",
+        "[Amani Cart2Barrel] Refund processed but customer email failed:",
         emailed.error,
       );
     }

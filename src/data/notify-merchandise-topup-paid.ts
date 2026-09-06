@@ -189,7 +189,7 @@ export async function notifyCustomerMerchandiseTopupPaid(params: {
   } catch (e) {
     if (isMissingMerchandiseReconciliationTableError(e)) return;
     console.error(
-      "[Cart2Barrel] notifyCustomerMerchandiseTopupPaid failed:",
+      "[Amani Cart2Barrel] notifyCustomerMerchandiseTopupPaid failed:",
       e,
     );
   }

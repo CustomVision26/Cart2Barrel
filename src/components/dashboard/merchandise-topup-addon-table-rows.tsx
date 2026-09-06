@@ -14,6 +14,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { MerchandiseTopupAddOnChargeView } from "@/data/merchandise-topup-cart";
 import { formatUsd } from "@/lib/admin-markup";
+import { appTableStickyActionsCell } from "@/lib/app-table-surfaces";
 import { cn } from "@/lib/utils";
 
 type MerchandiseTopupAddonTableRowsProps = {
@@ -139,7 +140,17 @@ export function MerchandiseTopupAddonTableRows({
               <span className="text-xs text-muted-foreground/70">—</span>
             )}
           </td>
-          <td className="px-3 py-3 align-top">
+          <td className="whitespace-nowrap px-3 py-3 align-top text-xs text-muted-foreground">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
+              Add-on
+            </p>
+            {charge.submittedAt ?
+              <p className="mt-0.5 tabular-nums text-foreground">
+                {new Date(charge.submittedAt).toLocaleString()}
+              </p>
+            : <p className="mt-0.5 text-muted-foreground/70">—</p>}
+          </td>
+          <td className={cn(appTableStickyActionsCell, "bg-primary/10")}>
             <div className="flex w-full max-w-[12.5rem] flex-col gap-1.5">
               <MerchandiseTopupChargePreviewDialog charge={charge} />
               {charge.inCart ?
@@ -164,16 +175,6 @@ export function MerchandiseTopupAddonTableRows({
                 </Button>
               }
             </div>
-          </td>
-          <td className="whitespace-nowrap px-3 py-3 align-top text-xs text-muted-foreground">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
-              Add-on
-            </p>
-            {charge.submittedAt ?
-              <p className="mt-0.5 tabular-nums text-foreground">
-                {new Date(charge.submittedAt).toLocaleString()}
-              </p>
-            : <p className="mt-0.5 text-muted-foreground/70">—</p>}
           </td>
         </tr>
       ))}

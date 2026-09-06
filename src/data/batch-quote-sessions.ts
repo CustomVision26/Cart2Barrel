@@ -317,7 +317,7 @@ export async function listBatchSessionsWithDetailsForOwner(
   } catch (e) {
     if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
     console.warn(
-      "[Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
+      "[Amani Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
     );
     return [];
   }
@@ -461,7 +461,7 @@ export async function listBatchHistoryOwnerBundlesForAdmin(): Promise<
   } catch (e) {
     if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
     console.warn(
-      "[Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
+      "[Amani Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
     );
     return [];
   }
@@ -558,7 +558,7 @@ export async function listSubmittedBatchSessionsForAdmin(): Promise<
   } catch (e) {
     if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
     console.warn(
-      "[Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
+      "[Amani Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
     );
     return [];
   }
@@ -648,7 +648,7 @@ export async function listSubmittedBatchSessionsForAdminPage(
   } catch (e) {
     if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
     console.warn(
-      "[Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
+      "[Amani Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
     );
     return { bundles: [], totalCount: 0 };
   }
@@ -745,7 +745,7 @@ export async function listEstimatedBatchBundlesForQuoteHistoryAdmin(): Promise<
   } catch (e) {
     if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
     console.warn(
-      "[Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
+      "[Amani Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
     );
     return [];
   }
@@ -987,7 +987,7 @@ async function reconcileOwnedItemsForFreshBatchAttachment(
   } catch (e) {
     if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
     console.warn(
-      "[Cart2Barrel] Skipping batch line reconciliation; batch schema not applied."
+      "[Amani Cart2Barrel] Skipping batch line reconciliation; batch schema not applied."
     );
   }
 }
@@ -2038,7 +2038,7 @@ export async function listBatchHistoryForAdmin(): Promise<AdminBatchHistoryBundl
   } catch (e) {
     if (!shouldUseBatchQuoteSchemaFallback(e)) throw e;
     console.warn(
-      "[Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
+      "[Amani Cart2Barrel] Batch quote schema is not applied (tables or batch_quote_session_id). Run `npm run db:push` / `npm run db:migrate`."
     );
     return [];
   }

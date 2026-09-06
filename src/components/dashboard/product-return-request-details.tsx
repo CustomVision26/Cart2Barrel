@@ -82,7 +82,7 @@ export function ProductReturnRequestDetails({
           <span className="whitespace-pre-wrap">{request.details}</span>
         </DetailField>
         {request.customerNotes?.trim() ?
-          <DetailField label="Notes from Cart2Barrel" className="sm:col-span-2">
+          <DetailField label="Notes from Amani Cart2Barrel" className="sm:col-span-2">
             <span className="whitespace-pre-wrap">{request.customerNotes.trim()}</span>
           </DetailField>
         : null}

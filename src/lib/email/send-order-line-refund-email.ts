@@ -41,7 +41,7 @@ export async function sendOrderLineRefundEmail(
     const { error } = await resend.emails.send({
       from,
       to: [payload.customerEmail],
-      subject: `[Cart2Barrel] Refund processed — ${label.replace(/\s+/g, " ").trim().slice(0, 80)}`,
+      subject: `[Amani Cart2Barrel] Refund processed — ${label.replace(/\s+/g, " ").trim().slice(0, 80)}`,
       html,
     });
     if (error) return { ok: false, error: error.message };

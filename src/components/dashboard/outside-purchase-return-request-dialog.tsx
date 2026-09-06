@@ -334,7 +334,7 @@ export function OutsidePurchaseReturnRequestDialog({
             <span className="leading-snug text-muted-foreground">
               I understand return service and handling must be paid before I can
               drop off at the carrier. Problem-receipt items that are not returned
-              in time may be discarded per Cart2Barrel policy.
+              in time may be discarded per Amani Cart2Barrel policy.
             </span>
           </label>
         </div>

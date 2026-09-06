@@ -22,7 +22,7 @@ const SERVICES: Service[] = [
   {
     title: "Shop US stores with a quote first",
     description:
-      "Paste a product link or pick from our spotlight catalog. Cart2Barrel staff review each request and send an estimate before anything is purchased on your behalf.",
+      "Paste a product link or pick from our spotlight catalog. Amani Cart2Barrel staff review each request and send an estimate before anything is purchased on your behalf.",
     icon: PackageSearch,
   },
   {
@@ -46,7 +46,7 @@ const SERVICES: Service[] = [
   {
     title: "Outside purchases welcome",
     description:
-      "Already bought something online? Ship it to our hub using your Cart2Barrel intake details. Service and handling fees apply when you add it to your account.",
+      "Already bought something online? Ship it to our hub using your Amani Cart2Barrel intake details. Service and handling fees apply when you add it to your account.",
     icon: Ship,
   },
   {
@@ -62,10 +62,10 @@ export function HowItWorksServices() {
     <section className="space-y-5">
       <RevealOnScroll delayMs={0} className="space-y-2">
         <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
-          What Cart2Barrel does for you
+          What Amani Cart2Barrel does for you
         </h2>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Cart2Barrel is a consolidation service: we buy or receive your US
+          Amani Cart2Barrel is a consolidation service: we buy or receive your US
           store orders, pack them into a shared barrel or bin, and arrange
           international shipping to your custom destination—with clear status at
           every step.

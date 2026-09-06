@@ -285,7 +285,7 @@ export async function listProfilesForAdminPicker(): Promise<AdminProfilePickerRo
     return attachAccountKinds(active);
   } catch (error) {
     console.warn(
-      "[Cart2Barrel] listProfilesForAdminPicker failed:",
+      "[Amani Cart2Barrel] listProfilesForAdminPicker failed:",
       error instanceof Error ? error.message : String(error),
     );
     try {

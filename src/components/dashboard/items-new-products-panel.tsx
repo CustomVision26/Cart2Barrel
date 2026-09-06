@@ -33,6 +33,8 @@ import { OutOfStockProductPreviewDialog } from "@/components/dashboard/out-of-st
 import { QuoteEstimatePreviewDialog } from "@/components/quote-estimate-preview-dialog";
 import { SortableThCompact } from "@/components/sortable-th";
 import {
+  appTableStickyActionsCell,
+  appTableStickyActionsHead,
   dashItemsTableCellNote,
   dashItemsTableCellNoteDashed,
   dashItemsTableHeadPlain,
@@ -917,7 +919,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
           {filteredActive.length > 0 || filteredTopupCharges.length > 0 ? (
             <>
               <FloatingHorizontalScroll viewportClassName={dashItemsTableScroll}>
-                <table className="w-full min-w-[78rem] table-fixed text-left text-sm">
+                <table className="w-full min-w-[78rem] table-fixed border-separate border-spacing-0 text-left text-sm">
                   <thead className={dashItemsTableHeadPlain}>
                     <tr>
                       <th className="w-12 px-2 py-2.5 text-center text-xs font-medium text-foreground">
@@ -965,9 +967,6 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                       >
                         Quote expiry
                       </th>
-                      <th className="w-[13.5rem] px-3 py-2.5 text-xs font-medium text-foreground">
-                        Actions
-                      </th>
                       <SortableThCompact
                         columnId="dash-req-submitted"
                         label="Submitted"
@@ -976,6 +975,9 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                         onSort={() => cycleReqSort("submitted")}
                         className="w-[7.5rem]"
                       />
+                      <th className={appTableStickyActionsHead}>
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -1206,10 +1208,16 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               <span className="text-xs text-muted-foreground/70">—</span>
                             )}
                           </td>
+                          <td className="whitespace-nowrap px-3 py-3 align-top text-xs text-muted-foreground">
+                            <time dateTime={r.createdAt}>
+                              {new Date(r.createdAt).toLocaleString()}
+                            </time>
+                          </td>
                           <td
                             className={cn(
-                              "px-3 py-3 align-top",
-                              inBatchSelection && "opacity-90"
+                              appTableStickyActionsCell,
+                              inBatchSelection && "bg-accent opacity-90",
+                              inBundledBatch && !inBatchSelection && "bg-secondary",
                             )}
                           >
                             {r.status === "quoted" || (isOutsidePurchaseRequest(r) && isOpQuoted) ?
@@ -1499,11 +1507,6 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                               )}
                             </div>
                             ) : null}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-3 align-top text-xs text-muted-foreground">
-                            <time dateTime={r.createdAt}>
-                              {new Date(r.createdAt).toLocaleString()}
-                            </time>
                           </td>
                         </tr>
                       );

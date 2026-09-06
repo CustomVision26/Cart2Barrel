@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateMerchantPackingBarrelFeesAction } from "@/actions/update-merchant-pricing-settings";
@@ -11,10 +11,8 @@ import {
   binPackingFeeCents,
 } from "@/lib/container-packing-fee";
 import {
-  centsToUsdInput,
   containerRatesToFormState,
   formStateToContainerRates,
-  parseUsdToCents,
 } from "@/lib/admin-pricing-form-utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,22 +40,18 @@ function formatUsdFromCents(cents: number): string {
 }
 
 type AdminGeneralPackageFeePanelProps = {
-  initialPackingFeePerLineCents: number;
   initialContainerPackingRates: ContainerPackingRates;
 };
 
 export function AdminGeneralPackageFeePanel({
-  initialPackingFeePerLineCents,
   initialContainerPackingRates,
 }: AdminGeneralPackageFeePanelProps) {
   const router = useRouter();
-  const [packingDollars, setPackingDollars] = useState(
-    centsToUsdInput(initialPackingFeePerLineCents),
-  );
   const [containerForm, setContainerForm] = useState(() =>
     containerRatesToFormState(initialContainerPackingRates),
   );
   const [pending, startTransition] = useTransition();
+  const saveStartedRef = useRef(false);
 
   const containerRatesPreview = useMemo(
     () => formStateToContainerRates(containerForm),
@@ -70,25 +64,12 @@ export function AdminGeneralPackageFeePanel({
         <CardHeader>
           <CardTitle className="text-lg">Packing &amp; container combinations</CardTitle>
           <CardDescription>
-            Default fees for all customers unless they have a custom package.{" "}
-            <span className="font-medium text-foreground">Per quoted line:</span> flat packing fee
-            on item requests. <span className="font-medium text-foreground">Containers:</span> the
-            cart sums barrel and bin quantities separately—1 barrel uses the single-barrel rate; 2+
-            barrels use per-barrel × count (same for bins).
+            Default container packing fees for all customers unless they have a custom package.
+            The cart sums barrel and bin quantities separately—1 barrel uses the single-barrel
+            rate; 2+ barrels use per-barrel × count (same for bins).
           </CardDescription>
         </CardHeader>
         <CardContent className="max-w-4xl space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="packing-usd">Packing fee per quoted line (USD)</Label>
-            <Input
-              id="packing-usd"
-              inputMode="decimal"
-              value={packingDollars}
-              onChange={(e) => setPackingDollars(e.target.value)}
-              className={cn(fieldClassName, "max-w-xs")}
-            />
-          </div>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-3 rounded-lg border border-border/80 bg-card p-4 ring-1 ring-foreground/5">
               <p className="text-sm font-medium text-foreground">Barrels</p>
@@ -160,17 +141,23 @@ export function AdminGeneralPackageFeePanel({
             type="button"
             disabled={pending}
             onClick={() => {
+              if (pending || saveStartedRef.current) return;
+              saveStartedRef.current = true;
               startTransition(async () => {
+                try {
                 const res = await updateMerchantPackingBarrelFeesAction({
-                  packingFeePerLineCents: parseUsdToCents(packingDollars),
+                  packingFeePerLineCents: 0,
                   containerPackingRates: containerRatesPreview,
                 });
-                if (!res.ok) {
-                  toast.error(res.message);
-                  return;
+                  if (!res.ok) {
+                    toast.error(res.message, { id: "admin-packing-fees" });
+                    return;
+                  }
+                  toast.success(res.message, { id: "admin-packing-fees" });
+                  router.refresh();
+                } finally {
+                  saveStartedRef.current = false;
                 }
-                toast.success(res.message);
-                router.refresh();
               });
             }}
           >

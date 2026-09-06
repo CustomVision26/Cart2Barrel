@@ -435,9 +435,9 @@ export function AdminAiEstimateDialog({
         type="button"
         className="cursor-pointer border-0 bg-transparent p-0 text-left text-xs font-medium text-primary underline-offset-4 hover:text-primary/90 hover:underline"
       >
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
           <SparklesIcon className="size-3.5 shrink-0" aria-hidden />
-          AI estimate
+          Create Estimate with AI
         </span>
       </DialogTrigger>
       <DialogContent className="max-h-[min(90vh,680px)] overflow-y-auto sm:max-w-xl">

@@ -1152,7 +1152,7 @@ export function ItemRequestWorkspace({
                         outdated.
                       </li>
                       <li>
-                        Tax, Cart2Barrel service and handling, and shipping are not
+                        Tax, Amani Cart2Barrel service and handling, and shipping are not
                         included. Staff will provide a full quote where applicable.
                       </li>
                     </ul>

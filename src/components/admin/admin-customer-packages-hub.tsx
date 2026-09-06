@@ -16,7 +16,6 @@ export type CustomerPackagesSubTab = "general" | "customer" | "saved";
 
 type AdminCustomerPackagesHubProps = {
   packageTab: CustomerPackagesSubTab;
-  initialPackingFeePerLineCents: number;
   initialContainerPackingRates: ContainerPackingRates;
   users: AdminProfilePickerRow[];
   savedPackages: CustomerPricingPackageListRow[];
@@ -41,7 +40,6 @@ function subTabHref(
 
 export function AdminCustomerPackagesHub({
   packageTab,
-  initialPackingFeePerLineCents,
   initialContainerPackingRates,
   users,
   savedPackages,
@@ -89,7 +87,6 @@ export function AdminCustomerPackagesHub({
 
       {packageTab === "general" ?
         <AdminGeneralPackageFeePanel
-          initialPackingFeePerLineCents={initialPackingFeePerLineCents}
           initialContainerPackingRates={initialContainerPackingRates}
         />
       : packageTab === "saved" ?

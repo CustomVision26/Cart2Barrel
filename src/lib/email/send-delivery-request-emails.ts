@@ -90,7 +90,7 @@ export async function sendDeliveryRequestEmails(
     <p><a href="${escapeHtml(`${payload.origin}/admin/orders`)}">Open admin orders</a></p>
   `.trim();
 
-  const opsSubject = `[Cart2Barrel] Delivery requested — ${productLabel}`;
+  const opsSubject = `[Amani Cart2Barrel] Delivery requested — ${productLabel}`;
 
   try {
     const { error } = await resend.emails.send({
@@ -124,7 +124,7 @@ export async function sendDeliveryRequestEmails(
         from,
         to: [shopperEmail],
         replyTo: payload.adminEmail ?? undefined,
-        subject: `[Cart2Barrel] We are processing delivery — ${productLabel}`,
+        subject: `[Amani Cart2Barrel] We are processing delivery — ${productLabel}`,
         html: shortHtml,
       });
       if (error) {

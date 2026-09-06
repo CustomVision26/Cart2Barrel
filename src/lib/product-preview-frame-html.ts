@@ -61,7 +61,7 @@ export function previewFrameBlockedDocument(
 </head>
 <body data-cart2barrel-preview="blocked-interactive">
   <h1>${safe} requires a full browser tab</h1>
-  <p>This store shows a &quot;press and hold&quot; verification that only works with JavaScript in a normal browser tab—not inside Cart2Barrel&apos;s preview window.</p>
+  <p>This store shows a &quot;press and hold&quot; verification that only works with JavaScript in a normal browser tab—not inside Amani Cart2Barrel&apos;s preview window.</p>
   <p>Use <strong>Open in new tab</strong> in the preview toolbar, complete verification there, then fill in your request below.</p>
 </body>
 </html>`;

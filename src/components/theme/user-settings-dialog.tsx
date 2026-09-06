@@ -50,7 +50,7 @@ function UserSettingsDialogContent() {
         <DialogHeader className="border-b border-border/80 px-4 py-4">
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Customize how Cart2Barrel looks on your device.
+            Customize how Amani Cart2Barrel looks on your device.
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-h-[280px]">

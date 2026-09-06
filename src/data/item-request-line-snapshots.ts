@@ -188,7 +188,7 @@ export async function listItemRequestLineSnapshotsByRequestIds(
   } catch (e) {
     if (isMissingLineSnapshotsRelationError(e)) {
       console.warn(
-        "[Cart2Barrel] item_request_line_snapshots is missing. Apply DB schema (drizzle-kit migrate or push)."
+        "[Amani Cart2Barrel] item_request_line_snapshots is missing. Apply DB schema (drizzle-kit migrate or push)."
       );
       return [];
     }
@@ -236,7 +236,7 @@ export async function listItemRequestLineSnapshotsForOwnerByRequestIds(
   } catch (e) {
     if (isMissingLineSnapshotsRelationError(e)) {
       console.warn(
-        "[Cart2Barrel] item_request_line_snapshots is missing. Apply DB schema (drizzle-kit migrate or push)."
+        "[Amani Cart2Barrel] item_request_line_snapshots is missing. Apply DB schema (drizzle-kit migrate or push)."
       );
       return [];
     }

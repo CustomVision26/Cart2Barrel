@@ -26,7 +26,7 @@ export function AdminSavedQuotePreviewDialog({
       label={label}
       dialogTitle="Saved record"
       dialogDescription={`Product details and charges as recorded on this estimate (${quoteRevisionLabel(quote)}).`}
-      staffNotesTitle="Notes from Cart2Barrel"
+      staffNotesTitle="Notes from Amani Cart2Barrel"
     />
   );
 }

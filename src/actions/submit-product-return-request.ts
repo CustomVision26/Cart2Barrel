@@ -327,6 +327,6 @@ export async function submitProductReturnRequestAction(
         "Return request submitted. Staff will generate a return shipping label so you can send the product back to the warehouse."
       : barrelHold ?
         "Return request submitted. This product was removed from container packing until staff review your request."
-      : "Return request submitted. Cart2Barrel staff will handle the physical return and shipping.",
+      : "Return request submitted. Amani Cart2Barrel staff will handle the physical return and shipping.",
   };
 }

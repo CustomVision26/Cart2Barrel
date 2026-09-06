@@ -10,7 +10,7 @@ export function DashboardProductToBarrelHeader() {
       help={
         <>
           Track products that arrived in good condition and staff container assignments.
-          Assignment and moves are handled by Cart2Barrel staff — this page shows fulfillment
+          Assignment and moves are handled by Amani Cart2Barrel staff — this page shows fulfillment
           status, container alias, and when each product was assigned.
         </>
       }

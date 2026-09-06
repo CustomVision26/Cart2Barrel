@@ -366,7 +366,7 @@ export async function ensureLegacyPaidTopupBreakdownIfMissing(params: {
     if (isMissingMerchandiseReconciliationTableError(e)) return existing;
     // Never block the admin panel on legacy backfill failures.
     console.warn(
-      "[Cart2Barrel] ensureLegacyPaidTopupBreakdownIfMissing failed:",
+      "[Amani Cart2Barrel] ensureLegacyPaidTopupBreakdownIfMissing failed:",
       e,
     );
     return existing;

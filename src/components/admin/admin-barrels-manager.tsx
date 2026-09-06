@@ -37,6 +37,10 @@ import {
   type SuitcaseSizeOption,
 } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
+import {
+  appTableCollapsibleSection,
+  appTableCollapsibleTrigger,
+} from "@/lib/app-table-surfaces";
 
 const barrelsFieldSelectClassName = cn(
   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
@@ -384,14 +388,15 @@ export function AdminBarrelsManager({
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
+      <div className={cn(appTableCollapsibleSection, "space-y-0")}>
         <button
           type="button"
           id="admin-barrels-catalog-heading"
           onClick={() => setCatalogOpen((open) => !open)}
           className={cn(
-            "flex w-full items-center justify-between gap-3 rounded-md border border-border bg-card/40 px-3 py-2.5 text-left transition-colors",
-            "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            appTableCollapsibleTrigger,
+            "justify-between px-4 py-3",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           )}
           aria-expanded={catalogOpen}
           aria-controls="admin-barrels-catalog-panel"
@@ -411,7 +416,7 @@ export function AdminBarrelsManager({
             id="admin-barrels-catalog-panel"
             role="region"
             aria-labelledby="admin-barrels-catalog-heading"
-            className="space-y-4"
+            className="space-y-4 bg-card px-4 py-4"
           >
             {editorRow ?
               <div className="space-y-3">

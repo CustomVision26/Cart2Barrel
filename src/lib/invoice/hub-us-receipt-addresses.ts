@@ -3,7 +3,7 @@ import { hubStockUsShipToKey } from "@/lib/hub-stock";
 import type { InvoiceCompanyProfile } from "@/lib/invoice/company-profile";
 import type { PaymentInvoiceBillTo } from "@/lib/invoice/payment-invoice-types";
 
-/** Merchant name on in-hub US warehouse receipts (distinct from the Cart2Barrel brand). */
+/** Merchant name on in-hub US warehouse receipts (distinct from the Amani Cart2Barrel brand). */
 export const HUB_INVOICE_COMPANY_NAME = "Amani Cart2Barrel";
 
 type HubShipFromLike = {

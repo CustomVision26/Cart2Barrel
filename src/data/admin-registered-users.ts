@@ -37,7 +37,7 @@ export async function listRegisteredUsersForAdmin(): Promise<
       await syncProfilesFromClerkUsers();
     } catch (error) {
       console.warn(
-        "[Cart2Barrel] Clerk profile sync failed; listing existing profiles:",
+        "[Amani Cart2Barrel] Clerk profile sync failed; listing existing profiles:",
         error instanceof Error ? error.message : String(error),
       );
     }
@@ -92,7 +92,7 @@ export async function listRegisteredUsersForAdmin(): Promise<
     });
   } catch (error) {
     console.warn(
-      "[Cart2Barrel] listRegisteredUsersForAdmin failed:",
+      "[Amani Cart2Barrel] listRegisteredUsersForAdmin failed:",
       error instanceof Error ? error.message : String(error),
     );
     return [];

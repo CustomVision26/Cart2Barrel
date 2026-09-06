@@ -30,7 +30,7 @@ export async function AdminLayoutWithData({
     await getOrCreateProfile(userId, email);
   } catch (error) {
     console.warn(
-      "[Cart2Barrel] Could not ensure admin profile:",
+      "[Amani Cart2Barrel] Could not ensure admin profile:",
       error instanceof Error ? error.message : String(error),
     );
   }

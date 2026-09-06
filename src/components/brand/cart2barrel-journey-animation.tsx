@@ -24,7 +24,7 @@ export function Cart2BarrelJourneyAnimation({
 }: Cart2BarrelJourneyAnimationProps) {
   const isWelcome = variant === "welcome";
   const statusLabel =
-    isWelcome ? "Signing you in" : "Loading Cart2Barrel";
+    isWelcome ? "Signing you in" : "Loading Amani Cart2Barrel";
 
   return (
     <div

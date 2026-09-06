@@ -40,7 +40,7 @@ export function HomeMarketingHero({ promo }: { promo?: ReactNode }) {
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/40 shadow-sm ring-1 ring-foreground/5">
         <Image
           src="/homepage-img-cart2barrel.png"
-          alt="Cart2Barrel — shop US stores and ship consolidated orders to the Caribbean and the world"
+          alt="Amani Cart2Barrel — shop US stores and ship consolidated orders to the Caribbean and the world"
           width={1536}
           height={864}
           priority

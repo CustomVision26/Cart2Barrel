@@ -26,10 +26,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  centsToUsdInput,
   containerRatesToFormState,
   formStateToContainerRates,
-  parseUsdToCents,
 } from "@/lib/admin-pricing-form-utils";
 import {
   formRowsToServerPayload,
@@ -58,13 +56,6 @@ function buildInitialForm(
   global: MerchantPricingEstimateSnapshot,
   pkg: CustomerPricingPackageSnapshot | null,
 ) {
-  const source = pkg ?? {
-    packingFeePerLineCents: global.packingFeePerLineCents,
-    containerPackingRates: global.containerPackingRates,
-    serviceTiers: null,
-    label: null,
-    clerkUserId: "",
-  };
   const overrideTiers = Boolean(pkg?.serviceTiers && pkg.serviceTiers.length > 0);
   const tierSource =
     overrideTiers && pkg?.serviceTiers ?
@@ -72,7 +63,6 @@ function buildInitialForm(
     : global.serviceTiers;
   return {
     label: pkg?.label ?? "",
-    packingDollars: centsToUsdInput(source.packingFeePerLineCents),
     containerForm: containerRatesToFormState(
       pkg?.containerPackingRates ?? global.containerPackingRates,
     ),
@@ -91,7 +81,6 @@ export function AdminCustomerPricingPackagesPanel({
   const [userFilter, setUserFilter] = useState("");
   const initial = buildInitialForm(globalPricing, customerPackage);
   const [label, setLabel] = useState(initial.label);
-  const [packingDollars, setPackingDollars] = useState(initial.packingDollars);
   const [containerForm, setContainerForm] = useState(initial.containerForm);
   const [overrideServiceTiers, setOverrideServiceTiers] = useState(
     initial.overrideServiceTiers,
@@ -126,7 +115,6 @@ export function AdminCustomerPricingPackagesPanel({
 
   function applyGlobalDefaults() {
     const g = globalPricing;
-    setPackingDollars(centsToUsdInput(g.packingFeePerLineCents));
     setContainerForm(containerRatesToFormState(g.containerPackingRates));
     setOverrideServiceTiers(false);
     setTierRows(serverTiersToEditableRows(g.serviceTiers));
@@ -234,17 +222,6 @@ export function AdminCustomerPricingPackagesPanel({
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder="e.g. VIP account"
                   className={cn(fieldClassName, "max-w-md")}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="cust-packing-usd">Packing fee per quoted line (USD)</Label>
-                <Input
-                  id="cust-packing-usd"
-                  inputMode="decimal"
-                  value={packingDollars}
-                  onChange={(e) => setPackingDollars(e.target.value)}
-                  className={cn(fieldClassName, "max-w-xs")}
                 />
               </div>
 
@@ -419,7 +396,7 @@ export function AdminCustomerPricingPackagesPanel({
                     const res = await saveCustomerPricingPackageAction({
                       clerkUserId: selectedClerkUserId,
                       label: label.trim() || null,
-                      packingFeePerLineCents: parseUsdToCents(packingDollars),
+                      packingFeePerLineCents: 0,
                       containerPackingRates: containerRatesPreview,
                       overrideServiceTiers,
                       tiers: tierPayload,

@@ -19,7 +19,7 @@ const CHART_COPY = {
   "in-app": {
     title: "In-app service & handling",
     description:
-      "Our fee for items you request through Cart2Barrel (we purchase on your behalf). Based on each product's unit price—multiply by quantity on the line.",
+      "Our fee for items you request through Amani Cart2Barrel (we purchase on your behalf). Based on each product's unit price—multiply by quantity on the line.",
     footer:
       "Published rates may change over time. After you sign in, your account may show in-app tiers tailored to your customer package.",
   },

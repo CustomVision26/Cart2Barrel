@@ -65,7 +65,7 @@ export function StaffNotesList({
 
 type AdminStaffNotesBlockProps = {
   staffNote: string | null | undefined;
-  /** Defaults to "Notes from Cart2Barrel". */
+  /** Defaults to "Notes from Amani Cart2Barrel". */
   title?: string;
   className?: string;
   variant?: "default" | "compact";
@@ -73,7 +73,7 @@ type AdminStaffNotesBlockProps = {
 
 export function AdminStaffNotesBlock({
   staffNote,
-  title = "Notes from Cart2Barrel",
+  title = "Notes from Amani Cart2Barrel",
   className,
   variant = "default",
 }: AdminStaffNotesBlockProps) {

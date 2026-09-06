@@ -128,7 +128,7 @@ export function CartQuoteLineItem({
           {staffNoteItems.length > 0 ?
             <CollapsibleFieldSection
               compact
-              title="Notes from Cart2Barrel"
+              title="Notes from Amani Cart2Barrel"
               description="Staff notes for this estimate"
               defaultOpen={false}
               className="border-border/70 bg-muted"

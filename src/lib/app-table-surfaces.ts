@@ -14,6 +14,13 @@ export const appTableHead =
 
 export const appTableHeadPlain = "border-b border-border bg-muted";
 
+/** Pinned last column so Accept estimate / row actions stay on screen. */
+export const appTableStickyActionsHead =
+  "sticky right-0 z-20 w-[13.5rem] border-b border-l border-border bg-muted px-3 py-2.5 text-xs font-medium text-foreground shadow-[-10px_0_14px_-10px_rgba(0,0,0,0.45)]";
+
+export const appTableStickyActionsCell =
+  "sticky right-0 z-10 border-b border-l border-border bg-card px-3 py-3 align-top shadow-[-10px_0_14px_-10px_rgba(0,0,0,0.45)]";
+
 export const appTableHeadSticky =
   "sticky top-0 z-10 border-b border-border bg-muted";
 

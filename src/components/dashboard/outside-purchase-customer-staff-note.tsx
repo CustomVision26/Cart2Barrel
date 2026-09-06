@@ -20,7 +20,7 @@ type OutsidePurchaseCustomerStaffNoteProps = {
 
 export function OutsidePurchaseCustomerStaffNote({
   staffNote,
-  title = "Notes from Cart2Barrel",
+  title = "Notes from Amani Cart2Barrel",
   excludeFieldLabels = [],
   variant = "default",
   className,

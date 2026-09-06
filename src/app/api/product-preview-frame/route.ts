@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Frame-Options": "SAMEORIGIN",
-    "X-Cart2Barrel-Preview-Mode": "blocked-interactive",
+    "X-Amani Cart2Barrel-Preview-Mode": "blocked-interactive",
   } as const;
 
   if (hostRequiresExternalBrowserPreview(hostname)) {

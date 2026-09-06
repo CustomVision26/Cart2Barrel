@@ -14,8 +14,8 @@ export async function DashboardRefundAwaitingBanner({
     <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.12] px-4 py-4 text-sm shadow-sm ring-1 ring-amber-500/20">
       <p className="font-medium text-amber-950 dark:text-amber-50">
         {n === 1
-          ? "You have one refund request waiting for Cart2Barrel approval."
-          : `You have ${n} refund requests waiting for Cart2Barrel approval.`}
+          ? "You have one refund request waiting for Amani Cart2Barrel approval."
+          : `You have ${n} refund requests waiting for Amani Cart2Barrel approval.`}
       </p>
       <p className="mt-1 text-xs text-amber-900/85 dark:text-amber-100/90">
         Line items on your Orders tab show{" "}

@@ -251,7 +251,7 @@ export function AdminCompanyPurchaseDialog(
         <DialogHeader>
           <DialogTitle>Confirm company purchase</DialogTitle>
           <DialogDescription>
-            Record that Cart2Barrel purchased this item. Choose shipment tracking or store
+            Record that Amani Cart2Barrel purchased this item. Choose shipment tracking or store
             pickup with warehouse intake.
           </DialogDescription>
         </DialogHeader>

@@ -54,7 +54,7 @@ export async function GET(request: Request) {
   try {
     pdf = await renderPaymentInvoicePdf(invoice);
   } catch (error) {
-    console.error("[Cart2Barrel] admin payment-invoice PDF render failed:", error);
+    console.error("[Amani Cart2Barrel] admin payment-invoice PDF render failed:", error);
     return NextResponse.json(
       { error: "Could not generate PDF receipt. Try View order receipt instead." },
       { status: 500 },

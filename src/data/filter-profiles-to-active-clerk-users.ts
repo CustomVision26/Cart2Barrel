@@ -38,7 +38,7 @@ async function existingClerkUserIds(
         }
       } catch (chunkError) {
         console.warn(
-          "[Cart2Barrel] Clerk getUserList chunk failed while filtering admin profiles:",
+          "[Amani Cart2Barrel] Clerk getUserList chunk failed while filtering admin profiles:",
           clerkErrorMessage(chunkError),
         );
         for (const clerkUserId of chunk) {
@@ -53,7 +53,7 @@ async function existingClerkUserIds(
     return found;
   } catch (error) {
     console.warn(
-      "[Cart2Barrel] Clerk batch lookup failed while filtering admin profiles:",
+      "[Amani Cart2Barrel] Clerk batch lookup failed while filtering admin profiles:",
       clerkErrorMessage(error),
     );
     return null;
@@ -87,7 +87,7 @@ export async function filterProfilesToActiveClerkUsers<
         await purgeProfileByClerkUserId(row.clerkUserId, { revalidate: false });
       } catch (error) {
         console.warn(
-          "[Cart2Barrel] purgeProfileByClerkUserId failed:",
+          "[Amani Cart2Barrel] purgeProfileByClerkUserId failed:",
           row.clerkUserId,
           clerkErrorMessage(error),
         );
@@ -98,7 +98,7 @@ export async function filterProfilesToActiveClerkUsers<
     return kept;
   } catch (error) {
     console.warn(
-      "[Cart2Barrel] filterProfilesToActiveClerkUsers failed:",
+      "[Amani Cart2Barrel] filterProfilesToActiveClerkUsers failed:",
       clerkErrorMessage(error),
     );
     return rows;

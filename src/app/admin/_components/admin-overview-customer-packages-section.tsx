@@ -34,7 +34,6 @@ export async function AdminOverviewCustomerPackagesSection({
   return (
     <AdminCustomerPackagesHub
       packageTab={packageTab}
-      initialPackingFeePerLineCents={pricingEditor.packingFeePerLineCents}
       initialContainerPackingRates={pricingEditor.containerPackingRates}
       users={users}
       savedPackages={savedPackages}

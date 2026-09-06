@@ -362,7 +362,7 @@ export function AdminBatchCompanyPurchaseDialog({
         <DialogHeader>
           <DialogTitle>Confirm batch company purchase</DialogTitle>
           <DialogDescription>
-            Record that Cart2Barrel purchased every pending product in this batch.
+            Record that Amani Cart2Barrel purchased every pending product in this batch.
             Choose one shared shipment or store pickup; product details are listed
             once each below.
           </DialogDescription>

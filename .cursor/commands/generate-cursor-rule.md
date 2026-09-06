@@ -1,6 +1,6 @@
 # generate-cursor-rule
 
-Use this command to **regenerate or align** Cart2Barrel Cursor rules (`.cursor/rules/*.mdc`) and conventions. When invoked:
+Use this command to **regenerate or align** Amani Cart2Barrel Cursor rules (`.cursor/rules/*.mdc`) and conventions. When invoked:
 
 1. Ensure project rules exist and match the stack below.
 2. Prefer **shadcn/ui** for all UI; if the CLI is missing, initialize or add components with the commands in the **shadcn** section—do not hand-roll primitives that shadcn already provides.
@@ -8,7 +8,7 @@ Use this command to **regenerate or align** Cart2Barrel Cursor rules (`.cursor/r
 
 ---
 
-## Stack summary (Cart2Barrel)
+## Stack summary (Amani Cart2Barrel)
 
 | Area | Convention |
 |------|------------|

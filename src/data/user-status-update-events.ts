@@ -94,7 +94,7 @@ export async function recordUserStatusUpdateEvent(
     if (isMissingUserStatusUpdateTablesError(e)) {
       return;
     }
-    console.error("[Cart2Barrel] recordUserStatusUpdateEvent failed:", e);
+    console.error("[Amani Cart2Barrel] recordUserStatusUpdateEvent failed:", e);
   }
 }
 
@@ -434,7 +434,7 @@ export async function recordAccountWelcomeActivity(params: {
   await recordUserStatusUpdateEvent({
     clerkUserId: params.clerkUserId,
     kind: "account_welcome",
-    title: "Welcome to Cart2Barrel",
+    title: "Welcome to Amani Cart2Barrel",
     body:
       greeting ?
         `Hi ${greeting} — your account is ready. Submit product links for estimates or explore your dashboard.`
@@ -453,7 +453,7 @@ export async function recordAccountSuspendedActivity(params: {
     kind: "account_suspended",
     title: "Account suspended",
     body:
-      "Your Cart2Barrel account has been suspended by our team. You cannot sign in until an administrator reinstates access. Contact support if you believe this is a mistake.",
+      "Your Amani Cart2Barrel account has been suspended by our team. You cannot sign in until an administrator reinstates access. Contact support if you believe this is a mistake.",
     href: userStatusHrefForDashboard(),
     entityType: "profile",
     entityId: params.clerkUserId,
@@ -468,7 +468,7 @@ export async function recordAccountReinstatedActivity(params: {
     kind: "account_reinstated",
     title: "Account reinstated",
     body:
-      "Your account suspension has been lifted. You can sign in and use Cart2Barrel again.",
+      "Your account suspension has been lifted. You can sign in and use Amani Cart2Barrel again.",
     href: userStatusHrefForDashboard(),
     entityType: "profile",
     entityId: params.clerkUserId,

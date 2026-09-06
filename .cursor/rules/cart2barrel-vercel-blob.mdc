@@ -15,7 +15,7 @@ globs:
   - .env.example
 ---
 
-# Vercel Blob (Cart2Barrel)
+# Vercel Blob (Amani Cart2Barrel)
 
 Docs: [Vercel Blob](https://vercel.com/docs/vercel-blob), [Blob SDK](https://vercel.com/docs/vercel-blob/using-blob-sdk), [server upload](https://vercel.com/docs/vercel-blob/server-upload).
 
@@ -30,7 +30,7 @@ Docs: [Vercel Blob](https://vercel.com/docs/vercel-blob), [Blob SDK](https://ver
 
 Vercel’s Next.js quickstart uses a **Route Handler** (`/api/.../route.ts`) + client `fetch`. **Do not add that pattern** for new features unless explicitly requested.
 
-Cart2Barrel uploads via **Server Actions** that call `put()` from `@vercel/blob`, then persist `blob.url` with **Drizzle**:
+Amani Cart2Barrel uploads via **Server Actions** that call `put()` from `@vercel/blob`, then persist `blob.url` with **Drizzle**:
 
 - `src/actions/upload-item-request-product-image.ts` — `product-images/{itemRequestId}/…`
 - `src/actions/admin-upload-retailer-receipt-images.ts` — `retailer-receipts/{orderItemId}/…`

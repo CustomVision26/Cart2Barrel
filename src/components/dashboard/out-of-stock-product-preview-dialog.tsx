@@ -120,7 +120,7 @@ export function OutOfStockProductPreviewDialog({
           {request.outOfStockStaffNote?.trim() ?
             <div className="rounded-md border border-border bg-secondary/40 px-3 py-2.5">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Note from Cart2Barrel
+                Note from Amani Cart2Barrel
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                 {request.outOfStockStaffNote.trim()}

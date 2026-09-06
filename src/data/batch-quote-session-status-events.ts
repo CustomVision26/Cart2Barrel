@@ -31,7 +31,7 @@ export async function listBatchQuoteSessionStatusEventsForSessions(params: {
     if (!shouldBestEffortSkipBatchQuoteSessionStatusEventWrite(e)) throw e;
 
     console.warn(
-      "[Cart2Barrel] Omitting batch_quote_session_status_events SELECT (migrate DB).\n",
+      "[Amani Cart2Barrel] Omitting batch_quote_session_status_events SELECT (migrate DB).\n",
       combinedErrorText(e),
       "\nApply schema: npm run db:push (DATABASE_URL)."
     );
@@ -57,7 +57,7 @@ export async function appendBatchQuoteSessionStatusEvent(params: {
     if (!shouldBestEffortSkipBatchQuoteSessionStatusEventWrite(e)) throw e;
 
     console.warn(
-      "[Cart2Barrel] Skipping batch_quote_session_status_events insert (migrate DB).\n",
+      "[Amani Cart2Barrel] Skipping batch_quote_session_status_events insert (migrate DB).\n",
       combinedErrorText(e),
       "\nApply schema: npm run db:push (DATABASE_URL),\nOr in Neon SQL: ALTER TYPE batch_quote_session_status_event_kind ADD VALUE IF NOT EXISTS 'returned_to_quoted_batch'; (and rerun db:push so the audit table/types match Drizzle)."
     );

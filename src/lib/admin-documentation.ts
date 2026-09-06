@@ -59,7 +59,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The admin area is Cart2Barrel's internal operations console. Every route under /admin is protected: signed-in users without the admin role are redirected to /dashboard.",
+        "The admin area is Amani Cart2Barrel's internal operations console. Every route under /admin is protected: signed-in users without the admin role are redirected to /dashboard.",
         "The layout provides a persistent sidebar (or mobile strip), a customer filter in the header, admin notifications, and quick access back to the user app.",
       ],
       walkthrough: [
@@ -169,9 +169,9 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Summary: refund queue banner and high-level orientation.",
         "Finance: revenue, taxes, Stripe fees, refunds by date.",
-        "Fees & rates: service tiers and container packing rates.",
-        "Customer packages: per-customer or general package pricing.",
-        "Shipping containers: color-coded catalog table; double-click a row to edit, then Publish / Unpublish.",
+        "Fees & rates: in-app and outside-purchase service & handling tiers only.",
+        "Customer packages: General package fee is barrel/bin packing (1 vs 2+ rates); Select customer and Saved packages for per-shopper overrides. No packing fee per quoted line.",
+        "Shipping containers: solid-colored Catalog accordion and color-coded table; double-click a row to edit, then Publish / Unpublish.",
         "In-hub products: Hub ship-from addresses and Add in-hub product sub-tabs (warehouse origins, one primary; SKUs with packed weight/size for Shippo).",
         "Special features: catalog table of timed suitcase offers; double-click a row to edit, then Publish.",
         "Quote Expiry Settings: Hub / Customer / Product sub-tabs for default window, per-customer overrides, and per-product overrides (1 minute–90 days).",
@@ -179,24 +179,26 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       requirements: ["Admin access."],
       dos: [
         "Use Finance for reconciliation, not Summary alone.",
-        "Change fees & rates deliberately—existing quotes may use prior tiers.",
+        "Change service & handling tiers deliberately—existing quotes may use prior bands.",
+        "Edit barrel/bin packing under Customer packages → General package fee, not Fees & rates.",
         "Publish Quote Expiry Settings (hub, customer, or product override) when retailer volatility or refund risk changes the payment window policy.",
       ],
       donts: [
+        "Don't look for a packing fee per quoted line—quotes hardcode packing at $0; packing is barrel/bin only.",
         "Don't edit container catalog without coordinating marketing spotlight.",
         "Don't change merchant tiers during active quote sessions without staff alignment.",
       ],
     },
     article: {
       overview: [
-        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, merchant pricing, customer-specific packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, and the quote expiry window for shoppers.",
+        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, service & handling tiers, barrel/bin packing packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, and the quote expiry window for shoppers.",
       ],
       walkthrough: [
         "Summary tab: starting point with refund-awaiting banner and orientation copy.",
         "Finance tab: filter by date range; review revenue, tax, Stripe fees, and refund totals (respects customer filter when set).",
-        "Fees & rates tab: edit in-app and outside-purchase service fee tiers and container packing fee rates.",
-        "Customer packages tab: manage general or per-customer package pricing presets.",
-        "Shipping containers tab: add barrels, bins, and special-feature suitcases with prices and photos. The catalog is a color-coded table (amber barrel, blue bin, violet suitcase). Double-click a row to open the editor, then Publish / Unpublish to show or hide the SKU on the shopper Barrels page.",
+        "Fees & rates tab: edit in-app and outside-purchase service & handling tiers. Packing and container combination rates are not on this tab.",
+        "Customer packages tab: General package fee sets default barrel and bin packing (exactly 1 vs 2+ of each type). Select customer and Saved packages override those rates per shopper. Quotes do not add a packing fee per quoted product line.",
+        "Shipping containers tab: add barrels, bins, and special-feature suitcases with prices and photos. Catalog is a solid-colored accordion so the table stays readable over the page watermark. Rows are color-coded (amber barrel, blue bin, violet suitcase). Double-click a row to open the editor, then Publish / Unpublish to show or hide the SKU on the shopper Barrels page.",
         "In-hub products tab: Hub ship-from addresses sub-tab to add US warehouse origins (double-click or Open to edit; only one can be primary for Shippo). Add in-hub product sub-tab to add SKUs with packed weight (ounces) and outer length/width/height (inches), then Publish so they appear on Home. Shippo uses those parcel fields plus SHIPPO_API_KEY to rate US delivery and to buy domestic labels from Orders. Set SHIPPO_WEBHOOK_TOKEN and a track_updated webhook so customer tracking stays current (production example: https://amanicart2-barrel.vercel.app/api/webhooks/shippo?token=<SHIPPO_WEBHOOK_TOKEN>). Overseas-container destination does not call Shippo.",
         "Special features tab: catalog table of timed suitcase specials; double-click a row to open the editor.",
         "Quote Expiry Settings tab: Hub / Customer / Product sub-tabs. Publish the hub default (1 minute–90 days), assign a customer override for all of that shopper’s quotes, or search a quoted product and set a product-only override. Priority: product → customer → hub. Shorter windows reduce refunds and add-payment requests when retailer prices move.",
@@ -207,12 +209,14 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       requirements: ["Admin access."],
       dos: [
         "Document fee changes internally when they affect quoted margins.",
+        "Keep packing rates on Customer packages in sync with How it works Pricing overview.",
         "Use Finance date filters that match your accounting period.",
         "Keep in-hub parcel weight/size and a primary hub ship-from address complete, and set SHIPPO_API_KEY, before publishing SKUs for US delivery.",
       ],
       donts: [
         "Do not delete or disable container offerings that customers already purchased without a migration plan.",
         "Do not change fee tiers without understanding impact on open cart lines and unpublished quotes.",
+        "Do not add a packing fee to quote lines; packing is charged on barrels and bins only.",
       ],
     },
   },
@@ -240,12 +244,12 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Active requests handles individual product quote workflows—the core of Cart2Barrel purchasing. Staff review customer-submitted retailer URLs, build estimates with fees, publish quotes to the customer cart, and manage resends or out-of-stock outcomes.",
+        "Active requests handles individual product quote workflows—the core of Amani Cart2Barrel purchasing. Staff review customer-submitted retailer URLs, build estimates with fees, publish quotes to the customer cart, and manage resends or out-of-stock outcomes.",
       ],
       walkthrough: [
         "Open Item requests from the sidebar; Active requests is the default branch.",
         "Queue sub-tab: grouped in-flight work—new submissions, customer resends, quoted lines awaiting acceptance.",
-        "Open a row to run AI-assisted estimate tools, adjust fees, publish or void quotes, and update status.",
+        "Open a row and use Create Estimate with AI (new requests and customer resends), then adjust fees, publish or void quotes, and update status.",
         "Quote history sub-tab: revision history for single-line staff estimates (voided quotes from customer resends stay off this list by design).",
         "Outside purchase sub-tab: intake when staff must buy items outside the normal customer URL submission path.",
       ],
@@ -489,7 +493,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Shipments handles the last mile of Cart2Barrel operations—outbound barrel freight, customs-related charges, and carrier tracking once containers leave the hub toward the customer's country.",
+        "Shipments handles the last mile of Amani Cart2Barrel operations—outbound barrel freight, customs-related charges, and carrier tracking once containers leave the hub toward the customer's country.",
       ],
       walkthrough: [
         "Open Shipments from the Fulfillment sidebar.",
@@ -641,7 +645,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "This Admin guide documents Cart2Barrel's internal UI—the same quick reference and full article pattern as the customer User guide on How it works. It is only available under /admin/guide and is hidden from non-admin users.",
+        "This Admin guide documents Amani Cart2Barrel's internal UI—the same quick reference and full article pattern as the customer User guide on How it works. It is only available under /admin/guide and is hidden from non-admin users.",
       ],
       walkthrough: [
         "Open Admin guide from the sidebar Help section.",

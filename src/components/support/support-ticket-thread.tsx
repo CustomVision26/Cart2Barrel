@@ -55,7 +55,7 @@ export function SupportTicketThread({
         const fromHub = message.isFromStaff;
         const alignRight = viewerIsStaff ? fromHub : !fromHub;
         const author =
-          fromHub ? "Cart2Barrel support" : customerLabel;
+          fromHub ? "Amani Cart2Barrel support" : customerLabel;
         const hasBody = message.body.trim().length > 0;
         const sentAt = formatMessageDateTime(message.createdAt);
 

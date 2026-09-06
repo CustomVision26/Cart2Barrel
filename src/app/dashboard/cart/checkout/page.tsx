@@ -208,7 +208,7 @@ export default async function CartEmbeddedCheckoutPage({ searchParams }: PagePro
           <span className="hidden h-px w-7 bg-border sm:block" aria-hidden />
           <span className="leading-relaxed">
             Payments are handled by Stripe. Card credentials are transmitted securely and are not
-            stored by Cart2Barrel.
+            stored by Amani Cart2Barrel.
           </span>
         </div>
 

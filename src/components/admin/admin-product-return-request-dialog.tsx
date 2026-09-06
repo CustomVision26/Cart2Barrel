@@ -124,7 +124,7 @@ export function AdminProductReturnRequestDialog({
         <DialogHeader>
           <DialogTitle>Product return request</DialogTitle>
           <DialogDescription>
-            Customer asked Cart2Barrel to return{" "}
+            Customer asked Amani Cart2Barrel to return{" "}
             <span className="font-medium text-foreground">{productLabel}</span>
             {isHubStockUsReturn ?
               ". Generate a Shippo return label so the customer can ship the product back to the warehouse."

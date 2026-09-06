@@ -13,7 +13,7 @@ export function DashboardAddItemBatchQuotesPanel() {
       <p className="inline-flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>Active batch quotes</span>
         <HelpBalloon label="About active batch quotes" tooltipClassName="w-80">
-          Track retailer-level batch requests grouped by Cart2Barrel batch numbers. Submit
+          Track retailer-level batch requests grouped by Amani Cart2Barrel batch numbers. Submit
           drafts to notify staff—they respond with a bundled estimate referencing every line
           listed. Quote expiry shows how long each line’s price is held. If staff have quoted
           the batch and any line expires before you pay, the batch ends and products return as

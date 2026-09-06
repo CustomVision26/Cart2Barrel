@@ -12,7 +12,7 @@ export async function syncProfileDeletedFromClerkWebhook(
     await purgeProfileByClerkUserId(id);
   } catch (e) {
     console.error(
-      "[Cart2Barrel] syncProfileDeletedFromClerkWebhook failed:",
+      "[Amani Cart2Barrel] syncProfileDeletedFromClerkWebhook failed:",
       id,
       e,
     );

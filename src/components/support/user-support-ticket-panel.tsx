@@ -56,7 +56,7 @@ export function UserSupportTicketPanel({
       <div className="rounded-xl border border-border bg-card p-4">
         <h2 className="text-lg font-semibold text-foreground">{ticket.subject}</h2>
         <p className="text-sm text-muted-foreground">
-          Conversation with Cart2Barrel support
+          Conversation with Amani Cart2Barrel support
         </p>
       </div>
 

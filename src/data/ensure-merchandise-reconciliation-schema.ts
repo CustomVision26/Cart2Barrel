@@ -303,7 +303,7 @@ async function ensureMerchandiseReconciliationSchemaInner(): Promise<boolean> {
         await ensureMerchandiseTopupChargeBreakdownsTable();
       } catch (e) {
         console.warn(
-          "[Cart2Barrel] ensureMerchandiseTopupCartTable skipped:",
+          "[Amani Cart2Barrel] ensureMerchandiseTopupCartTable skipped:",
           e,
         );
       }
@@ -340,7 +340,7 @@ async function ensureMerchandiseReconciliationSchemaInner(): Promise<boolean> {
       `);
     } catch (e) {
       console.warn(
-        "[Cart2Barrel] ensureMerchandiseReconciliationSchema enum add skipped:",
+        "[Amani Cart2Barrel] ensureMerchandiseReconciliationSchema enum add skipped:",
         e,
       );
     }
@@ -480,7 +480,7 @@ async function ensureMerchandiseReconciliationSchemaInner(): Promise<boolean> {
     schemaReady = true;
     return true;
   } catch (e) {
-    console.error("[Cart2Barrel] ensureMerchandiseReconciliationSchema failed:", e);
+    console.error("[Amani Cart2Barrel] ensureMerchandiseReconciliationSchema failed:", e);
     return false;
   }
 }

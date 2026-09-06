@@ -8,7 +8,7 @@ type BrandLogoLinkProps = {
   /** Top-bar logo always links home unless overridden. */
   href?: string;
   className?: string;
-  /** Show the Cart2Barrel wordmark beside the logo on sm+ viewports. */
+  /** Show the Amani Cart2Barrel wordmark beside the logo on sm+ viewports. */
   showWordmark?: boolean;
   priority?: boolean;
 };

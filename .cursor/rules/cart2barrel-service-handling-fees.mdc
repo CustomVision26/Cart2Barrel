@@ -1,5 +1,5 @@
 ---
-description: Tiered service & handling fee per product unit (Cart2Barrel)
+description: Tiered service & handling fee per product unit (Amani Cart2Barrel)
 globs:
   - "**/admin-markup.ts"
   - "**/admin-ai-estimate*"

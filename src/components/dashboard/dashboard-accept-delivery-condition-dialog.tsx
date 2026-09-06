@@ -95,7 +95,7 @@ export function DashboardAcceptDeliveryConditionDialog({
               </>
             : null}
             . If you continue, you agree to accept the product in this condition and
-            move it into the barrel packing queue. Cart2Barrel staff will assign it to
+            move it into the barrel packing queue. Amani Cart2Barrel staff will assign it to
             your container next.
           </DialogDescription>
         </DialogHeader>

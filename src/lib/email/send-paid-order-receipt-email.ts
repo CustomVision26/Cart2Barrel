@@ -65,7 +65,7 @@ export async function sendPaidOrderReceiptEmail(
     const { error } = await resend.emails.send({
       from,
       to: [payload.customerEmail],
-      subject: `[Cart2Barrel] Payment received — order ${payload.orderId.slice(0, 8)}…`,
+      subject: `[Amani Cart2Barrel] Payment received — order ${payload.orderId.slice(0, 8)}…`,
       html,
     });
     if (error) {
