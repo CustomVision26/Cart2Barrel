@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import type { AdminSpotlightProductRow } from "@/data/spotlight-category-products";
 import { formatUsd } from "@/lib/admin-markup";
 import { displaySiteName } from "@/lib/site-name";
+import { spotlightRetailerDriftSummary } from "@/lib/spotlight/spotlight-retailer-live-check";
 
 function centsToUsdInput(cents: number | null): string {
   if (cents == null || cents <= 0) return "";
@@ -104,6 +105,20 @@ export function AdminSpotlightProductEditDialog({
             {title}
           </DialogDescription>
         </DialogHeader>
+
+        {product && product.retailerDriftFields && product.retailerDriftFields.length > 0 ?
+          <p className="rounded-md border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+            {spotlightRetailerDriftSummary(product.retailerDriftFields)}
+            {product.retailerLivePriceUsdCents != null &&
+            product.retailerLivePriceUsdCents > 0 ?
+              ` Live price ${formatUsd(product.retailerLivePriceUsdCents)}.`
+            : null}
+            {product.retailerLiveLabel?.trim() ?
+              ` Live name: ${product.retailerLiveLabel.trim()}.`
+            : null}{" "}
+            Saving this form clears the warning until the next automatic check.
+          </p>
+        : null}
 
         {product ?
           <div className="min-w-0 space-y-4 overflow-hidden">

@@ -36,6 +36,7 @@ export function AdminNestedFindOrganizePanel({
   showTo,
   totalCount,
   totalLoaded,
+  totalLoadedLabel = "total for customer",
   itemLabel = "record",
   emptyMessage = "No records for this customer.",
   noMatchMessage = "No records match the current search.",
@@ -59,6 +60,7 @@ export function AdminNestedFindOrganizePanel({
   showTo: number;
   totalCount: number;
   totalLoaded?: number;
+  totalLoadedLabel?: string;
   itemLabel?: string;
   emptyMessage?: string;
   noMatchMessage?: string;
@@ -147,8 +149,8 @@ export function AdminNestedFindOrganizePanel({
                   <>
                     {" "}
                     (
-                    <span className="tabular-nums">{totalLoaded}</span> total for
-                    customer)
+                    <span className="tabular-nums">{totalLoaded}</span>{" "}
+                    {totalLoadedLabel})
                   </>
                 ) : null}
               </>

@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { SpotlightVariantShop } from "@/components/marketing/spotlight-variant-shop";
+import {
+  filterProductsByRetailer,
+  SPOTLIGHT_RETAILER_ALL,
+  SpotlightCategoryRetailerMenu,
+  uniqueSpotlightRetailers,
+} from "@/components/marketing/spotlight-category-retailer-menu";
 import {
   galleryStartIndex,
   SpotlightImageViewer,
@@ -214,10 +220,28 @@ export function SpotlightCategoryOffersPanel({
   isSignedIn,
 }: SpotlightCategoryOffersPanelProps) {
   const [viewer, setViewer] = useState<ImageViewerState | null>(null);
+  const [selectedRetailer, setSelectedRetailer] = useState(SPOTLIGHT_RETAILER_ALL);
+  const visibleProducts = useMemo(
+    () => filterProductsByRetailer(products, selectedRetailer),
+    [products, selectedRetailer],
+  );
   const signupReturn =
-    products[0] ?
-      aiAssistedRequestUrlWithSpotlightProduct(products[0])
+    visibleProducts[0] ?? products[0] ?
+      aiAssistedRequestUrlWithSpotlightProduct(
+        visibleProducts[0] ?? products[0]!,
+      )
     : "/dashboard/items/requested-items/ai-assisted-request";
+
+  useEffect(() => {
+    setSelectedRetailer(SPOTLIGHT_RETAILER_ALL);
+  }, [category.slug]);
+
+  useEffect(() => {
+    if (selectedRetailer === SPOTLIGHT_RETAILER_ALL) return;
+    if (!uniqueSpotlightRetailers(products).includes(selectedRetailer)) {
+      setSelectedRetailer(SPOTLIGHT_RETAILER_ALL);
+    }
+  }, [products, selectedRetailer]);
 
   if (products.length === 0) {
     return (
@@ -238,27 +262,38 @@ export function SpotlightCategoryOffersPanel({
 
   return (
     <div className="space-y-6">
-      <ul className="space-y-6">
-        {products.map((product) => (
-          <ProductOfferSection
-            key={product.id}
-            product={product}
-            isSignedIn={isSignedIn}
-            onOpenGallery={(offer) =>
-              setViewer({
-                title: offer.title,
-                retailerName: offer.retailerName,
-                images: offer.galleryImages ?? [],
-                startIndex: galleryStartIndex(
-                  offer.galleryImages ?? [],
-                  offer.imageUrl,
-                  offer.id,
-                ),
-              })
-            }
-          />
-        ))}
-      </ul>
+      <SpotlightCategoryRetailerMenu
+        categorySlug={category.slug}
+        products={products}
+        selectedRetailer={selectedRetailer}
+        onSelectRetailer={setSelectedRetailer}
+      />
+      {visibleProducts.length === 0 ?
+        <p className="text-sm text-muted-foreground">
+          No curated products from this retailer in {category.title} yet.
+        </p>
+      : <ul className="space-y-6">
+          {visibleProducts.map((product) => (
+            <ProductOfferSection
+              key={product.id}
+              product={product}
+              isSignedIn={isSignedIn}
+              onOpenGallery={(offer) =>
+                setViewer({
+                  title: offer.title,
+                  retailerName: offer.retailerName,
+                  images: offer.galleryImages ?? [],
+                  startIndex: galleryStartIndex(
+                    offer.galleryImages ?? [],
+                    offer.imageUrl,
+                    offer.id,
+                  ),
+                })
+              }
+            />
+          ))}
+        </ul>
+      }
 
       {!isSignedIn ?
         <p className="text-center text-xs text-muted-foreground">

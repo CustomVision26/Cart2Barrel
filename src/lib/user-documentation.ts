@@ -79,7 +79,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "For signed-in customers, Home acts as a bridge between marketing content and the dashboard. Depending on your onboarding status, you may be routed to complete contact details—or you can skip onboarding to explore first.",
       ],
       walkthrough: [
-        "Browse featured spotlight products. Cards show photo, price, View, and Request. Double-click a product that has colors or sizes to open a larger dialog with swatches and size pills—the photo, price, View link, and Request follow the selected variant. Use View all N when there are many colors.",
+        "Browse featured spotlight products. Cards show photo, price, View, and Request. Double-click a product that has colors or sizes to open a larger dialog with swatches and size pills—the photo, price, View link, and Request follow the selected variant. Use View all N when there are many colors. In the category dialog, open Retailers and pick a store tab to show that retailer's product cards.",
         "Scroll to In-hub products to add warehouse stock to your cart. For US delivery, the item uses your default saved United States address. Shipping is one warehouse-package rate from Shippo for all in-hub items going to that address. Overseas packing does not require a US address and has no carrier shipping charge.",
         "Use the header: How it works (public guide), Sign in, Sign up (first name, last name, email, password, and confirm password on a glass card over Home; Back to home, click outside, or Escape returns to Home), or Dashboard (when signed in).",
         "If you are a new signed-in user who has not completed or skipped onboarding, visiting Home redirects you to the onboarding page.",

@@ -2192,12 +2192,26 @@ export const spotlightCategoryProducts = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
+    /** Last backend SerpApi / retailer snapshot used to detect catalog drift. */
+    retailerCheckedAt: timestamp("retailer_checked_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    retailerCheckError: text("retailer_check_error"),
+    /** Changed attributes vs live listing, e.g. price, url, name, image, unavailable. */
+    retailerDriftFields: jsonb("retailer_drift_fields").$type<string[] | null>(),
+    retailerLivePriceUsdCents: integer("retailer_live_price_usd_cents"),
+    retailerLiveProductUrl: text("retailer_live_product_url"),
+    retailerLiveLabel: text("retailer_live_label"),
   },
   (t) => [
     index("spotlight_category_products_slug_active_sort_idx").on(
       t.categorySlug,
       t.isActive,
       t.sortIndex,
+    ),
+    index("spotlight_category_products_retailer_checked_idx").on(
+      t.retailerCheckedAt,
     ),
   ],
 );

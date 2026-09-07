@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from "react";
 import {
-  ChevronDown,
   ImageIcon,
   Loader2,
+  Plus,
   RotateCcw,
-  Search,
+  Sparkles,
   Store,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,16 +15,29 @@ import {
   adminResolveSpotlightProductAction,
   adminSaveSpotlightProductOfferAction,
   adminSaveSpotlightVariantOfferAction,
+  adminSaveSpotlightVariantOffersAction,
   type AdminResolveSpotlightProductResult,
 } from "@/actions/admin-spotlight-product-resolve";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatUsd } from "@/lib/admin-markup";
+import { appTableVariantRowCurrent } from "@/lib/app-table-surfaces";
 import type { SpotlightCategorySlug } from "@/lib/spotlight-categories";
 import { cn } from "@/lib/utils";
 
 type ResolvedState = Extract<AdminResolveSpotlightProductResult, { ok: true }>;
+type SpotlightLookupVariant = ResolvedState["variants"][number];
+type SpotlightLookupTab = "variants" | "compare";
+
+function lookupTabClass(selected: boolean) {
+  return cn(
+    "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+    selected
+      ? "border-primary text-foreground"
+      : "border-transparent text-muted-foreground hover:text-foreground",
+  );
+}
 
 type AdminSpotlightCategoryAddFormProps = {
   categorySlug: SpotlightCategorySlug;
@@ -56,6 +69,43 @@ function OfferThumb({ src }: { src: string | null }) {
   );
 }
 
+function variantSavePayload(variant: SpotlightLookupVariant) {
+  return {
+    label: variant.label,
+    priceUsd: centsToUsdField(variant.priceUsdCents),
+    productSize: variant.size ?? undefined,
+    productColor: variant.color ?? undefined,
+    packLabel: variant.packLabel ?? undefined,
+    productUrl: variant.productUrl ?? undefined,
+    imageUrl: variant.imageUrl ?? undefined,
+  };
+}
+
+type SpotlightListingFields = {
+  productUrl: string;
+  productName: string;
+  priceUsd: string;
+  productSize: string;
+  productColor: string;
+  imageUrl: string | null;
+};
+
+function listingFieldsFromVariant(
+  variant: SpotlightLookupVariant,
+  fallbackUrl: string,
+  fallbackName: string,
+): SpotlightListingFields {
+  return {
+    productUrl: variant.productUrl?.trim() || fallbackUrl,
+    productName:
+      variant.productTitle?.trim() || fallbackName.trim() || variant.label,
+    priceUsd: centsToUsdField(variant.priceUsdCents),
+    productSize: variant.size?.trim() || variant.packLabel?.trim() || "",
+    productColor: variant.color?.trim() || "",
+    imageUrl: variant.imageUrl,
+  };
+}
+
 export function AdminSpotlightCategoryAddForm({
   categorySlug,
   pending,
@@ -64,8 +114,8 @@ export function AdminSpotlightCategoryAddForm({
 }: AdminSpotlightCategoryAddFormProps) {
   const [lookupPending, startLookup] = useTransition();
   const [resolved, setResolved] = useState<ResolvedState | null>(null);
-  const [variantsOpen, setVariantsOpen] = useState(true);
-  const [compareOpen, setCompareOpen] = useState(true);
+  const [lookupTab, setLookupTab] = useState<SpotlightLookupTab>("variants");
+  const [appliedVariantId, setAppliedVariantId] = useState<string | null>(null);
 
   const [productUrl, setProductUrl] = useState("");
   const [productName, setProductName] = useState("");
@@ -83,6 +133,8 @@ export function AdminSpotlightCategoryAddForm({
   );
 
   const busy = pending || lookupPending;
+  const unsavedVariants =
+    resolved?.variants.filter((row) => !savedVariantIds.has(row.id)) ?? [];
 
   const resetForm = () => {
     setProductUrl("");
@@ -92,11 +144,11 @@ export function AdminSpotlightCategoryAddForm({
     setProductColor("");
     setImageUrl(null);
     setResolved(null);
+    setAppliedVariantId(null);
     setSavedParentId(null);
     setSavedVariantIds(new Set());
     setSavedRetailerIds(new Set());
-    setVariantsOpen(true);
-    setCompareOpen(true);
+    setLookupTab("variants");
     toast.message("Form cleared — ready for a new product.");
   };
 
@@ -121,16 +173,18 @@ export function AdminSpotlightCategoryAddForm({
       setProductSize(res.primary.productSize);
       setProductColor(res.primary.productColor);
       setImageUrl(res.primary.imageUrl);
+      setAppliedVariantId(
+        res.variants.find((row) => row.isCurrent)?.id ?? null,
+      );
       setSavedParentId(null);
       setSavedVariantIds(new Set());
       setSavedRetailerIds(new Set());
-      setVariantsOpen(res.variants.length > 0);
-      setCompareOpen(res.compareOffers.length > 0);
+      setLookupTab("variants");
       const parts = [
         `Loaded from SerpApi (${res.variantRetailer}).`,
         res.variants.length > 0
           ? `${res.variants.length} variant${res.variants.length === 1 ? "" : "s"}.`
-          : null,
+          : "No store variants returned.",
         res.compareOffers.length > 0
           ? `${res.compareOffers.length} retailer offer${res.compareOffers.length === 1 ? "" : "s"}.`
           : null,
@@ -140,53 +194,137 @@ export function AdminSpotlightCategoryAddForm({
     });
   };
 
-  const savePrimary = () => {
-    if (!productUrl.trim()) {
+  const applyListingToForm = (
+    listing: SpotlightListingFields,
+    variantId: string | null,
+  ) => {
+    setProductUrl(listing.productUrl);
+    setProductName(listing.productName);
+    setPriceUsd(listing.priceUsd);
+    setProductSize(listing.productSize);
+    setProductColor(listing.productColor);
+    setImageUrl(listing.imageUrl);
+    if (variantId) setAppliedVariantId(variantId);
+  };
+
+  const applyVariant = (variant: SpotlightLookupVariant) => {
+    applyListingToForm(
+      listingFieldsFromVariant(
+        variant,
+        productUrl,
+        productName || resolved?.primary.productName || "",
+      ),
+      variant.id,
+    );
+    toast.success("Form filled from this variant.", {
+      id: "spotlight-variant-applied",
+    });
+  };
+
+  const persistPrimary = async (
+    listing?: SpotlightListingFields,
+  ): Promise<string | null> => {
+    if (savedParentId) return savedParentId;
+    const fields = listing ?? {
+      productUrl: productUrl.trim(),
+      productName: productName.trim(),
+      priceUsd: priceUsd.trim(),
+      productSize: productSize.trim(),
+      productColor: productColor.trim(),
+      imageUrl,
+    };
+    if (!fields.productUrl) {
       toast.error("Product URL is required.");
+      return null;
+    }
+    const res = await adminSaveSpotlightProductOfferAction({
+      categorySlug,
+      productUrl: fields.productUrl,
+      label: fields.productName || undefined,
+      priceUsd: fields.priceUsd || undefined,
+      productSize: fields.productSize || undefined,
+      productColor: fields.productColor || undefined,
+      imageUrl: fields.imageUrl?.trim() || undefined,
+    });
+    if (!res.ok) {
+      toast.error(res.message);
+      return null;
+    }
+    setSavedParentId(res.parentProductId);
+    return res.parentProductId;
+  };
+
+  const savePrimary = () => {
+    if (savedParentId) {
+      toast.message("This product is already saved. Use Reset to add another.");
       return;
     }
     runMutation(async () => {
-      const res = await adminSaveSpotlightProductOfferAction({
-        categorySlug,
-        productUrl: productUrl.trim(),
-        label: productName.trim() || undefined,
-        priceUsd: priceUsd.trim() || undefined,
-        productSize: productSize.trim() || undefined,
-        productColor: productColor.trim() || undefined,
-        imageUrl: imageUrl?.trim() || undefined,
-      });
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      setSavedParentId(res.parentProductId);
-      toast.success(res.message);
+      const parentId = await persistPrimary();
+      if (!parentId) return;
+      toast.success("Product added to category.");
       onRefresh();
     });
   };
 
-  const saveVariant = (variant: ResolvedState["variants"][number]) => {
-    if (!savedParentId) {
-      toast.error("Save the primary product first, then save variants under it.");
-      return;
-    }
+  const saveVariant = (variant: SpotlightLookupVariant) => {
     runMutation(async () => {
+      const creatingListing = savedParentId == null;
+      const listing = listingFieldsFromVariant(
+        variant,
+        productUrl.trim(),
+        productName.trim() || resolved?.primary.productName || "",
+      );
+      const parentId = await persistPrimary(
+        creatingListing ? listing : undefined,
+      );
+      if (!parentId) return;
       const res = await adminSaveSpotlightVariantOfferAction({
-        parentProductId: savedParentId,
-        label: variant.label,
-        priceUsd: centsToUsdField(variant.priceUsdCents),
-        productSize: variant.size ?? undefined,
-        productColor: variant.color ?? undefined,
-        packLabel: variant.packLabel ?? undefined,
-        productUrl: variant.productUrl ?? undefined,
-        imageUrl: variant.imageUrl ?? undefined,
+        parentProductId: parentId,
+        ...variantSavePayload(variant),
       });
       if (!res.ok) {
         toast.error(res.message);
         return;
       }
+      if (creatingListing) {
+        applyListingToForm(listing, variant.id);
+      }
       setSavedVariantIds((prev) => new Set(prev).add(variant.id));
-      toast.success(res.message ?? "Variant saved.");
+      toast.success(
+        creatingListing
+          ? `${variant.label} saved as the spotlight listing.`
+          : (res.message ?? "Variant saved."),
+      );
+      onRefresh();
+    });
+  };
+
+  const saveAllVariants = () => {
+    if (!resolved || unsavedVariants.length === 0) {
+      toast.error("No unsaved variants to save.");
+      return;
+    }
+    runMutation(async () => {
+      const parentId = await persistPrimary();
+      if (!parentId) return;
+      const res = await adminSaveSpotlightVariantOffersAction({
+        parentProductId: parentId,
+        variants: unsavedVariants.map((row) => ({
+          id: row.id,
+          ...variantSavePayload(row),
+        })),
+      });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setSavedVariantIds((prev) => {
+        const next = new Set(prev);
+        for (const row of unsavedVariants) next.add(row.id);
+        return next;
+      });
+      toast.success(res.message ?? "Variants saved.");
       onRefresh();
     });
   };
@@ -205,9 +343,7 @@ export function AdminSpotlightCategoryAddForm({
         return;
       }
       setSavedRetailerIds((prev) => new Set(prev).add(offer.id));
-      toast.success(
-        `${offer.retailer}: saved as spotlight product.`,
-      );
+      toast.success(`${offer.retailer}: saved as spotlight product.`);
       onRefresh();
     });
   };
@@ -218,22 +354,265 @@ export function AdminSpotlightCategoryAddForm({
         className="grid gap-4 sm:grid-cols-2"
         onSubmit={(e) => {
           e.preventDefault();
-          handleLookup(productUrl);
+          savePrimary();
         }}
       >
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor={`url-${categorySlug}`}>Product URL (https)</Label>
-          <Input
-            id={`url-${categorySlug}`}
-            name="productUrl"
-            required
-            type="url"
-            placeholder="https://retailer.com/product/…"
-            disabled={busy}
-            value={productUrl}
-            onChange={(e) => setProductUrl(e.target.value)}
-          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              id={`url-${categorySlug}`}
+              name="productUrl"
+              required
+              type="url"
+              placeholder="https://retailer.com/product/…"
+              disabled={busy}
+              value={productUrl}
+              onChange={(e) => setProductUrl(e.target.value)}
+              className="min-w-0 flex-1"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              className="shrink-0"
+              disabled={busy || !productUrl.trim()}
+              onClick={() => handleLookup(productUrl)}
+            >
+              {lookupPending ?
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  Running SerpApi…
+                </>
+              : <>
+                  <Sparkles className="size-4" aria-hidden />
+                  Run SerpApi lookup
+                </>
+              }
+            </Button>
+          </div>
         </div>
+
+        {resolved ?
+          <div className="sm:col-span-2">
+            <div className="rounded-lg border border-border">
+              <div className="flex flex-wrap items-end justify-between gap-2 px-2 pt-1">
+                <div
+                  role="tablist"
+                  aria-label="SerpApi lookup results"
+                  className="flex min-w-0 flex-1 flex-wrap gap-1"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={lookupTab === "variants"}
+                    className={lookupTabClass(lookupTab === "variants")}
+                    onClick={() => setLookupTab("variants")}
+                  >
+                    Store variants (SerpApi)
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      {resolved.variants.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={lookupTab === "compare"}
+                    className={lookupTabClass(lookupTab === "compare")}
+                    onClick={() => setLookupTab("compare")}
+                  >
+                    <Store className="size-3.5 shrink-0" aria-hidden />
+                    Retailer comparison (SerpApi + AI verify)
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      {resolved.compareOffers.length}
+                    </span>
+                  </button>
+                </div>
+                {lookupTab === "variants" && resolved.variants.length > 0 ?
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mb-1.5 mr-1"
+                    disabled={busy || unsavedVariants.length === 0}
+                    onClick={saveAllVariants}
+                  >
+                    {unsavedVariants.length === 0 ?
+                      "All variants saved"
+                    : `Save all variants (${unsavedVariants.length})`}
+                  </Button>
+                : null}
+              </div>
+
+              {lookupTab === "variants" ?
+                resolved.variants.length > 0 ?
+                  <div className="overflow-x-auto border-t border-border">
+                    <table className="w-full min-w-[720px] text-left text-sm">
+                      <thead className="bg-muted text-xs text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Image</th>
+                          <th className="px-3 py-2 font-medium">Variant</th>
+                          <th className="px-3 py-2 font-medium">Price</th>
+                          <th className="w-24 px-3 py-2 font-medium">Apply</th>
+                          <th className="w-24 px-3 py-2 font-medium">Save</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {resolved.variants.map((row) => {
+                          const saved = savedVariantIds.has(row.id);
+                          const applied = appliedVariantId === row.id;
+                          return (
+                            <tr
+                              key={row.id}
+                              className={cn(
+                                "hover:bg-muted",
+                                applied && appTableVariantRowCurrent,
+                              )}
+                            >
+                              <td className="px-3 py-2">
+                                <OfferThumb src={row.imageUrl} />
+                              </td>
+                              <td className="px-3 py-2">
+                                <p className="font-medium text-foreground">
+                                  {row.label}
+                                  {row.isCurrent ?
+                                    <span className="ml-1 text-xs text-primary">
+                                      (current)
+                                    </span>
+                                  : null}
+                                  {applied ?
+                                    <span className="ml-1 text-xs text-primary">
+                                      (applied)
+                                    </span>
+                                  : null}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {[row.color, row.size, row.packLabel]
+                                    .filter(Boolean)
+                                    .join(" · ") || "—"}
+                                </p>
+                                {resolved.variantMethod ?
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {resolved.variantMethod}
+                                  </p>
+                                : null}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2">
+                                {row.priceUsdCents != null &&
+                                row.priceUsdCents > 0
+                                  ? formatUsd(row.priceUsdCents)
+                                  : "—"}
+                              </td>
+                              <td className="px-3 py-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={applied ? "secondary" : "outline"}
+                                  disabled={busy}
+                                  onClick={() => applyVariant(row)}
+                                >
+                                  {applied ? "Applied" : "Apply"}
+                                </Button>
+                              </td>
+                              <td className="px-3 py-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={saved ? "secondary" : "default"}
+                                  disabled={busy || saved}
+                                  onClick={() => saveVariant(row)}
+                                >
+                                  {saved ? "Saved" : "Save"}
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                : <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
+                    SerpApi did not return store variants for this URL. You can
+                    still fill the fields below and add the product.
+                  </p>
+              : resolved.compareOffers.length > 0 ?
+                <div className="overflow-x-auto border-t border-border">
+                  {resolved.compareSearchQuery ?
+                    <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                      Search: “{resolved.compareSearchQuery}”
+                    </p>
+                  : null}
+                  <table className="w-full min-w-[720px] text-left text-sm">
+                    <thead className="bg-muted text-xs text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Retailer</th>
+                        <th className="px-3 py-2 font-medium">Title</th>
+                        <th className="px-3 py-2 font-medium">Price</th>
+                        <th className="px-3 py-2 font-medium">Image</th>
+                        <th className="w-36 px-3 py-2 font-medium">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {resolved.compareOffers.map((offer) => {
+                        const saved = savedRetailerIds.has(offer.id);
+                        return (
+                          <tr key={offer.id} className="hover:bg-muted">
+                            <td className="px-3 py-2">
+                              <p className="font-medium">{offer.retailer}</p>
+                              {offer.isOriginal ?
+                                <span className="text-xs text-primary">Original</span>
+                              : offer.aiVerified && offer.matchConfidence != null ?
+                                <span className="text-xs text-muted-foreground">
+                                  Verified {Math.round(offer.matchConfidence * 100)}%
+                                </span>
+                              : (
+                                <span className="text-xs text-amber-700 dark:text-amber-300">
+                                  Across the web
+                                </span>
+                              )}
+                            </td>
+                            <td className="max-w-[200px] px-3 py-2">
+                              <p className="line-clamp-2 text-foreground">{offer.title}</p>
+                              <a
+                                href={offer.productUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline"
+                              >
+                                Link
+                              </a>
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2">
+                              {offer.priceUsdCents != null && offer.priceUsdCents > 0
+                                ? formatUsd(offer.priceUsdCents)
+                                : "—"}
+                            </td>
+                            <td className="px-3 py-2">
+                              <OfferThumb src={offer.imageUrl} />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={saved ? "secondary" : "default"}
+                                disabled={busy || saved}
+                                onClick={() => saveRetailerOffer(offer)}
+                              >
+                                {saved ? "Saved" : "Save to spotlight"}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              : <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
+                  {resolved.compareMessage ??
+                    "No verified retailer offers for this product."}
+                </p>}
+            </div>
+          </div>
+        : null}
 
         {imageUrl ?
           <div className="flex items-start gap-3 sm:col-span-2">
@@ -288,28 +667,18 @@ export function AdminSpotlightCategoryAddForm({
         </div>
 
         <div className="flex flex-wrap gap-2 sm:col-span-2">
-          <Button type="submit" disabled={busy}>
-            {lookupPending ?
+          <Button type="submit" disabled={busy || !productUrl.trim()}>
+            {pending && !lookupPending ?
               <>
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                Loading SerpApi…
+                Saving…
               </>
             : <>
-                <Search className="size-4" aria-hidden />
+                <Plus className="size-4" aria-hidden />
                 Add product to category
               </>
             }
           </Button>
-          {resolved ?
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={busy || !productUrl.trim() || Boolean(savedParentId)}
-              onClick={() => savePrimary()}
-            >
-              {savedParentId ? "Primary saved" : "Save primary to spotlight"}
-            </Button>
-          : null}
           <Button
             type="button"
             variant="outline"
@@ -322,191 +691,18 @@ export function AdminSpotlightCategoryAddForm({
         </div>
         {savedParentId ?
           <p className="text-xs text-muted-foreground sm:col-span-2">
-            Primary saved — variant rows can be saved under this product.
+            Product saved. Save on another variant adds it as an extra SKU.
+            Apply a row, then Add product to category, only when starting a new
+            listing.
           </p>
-        : resolved && resolved.variants.length > 0 ?
-          <p className="text-xs text-amber-600 dark:text-amber-400 sm:col-span-2">
-            Save the primary product before saving variant rows.
+        : resolved ?
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Save on a variant uses that SKU as the table listing. Apply fills
+            the form; Add product to category saves the form. Switch to
+            Retailer comparison to save other-store offers.
           </p>
         : null}
       </form>
-
-      {resolved && resolved.variants.length > 0 ?
-        <div className="rounded-lg border border-border">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium"
-            onClick={() => setVariantsOpen((v) => !v)}
-          >
-            <ChevronDown
-              className={cn("size-4 transition-transform", variantsOpen && "rotate-180")}
-              aria-hidden
-            />
-            Store variants (SerpApi)
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-              {resolved.variants.length}
-            </span>
-            {resolved.variantMethod ?
-              <span className="text-xs font-normal text-muted-foreground">
-                · {resolved.variantMethod}
-              </span>
-            : null}
-          </button>
-          {variantsOpen ?
-            <div className="overflow-x-auto border-t border-border">
-              <table className="w-full min-w-[640px] text-left text-sm">
-                <thead className="bg-muted text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Variant</th>
-                    <th className="px-3 py-2 font-medium">Price</th>
-                    <th className="px-3 py-2 font-medium">Image</th>
-                    <th className="px-3 py-2 font-medium w-28">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {resolved.variants.map((row) => {
-                    const saved = savedVariantIds.has(row.id);
-                    return (
-                      <tr key={row.id} className="hover:bg-muted">
-                        <td className="px-3 py-2">
-                          <p className="font-medium text-foreground">
-                            {row.label}
-                            {row.isCurrent ?
-                              <span className="ml-1 text-xs text-primary">(current)</span>
-                            : null}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {[row.color, row.size, row.packLabel]
-                              .filter(Boolean)
-                              .join(" · ") || "—"}
-                          </p>
-                        </td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          {row.priceUsdCents != null && row.priceUsdCents > 0
-                            ? formatUsd(row.priceUsdCents)
-                            : "—"}
-                        </td>
-                        <td className="px-3 py-2">
-                          <OfferThumb src={row.imageUrl} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={saved ? "secondary" : "default"}
-                            disabled={busy || saved || !savedParentId}
-                            onClick={() => saveVariant(row)}
-                          >
-                            {saved ? "Saved" : "Save variant"}
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          : null}
-        </div>
-      : null}
-
-      {resolved ?
-        <div className="rounded-lg border border-border">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium"
-            onClick={() => setCompareOpen((v) => !v)}
-          >
-            <ChevronDown
-              className={cn("size-4 transition-transform", compareOpen && "rotate-180")}
-              aria-hidden
-            />
-            <Store className="size-4 text-muted-foreground" aria-hidden />
-            Retailer comparison (SerpApi + AI verify)
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-              {resolved.compareOffers.length}
-            </span>
-            {resolved.compareSearchQuery ?
-              <span className="truncate text-xs font-normal text-muted-foreground">
-                · “{resolved.compareSearchQuery}”
-              </span>
-            : null}
-          </button>
-          {compareOpen ?
-            resolved.compareOffers.length > 0 ?
-              <div className="overflow-x-auto border-t border-border">
-                <table className="w-full min-w-[720px] text-left text-sm">
-                  <thead className="bg-muted text-xs text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Retailer</th>
-                      <th className="px-3 py-2 font-medium">Title</th>
-                      <th className="px-3 py-2 font-medium">Price</th>
-                      <th className="px-3 py-2 font-medium">Image</th>
-                      <th className="px-3 py-2 font-medium w-36">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {resolved.compareOffers.map((offer) => {
-                      const saved = savedRetailerIds.has(offer.id);
-                      return (
-                        <tr key={offer.id} className="hover:bg-muted">
-                          <td className="px-3 py-2">
-                            <p className="font-medium">{offer.retailer}</p>
-                            {offer.isOriginal ?
-                              <span className="text-xs text-primary">Original</span>
-                            : offer.aiVerified && offer.matchConfidence != null ?
-                              <span className="text-xs text-muted-foreground">
-                                Verified {Math.round(offer.matchConfidence * 100)}%
-                              </span>
-                            : (
-                              <span className="text-xs text-amber-700 dark:text-amber-300">
-                                Across the web
-                              </span>
-                            )}
-                          </td>
-                          <td className="max-w-[200px] px-3 py-2">
-                            <p className="line-clamp-2 text-foreground">{offer.title}</p>
-                            <a
-                              href={offer.productUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-primary hover:underline"
-                            >
-                              Link
-                            </a>
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {offer.priceUsdCents != null && offer.priceUsdCents > 0
-                              ? formatUsd(offer.priceUsdCents)
-                              : "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            <OfferThumb src={offer.imageUrl} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={saved ? "secondary" : "default"}
-                              disabled={busy || saved}
-                              onClick={() => saveRetailerOffer(offer)}
-                            >
-                              {saved ? "Saved" : "Save to spotlight"}
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            : <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
-                {resolved.compareMessage ??
-                  "No verified retailer offers for this product."}
-              </p>
-          : null}
-        </div>
-      : null}
     </div>
   );
 }

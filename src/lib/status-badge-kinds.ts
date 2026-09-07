@@ -18,7 +18,8 @@ export type StatusBadgeKind =
   | "outOfStock"
   | "draft"
   | "neutral"
-  | "outsidePurchaseProblemReceipt";
+  | "outsidePurchaseProblemReceipt"
+  | "spotlightRetailerDrift";
 
 const CLASSES: Record<StatusBadgeKind, string> = {
   refundPendingApproval:
@@ -52,6 +53,8 @@ const CLASSES: Record<StatusBadgeKind, string> = {
   neutral: "border-border bg-muted text-muted-foreground",
   outsidePurchaseProblemReceipt:
     "border-amber-600/55 bg-amber-500/20 text-amber-950 dark:border-amber-500/55 dark:bg-amber-500/20 dark:text-amber-50",
+  spotlightRetailerDrift:
+    "border-amber-500/55 bg-amber-500/20 text-amber-950 dark:border-amber-400/55 dark:bg-amber-500/20 dark:text-amber-50",
 };
 
 const BASE =

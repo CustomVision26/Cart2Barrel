@@ -8,11 +8,21 @@ import { adminCreateSpotlightVariantAction } from "@/actions/admin-spotlight-var
 import { resolveAdminSpotlightFromSerpApi } from "@/lib/spotlight/admin-spotlight-serpapi-resolve";
 import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
-import { adminResolveSpotlightProductSchema } from "@/lib/validations/admin-spotlight-resolve";
+import {
+  adminResolveSpotlightProductSchema,
+  adminSaveSpotlightVariantRowsSchema,
+} from "@/lib/validations/admin-spotlight-resolve";
+import {
+  insertSpotlightVariants,
+  nextSpotlightVariantSortIndex,
+} from "@/data/spotlight-product-variants";
+import { getSpotlightProductById } from "@/data/spotlight-category-products";
+import { revalidatePath } from "next/cache";
 import {
   adminCreateSpotlightProductSchema,
   type AdminCreateSpotlightProductInput,
 } from "@/lib/validations/spotlight-category-product";
+import { spotlightVariantFieldsFromInput } from "@/lib/validations/spotlight-product-variant";
 import { z } from "zod";
 
 export type AdminResolveSpotlightProductResult =
@@ -36,6 +46,7 @@ export type AdminResolveSpotlightProductResult =
         productUrl: string | null;
         imageUrl: string | null;
         isCurrent: boolean;
+        productTitle: string | null;
       }>;
       variantMethod: string;
       variantRetailer: string;
@@ -92,6 +103,7 @@ export async function adminResolveSpotlightProductAction(
       productUrl: v.productUrl,
       imageUrl: v.imageUrl,
       isCurrent: v.isCurrent,
+      productTitle: v.productTitle ?? null,
     })),
     variantMethod: result.variantMethod,
     variantRetailer: result.variantRetailer,
@@ -205,4 +217,44 @@ export async function adminSaveSpotlightVariantOfferAction(
   }
 
   return adminCreateSpotlightVariantAction(parsed.data);
+}
+
+/** Save several SerpApi variant rows under an existing spotlight parent. */
+export async function adminSaveSpotlightVariantOffersAction(
+  input: unknown,
+): Promise<AdminSpotlightProductMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminSaveSpotlightVariantRowsSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  const parent = await getSpotlightProductById(parsed.data.parentProductId);
+  if (!parent) {
+    return { ok: false, message: "Parent product not found." };
+  }
+
+  let sortBase = await nextSpotlightVariantSortIndex(parent.id);
+  const rows = parsed.data.variants.map((v) => {
+    const fields = spotlightVariantFieldsFromInput(v);
+    return {
+      ...fields,
+      sortIndex: sortBase++,
+    };
+  });
+
+  const inserted = await insertSpotlightVariants(parent.id, rows);
+  revalidatePath("/");
+  revalidatePath("/admin/spotlight-products");
+  return {
+    ok: true,
+    message: `Saved ${inserted} variant${inserted === 1 ? "" : "s"}.`,
+  };
 }

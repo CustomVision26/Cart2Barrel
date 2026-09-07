@@ -35,6 +35,12 @@ export type AdminSpotlightProductRow = Omit<
   sortIndex: number;
   isActive: boolean;
   createdAt: string;
+  retailerCheckedAt: string | null;
+  retailerCheckError: string | null;
+  retailerDriftFields: string[] | null;
+  retailerLivePriceUsdCents: number | null;
+  retailerLiveProductUrl: string | null;
+  retailerLiveLabel: string | null;
 };
 
 function mapPublicRow(
@@ -115,9 +121,8 @@ export async function listAdminSpotlightProducts(): Promise<AdminSpotlightProduc
     .select()
     .from(spotlightCategoryProducts)
     .orderBy(
-      asc(spotlightCategoryProducts.categorySlug),
-      asc(spotlightCategoryProducts.sortIndex),
       desc(spotlightCategoryProducts.createdAt),
+      desc(spotlightCategoryProducts.id),
     );
 
   const parentUrlById = new Map(rows.map((r) => [r.id, r.productUrl]));
@@ -135,6 +140,12 @@ export async function listAdminSpotlightProducts(): Promise<AdminSpotlightProduc
       sortIndex: row.sortIndex,
       isActive: row.isActive,
       createdAt: row.createdAt,
+      retailerCheckedAt: row.retailerCheckedAt,
+      retailerCheckError: row.retailerCheckError,
+      retailerDriftFields: row.retailerDriftFields,
+      retailerLivePriceUsdCents: row.retailerLivePriceUsdCents,
+      retailerLiveProductUrl: row.retailerLiveProductUrl,
+      retailerLiveLabel: row.retailerLiveLabel,
     };
   });
 }
@@ -263,7 +274,11 @@ export async function updateSpotlightProductDetails(
   const db = getDb();
   await db
     .update(spotlightCategoryProducts)
-    .set(patch)
+    .set({
+      ...patch,
+      retailerDriftFields: null,
+      retailerCheckError: null,
+    })
     .where(eq(spotlightCategoryProducts.id, id));
 }
 

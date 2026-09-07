@@ -4,6 +4,7 @@ import {
   listSpotlightCategoryRecords,
 } from "@/data/spotlight-categories";
 import { listAdminSpotlightProducts } from "@/data/spotlight-category-products";
+import { refreshStaleSpotlightRetailerChecks } from "@/data/spotlight-retailer-check";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
@@ -29,6 +30,11 @@ export default async function AdminSpotlightProductsPage() {
   let categories = defaultSpotlightCategoryRecords();
   if (admin) {
     try {
+      await refreshStaleSpotlightRetailerChecks({ limit: 8 });
+    } catch {
+      /* Listing still loads if a retailer check fails. */
+    }
+    try {
       products = await listAdminSpotlightProducts();
     } catch {
       products = [];
@@ -50,7 +56,8 @@ export default async function AdminSpotlightProductsPage() {
           Add retailer product URLs for each home page carousel category. New
           products start unpublished. Publish a product and its category so
           shoppers see them on Home. Double-click a record to edit details and
-          variants.
+          variants. The table auto-checks live retailer listings and highlights
+          rows when price, URL, or other attributes have changed.
         </p>
       </div>
       {!admin ?
