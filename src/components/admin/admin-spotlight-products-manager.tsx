@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   ImageIcon,
   Pencil,
   Plus,
   RefreshCw,
   Trash2,
-  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -72,7 +72,7 @@ import {
   type SpotlightCategorySlug,
 } from "@/lib/spotlight-categories";
 import { formatUsd } from "@/lib/admin-markup";
-import { displaySiteName, hostnameFromProductUrl } from "@/lib/site-name";
+import { displaySiteName, hostnameFromProductUrl, retailerLabelFromProductUrl } from "@/lib/site-name";
 import { spotlightRetailerDriftSummary } from "@/lib/spotlight/spotlight-retailer-live-check";
 import { cn } from "@/lib/utils";
 
@@ -89,7 +89,9 @@ type SpotlightProductSortKey =
   | "newest"
   | "product"
   | "retailer"
+  | "url"
   | "price"
+  | "variants"
   | "status";
 
 type SpotlightStatusFilter = "all" | "published" | "unpublished" | "drift";
@@ -99,7 +101,15 @@ function spotlightProductTitle(product: AdminSpotlightProductRow): string {
 }
 
 function spotlightProductRetailer(product: AdminSpotlightProductRow): string {
+  return retailerLabelFromProductUrl(product.productUrl);
+}
+
+function spotlightProductRetailerHost(product: AdminSpotlightProductRow): string {
   return hostnameFromProductUrl(product.productUrl) ?? "";
+}
+
+function displaySpotlightProductUrl(url: string): string {
+  return url.replace(/^https?:\/\/(www\.)?/i, "");
 }
 
 function spotlightProductSearchHaystack(product: AdminSpotlightProductRow): string {
@@ -112,6 +122,7 @@ function spotlightProductSearchHaystack(product: AdminSpotlightProductRow): stri
   return [
     spotlightProductTitle(product),
     spotlightProductRetailer(product),
+    spotlightProductRetailerHost(product),
     product.productUrl,
     sizeColor,
     product.isActive ? "published" : "unpublished",
@@ -144,12 +155,16 @@ function compareSpotlightProducts(
         spotlightProductRetailer(b),
         sortDir,
       );
+    case "url":
+      return compareLocale(a.productUrl, b.productUrl, sortDir);
     case "price":
       return compareNum(
         a.priceUsdCents ?? 0,
         b.priceUsdCents ?? 0,
         sortDir,
       );
+    case "variants":
+      return compareNum(a.variants.length, b.variants.length, sortDir);
     case "status": {
       const rank = (product: AdminSpotlightProductRow) => {
         if (hasRetailerDrift(product)) return 2;
@@ -370,8 +385,8 @@ function SpotlightCategoryPanel({
           <div className="min-w-0 space-y-3">
             <p className="text-sm text-muted-foreground">
               Double-click a record to edit. Use Publish on a row to show that
-              product to shoppers. Click column headers to sort, including by
-              retailer.
+              product to shoppers. Each row includes the product URL. Click
+              column headers to sort, including retailer and product URL.
             </p>
             <AdminNestedFindOrganizePanel
               switchId={`spotlight-${category.slug}-find`}
@@ -450,14 +465,7 @@ function SpotlightCategoryPanel({
               </Field>
             </div>
             <div className="min-w-0 overflow-x-auto rounded-lg border border-border">
-              <table className="w-full table-fixed text-left text-sm">
-                <colgroup>
-                  <col />
-                  <col className="w-[8.5rem]" />
-                  <col className="w-[5.75rem]" />
-                  <col className="w-[7.25rem]" />
-                  <col className="w-[13.75rem]" />
-                </colgroup>
+              <table className="w-max min-w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/80 text-[11px] uppercase tracking-wide text-muted-foreground">
                     <SortableThCompact
@@ -466,6 +474,7 @@ function SpotlightCategoryPanel({
                       active={sortKey === "product"}
                       dir={sortDir}
                       onSort={() => cycleSort("product")}
+                      className="min-w-[16rem] whitespace-nowrap"
                     />
                     <SortableThCompact
                       label="Retailer"
@@ -473,6 +482,15 @@ function SpotlightCategoryPanel({
                       active={sortKey === "retailer"}
                       dir={sortDir}
                       onSort={() => cycleSort("retailer")}
+                      className="min-w-[8.5rem] whitespace-nowrap"
+                    />
+                    <SortableThCompact
+                      label="Product URL"
+                      columnId={`spotlight-${category.slug}-url`}
+                      active={sortKey === "url"}
+                      dir={sortDir}
+                      onSort={() => cycleSort("url")}
+                      className="min-w-[12rem] whitespace-nowrap"
                     />
                     <SortableThCompact
                       label="Price"
@@ -481,6 +499,16 @@ function SpotlightCategoryPanel({
                       dir={sortDir}
                       onSort={() => cycleSort("price")}
                       numeric
+                      className="min-w-[5.5rem] whitespace-nowrap"
+                    />
+                    <SortableThCompact
+                      label="Variants"
+                      columnId={`spotlight-${category.slug}-variants`}
+                      active={sortKey === "variants"}
+                      dir={sortDir}
+                      onSort={() => cycleSort("variants")}
+                      numeric
+                      className="min-w-[5.5rem] whitespace-nowrap"
                     />
                     <SortableThCompact
                       label="Status"
@@ -488,15 +516,18 @@ function SpotlightCategoryPanel({
                       active={sortKey === "status"}
                       dir={sortDir}
                       onSort={() => cycleSort("status")}
+                      className="min-w-[8rem] whitespace-nowrap"
                     />
-                    <th className="px-3 py-2 text-right font-medium">Publish</th>
+                    <th className="min-w-[13.75rem] whitespace-nowrap px-3 py-2 text-right font-medium">
+                      Publish
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {pageSlice.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={7}
                         className="px-3 py-8 text-center text-sm text-muted-foreground"
                       >
                         No products match the current search or filters.
@@ -506,6 +537,7 @@ function SpotlightCategoryPanel({
                   {pageSlice.map((product) => {
                     const title = spotlightProductTitle(product);
                     const retailer = spotlightProductRetailer(product);
+                    const retailerHost = spotlightProductRetailerHost(product);
                     const extraOptionLabels = [
                       ...new Set(
                         product.variants
@@ -529,16 +561,7 @@ function SpotlightCategoryPanel({
                     ]
                       .filter(Boolean)
                       .join(" · ");
-                    const meta = [
-                      sizeColor,
-                      product.variants.length > 0
-                        ? `${product.variants.length} variant${
-                            product.variants.length === 1 ? "" : "s"
-                          }`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ");
+                    const savedVariantCount = product.variants.length;
                     const drift = hasRetailerDrift(product);
                     const driftTitle =
                       spotlightRetailerDriftSummary(product.retailerDriftFields) ??
@@ -553,12 +576,11 @@ function SpotlightCategoryPanel({
                         }
                         className={cn(
                           "cursor-pointer bg-card hover:bg-muted/40",
-                          drift &&
-                            "bg-amber-500/15 ring-1 ring-inset ring-amber-500/40 hover:bg-amber-500/25",
+                          drift && "bg-amber-500/15 hover:bg-amber-500/25",
                         )}
                         onDoubleClick={() => onEditProduct(product)}
                       >
-                        <td className="px-3 py-2">
+                        <td className="min-w-[16rem] max-w-[22rem] overflow-hidden px-3 py-2">
                           <div className="flex min-w-0 items-center gap-2.5">
                             <div className="relative size-9 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted">
                               {product.imageUrl ?
@@ -579,25 +601,65 @@ function SpotlightCategoryPanel({
                               >
                                 {title}
                               </p>
-                              {drift ?
-                                <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-amber-800 dark:text-amber-200">
-                                  <TriangleAlert className="size-3 shrink-0" aria-hidden />
-                                  Check retailer listing
-                                </p>
-                              : null}
-                              {meta ?
+                              {sizeColor ?
                                 <p className="truncate text-xs text-muted-foreground">
-                                  {meta}
+                                  {sizeColor}
                                 </p>
                               : null}
                             </div>
                           </div>
                         </td>
                         <td
-                          className="truncate px-3 py-2 text-xs text-muted-foreground"
-                          title={retailer || undefined}
+                          className="min-w-[8.5rem] overflow-hidden px-3 py-2"
+                          title={
+                            retailerHost &&
+                            retailerHost !== retailer.toLowerCase()
+                              ? `${retailer} (${retailerHost})`
+                              : retailer || undefined
+                          }
                         >
-                          {retailer || "—"}
+                          {retailer ? (
+                            <>
+                              <p className="truncate font-medium text-foreground">
+                                {retailer}
+                              </p>
+                              {retailerHost &&
+                              retailerHost.toLowerCase() !==
+                                retailer.toLowerCase() ?
+                                <p className="truncate text-[11px] text-muted-foreground">
+                                  {retailerHost}
+                                </p>
+                              : null}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td
+                          className="min-w-[12rem] max-w-[16rem] overflow-hidden px-3 py-2"
+                          onClick={(e) => e.stopPropagation()}
+                          onDoubleClick={(e) => e.stopPropagation()}
+                        >
+                          {product.productUrl.trim() ? (
+                            <a
+                              href={product.productUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
+                              title={product.productUrl}
+                            >
+                              <span className="min-w-0 truncate">
+                                {displaySpotlightProductUrl(product.productUrl)}
+                              </span>
+                              <ExternalLink
+                                className="size-3 shrink-0"
+                                aria-hidden
+                              />
+                              <span className="sr-only">Opens in a new tab</span>
+                            </a>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 tabular-nums text-foreground">
                           {product.priceUsdCents != null && product.priceUsdCents > 0
@@ -612,7 +674,18 @@ function SpotlightCategoryPanel({
                             </span>
                           : null}
                         </td>
-                        <td className="px-3 py-2">
+                        <td
+                          className="whitespace-nowrap px-3 py-2"
+                          title={`${savedVariantCount} saved variant${savedVariantCount === 1 ? "" : "s"}`}
+                        >
+                          <p className="tabular-nums font-medium text-foreground">
+                            {savedVariantCount}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {savedVariantCount === 1 ? "variant" : "variants"}
+                          </p>
+                        </td>
+                        <td className="min-w-[8rem] px-3 py-2">
                           <div className="flex flex-col items-start gap-1">
                             <StatusBadge
                               kind={product.isActive ? "fullyReceived" : "draft"}

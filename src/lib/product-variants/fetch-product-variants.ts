@@ -1,12 +1,15 @@
 import { extractProductVariantsWithOpenAI } from "@/lib/ai/extract-product-variants-openai";
 import { fetchPageHtmlForAi } from "@/lib/ai/fetch-page-for-ai";
 import {
+  amazonProductUrl,
+  amazonStoreBrandFromUrl,
   parseProductUrl,
   type ParsedProductUrl,
 } from "@/lib/product-url/retailer-id";
 import {
   fetchAmazonProductSummary,
   fetchAmazonVariants,
+  resolveAmazonAsinForLookup,
 } from "@/lib/serpapi/amazon-product";
 import { fetchImmersiveProductVariants } from "@/lib/serpapi/google-immersive-product";
 import { findShoppingImmersiveToken } from "@/lib/serpapi/google-shopping";
@@ -40,6 +43,18 @@ const MAX_VARIANTS = 32;
 
 function capVariants(rows: ProductVariantOffer[]): ProductVariantOffer[] {
   return rows.slice(0, MAX_VARIANTS);
+}
+
+function amazonVariantsNeedEnrichment(rows: ProductVariantOffer[]): boolean {
+  if (rows.length < 2) return true;
+  const onlyPlaceholder = rows.every(
+    (row) =>
+      !row.color &&
+      !row.size &&
+      !row.packLabel &&
+      (row.label === "Current listing" || row.label === "Default"),
+  );
+  return onlyPlaceholder;
 }
 
 /** SerpApi swatch rows are usable without a slow page scrape + OpenAI pass. */
@@ -316,21 +331,34 @@ export async function fetchProductVariants(input: {
   productSize?: string;
   productColor?: string;
 }): Promise<FetchProductVariantsResult> {
-  const productUrl = input.productUrl.trim();
-  const parsed = parseProductUrl(productUrl);
+  let productUrl = input.productUrl.trim();
+  let parsed = parseProductUrl(productUrl);
   if (!parsed) {
     return { ok: false, message: "Enter a valid https product URL." };
   }
 
+  const hasSerp = Boolean(getSerpApiKey());
+  if (parsed.kind === "amazon" && !parsed.amazonAsin && hasSerp) {
+    const resolvedAsin = await resolveAmazonAsinForLookup({
+      productUrl,
+      amazonDomain: parsed.amazonDomain,
+      productName: input.productName,
+    });
+    if (resolvedAsin) {
+      productUrl = amazonProductUrl(resolvedAsin, parsed.amazonDomain);
+      parsed = parseProductUrl(productUrl) ?? parsed;
+    }
+  }
+
   const retailer = displaySiteName(null, productUrl);
+  const storeBrand = amazonStoreBrandFromUrl(input.productUrl);
   const searchQuery = buildVariantSearchQuery({
     productUrl,
-    productName: input.productName,
+    productName: input.productName || storeBrand || undefined,
     productSize: input.productSize,
     productColor: input.productColor,
   });
 
-  const hasSerp = Boolean(getSerpApiKey());
   const walmartId = parsed.walmartProductId;
   const asin = parsed.amazonAsin;
 
@@ -365,6 +393,8 @@ export async function fetchProductVariants(input: {
       (method.includes("walmart_product") || method.includes("amazon_product"));
 
     const directListing = isDirectListingRetailer(parsed);
+    const amazonNeedsMore =
+      parsed.kind === "amazon" && amazonVariantsNeedEnrichment(variants);
 
     if (
       hasSerp &&
@@ -385,10 +415,9 @@ export async function fetchProductVariants(input: {
 
     if (
       hasSerp &&
-      variants.length < 2 &&
       searchQuery.length >= 4 &&
-      !serpListingResolved &&
-      !directListing
+      (amazonNeedsMore ||
+        (variants.length < 2 && !serpListingResolved && !directListing))
     ) {
       const immersiveRows = await tryImmersiveVariantFallback(
         parsed,
@@ -405,15 +434,19 @@ export async function fetchProductVariants(input: {
     }
 
     const needsPageAi =
-      variants.length < 2 &&
+      (variants.length < 2 || amazonNeedsMore) &&
       (parsed.kind === "generic" ||
         parsed.kind === "target" ||
         parsed.kind === "ebay" ||
+        parsed.kind === "amazon" ||
         parsed.hostname.includes("temu.") ||
         parsed.hostname.includes("shein."));
 
     const skipPageAi =
-      serpListingResolved && variants.length >= 1 && serpRowsLookComplete(variants);
+      serpListingResolved &&
+      parsed.kind !== "amazon" &&
+      variants.length >= 1 &&
+      serpRowsLookComplete(variants);
 
     if (needsPageAi && !skipPageAi) {
       try {
@@ -439,10 +472,12 @@ export async function fetchProductVariants(input: {
     }
 
     if (variants.length === 0) {
+      const storePage = amazonStoreBrandFromUrl(input.productUrl);
       return {
         ok: false,
-        message:
-          "No variants found for this listing. Try Fill details with AI, or paste a Walmart or Amazon product link for the most complete variant list.",
+        message: storePage
+          ? `Amazon store pages do not include product variants. Paste a product URL that contains /dp/ (for example https://www.amazon.com/dp/B0…). Lookup tried Amazon search for “${storePage}” but did not get a variant list.`
+          : "No variants found for this listing. Paste a Walmart /ip/ or Amazon /dp/ product link for the most complete variant list.",
       };
     }
 

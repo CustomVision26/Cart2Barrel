@@ -1,8 +1,11 @@
 import { compareRetailerPrices, type RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { fetchProductVariants } from "@/lib/product-variants/fetch-product-variants";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
-import { parseProductUrl } from "@/lib/product-url/retailer-id";
-import { fetchAmazonProductSummary } from "@/lib/serpapi/amazon-product";
+import { amazonProductUrl, parseProductUrl } from "@/lib/product-url/retailer-id";
+import {
+  fetchAmazonProductSummary,
+  resolveAmazonAsinForLookup,
+} from "@/lib/serpapi/amazon-product";
 import { getSerpApiKey, serpApiNotConfiguredMessage } from "@/lib/serpapi/env";
 import { fetchWalmartProductSummary } from "@/lib/serpapi/walmart-product";
 import { hostnameFromProductUrl } from "@/lib/site-name";
@@ -61,6 +64,17 @@ export async function resolveAdminSpotlightFromSerpApi(
   let productSize: string | null = null;
   let productColor: string | null = null;
   let resolvedUrl = url;
+  let amazonAsin = parsed.amazonAsin;
+
+  if (parsed.kind === "amazon" && !amazonAsin && getSerpApiKey()) {
+    amazonAsin = await resolveAmazonAsinForLookup({
+      productUrl: url,
+      amazonDomain: parsed.amazonDomain,
+    });
+    if (amazonAsin) {
+      resolvedUrl = amazonProductUrl(amazonAsin, parsed.amazonDomain);
+    }
+  }
 
   try {
     if (parsed.kind === "walmart" && parsed.walmartProductId) {
@@ -69,9 +83,9 @@ export async function resolveAdminSpotlightFromSerpApi(
       priceUsdCents = summary.priceUsdCents;
       imageUrl = summary.imageUrl;
       if (summary.productUrl) resolvedUrl = summary.productUrl;
-    } else if (parsed.kind === "amazon" && parsed.amazonAsin) {
+    } else if (parsed.kind === "amazon" && amazonAsin) {
       const summary = await fetchAmazonProductSummary(
-        parsed.amazonAsin,
+        amazonAsin,
         parsed.amazonDomain,
       );
       productName = summary.title ?? "";

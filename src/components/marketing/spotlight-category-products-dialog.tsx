@@ -38,16 +38,16 @@ export function SpotlightCategoryProductsDialog({
           "sm:max-w-none",
         )}
       >
-        <DialogHeader className="shrink-0 border-b border-border px-6 py-5 sm:px-8">
-          <DialogTitle className="text-xl sm:text-2xl">{category.title}</DialogTitle>
-          <DialogDescription className="text-pretty text-sm sm:text-base">
+        <DialogHeader className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
+          <DialogTitle className="text-lg sm:text-xl">{category.title}</DialogTitle>
+          <DialogDescription className="text-pretty text-sm">
             {products.length > 0 ?
               "Pick color and size for each product—view on the store or start a request for the selected variant."
             : "No curated products in this category yet. Check back soon or request any item from your dashboard."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 sm:px-8 sm:py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
           <SpotlightCategoryOffersPanel
             category={category}
             products={products}

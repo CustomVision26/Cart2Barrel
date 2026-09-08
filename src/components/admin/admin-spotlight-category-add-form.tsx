@@ -531,8 +531,10 @@ export function AdminSpotlightCategoryAddForm({
                     </table>
                   </div>
                 : <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
-                    SerpApi did not return store variants for this URL. You can
-                    still fill the fields below and add the product.
+                    SerpApi did not return store variants for this URL. Use a
+                    product page with Amazon /dp/ or Walmart /ip/ in the path—not
+                    a brand store page. You can still fill the fields below and
+                    add the product.
                   </p>
               : resolved.compareOffers.length > 0 ?
                 <div className="overflow-x-auto border-t border-border">

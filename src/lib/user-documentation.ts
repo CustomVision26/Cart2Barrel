@@ -55,6 +55,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Hero section and spotlight carousel highlight US retailer products.",
         "Spotlight carousel cards stay compact. Double-click a product with color or size options to open the swatch and size picker; View and Request follow the selected variant.",
+        "Category catalogs use compact cards (two per row on larger screens) with Previous / Next when there are more than six products. Open Retailers and pick a store tab to show that retailer's listings.",
         "Guests see Sign in / Sign up; signed-in users see Dashboard. Sign up collects first name, last name, email, password, and confirm password on a glass card over Home. Back to home, clicking outside the card, or Escape returns to Home.",
         "Get an estimate (next to the hero badge) opens the AI-assisted item request at /dashboard/items/requested-items/ai-assisted-request. Sign in is required if you are not already signed in.",
         "In-hub products can be added to cart from Home; US delivery uses a saved United States address. Multiple in-hub SKUs to the same address ship as one warehouse package with a single Shippo rate.",
@@ -79,7 +80,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "For signed-in customers, Home acts as a bridge between marketing content and the dashboard. Depending on your onboarding status, you may be routed to complete contact details—or you can skip onboarding to explore first.",
       ],
       walkthrough: [
-        "Browse featured spotlight products. Cards show photo, price, View, and Request. Double-click a product that has colors or sizes to open a larger dialog with swatches and size pills—the photo, price, View link, and Request follow the selected variant. Use View all N when there are many colors. In the category dialog, open Retailers and pick a store tab to show that retailer's product cards.",
+        "Browse featured spotlight products. Cards show photo, price, View, and Request. Double-click a product that has colors or sizes to open a larger dialog with swatches and size pills—the photo, price, View link, and Request follow the selected variant. Use View all N when there are many colors. In a category catalog, cards stay compact (two per row on larger screens). Use Previous / Next when there are more than six products. Open Retailers and pick a store tab to show that retailer's listings.",
         "Scroll to In-hub products to add warehouse stock to your cart. For US delivery, the item uses your default saved United States address. Shipping is one warehouse-package rate from Shippo for all in-hub items going to that address. Overseas packing does not require a US address and has no carrier shipping charge.",
         "Use the header: How it works (public guide), Sign in, Sign up (first name, last name, email, password, and confirm password on a glass card over Home; Back to home, click outside, or Escape returns to Home), or Dashboard (when signed in).",
         "If you are a new signed-in user who has not completed or skipped onboarding, visiting Home redirects you to the onboarding page.",

@@ -520,9 +520,9 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Marketing carousel products on the public home page.",
       location: "Sidebar → Spotlight.",
       bullets: [
-        "Search, filter by retailer or publish status, and paginate the catalog table. Click headers to sort, including Retailer. Newest first until you click a header. Double-click a row to edit.",
+        "Search, filter by retailer or publish status, and paginate the catalog table. Each row shows the retailer name (Amazon, Walmart, Temu), product URL, and how many variants are saved. Click headers to sort, including Retailer, Product URL, and Variants. Newest first until you click a header. Double-click a row to edit.",
         "Opening the page auto-checks stale retailer listings (price, URL, name, image). Changed rows highlight in amber with Check retailer.",
-        "Paste a product URL and Run SerpApi lookup. Results use two tabs under the URL: Store variants and Retailer comparison.",
+        "Paste a product URL and Run SerpApi lookup. Use an Amazon /dp/ASIN or Walmart /ip/ product page—not a brand store page. Results use two tabs under the URL: Store variants and Retailer comparison.",
         "Apply fills the form. Save on a variant stores that SKU as the listing if nothing is saved yet; later Saves add extra SKUs. Save all variants keeps the applied row as the listing.",
         "Publish / Unpublish each product so shoppers can see it.",
         "Publish / Unpublish the category so the group appears on Home.",
@@ -539,8 +539,8 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open Spotlight from the Catalog & team section.",
         "Add a category with New category, or select an existing tab.",
-        "Find products with Search, filter by Status or Retailer, and click column headers (including Retailer) to sort. Use Rows per page and Previous / Next to paginate.",
-        "Add products: paste a retailer URL and Run SerpApi lookup. Store variants and Retailer comparison are tabs under the URL. Apply fills the form. Save on a variant uses that SKU as the table listing when the product is not saved yet; further Saves add extra SKUs under it. Add product to category saves the current form.",
+        "Find products with Search, filter by Status or Retailer, and click column headers (including Retailer, Product URL, and Variants) to sort. The Product URL column opens the saved retailer listing. Variants is the count of extra SKUs saved under that listing. Use Rows per page and Previous / Next to paginate.",
+        "Add products: paste a retailer product URL (Amazon /dp/ASIN or Walmart /ip/, not a /stores/ brand page) and Run SerpApi lookup. Store variants and Retailer comparison are tabs under the URL. Apply fills the form. Save on a variant uses that SKU as the table listing when the product is not saved yet; further Saves add extra SKUs under it. Add product to category saves the current form.",
         "Double-click a record to edit price, size, color, image, and variants. Shoppers see one compact card per product; double-clicking a card with options opens color swatches and size pills.",
         "Amber Check retailer rows mean the live listing no longer matches (price, URL, name, image, or availability). Review with the retailer, then save the edit to clear the warning until the next automatic check (stale listings older than six hours, when you open this page).",
         "Publish a product to make it available to shoppers, then Publish category so the group appears on Home.",

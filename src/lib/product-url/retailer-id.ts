@@ -15,8 +15,9 @@ export type ParsedProductUrl = {
   amazonDomain: string;
 };
 
-const AMAZON_ASIN_PATH = /\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})(?:[/?]|$)/i;
-const AMAZON_ASIN_QUERY = /[?&]asin=([A-Z0-9]{10})/i;
+const AMAZON_ASIN_PATH =
+  /\/(?:dp|gp\/product|gp\/aw\/d|gp\/offer-listing)\/([A-Z0-9]{10})(?:[/?]|$)/i;
+const AMAZON_ASIN_QUERY = /[?&](?:asin|ASIN)=([A-Z0-9]{10})(?:&|$)/i;
 
 export function parseProductUrl(productUrl: string): ParsedProductUrl | null {
   let url: URL;
@@ -99,8 +100,37 @@ function parseWalmartProductId(url: URL): string | null {
 function parseAmazonAsin(url: URL): string | null {
   const fromPath = url.pathname.match(AMAZON_ASIN_PATH)?.[1];
   if (fromPath) return fromPath.toUpperCase();
-  const fromQuery = url.search.match(AMAZON_ASIN_QUERY)?.[1];
-  return fromQuery ? fromQuery.toUpperCase() : null;
+  const fromQuery = `${url.search}${url.hash}`.match(AMAZON_ASIN_QUERY)?.[1];
+  if (fromQuery) return fromQuery.toUpperCase();
+  return null;
+}
+
+/** Brand slug from amazon.com/stores/BrandName/... pages (not a product ASIN). */
+export function amazonStoreBrandFromUrl(productUrl: string): string | null {
+  try {
+    const path = new URL(productUrl.trim()).pathname;
+    const match = path.match(/\/stores\/([^/]+)/i);
+    if (!match?.[1]) return null;
+    const brand = decodeURIComponent(match[1]).replace(/[-_]+/g, " ").trim();
+    return brand.length >= 2 ? brand : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isAmazonStoreOrBrowseUrl(productUrl: string): boolean {
+  try {
+    const url = new URL(productUrl.trim());
+    const path = url.pathname.toLowerCase();
+    return (
+      path.startsWith("/stores") ||
+      path === "/s" ||
+      path.startsWith("/s/") ||
+      path.startsWith("/shop/")
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function amazonProductUrl(asin: string, amazonDomain: string): string {

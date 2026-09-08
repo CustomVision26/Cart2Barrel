@@ -2,23 +2,29 @@ import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { buildVariantLabel, priceUsdToCents } from "@/lib/product-variants/labels";
 import {
   amazonProductUrl,
+  amazonStoreBrandFromUrl,
+  parseProductUrl,
   type ParsedProductUrl,
 } from "@/lib/product-url/retailer-id";
 import { serpApiGet } from "@/lib/serpapi/http";
 
 /** Cap SerpApi calls during admin spotlight import (full matrix still available in item request flow). */
-const MAX_ASIN_FETCHES = 12;
+const MAX_ASIN_FETCHES = 24;
 const ASIN_CONCURRENCY = 8;
 
 type AmazonVariantItem = {
   asin?: string;
   name?: string;
+  title?: string;
   selected?: boolean;
 };
 
 type AmazonVariantGroup = {
   title?: string;
   items?: AmazonVariantItem[];
+  asin?: string;
+  name?: string;
+  selected?: boolean;
 };
 
 type AmazonProductResponse = {
@@ -112,6 +118,29 @@ async function mapPool<T, R>(
   return out;
 }
 
+function variantItemName(item: AmazonVariantItem): string | null {
+  return item.name?.trim() || item.title?.trim() || null;
+}
+
+function pushAsinRow(
+  rows: Array<{ asin: string; name: string; groupTitle: string; selected: boolean }>,
+  seen: Set<string>,
+  item: AmazonVariantItem,
+  groupTitle: string,
+  primaryAsin: string,
+) {
+  const asin = item.asin?.trim().toUpperCase();
+  const name = variantItemName(item);
+  if (!asin || !name || seen.has(asin)) return;
+  seen.add(asin);
+  rows.push({
+    asin,
+    name,
+    groupTitle,
+    selected: Boolean(item.selected) || asin === primaryAsin,
+  });
+}
+
 function collectAmazonAsinRows(
   groups: AmazonVariantGroup[] | undefined,
   primaryAsin: string,
@@ -126,18 +155,13 @@ function collectAmazonAsinRows(
 
   for (const group of groups ?? []) {
     const groupTitle = group.title?.trim() || "Option";
-    for (const item of group.items ?? []) {
-      const asin = item.asin?.trim().toUpperCase();
-      const name = item.name?.trim();
-      if (!asin || !name || seen.has(asin)) continue;
-      seen.add(asin);
-      rows.push({
-        asin,
-        name,
-        groupTitle,
-        selected: Boolean(item.selected) || asin === primaryAsin,
-      });
+    if (group.items && group.items.length > 0) {
+      for (const item of group.items) {
+        pushAsinRow(rows, seen, item, groupTitle, primaryAsin);
+      }
+      continue;
     }
+    pushAsinRow(rows, seen, group, groupTitle, primaryAsin);
   }
 
   if (rows.length === 0 && primaryAsin) {
@@ -150,6 +174,54 @@ function collectAmazonAsinRows(
   }
 
   return rows.slice(0, MAX_ASIN_FETCHES);
+}
+
+type AmazonSearchResponse = {
+  organic_results?: Array<{
+    asin?: string;
+    title?: string;
+    link?: string;
+  }>;
+};
+
+export async function searchAmazonFirstAsin(
+  query: string,
+  amazonDomain: string,
+): Promise<string | null> {
+  const q = query.trim();
+  if (q.length < 2) return null;
+
+  const data = await serpApiGet<AmazonSearchResponse>({
+    engine: "amazon",
+    k: q,
+    amazon_domain: amazonDomain,
+  });
+
+  const hit = (data.organic_results ?? []).find((row) => {
+    const asin = row.asin?.trim().toUpperCase();
+    return Boolean(asin && /^[A-Z0-9]{10}$/.test(asin));
+  });
+  return hit?.asin?.trim().toUpperCase() ?? null;
+}
+
+/** Resolve a product ASIN from a /dp/ URL or an Amazon store/brand page via search. */
+export async function resolveAmazonAsinForLookup(input: {
+  productUrl: string;
+  amazonDomain: string;
+  productName?: string | null;
+}): Promise<string | null> {
+  const parsedAsin = parseProductUrl(input.productUrl)?.amazonAsin;
+  if (parsedAsin) return parsedAsin;
+
+  const brand = amazonStoreBrandFromUrl(input.productUrl);
+  const query = [input.productName?.trim(), brand].filter(Boolean).join(" ");
+  if (query.length < 2) return null;
+
+  try {
+    return await searchAmazonFirstAsin(query, input.amazonDomain);
+  } catch {
+    return null;
+  }
 }
 
 export type AmazonVariantsResult = {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -175,19 +176,13 @@ function ProductOfferSection({
 }) {
   const [offer] = buildOffersForProduct(product, isSignedIn);
   if (!offer) return null;
-  const skuCount = Math.max(1, product.variants?.length ?? 0);
   const extraGalleryCount = Math.max(0, (offer.galleryImages ?? []).length - 1);
 
   return (
     <li>
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 px-0.5">
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-          {skuCount} {skuCount === 1 ? "option" : "options"}
-        </span>
-      </div>
       <SpotlightVariantShop
         key={`${product.id}:${offer.variantSkus.map((sku) => sku.id).join("\0")}`}
-        layout="detail"
+        layout="catalog"
         title={offer.title}
         retailerName={offer.retailerName}
         fallbackImageUrl={offer.imageUrl}
@@ -214,6 +209,8 @@ type SpotlightCategoryOffersPanelProps = {
   isSignedIn: boolean;
 };
 
+const CATALOG_PAGE_SIZE = 6;
+
 export function SpotlightCategoryOffersPanel({
   category,
   products,
@@ -221,6 +218,7 @@ export function SpotlightCategoryOffersPanel({
 }: SpotlightCategoryOffersPanelProps) {
   const [viewer, setViewer] = useState<ImageViewerState | null>(null);
   const [selectedRetailer, setSelectedRetailer] = useState(SPOTLIGHT_RETAILER_ALL);
+  const [page, setPage] = useState(1);
   const visibleProducts = useMemo(
     () => filterProductsByRetailer(products, selectedRetailer),
     [products, selectedRetailer],
@@ -237,11 +235,31 @@ export function SpotlightCategoryOffersPanel({
   }, [category.slug]);
 
   useEffect(() => {
+    setPage(1);
+  }, [category.slug, selectedRetailer]);
+
+  useEffect(() => {
     if (selectedRetailer === SPOTLIGHT_RETAILER_ALL) return;
     if (!uniqueSpotlightRetailers(products).includes(selectedRetailer)) {
       setSelectedRetailer(SPOTLIGHT_RETAILER_ALL);
     }
   }, [products, selectedRetailer]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(visibleProducts.length / CATALOG_PAGE_SIZE),
+  );
+  const pageSafe = Math.min(Math.max(1, page), totalPages);
+  const sliceStart = (pageSafe - 1) * CATALOG_PAGE_SIZE;
+  const pageSlice = visibleProducts.slice(
+    sliceStart,
+    sliceStart + CATALOG_PAGE_SIZE,
+  );
+  const showFrom = visibleProducts.length === 0 ? 0 : sliceStart + 1;
+  const showTo = Math.min(
+    sliceStart + CATALOG_PAGE_SIZE,
+    visibleProducts.length,
+  );
 
   if (products.length === 0) {
     return (
@@ -261,7 +279,7 @@ export function SpotlightCategoryOffersPanel({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <SpotlightCategoryRetailerMenu
         categorySlug={category.slug}
         products={products}
@@ -272,27 +290,61 @@ export function SpotlightCategoryOffersPanel({
         <p className="text-sm text-muted-foreground">
           No curated products from this retailer in {category.title} yet.
         </p>
-      : <ul className="space-y-6">
-          {visibleProducts.map((product) => (
-            <ProductOfferSection
-              key={product.id}
-              product={product}
-              isSignedIn={isSignedIn}
-              onOpenGallery={(offer) =>
-                setViewer({
-                  title: offer.title,
-                  retailerName: offer.retailerName,
-                  images: offer.galleryImages ?? [],
-                  startIndex: galleryStartIndex(
-                    offer.galleryImages ?? [],
-                    offer.imageUrl,
-                    offer.id,
-                  ),
-                })
-              }
-            />
-          ))}
-        </ul>
+      : <>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {pageSlice.map((product) => (
+              <ProductOfferSection
+                key={product.id}
+                product={product}
+                isSignedIn={isSignedIn}
+                onOpenGallery={(offer) =>
+                  setViewer({
+                    title: offer.title,
+                    retailerName: offer.retailerName,
+                    images: offer.galleryImages ?? [],
+                    startIndex: galleryStartIndex(
+                      offer.galleryImages ?? [],
+                      offer.imageUrl,
+                      offer.id,
+                    ),
+                  })
+                }
+              />
+            ))}
+          </ul>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs tabular-nums text-muted-foreground">
+              Showing {showFrom}–{showTo} of {visibleProducts.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pageSafe <= 1}
+                onClick={() => setPage(Math.max(1, pageSafe - 1))}
+                aria-label="Previous products"
+              >
+                <ChevronLeft className="size-4" />
+                Previous
+              </Button>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                Page {pageSafe} of {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pageSafe >= totalPages}
+                onClick={() => setPage(Math.min(totalPages, pageSafe + 1))}
+                aria-label="Next products"
+              >
+                Next
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        </>
       }
 
       {!isSignedIn ?

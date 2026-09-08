@@ -28,7 +28,7 @@ type SpotlightVariantShopProps = {
   fallbackAttributes: string | null;
   skus: SpotlightVariantSku[];
   badge?: string;
-  layout: "card" | "detail" | "dialog";
+  layout: "card" | "detail" | "dialog" | "catalog";
   extraGalleryCount?: number;
   onImageDoubleClick?: () => void;
   onCardDoubleClick?: () => void;
@@ -124,10 +124,13 @@ export function SpotlightVariantShop({
     }
   }
 
+  const isCatalog = layout === "catalog";
   const isDetail = layout === "detail" || layout === "dialog";
-  const imageClass = isDetail
-    ? "relative aspect-square w-full overflow-hidden rounded-lg bg-muted sm:aspect-[4/5]"
-    : "relative aspect-square w-full max-h-32 shrink-0 overflow-hidden bg-muted sm:max-h-40";
+  const imageClass = isCatalog
+    ? "relative size-24 shrink-0 overflow-hidden rounded-md bg-muted sm:size-28"
+    : isDetail
+      ? "relative aspect-square w-full overflow-hidden rounded-lg bg-muted sm:aspect-[4/5]"
+      : "relative aspect-square w-full max-h-32 shrink-0 overflow-hidden bg-muted sm:max-h-40";
 
   const image = (
     <>
@@ -185,7 +188,7 @@ export function SpotlightVariantShop({
 
   const picker = showPicker && (
       <div
-        className="space-y-2.5"
+        className={cn("space-y-2.5", isCatalog && "space-y-1.5")}
         onPointerDown={(event) => event.stopPropagation()}
       >
         {axes.colors.length > 0 ?
@@ -218,13 +221,17 @@ export function SpotlightVariantShop({
                     key={color.key}
                     type="button"
                     onClick={() => selectColor(color.key)}
-                    className="w-11 space-y-0.5 text-center"
+                    className={cn(
+                      "space-y-0.5 text-center",
+                      isCatalog ? "w-9" : "w-11",
+                    )}
                     aria-pressed={selected}
                     aria-label={`${color.label}${inStock ? "" : " (unavailable)"}`}
                   >
                     <span
                       className={cn(
-                        "relative mx-auto flex size-9 overflow-hidden rounded-full border bg-muted",
+                        "relative mx-auto flex overflow-hidden rounded-full border bg-muted",
+                        isCatalog ? "size-7" : "size-9",
                         selected
                           ? "border-2 border-foreground ring-2 ring-foreground/20"
                           : "border-border",
@@ -395,13 +402,22 @@ export function SpotlightVariantShop({
       <h3
         className={cn(
           "font-semibold leading-snug text-foreground",
-          isDetail ? "text-base sm:text-lg" : "line-clamp-2 text-xs",
+          isDetail
+            ? "text-base sm:text-lg"
+            : isCatalog
+              ? "line-clamp-2 text-sm"
+              : "line-clamp-2 text-xs",
         )}
       >
         {title}
       </h3>
       {priceUsdCents != null && priceUsdCents > 0 ?
-        <p className={cn("font-bold text-primary", isDetail ? "text-lg" : "text-sm")}>
+        <p
+          className={cn(
+            "font-bold text-primary",
+            isDetail ? "text-lg" : isCatalog ? "text-base" : "text-sm",
+          )}
+        >
           {formatUsd(priceUsdCents)}
         </p>
       : null}
@@ -422,6 +438,21 @@ export function SpotlightVariantShop({
       : null}
     </div>
   );
+
+  if (layout === "catalog") {
+    return (
+      <article className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex gap-3 p-2.5 sm:p-3">
+          {imageBlock}
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            {copy}
+            {picker}
+            <div className="mt-auto">{actions}</div>
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   if (isDetail) {
     const body = (
