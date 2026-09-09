@@ -190,7 +190,12 @@ export function AdminSpotlightCategoryAddForm({
           : null,
         res.compareMessage ? `Compare: ${res.compareMessage}` : null,
       ].filter(Boolean);
-      toast.success(parts.join(" "));
+      const compareLimited = /429|rate limit/i.test(res.compareMessage ?? "");
+      if (compareLimited) {
+        toast.warning(parts.join(" "));
+      } else {
+        toast.success(parts.join(" "));
+      }
     });
   };
 
@@ -531,10 +536,11 @@ export function AdminSpotlightCategoryAddForm({
                     </table>
                   </div>
                 : <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
-                    SerpApi did not return store variants for this URL. Use a
-                    product page with Amazon /dp/ or Walmart /ip/ in the path—not
-                    a brand store page. You can still fill the fields below and
-                    add the product.
+                    SerpApi did not return store variants for this URL. Paste a
+                    full product page: Amazon /dp/ plus a 10-character ASIN,
+                    Walmart /ip/ plus the numeric item ID, Target /p/…/-/A-…, or
+                    eBay /itm/—not a truncated, search, or brand store page. You
+                    can still fill the fields below and add the product.
                   </p>
               : resolved.compareOffers.length > 0 ?
                 <div className="overflow-x-auto border-t border-border">

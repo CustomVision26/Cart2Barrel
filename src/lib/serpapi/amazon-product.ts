@@ -6,11 +6,12 @@ import {
   parseProductUrl,
   type ParsedProductUrl,
 } from "@/lib/product-url/retailer-id";
-import { serpApiGet } from "@/lib/serpapi/http";
+import { titleHintFromProductUrl } from "@/lib/product-url/search-query";
+import { isSerpApiRateLimitError, serpApiGet } from "@/lib/serpapi/http";
 
 /** Cap SerpApi calls during admin spotlight import (full matrix still available in item request flow). */
 const MAX_ASIN_FETCHES = 24;
-const ASIN_CONCURRENCY = 8;
+const ASIN_CONCURRENCY = 1;
 
 type AmazonVariantItem = {
   asin?: string;
@@ -214,12 +215,19 @@ export async function resolveAmazonAsinForLookup(input: {
   if (parsedAsin) return parsedAsin;
 
   const brand = amazonStoreBrandFromUrl(input.productUrl);
-  const query = [input.productName?.trim(), brand].filter(Boolean).join(" ");
+  const query = [
+    input.productName?.trim(),
+    titleHintFromProductUrl(input.productUrl),
+    brand,
+  ]
+    .filter(Boolean)
+    .join(" ");
   if (query.length < 2) return null;
 
   try {
     return await searchAmazonFirstAsin(query, input.amazonDomain);
-  } catch {
+  } catch (err) {
+    if (isSerpApiRateLimitError(err)) throw err;
     return null;
   }
 }

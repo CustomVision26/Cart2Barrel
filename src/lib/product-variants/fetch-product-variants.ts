@@ -4,6 +4,7 @@ import {
   amazonProductUrl,
   amazonStoreBrandFromUrl,
   parseProductUrl,
+  walmartProductUrl,
   type ParsedProductUrl,
 } from "@/lib/product-url/retailer-id";
 import {
@@ -29,9 +30,13 @@ import {
 import {
   fetchWalmartProductSummary,
   fetchWalmartVariants,
+  resolveWalmartProductIdForLookup,
 } from "@/lib/serpapi/walmart-product";
 import { displaySiteName, hostnameFromProductUrl } from "@/lib/site-name";
-import { buildVariantSearchQuery } from "@/lib/product-url/search-query";
+import {
+  buildVariantSearchQuery,
+  titleHintFromProductUrl,
+} from "@/lib/product-url/search-query";
 
 import { enrichVariantsWithListingTitle } from "@/lib/product-variants/enrich-listing-title";
 import type {
@@ -342,10 +347,20 @@ export async function fetchProductVariants(input: {
     const resolvedAsin = await resolveAmazonAsinForLookup({
       productUrl,
       amazonDomain: parsed.amazonDomain,
-      productName: input.productName,
+      productName: input.productName || titleHintFromProductUrl(productUrl),
     });
     if (resolvedAsin) {
       productUrl = amazonProductUrl(resolvedAsin, parsed.amazonDomain);
+      parsed = parseProductUrl(productUrl) ?? parsed;
+    }
+  }
+  if (parsed.kind === "walmart" && !parsed.walmartProductId && hasSerp) {
+    const resolvedId = await resolveWalmartProductIdForLookup({
+      productUrl,
+      productName: input.productName || titleHintFromProductUrl(productUrl),
+    });
+    if (resolvedId) {
+      productUrl = walmartProductUrl(resolvedId);
       parsed = parseProductUrl(productUrl) ?? parsed;
     }
   }
@@ -439,6 +454,7 @@ export async function fetchProductVariants(input: {
         parsed.kind === "target" ||
         parsed.kind === "ebay" ||
         parsed.kind === "amazon" ||
+        parsed.kind === "walmart" ||
         parsed.hostname.includes("temu.") ||
         parsed.hostname.includes("shein."));
 
@@ -477,7 +493,7 @@ export async function fetchProductVariants(input: {
         ok: false,
         message: storePage
           ? `Amazon store pages do not include product variants. Paste a product URL that contains /dp/ (for example https://www.amazon.com/dp/B0…). Lookup tried Amazon search for “${storePage}” but did not get a variant list.`
-          : "No variants found for this listing. Paste a Walmart /ip/ or Amazon /dp/ product link for the most complete variant list.",
+          : "No variants found for this listing. Paste a full retailer product page (Amazon /dp/ASIN, Walmart /ip/ plus item id, Target /p/…/-/A-…, or eBay /itm/).",
       };
     }
 

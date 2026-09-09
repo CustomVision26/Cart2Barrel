@@ -4,7 +4,9 @@ import {
   parseVariantKeys,
   priceUsdToCents,
 } from "@/lib/product-variants/labels";
-import { serpApiGet } from "@/lib/serpapi/http";
+import { parseProductUrl } from "@/lib/product-url/retailer-id";
+import { titleHintFromProductUrl } from "@/lib/product-url/search-query";
+import { isSerpApiRateLimitError, serpApiGet } from "@/lib/serpapi/http";
 
 type WalmartPriceMap = {
   price?: number;
@@ -50,7 +52,7 @@ const WALMART_PRODUCT_PARAMS = {
   device: "desktop",
 } as const;
 
-const MAX_ENRICH_LOOKUPS = 8;
+const MAX_ENRICH_LOOKUPS = 2;
 
 function isColorDimension(name: string | undefined): boolean {
   const n = name?.toLowerCase() ?? "";
@@ -150,15 +152,17 @@ async function enrichWalmartVariantRows(
 
   if (ids.length === 0) return rows;
 
-  const summaries = await Promise.all(
-    ids.map(async (id) => {
-      try {
-        return { id, summary: await fetchWalmartProductSummary(id) };
-      } catch {
-        return { id, summary: null };
-      }
-    }),
-  );
+  const summaries: Array<{
+    id: string;
+    summary: Awaited<ReturnType<typeof fetchWalmartProductSummary>> | null;
+  }> = [];
+  for (const id of ids) {
+    try {
+      summaries.push({ id, summary: await fetchWalmartProductSummary(id) });
+    } catch {
+      summaries.push({ id, summary: null });
+    }
+  }
 
   const byId = new Map(summaries.map((s) => [s.id, s.summary]));
 
@@ -203,6 +207,55 @@ export async function fetchWalmartProductSummary(productId: string): Promise<{
       pr.product_id,
     ),
   };
+}
+
+type WalmartSearchResponse = {
+  organic_results?: Array<{
+    us_item_id?: string;
+    product_id?: string;
+    title?: string;
+    product_page_url?: string;
+  }>;
+};
+
+export async function searchWalmartFirstProductId(
+  query: string,
+): Promise<string | null> {
+  const q = query.trim();
+  if (q.length < 2) return null;
+
+  const data = await serpApiGet<WalmartSearchResponse>({
+    engine: "walmart",
+    query: q,
+    device: "desktop",
+  });
+
+  const hit = (data.organic_results ?? []).find((row) => {
+    const id = row.us_item_id?.trim() || row.product_id?.trim();
+    return Boolean(id && id.length >= 5);
+  });
+  return hit?.us_item_id?.trim() || hit?.product_id?.trim() || null;
+}
+
+/** Resolve a Walmart item id from an /ip/ URL or by searching the title slug. */
+export async function resolveWalmartProductIdForLookup(input: {
+  productUrl: string;
+  productName?: string | null;
+}): Promise<string | null> {
+  const parsedId = parseProductUrl(input.productUrl)?.walmartProductId;
+  if (parsedId) return parsedId;
+
+  const query = [input.productName?.trim(), titleHintFromProductUrl(input.productUrl)]
+    .filter(Boolean)
+    .join(" ");
+  if (query.length < 2) return null;
+
+  try {
+    return await searchWalmartFirstProductId(query);
+  } catch (err) {
+    if (isSerpApiRateLimitError(err)) throw err;
+    return null;
+  }
 }
 
 export type WalmartVariantsResult = {

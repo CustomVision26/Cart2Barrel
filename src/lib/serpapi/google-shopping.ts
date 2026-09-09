@@ -1,4 +1,4 @@
-import { getSerpApiKey } from "@/lib/serpapi/env";
+import { isSerpApiRateLimitError, serpApiGet } from "@/lib/serpapi/http";
 
 export type SerpShoppingResult = {
   title: string;
@@ -55,40 +55,27 @@ export async function searchGoogleShopping(
   query: string,
   opts?: { maxResults?: number },
 ): Promise<SerpShoppingResult[]> {
-  const apiKey = getSerpApiKey();
-  if (!apiKey) {
-    throw new Error("SERPAPI_API_KEY is not configured.");
-  }
-
   const q = query.trim();
   if (q.length < 2) {
     return [];
   }
 
-  const url = new URL("https://serpapi.com/search.json");
-  url.searchParams.set("engine", "google_shopping");
-  url.searchParams.set("q", q);
-  url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("gl", "us");
-  url.searchParams.set("hl", "en");
-  url.searchParams.set("num", String(Math.min(opts?.maxResults ?? 12, 20)));
-
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    next: { revalidate: 0 },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Shopping search failed (HTTP ${res.status}).`);
-  }
-
-  const data = (await res.json()) as {
-    shopping_results?: SerpShoppingRaw[];
-    error?: string;
-  };
-
-  if (data.error) {
-    throw new Error(data.error);
+  let data: { shopping_results?: SerpShoppingRaw[] };
+  try {
+    data = await serpApiGet<{ shopping_results?: SerpShoppingRaw[] }>({
+      engine: "google_shopping",
+      q,
+      gl: "us",
+      hl: "en",
+      num: String(Math.min(opts?.maxResults ?? 12, 20)),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Shopping search failed.";
+    if (isSerpApiRateLimitError(msg)) {
+      throw err instanceof Error ? err : new Error(msg);
+    }
+    const http = /HTTP \d+/.exec(msg)?.[0];
+    throw new Error(http ? `Shopping search failed (${http}).` : msg);
   }
 
   const rows = data.shopping_results ?? [];
@@ -112,6 +99,26 @@ export async function searchGoogleShopping(
   }
 
   return out;
+}
+
+/** First Google Shopping hit for this retailer (title, price, image, URL). */
+export async function findShoppingListingForRetailer(opts: {
+  query: string;
+  retailerHostname?: string;
+}): Promise<SerpShoppingResult | null> {
+  const q = opts.query.trim();
+  if (q.length < 2) return null;
+
+  const hits = await searchGoogleShopping(q, { maxResults: 15 });
+  const hostNeedle = opts.retailerHostname
+    ?.toLowerCase()
+    .replace(/^www\./, "")
+    .split(".")[0];
+
+  const match = hostNeedle
+    ? hits.find((h) => shoppingHitMatchesRetailer(h, hostNeedle))
+    : hits[0];
+  return match ?? null;
 }
 
 function normalizeRetailerToken(value: string): string {

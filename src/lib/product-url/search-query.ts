@@ -1,21 +1,33 @@
 import { retailerLabelFromProductUrl } from "@/lib/site-name";
 
-/** Human-readable product title guess from URL path (e.g. Kohl's slug segments). */
+const SKIP_PATH_SEGMENTS =
+  /^(dp|gp|product|aw|d|offer-listing|stores|page|s|shop|ip|itm|item|search|browse|brand|category|products|cp)$/i;
+
+function pathSegmentTitle(raw: string): string | null {
+  const seg = raw.replace(/\.(html|htm|jsp|aspx)$/i, "").replace(/:+$/g, "");
+  if (!seg || seg.length < 4) return null;
+  if (SKIP_PATH_SEGMENTS.test(seg)) return null;
+  if (/^prd-\d+$/i.test(seg)) return null;
+  if (/^a-\d{6,}$/i.test(seg)) return null;
+  if (/^b0[a-z0-9]{8}$/i.test(seg)) return null;
+  if (/^[a-z0-9]{8,12}$/i.test(seg) && /\d/.test(seg)) return null;
+  if (/^\d+$/.test(seg)) return null;
+  const title = seg.replace(/-/g, " ").trim();
+  return title.length >= 4 ? title : null;
+}
+
+/** Human-readable product title guess from URL path (e.g. Amazon / Kohl's slugs). */
 export function titleHintFromProductUrl(productUrl: string): string | null {
   try {
     const url = new URL(productUrl.trim());
-    const segments = url.pathname.split("/").filter(Boolean);
+    const candidates = url.pathname
+      .split("/")
+      .filter(Boolean)
+      .map(pathSegmentTitle)
+      .filter((s): s is string => Boolean(s));
 
-    for (let i = segments.length - 1; i >= 0; i--) {
-      const seg = segments[i]!
-        .replace(/\.(html|htm|jsp|aspx)$/i, "")
-        .replace(/:+$/g, "");
-      if (!seg || seg.length < 4) continue;
-      if (/^prd-\d+$/i.test(seg)) continue;
-      if (/^[a-z0-9]{8,12}$/i.test(seg) && /\d/.test(seg)) continue;
-      if (/^\d+$/.test(seg)) continue;
-      return seg.replace(/-/g, " ").trim();
-    }
+    const hyphenated = candidates.find((c) => c.includes(" "));
+    return hyphenated ?? candidates[0] ?? null;
   } catch {
     /* invalid URL */
   }
