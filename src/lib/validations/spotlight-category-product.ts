@@ -111,6 +111,7 @@ export const adminDeleteSpotlightCategorySchema = z.object({
 
 export const adminUpdateSpotlightProductSchema = z.object({
   id: z.string().uuid(),
+  label: z.string().trim().max(300),
   /** USD dollars; empty string clears the stored price. */
   priceUsd: optionalPriceUsd.transform((s) => s ?? ""),
   productSize: z.string().trim().max(120),

@@ -541,7 +541,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Add a category with New category, or select an existing tab.",
         "Find products with Search, filter by Status or Retailer, and click column headers (including Retailer, Product URL, and Variants) to sort. The Product URL column opens the saved retailer listing. Variants is the count of extra SKUs saved under that listing. Use Rows per page and Previous / Next to paginate.",
         "Add products: paste a retailer product URL (Amazon /dp/ASIN or Walmart /ip/, not a /stores/ brand page) and Run SerpApi lookup. Store variants and Retailer comparison are tabs under the URL. Apply fills the form. Save on a variant uses that SKU as the table listing when the product is not saved yet; further Saves add extra SKUs under it. Add product to category saves the current form.",
-        "Double-click a record to edit price, size, color, image, and variants. Shoppers see one compact card per product; double-clicking a card with options opens color swatches and size pills.",
+        "Double-click a record to edit the product name, price, size, color, image, and variants. Shoppers see one compact card per product; double-clicking a card with options opens color swatches and size pills.",
         "Amber Check retailer rows mean the live listing no longer matches (price, URL, name, image, or availability). Review with the retailer, then save the edit to clear the warning until the next automatic check (stale listings older than six hours, when you open this page).",
         "Publish a product to make it available to shoppers, then Publish category so the group appears on Home.",
         "Unpublish a product or category to hide it from the public carousel without deleting it.",

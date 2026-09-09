@@ -51,6 +51,7 @@ export function AdminSpotlightProductEditDialog({
   onRefresh,
   runMutation,
 }: AdminSpotlightProductEditDialogProps) {
+  const [label, setLabel] = useState("");
   const [priceUsd, setPriceUsd] = useState("");
   const [productSize, setProductSize] = useState("");
   const [productColor, setProductColor] = useState("");
@@ -58,6 +59,10 @@ export function AdminSpotlightProductEditDialog({
 
   useEffect(() => {
     if (!open || !product) return;
+    setLabel(
+      product.label?.trim() ||
+        displaySiteName(null, product.productUrl),
+    );
     setPriceUsd(centsToUsdInput(product.priceUsdCents));
     setProductSize(product.productSize?.trim() ?? "");
     setProductColor(product.productColor?.trim() ?? "");
@@ -72,6 +77,7 @@ export function AdminSpotlightProductEditDialog({
     runMutation(async () => {
       const updateRes = await adminUpdateSpotlightProductAction({
         id: product.id,
+        label,
         priceUsd,
         productSize,
         productColor,
@@ -88,11 +94,6 @@ export function AdminSpotlightProductEditDialog({
     });
   };
 
-  const title =
-    product ?
-      product.label?.trim() || displaySiteName(null, product.productUrl)
-    : "Edit product";
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] max-w-[calc(100%-2rem)] gap-4 overflow-y-auto sm:max-w-2xl">
@@ -102,7 +103,7 @@ export function AdminSpotlightProductEditDialog({
             Edit product
           </DialogTitle>
           <DialogDescription className="text-pretty break-words leading-snug">
-            {title}
+            Update the product name, price, size, color, and image.
           </DialogDescription>
         </DialogHeader>
 
@@ -122,6 +123,23 @@ export function AdminSpotlightProductEditDialog({
 
         {product ?
           <div className="min-w-0 space-y-4 overflow-hidden">
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="spotlight-edit-name">Product name</Label>
+              <Input
+                id="spotlight-edit-name"
+                type="text"
+                placeholder="Name shoppers see on this listing"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                disabled={pending}
+                className="w-full min-w-0"
+              />
+              <p className="text-pretty text-xs leading-relaxed break-words text-muted-foreground">
+                Shown on the catalog table and Home spotlight cards. Leave blank
+                to fall back to the retailer name.
+              </p>
+            </div>
+
             <div className="min-w-0 space-y-2">
               <Label htmlFor="spotlight-edit-price">Product cost (USD)</Label>
               <Input

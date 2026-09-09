@@ -266,6 +266,7 @@ export async function updateSpotlightProductImage(
 export async function updateSpotlightProductDetails(
   id: string,
   patch: {
+    label?: string | null;
     priceUsdCents?: number | null;
     productSize?: string | null;
     productColor?: string | null;

@@ -206,10 +206,11 @@ export async function adminUpdateSpotlightProductAction(
     return { ok: false, message: "Product not found." };
   }
 
-  const { priceUsd, productSize, productColor } = parsed.data;
+  const { label, priceUsd, productSize, productColor } = parsed.data;
   const priceUsdCents = parseOptionalPriceUsdToCents(priceUsd);
 
   await updateSpotlightProductDetails(parsed.data.id, {
+    label: normalizeOptionalVariantField(label),
     priceUsdCents,
     productSize: normalizeOptionalVariantField(productSize),
     productColor: normalizeOptionalVariantField(productColor),
