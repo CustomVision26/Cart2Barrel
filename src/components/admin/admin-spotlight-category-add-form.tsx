@@ -100,6 +100,7 @@ function OfferThumb({
       src={url}
       alt=""
       className="size-10 shrink-0 rounded border border-border object-cover"
+      referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
     />
   );

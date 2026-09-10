@@ -25,25 +25,31 @@ export default async function AdminUsersSerpApiUsagePage() {
   let appMonthCount = 0;
 
   try {
-    [account, hourly, daily, byUser, appHourCount, appMonthCount] =
-      await Promise.all([
-        fetchSerpApiAccountSnapshot(),
-        listSerpApiHourlyBuckets(24),
-        listSerpApiDailyBuckets(30),
-        listSerpApiUsageByUser(),
-        countSerpApiSearchesSince(hourStart.toISOString()),
-        countSerpApiSearchesSince(monthStart.toISOString()),
-      ]);
+    [account, hourly, daily, appHourCount, appMonthCount] = await Promise.all([
+      fetchSerpApiAccountSnapshot(),
+      listSerpApiHourlyBuckets(24),
+      listSerpApiDailyBuckets(30),
+      countSerpApiSearchesSince(hourStart.toISOString()),
+      countSerpApiSearchesSince(monthStart.toISOString()),
+    ]);
   } catch {
     /* Table may not exist until db:ensure-serp-api-usage */
+  }
+
+  try {
+    byUser = await listSerpApiUsageByUser();
+  } catch {
+    /* Profiles or usage table may be unavailable */
   }
 
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
         Live SerpApi plan meters (searches allowed this month and this hour)
-        plus per-user counts from this app. One product lookup can use several
-        searches. Charts show attributed calls after this tracker was added.
+        plus every registered account in All users. Accounts with no lookups
+        show zero. Scheduled retailer checks appear as Scheduled /
+        unattributed. One product lookup can use several searches. Charts show
+        attributed calls after this tracker was added.
       </p>
       <AdminSerpApiUsageMeters
         planName={account?.planName ?? null}

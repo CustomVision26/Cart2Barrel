@@ -26,6 +26,7 @@ import { SpotlightProductOffersCarousel } from "@/components/marketing/spotlight
 import { buildOffersForProduct } from "@/components/marketing/spotlight-category-offers-panel";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
 import {
+  SPOTLIGHT_RETAILER_PRICE_NOTICE,
   spotlightCategoryIcon,
   type SpotlightCategoryDefinition,
   type SpotlightCategorySlug,
@@ -78,7 +79,7 @@ export function HomeSpotlightCarousel({
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">
             Featured &amp; spotlight
@@ -86,6 +87,9 @@ export function HomeSpotlightCarousel({
           <p className="text-sm text-muted-foreground">
             Swipe categories, then browse products in each slide—or open the full
             catalog.
+          </p>
+          <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+            {SPOTLIGHT_RETAILER_PRICE_NOTICE}
           </p>
         </div>
         <Button

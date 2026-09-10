@@ -116,6 +116,7 @@ export function SpotlightImageViewer({
                           src={image.imageUrl}
                           alt={`${viewer?.title ?? "Product"} photo ${index + 1}`}
                           className="size-full object-contain"
+                          referrerPolicy="no-referrer"
                         />
                       </div>
                       {image.label ?

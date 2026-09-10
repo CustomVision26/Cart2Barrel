@@ -117,7 +117,7 @@ export function AdminSpotlightPreviewImageField({
         >
           {displayUrl ?
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={displayUrl} alt="" className="size-full object-cover" />
+            <img src={displayUrl} alt="" className="size-full object-cover" referrerPolicy="no-referrer" />
           : <div className="flex size-full items-center justify-center text-muted-foreground">
               <ImageIcon className={compact ? "size-4" : "size-6"} aria-hidden />
             </div>

@@ -1,6 +1,6 @@
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { normalizeColorKey } from "@/lib/product-variants/merge-walmart-variants";
-import { normalizeRetailerImageUrl } from "@/lib/product-variants/variant-images";
+import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
 
 function pageRowForSheinRow(
   row: ProductVariantOffer,
@@ -29,16 +29,16 @@ export function mergeSheinVariantsWithPageImages(
     pageByColor.set(key, row);
   }
 
-  const pageHero = normalizeRetailerImageUrl(
-    pageRows.find((r) => normalizeRetailerImageUrl(r.imageUrl))?.imageUrl,
+  const pageHero = usableRetailerProductImageUrl(
+    pageRows.find((r) => usableRetailerProductImageUrl(r.imageUrl))?.imageUrl,
   );
 
   return sheinRows.map((row) => {
-    const existing = normalizeRetailerImageUrl(row.imageUrl);
+    const existing = usableRetailerProductImageUrl(row.imageUrl);
     if (existing) return { ...row, imageUrl: existing };
 
     const page = pageRowForSheinRow(row, pageByColor);
-    const fromPage = normalizeRetailerImageUrl(page?.imageUrl);
+    const fromPage = usableRetailerProductImageUrl(page?.imageUrl);
     return {
       ...row,
       imageUrl: fromPage ?? pageHero,

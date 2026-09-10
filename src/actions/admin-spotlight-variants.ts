@@ -14,6 +14,7 @@ import {
   deleteSpotlightVariantsByParentId,
   getSpotlightVariantById,
   insertSpotlightVariants,
+  listAdminVariantsByParentIds,
   nextSpotlightVariantSortIndex,
   updateSpotlightVariantImage,
 } from "@/data/spotlight-product-variants";
@@ -23,6 +24,7 @@ import { spotlightProductVariants } from "@/db/schema";
 import { fetchProductVariants } from "@/lib/product-variants/fetch-product-variants";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import { buildVariantLabel } from "@/lib/product-variants/labels";
 import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 import {
   isRetailerReceiptImageMime,
@@ -35,12 +37,14 @@ import {
   getBlobReadWriteToken,
 } from "@/lib/vercel-blob-env";
 import {
+  adminAddSpotlightVariantSizesSchema,
   adminCreateSpotlightVariantSchema,
   adminDeleteSpotlightVariantSchema,
   adminImportSpotlightVariantsSchema,
   adminRefreshSpotlightVariantImageSchema,
   adminSetSpotlightVariantImageUrlSchema,
   adminUpdateSpotlightVariantSchema,
+  parseSpotlightSizeList,
   spotlightVariantFieldsFromInput,
 } from "@/lib/validations/spotlight-product-variant";
 
@@ -151,6 +155,115 @@ export async function adminCreateSpotlightVariantAction(
 
   revalidateSpotlightPaths();
   return { ok: true, message: "Variant added." };
+}
+
+function variantColorKey(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function variantSizeKey(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+/** Extra sizes for one color, copying URL, cost, and image from the listing or a saved SKU. */
+export async function adminAddSpotlightVariantSizesAction(
+  input: unknown,
+): Promise<AdminSpotlightProductMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminAddSpotlightVariantSizesSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  const sizes = parseSpotlightSizeList(parsed.data.sizesText);
+  if (sizes.length === 0) {
+    return {
+      ok: false,
+      message: "Enter at least one size (comma or line separated).",
+    };
+  }
+
+  const parent = await getSpotlightProductById(parsed.data.parentProductId);
+  if (!parent) {
+    return { ok: false, message: "Parent product not found." };
+  }
+
+  let sourceColor = parent.productColor;
+  let sourceUrl: string | null = null;
+  let sourceImage = parent.imageUrl;
+  let sourcePrice = parent.priceUsdCents;
+  let sourcePack: string | null = null;
+
+  if (parsed.data.sourceVariantId) {
+    const source = await getSpotlightVariantById(parsed.data.sourceVariantId);
+    if (!source || source.parentProductId !== parent.id) {
+      return { ok: false, message: "Variant not found." };
+    }
+    sourceColor = source.productColor ?? parent.productColor;
+    sourceUrl = source.productUrl;
+    sourceImage = source.imageUrl ?? parent.imageUrl;
+    sourcePrice = source.priceUsdCents ?? parent.priceUsdCents;
+    sourcePack = source.packLabel;
+  }
+
+  const existing = await listAdminVariantsByParentIds(
+    [parent.id],
+    new Map([[parent.id, parent.productUrl]]),
+  );
+  const existingRows = existing.get(parent.id) ?? [];
+  const colorKey = variantColorKey(sourceColor);
+  const taken = new Set<string>();
+  if (variantColorKey(parent.productColor) === colorKey && parent.productSize) {
+    taken.add(variantSizeKey(parent.productSize));
+  }
+  for (const row of existingRows) {
+    if (variantColorKey(row.productColor) !== colorKey) continue;
+    if (row.productSize) taken.add(variantSizeKey(row.productSize));
+  }
+
+  const newSizes = sizes.filter((size) => !taken.has(variantSizeKey(size)));
+  if (newSizes.length === 0) {
+    return {
+      ok: false,
+      message: "Those sizes already exist for this color.",
+    };
+  }
+
+  let sortBase = await nextSpotlightVariantSortIndex(parent.id);
+  const copiedUrl =
+    sourceUrl && sourceUrl !== parent.productUrl ? sourceUrl : null;
+  const rows = newSizes.map((productSize) => ({
+    productUrl: copiedUrl,
+    imageUrl: sourceImage,
+    priceUsdCents: sourcePrice,
+    productSize,
+    productColor: sourceColor,
+    packLabel: sourcePack,
+    label: buildVariantLabel({
+      color: sourceColor,
+      size: productSize,
+      packLabel: sourcePack,
+    }),
+    sortIndex: sortBase++,
+  }));
+
+  const inserted = await insertSpotlightVariants(parent.id, rows);
+  revalidateSpotlightPaths();
+  const skipped = sizes.length - newSizes.length;
+  return {
+    ok: true,
+    message:
+      skipped > 0
+        ? `Added ${inserted} size${inserted === 1 ? "" : "s"} for this color (${skipped} already existed).`
+        : `Added ${inserted} size${inserted === 1 ? "" : "s"} for this color.`,
+  };
 }
 
 export async function adminUpdateSpotlightVariantAction(

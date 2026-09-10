@@ -24,7 +24,10 @@ import {
   fetchWalmartProductSummary,
   resolveWalmartProductIdForLookup,
 } from "@/lib/serpapi/walmart-product";
-import { fillMissingVariantImages } from "@/lib/product-variants/variant-images";
+import {
+  fillMissingVariantImages,
+  usableRetailerProductImageUrl,
+} from "@/lib/product-variants/variant-images";
 import { hostnameFromProductUrl, retailerLabelFromProductUrl } from "@/lib/site-name";
 
 export type AdminSpotlightPrimaryFields = {
@@ -235,6 +238,9 @@ export async function resolveAdminSpotlightFromSerpApi(
     variants = variantResult.variants;
     variantMethod = variantResult.method;
     variantRetailer = variantResult.retailer;
+    imageUrl =
+      usableRetailerProductImageUrl(imageUrl) ??
+      usableRetailerProductImageUrl(variantResult.listingImageUrl);
     const pick = variants.find((v) => v.isCurrent) ?? variants[0];
     if (pick) {
       const pickTitle = pick.productTitle?.trim() || pick.label;
@@ -242,7 +248,7 @@ export async function resolveAdminSpotlightFromSerpApi(
         productName = pickTitle;
       }
       priceUsdCents = priceUsdCents ?? pick.priceUsdCents;
-      imageUrl = imageUrl ?? pick.imageUrl;
+      imageUrl = imageUrl ?? usableRetailerProductImageUrl(pick.imageUrl);
       productSize = productSize ?? pick.size;
       productColor = productColor ?? pick.color;
       if (pick.productUrl) resolvedUrl = pick.productUrl;
@@ -255,8 +261,9 @@ export async function resolveAdminSpotlightFromSerpApi(
     }
   }
 
+  const needsShoppingImage = !usableRetailerProductImageUrl(imageUrl);
   if (
-    !listingFromSerp &&
+    (!listingFromSerp || needsShoppingImage) &&
     !isSerpApiRateLimitError(variantResult.ok ? null : variantResult.message) &&
     (slugName || productName) &&
     !looksLikeHostnameName(productName || slugName || "")
@@ -267,13 +274,17 @@ export async function resolveAdminSpotlightFromSerpApi(
         retailerHostname: parsed.hostname,
       });
       if (hit) {
-        if (!productName || productName.length < 2) {
-          productName = hit.title;
+        if (!listingFromSerp) {
+          if (!productName || productName.length < 2) {
+            productName = hit.title;
+          }
+          priceUsdCents = priceUsdCents ?? priceUsdToCents(hit.priceUsd);
+          if (hit.productUrl) resolvedUrl = hit.productUrl;
+          listingFromSerp = true;
         }
-        priceUsdCents = priceUsdCents ?? priceUsdToCents(hit.priceUsd);
-        imageUrl = imageUrl ?? hit.imageUrl;
-        if (hit.productUrl) resolvedUrl = hit.productUrl;
-        listingFromSerp = true;
+        imageUrl =
+          usableRetailerProductImageUrl(imageUrl) ??
+          usableRetailerProductImageUrl(hit.imageUrl);
       }
     } catch (err) {
       listingError = listingError ?? errorMessage(err, "Shopping lookup failed.");
@@ -305,7 +316,7 @@ export async function resolveAdminSpotlightFromSerpApi(
     productUrl: resolvedUrl,
     productName,
     priceUsdCents,
-    imageUrl,
+    imageUrl: usableRetailerProductImageUrl(imageUrl),
     productSize,
     productColor,
   };

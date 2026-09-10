@@ -1,5 +1,6 @@
-import { gte, inArray, sql } from "drizzle-orm";
+import { gte, sql } from "drizzle-orm";
 
+import { filterProfilesToActiveClerkUsers } from "@/data/filter-profiles-to-active-clerk-users";
 import { getDb } from "@/db";
 import {
   profiles,
@@ -160,78 +161,130 @@ export async function listSerpApiDailyBuckets(
   return fillDailyBuckets(rows, days);
 }
 
+function usageRowFromProfile(
+  profile: {
+    clerkUserId: string;
+    fullName: string | null;
+    email: string | null;
+  },
+  hourMap: Map<string, number>,
+  monthMap: Map<string, number>,
+): SerpApiUserUsageRow {
+  const id = profile.clerkUserId;
+  const email = profile.email?.trim() || null;
+  return {
+    clerkUserId: id,
+    displayName: profileDisplayName({
+      clerkUserId: id,
+      fullName: profile.fullName,
+      email,
+    }),
+    email,
+    searchesThisHour: hourMap.get(id) ?? 0,
+    searchesThisMonth: monthMap.get(id) ?? 0,
+  };
+}
+
 export async function listSerpApiUsageByUser(): Promise<SerpApiUserUsageRow[]> {
   const db = getDb();
   const hourIso = iso(startOfUtcHour());
   const monthIso = iso(startOfUtcMonth());
 
-  const monthRows = await db
-    .select({
-      clerkUserId: serpApiSearchEvents.clerkUserId,
-      searches: sql<number>`count(*)::int`,
-    })
-    .from(serpApiSearchEvents)
-    .where(gte(serpApiSearchEvents.createdAt, monthIso))
-    .groupBy(serpApiSearchEvents.clerkUserId);
+  let hourMap = new Map<string, number>();
+  let monthMap = new Map<string, number>();
 
-  const hourRows = await db
-    .select({
-      clerkUserId: serpApiSearchEvents.clerkUserId,
-      searches: sql<number>`count(*)::int`,
-    })
-    .from(serpApiSearchEvents)
-    .where(gte(serpApiSearchEvents.createdAt, hourIso))
-    .groupBy(serpApiSearchEvents.clerkUserId);
+  try {
+    const [monthRows, hourRows] = await Promise.all([
+      db
+        .select({
+          clerkUserId: serpApiSearchEvents.clerkUserId,
+          searches: sql<number>`count(*)::int`,
+        })
+        .from(serpApiSearchEvents)
+        .where(gte(serpApiSearchEvents.createdAt, monthIso))
+        .groupBy(serpApiSearchEvents.clerkUserId),
+      db
+        .select({
+          clerkUserId: serpApiSearchEvents.clerkUserId,
+          searches: sql<number>`count(*)::int`,
+        })
+        .from(serpApiSearchEvents)
+        .where(gte(serpApiSearchEvents.createdAt, hourIso))
+        .groupBy(serpApiSearchEvents.clerkUserId),
+    ]);
+    hourMap = new Map(
+      hourRows.map((r) => [r.clerkUserId ?? "", Number(r.searches) || 0] as const),
+    );
+    monthMap = new Map(
+      monthRows.map((r) => [r.clerkUserId ?? "", Number(r.searches) || 0] as const),
+    );
+  } catch (error) {
+    console.warn(
+      "[Amani Cart2Barrel] SerpApi usage by user failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 
-  const hourMap = new Map(
-    hourRows.map((r) => [r.clerkUserId ?? "", r.searches] as const),
+  let activeProfiles: Array<{
+    clerkUserId: string;
+    fullName: string | null;
+    email: string | null;
+  }> = [];
+  try {
+    const profileRows = await db
+      .select({
+        clerkUserId: profiles.clerkUserId,
+        fullName: profiles.fullName,
+        email: profiles.email,
+      })
+      .from(profiles);
+    activeProfiles = await filterProfilesToActiveClerkUsers(profileRows);
+  } catch (error) {
+    console.warn(
+      "[Amani Cart2Barrel] SerpApi usage profile list failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+  const listedIds = new Set(activeProfiles.map((p) => p.clerkUserId));
+
+  const out: SerpApiUserUsageRow[] = activeProfiles.map((profile) =>
+    usageRowFromProfile(profile, hourMap, monthMap),
   );
-  const monthMap = new Map(
-    monthRows.map((r) => [r.clerkUserId ?? "", r.searches] as const),
-  );
 
-  const keys = new Set([...monthMap.keys(), ...hourMap.keys()]);
-  const ids = [...keys].filter((id) => id.length > 0);
+  for (const key of new Set([...monthMap.keys(), ...hourMap.keys()])) {
+    if (!key || listedIds.has(key)) continue;
+    out.push({
+      clerkUserId: key,
+      displayName: profileDisplayName({ clerkUserId: key }),
+      email: null,
+      searchesThisHour: hourMap.get(key) ?? 0,
+      searchesThisMonth: monthMap.get(key) ?? 0,
+    });
+  }
 
-  const profileRows =
-    ids.length > 0
-      ? await db
-          .select({
-            clerkUserId: profiles.clerkUserId,
-            fullName: profiles.fullName,
-            email: profiles.email,
-          })
-          .from(profiles)
-          .where(inArray(profiles.clerkUserId, ids))
-      : [];
-  const profileById = new Map(profileRows.map((p) => [p.clerkUserId, p]));
+  const unattrHour = hourMap.get("") ?? 0;
+  const unattrMonth = monthMap.get("") ?? 0;
+  if (unattrHour > 0 || unattrMonth > 0) {
+    out.push({
+      clerkUserId: null,
+      displayName: "Scheduled / unattributed",
+      email: null,
+      searchesThisHour: unattrHour,
+      searchesThisMonth: unattrMonth,
+    });
+  }
 
-  const out: SerpApiUserUsageRow[] = [...keys].map((key) => {
-    const id = key.length > 0 ? key : null;
-    if (!id) {
-      return {
-        clerkUserId: null,
-        displayName: "Scheduled / unattributed",
-        email: null,
-        searchesThisHour: hourMap.get("") ?? 0,
-        searchesThisMonth: monthMap.get("") ?? 0,
-      };
+  out.sort((a, b) => {
+    if (b.searchesThisMonth !== a.searchesThisMonth) {
+      return b.searchesThisMonth - a.searchesThisMonth;
     }
-    const profile = profileById.get(id);
-    return {
-      clerkUserId: id,
-      displayName: profileDisplayName({
-        clerkUserId: id,
-        fullName: profile?.fullName,
-        email: profile?.email,
-      }),
-      email: profile?.email?.trim() || null,
-      searchesThisHour: hourMap.get(id) ?? 0,
-      searchesThisMonth: monthMap.get(id) ?? 0,
-    };
+    if (b.searchesThisHour !== a.searchesThisHour) {
+      return b.searchesThisHour - a.searchesThisHour;
+    }
+    return a.displayName.localeCompare(b.displayName, undefined, {
+      sensitivity: "base",
+    });
   });
-
-  out.sort((a, b) => b.searchesThisMonth - a.searchesThisMonth);
   return out;
 }
 

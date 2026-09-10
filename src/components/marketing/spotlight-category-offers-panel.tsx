@@ -26,7 +26,10 @@ import {
 } from "@/lib/ai-assisted-request-url";
 import type { SpotlightCategoryDefinition } from "@/lib/spotlight-categories";
 import { displaySiteName, retailerLabelFromProductUrl } from "@/lib/site-name";
-import type { SpotlightVariantSku } from "@/lib/spotlight-variant-axes";
+import {
+  variantAxisKey,
+  type SpotlightVariantSku,
+} from "@/lib/spotlight-variant-axes";
 
 function offerImageUrl(
   primary: string | null | undefined,
@@ -110,23 +113,32 @@ function collectVariantSkus(
   isSignedIn: boolean,
 ): SpotlightVariantSku[] {
   const variants = product.variants ?? [];
-  if (variants.length > 0) {
-    return variants.map((variant) => ({
-      id: variant.id,
-      color: variant.productColor?.trim() || null,
-      size: variant.productSize?.trim() || null,
-      packLabel: variant.packLabel?.trim() || null,
-      imageUrl: offerImageUrl(variant.imageUrl, product.imageUrl),
-      priceUsdCents: variant.priceUsdCents,
-      storeUrl: variant.productUrl,
-      addHref: requestHref(
-        isSignedIn,
-        aiAssistedRequestUrlWithSpotlightVariant(product, variant),
-      ),
-    }));
+  const parentSku = skuFromParent(product, isSignedIn);
+  if (variants.length === 0) {
+    return [parentSku];
   }
 
-  return [skuFromParent(product, isSignedIn)];
+  const fromVariants: SpotlightVariantSku[] = variants.map((variant) => ({
+    id: variant.id,
+    color: variant.productColor?.trim() || null,
+    size: variant.productSize?.trim() || null,
+    packLabel: variant.packLabel?.trim() || null,
+    imageUrl: offerImageUrl(variant.imageUrl, product.imageUrl),
+    priceUsdCents: variant.priceUsdCents,
+    storeUrl: variant.productUrl,
+    addHref: requestHref(
+      isSignedIn,
+      aiAssistedRequestUrlWithSpotlightVariant(product, variant),
+    ),
+  }));
+
+  const parentAlreadyListed = fromVariants.some(
+    (sku) =>
+      variantAxisKey(sku.color) === variantAxisKey(parentSku.color) &&
+      variantAxisKey(sku.size) === variantAxisKey(parentSku.size),
+  );
+  if (parentAlreadyListed) return fromVariants;
+  return [parentSku, ...fromVariants];
 }
 
 export function buildOffersForProduct(

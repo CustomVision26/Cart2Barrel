@@ -1,6 +1,7 @@
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { buildVariantLabel, priceUsdToCents } from "@/lib/product-variants/labels";
 import { serpApiGet } from "@/lib/serpapi/http";
+import { normalizeRetailerImageUrl } from "@/lib/product-variants/variant-images";
 
 type ImmersiveVariantItem = {
   name?: string;
@@ -88,7 +89,7 @@ export async function fetchImmersiveProductVariants(
     store?.link?.trim() ||
     opts?.fallbackProductUrl?.trim() ||
     null;
-  const defaultImage = pr.thumbnails?.[0]?.trim() || null;
+  const defaultImage = normalizeRetailerImageUrl(pr.thumbnails?.[0]) ?? null;
   const defaultPrice = parsePriceFromRow(store ?? {});
 
   const rows: ProductVariantOffer[] = [];
@@ -168,7 +169,7 @@ export async function fetchImmersiveProductVariants(
       packLabel: null,
       priceUsdCents: priceUsdToCents(parsePriceFromRow(opt)),
       productUrl: defaultUrl,
-      imageUrl: opt.thumbnail?.trim() || defaultImage,
+      imageUrl: normalizeRetailerImageUrl(opt.thumbnail) ?? defaultImage,
       inStock: true,
       isCurrent: false,
     });
@@ -212,7 +213,7 @@ export async function fetchImmersiveProductStoreOffers(
   const pr = data.product_results;
   if (!pr?.stores?.length) return [];
 
-  const heroImage = pr.thumbnails?.[0]?.trim() || null;
+  const heroImage = normalizeRetailerImageUrl(pr.thumbnails?.[0]) ?? null;
   const offers: ImmersiveStoreOffer[] = [];
 
   for (const store of pr.stores) {

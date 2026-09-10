@@ -69,6 +69,12 @@ export const adminDeleteSpotlightVariantSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const adminAddSpotlightVariantSizesSchema = z.object({
+  parentProductId: z.string().uuid(),
+  sourceVariantId: z.string().uuid().optional(),
+  sizesText: z.string().trim().min(1).max(2000),
+});
+
 export const adminRefreshSpotlightVariantImageSchema = z.object({
   id: z.string().uuid(),
 });
@@ -111,4 +117,19 @@ export function spotlightVariantFieldsFromInput(input: {
     productUrl: normalizeOptionalVariantField(input.productUrl),
     imageUrl: normalizeOptionalVariantField(input.imageUrl),
   };
+}
+
+/** Split pasted size lists like SHEIN: `US6-6.5 (CN36-37), US7-7.5 (CN38-39)`. */
+export function parseSpotlightSizeList(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split(/[\n,;]+/)) {
+    const size = part.trim();
+    if (!size || size.length > 120) continue;
+    const key = size.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(size);
+  }
+  return out.slice(0, 24);
 }

@@ -1,3 +1,4 @@
+import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
 import { isSerpApiRateLimitError, serpApiGet } from "@/lib/serpapi/http";
 
 export type SerpShoppingResult = {
@@ -17,6 +18,7 @@ type SerpShoppingRaw = {
   price?: string;
   extracted_price?: number;
   thumbnail?: string;
+  thumbnails?: string[];
   serpapi_thumbnail?: string;
   immersive_product_page_token?: string;
 };
@@ -30,7 +32,22 @@ function shoppingResultUrl(raw: SerpShoppingRaw): string | null {
 }
 
 function shoppingResultImage(raw: SerpShoppingRaw): string | null {
-  return raw.thumbnail?.trim() || raw.serpapi_thumbnail?.trim() || null;
+  const candidates = [
+    raw.thumbnail,
+    raw.thumbnails?.[0],
+    raw.serpapi_thumbnail,
+  ];
+  let serpApiHosted: string | null = null;
+  for (const candidate of candidates) {
+    const url = usableRetailerProductImageUrl(candidate);
+    if (!url) continue;
+    if (/^https:\/\/(?:www\.)?serpapi\.com\//i.test(url)) {
+      serpApiHosted ??= url;
+      continue;
+    }
+    return url;
+  }
+  return serpApiHosted;
 }
 
 function parsePriceUsd(raw: SerpShoppingRaw): number | null {

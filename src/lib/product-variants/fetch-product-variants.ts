@@ -1,5 +1,6 @@
 import { extractProductVariantsWithOpenAI } from "@/lib/ai/extract-product-variants-openai";
 import { fetchPageHtmlForAi } from "@/lib/ai/fetch-page-for-ai";
+import { extractOgImageFromHtml } from "@/lib/ai/product-image-url";
 import {
   amazonProductUrl,
   amazonStoreBrandFromUrl,
@@ -19,13 +20,17 @@ import { isDirectListingRetailer } from "@/lib/product-variants/direct-listing-h
 import { mergeVariantsPreferPageAi } from "@/lib/product-variants/merge-variants-prefer-page-ai";
 import { mergeWalmartVariantsWithPageAi } from "@/lib/product-variants/merge-walmart-variants";
 import { mergeSheinVariantsWithPageImages } from "@/lib/product-variants/merge-shein-page-images";
-import { extractSheinVariantsFromHtml } from "@/lib/product-variants/shein-from-page-html";
+import {
+  extractSheinCdnImageUrls,
+  extractSheinVariantsFromHtml,
+} from "@/lib/product-variants/shein-from-page-html";
 import { enrichSheinVariantsWithSerpApiImages } from "@/lib/product-variants/shein-serpapi-images";
 import { enrichSheinVariantsWithSerpApiPrices } from "@/lib/product-variants/shein-serpapi-prices";
 import {
   fillMissingVariantImages,
-  normalizeRetailerImageUrl,
+  usableRetailerProductImageUrl,
   resolveListingImageUrl,
+  variantRowsMissingProductImages,
 } from "@/lib/product-variants/variant-images";
 import {
   fetchWalmartProductSummary,
@@ -98,10 +103,10 @@ type PageAiContext = {
 };
 
 function sheinRowsMissingImages(rows: ProductVariantOffer[]): boolean {
-  return !rows.some((r) => normalizeRetailerImageUrl(r.imageUrl));
+  return variantRowsMissingProductImages(rows);
 }
 
-/** SHEIN: keep page scrape prices; fill images from OpenAI page parse, then SerpApi (images only). */
+/** SHEIN: keep page scrape prices; fill images from listing CDN / OpenAI, then SerpApi. */
 async function finalizeSheinVariantRows(
   sheinRows: ProductVariantOffer[],
   html: string,
@@ -109,7 +114,11 @@ async function finalizeSheinVariantRows(
   parsed: ParsedProductUrl,
   context?: PageAiContext,
 ): Promise<ProductVariantOffer[]> {
-  let rows = sheinRows;
+  const htmlHero =
+    extractSheinCdnImageUrls(html)[0] ??
+    usableRetailerProductImageUrl(extractOgImageFromHtml(html, productUrl));
+
+  let rows = fillMissingVariantImages(sheinRows, htmlHero);
 
   rows = await enrichSheinVariantsWithSerpApiPrices(rows, {
     productUrl,
@@ -126,6 +135,7 @@ async function finalizeSheinVariantRows(
         context,
       );
       rows = mergeSheinVariantsWithPageImages(rows, pageRows);
+      rows = fillMissingVariantImages(rows, htmlHero);
     } catch {
       /* OpenAI page parse unavailable */
     }
@@ -139,7 +149,7 @@ async function finalizeSheinVariantRows(
     });
   }
 
-  const hero = resolveListingImageUrl(rows, null);
+  const hero = resolveListingImageUrl(rows, htmlHero);
   return fillMissingVariantImages(rows, hero);
 }
 
@@ -162,7 +172,7 @@ async function fetchFromPageAi(
       );
       rows = variants.map((row) => ({
         ...row,
-        imageUrl: normalizeRetailerImageUrl(row.imageUrl),
+        imageUrl: usableRetailerProductImageUrl(row.imageUrl),
       }));
     }
 
@@ -178,7 +188,7 @@ async function fetchFromPageAi(
   );
   return variants.map((row) => ({
     ...row,
-    imageUrl: normalizeRetailerImageUrl(row.imageUrl),
+    imageUrl: usableRetailerProductImageUrl(row.imageUrl),
   }));
 }
 

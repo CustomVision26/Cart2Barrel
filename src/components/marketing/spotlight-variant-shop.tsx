@@ -141,6 +141,7 @@ export function SpotlightVariantShop({
           alt=""
           className="size-full object-cover"
           draggable={false}
+          referrerPolicy="no-referrer"
         />
       : <div className="flex size-full items-center justify-center text-muted-foreground">
           <ImageIcon className={isDetail ? "size-8" : "size-5"} aria-hidden />
@@ -244,6 +245,7 @@ export function SpotlightVariantShop({
                           src={color.imageUrl}
                           alt=""
                           className="size-full object-cover"
+                          referrerPolicy="no-referrer"
                         />
                       : <span className="size-full bg-muted" />}
                       {!inStock ? <DiagonalUnavailable className="rounded-full" /> : null}

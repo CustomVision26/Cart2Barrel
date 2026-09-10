@@ -1,6 +1,7 @@
+import { extractOgImageFromHtml } from "@/lib/ai/product-image-url";
 import { buildVariantLabel, priceUsdToCents } from "@/lib/product-variants/labels";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
-import { normalizeRetailerImageUrl } from "@/lib/product-variants/variant-images";
+import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
 
 function parseUsdAmount(raw: string | undefined): number | null {
   if (!raw?.trim()) return null;
@@ -12,49 +13,80 @@ function normalizeColorKey(value: string | null | undefined): string {
   return value?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
 }
 
+function unescapeEmbeddedJsonUrls(html: string): string {
+  return html.replace(/\\u002[fF]/gi, "/").replace(/\\\//g, "/");
+}
+
 function coerceSheinCdnMatch(raw: string): string | null {
   let s = raw.replace(/\\/g, "");
   if (s.startsWith("//")) s = `https:${s}`;
   else if (!/^https?:\/\//i.test(s)) s = `https://${s.replace(/^\/+/, "")}`;
-  return normalizeRetailerImageUrl(s);
+  return usableRetailerProductImageUrl(s);
+}
+
+function sheinCdnPhotoScore(url: string): number {
+  const u = url.toLowerCase();
+  if (u.includes("/pwa_dist/") || u.includes("sprite") || u.includes("/icon")) {
+    return -1;
+  }
+  if (u.includes("images3_ccc") || u.includes("images3_acp")) {
+    return -1;
+  }
+  if (/img\.shein\.com\/images3\/\d{4}\//i.test(u)) {
+    return -1;
+  }
+  if (u.includes("images3_pi") || u.includes("images3_spmp")) {
+    return 3;
+  }
+  if (u.includes("images3_sp")) {
+    return 2;
+  }
+  const thumb = u.match(/_thumbnail_(\d+)x(\d+)/);
+  if (thumb) {
+    const w = Number(thumb[1]);
+    return Number.isFinite(w) && w >= 200 ? 2 : 0;
+  }
+  return 1;
 }
 
 /** SHEIN product photos from page HTML / embedded JSON. */
 export function extractSheinCdnImageUrls(html: string): string[] {
+  const source = unescapeEmbeddedJsonUrls(html);
   const re =
-    /(?:https?:)?(?:\\\/\/|\/\/)?img\.ltwebstatic\.com\/[a-zA-Z0-9_./%-]+/gi;
+    /(?:https?:)?\/\/(?:img[a-z0-9-]*\.ltwebstatic\.com|p\.ltwebstatic\.com|img\.shein\.com)\/[a-zA-Z0-9_./%~?&=-]+/gi;
   const out: string[] = [];
   const seen = new Set<string>();
 
-  for (const match of html.matchAll(re)) {
+  for (const match of source.matchAll(re)) {
     const url = coerceSheinCdnMatch(match[0]);
-    if (!url || seen.has(url)) continue;
+    if (!url || seen.has(url) || sheinCdnPhotoScore(url) < 0) continue;
     seen.add(url);
     out.push(url);
   }
 
-  return out;
+  return out.sort((a, b) => sheinCdnPhotoScore(b) - sheinCdnPhotoScore(a));
 }
 
 /** Map color name → image URL from swatch / SKU blobs. */
 function extractSheinColorImageMap(html: string): Map<string, string> {
+  const source = unescapeEmbeddedJsonUrls(html);
   const map = new Map<string, string>();
 
   const pairedRe =
-    /"attr_value_name_en"\s*:\s*"([^"]+)"[\s\S]{0,2500}?(?:"goods_img"|"sku_image"|"origin_image"|"color_image"|"goods_thumb")\s*:\s*"(https?:\/\/[^"]+)"/gi;
+    /"attr_value_name_en"\s*:\s*"([^"]+)"[\s\S]{0,2500}?(?:"goods_img"|"sku_image"|"origin_image"|"color_image"|"goods_thumb")\s*:\s*"((?:https?:)?\/\/[^"]+)"/gi;
 
-  for (const match of html.matchAll(pairedRe)) {
+  for (const match of source.matchAll(pairedRe)) {
     const color = normalizeColorKey(match[1]);
-    const url = normalizeRetailerImageUrl(match[2]);
+    const url = usableRetailerProductImageUrl(match[2]);
     if (!color || !url) continue;
     if (!map.has(color)) map.set(color, url);
   }
 
   const altRe =
-    /"(?:goods_img|sku_image|origin_image|color_image)"\s*:\s*"(https?:\/\/[^"]+)"[\s\S]{0,2500}?"attr_value_name_en"\s*:\s*"([^"]+)"/gi;
+    /"(?:goods_img|sku_image|origin_image|color_image)"\s*:\s*"((?:https?:)?\/\/[^"]+)"[\s\S]{0,2500}?"attr_value_name_en"\s*:\s*"([^"]+)"/gi;
 
-  for (const match of html.matchAll(altRe)) {
-    const url = normalizeRetailerImageUrl(match[1]);
+  for (const match of source.matchAll(altRe)) {
+    const url = usableRetailerProductImageUrl(match[1]);
     const color = normalizeColorKey(match[2]);
     if (!color || !url) continue;
     if (!map.has(color)) map.set(color, url);
@@ -170,7 +202,9 @@ export function extractSheinVariantsFromHtml(
   const mainSale = extractSheinMainSaleUsd(html);
   const cdnUrls = extractSheinCdnImageUrls(html);
   const colorImages = extractSheinColorImageMap(html);
-  const heroImage = cdnUrls[0] ?? null;
+  const heroImage =
+    cdnUrls[0] ??
+    usableRetailerProductImageUrl(extractOgImageFromHtml(html, pageUrl));
 
   const rows: ProductVariantOffer[] = [];
   const seen = new Set<string>();

@@ -610,6 +610,7 @@ function SpotlightCategoryPanel({
                                   src={product.imageUrl}
                                   alt=""
                                   className="size-full object-cover"
+                                  referrerPolicy="no-referrer"
                                 />
                               : <div className="flex size-full items-center justify-center text-muted-foreground">
                                   <ImageIcon className="size-3.5" aria-hidden />

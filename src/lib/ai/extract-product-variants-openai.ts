@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { buildVariantLabel, priceUsdToCents } from "@/lib/product-variants/labels";
+import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
 
 const variantRowSchema = z.object({
   label: z.union([z.string(), z.null()]).optional(),
@@ -73,6 +74,7 @@ export async function extractProductVariantsWithOpenAI(
             ? ` or the requested size "${context.productSize ?? ""}" / color "${context.productColor ?? ""}".`
             : ".",
           "- productUrl: absolute https URL for that SKU when the page exposes per-SKU links; else null.",
+          "- imageUrl: absolute https URL of that SKU's product photo when present (og:image, JSON goods_img/sku_image, or img*.ltwebstatic.com images3_pi / images3_spmp). Never use a page URL, relative path, color-chip swatch, logo, coupon, or campaign PNG (images3_ccc / images3_acp).",
           "- label: short human label combining color/size/pack when helpful.",
           "- Cap at 30 variants; prefer in-stock rows when many exist.",
           "- notes: brief caveat or null.",
@@ -116,7 +118,7 @@ export async function extractProductVariantsWithOpenAI(
       packLabel,
       priceUsdCents: priceUsdToCents(parseUsd(row.unitPriceUsd)),
       productUrl: row.productUrl?.trim() || null,
-      imageUrl: row.imageUrl?.trim() || null,
+      imageUrl: usableRetailerProductImageUrl(row.imageUrl),
       inStock: row.inStock ?? null,
       isCurrent: Boolean(row.isCurrent),
       source: "page_ai",

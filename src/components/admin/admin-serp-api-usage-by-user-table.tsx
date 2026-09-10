@@ -95,7 +95,7 @@ export function AdminSerpApiUsageByUserTable({
 
   const emptyTableMessage =
     rows.length === 0
-      ? "No attributed SerpApi searches yet. Counts start when a signed-in customer or admin runs a product lookup, estimate, or Spotlight search."
+      ? "No registered accounts yet. Clerk sign-ups appear here after they sync, along with any scheduled SerpApi searches."
       : "No users match the current search.";
 
   return (
@@ -119,9 +119,9 @@ export function AdminSerpApiUsageByUserTable({
         showTo={showTo}
         totalCount={filteredSorted.length}
         totalLoaded={rows.length}
-        totalLoadedLabel="users with searches"
+        totalLoadedLabel="registered accounts"
         itemLabel="user"
-        emptyMessage="No attributed SerpApi searches yet."
+        emptyMessage="No registered accounts yet."
         noMatchMessage="No users match the current search."
         className="mb-0"
       />

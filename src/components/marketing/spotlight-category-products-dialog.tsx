@@ -9,7 +9,10 @@ import {
 } from "@/components/ui/dialog";
 import { SpotlightCategoryOffersPanel } from "@/components/marketing/spotlight-category-offers-panel";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
-import type { SpotlightCategoryDefinition } from "@/lib/spotlight-categories";
+import {
+  SPOTLIGHT_RETAILER_PRICE_NOTICE,
+  type SpotlightCategoryDefinition,
+} from "@/lib/spotlight-categories";
 import { cn } from "@/lib/utils";
 
 type SpotlightCategoryProductsDialogProps = {
@@ -42,7 +45,15 @@ export function SpotlightCategoryProductsDialog({
           <DialogTitle className="text-lg sm:text-xl">{category.title}</DialogTitle>
           <DialogDescription className="text-pretty text-sm">
             {products.length > 0 ?
-              "Pick color and size for each product—view on the store or start a request for the selected variant."
+              <>
+                <span className="block">
+                  Pick color and size for each product—view on the store or start
+                  a request for the selected variant.
+                </span>
+                <span className="mt-1.5 block text-xs leading-relaxed">
+                  {SPOTLIGHT_RETAILER_PRICE_NOTICE}
+                </span>
+              </>
             : "No curated products in this category yet. Check back soon or request any item from your dashboard."}
           </DialogDescription>
         </DialogHeader>

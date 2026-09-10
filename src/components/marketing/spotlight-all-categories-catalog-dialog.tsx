@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
 import {
+  SPOTLIGHT_RETAILER_PRICE_NOTICE,
   spotlightCategoryIcon,
   type SpotlightCategoryDefinition,
   type SpotlightCategorySlug,
@@ -148,8 +149,13 @@ export function SpotlightAllCategoriesCatalogDialog({
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 sm:px-6">
           <DialogTitle className="text-xl sm:text-2xl">Spotlight catalog</DialogTitle>
           <DialogDescription className="text-sm sm:text-base">
-            Choose a category, then pick color and size for each product—view on
-            the store or start a request.
+            <span className="block">
+              Choose a category, then pick color and size for each product—view on
+              the store or start a request.
+            </span>
+            <span className="mt-1.5 block text-xs leading-relaxed sm:text-sm">
+              {SPOTLIGHT_RETAILER_PRICE_NOTICE}
+            </span>
           </DialogDescription>
         </DialogHeader>
 

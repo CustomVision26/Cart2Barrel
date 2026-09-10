@@ -23,6 +23,10 @@ export const spotlightCategorySlugValueSchema = [
 /** Slug stored on products and category rows. Custom categories use the same shape. */
 export type SpotlightCategorySlug = string;
 
+/** Shown on spotlight browse surfaces before customers request an estimate. */
+export const SPOTLIGHT_RETAILER_PRICE_NOTICE =
+  "Retailer prices can change. View the official product page, and update the product description if needed, before requesting an estimate.";
+
 export const SPOTLIGHT_CATEGORY_ICON_NAMES = [
   "headphones",
   "shirt",
