@@ -25,6 +25,7 @@ import {
   resolveWalmartProductIdForLookup,
 } from "@/lib/serpapi/walmart-product";
 import { fillMissingVariantImages } from "@/lib/product-variants/variant-images";
+import { hostnameFromProductUrl, retailerLabelFromProductUrl } from "@/lib/site-name";
 
 export type AdminSpotlightPrimaryFields = {
   productUrl: string;
