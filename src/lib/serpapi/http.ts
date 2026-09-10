@@ -3,12 +3,17 @@ import { getSerpApiUsageContext } from "@/lib/serpapi/usage-context";
 import { recordSerpApiSearchEvent } from "@/data/serp-api-search-events";
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
+const TRANSIENT_STATUS = new Set([502, 503, 504]);
+const TRANSIENT_ATTEMPTS = 3;
 
 export const SERPAPI_QUOTA_EXHAUSTED_MESSAGE =
   "SerpApi monthly searches are used up for this API key. Customer quote lookups, admin estimates, and Spotlight all share the same plan. Upgrade at serpapi.com/change-plan, or wait until the billing period resets.";
 
 export const SERPAPI_THROUGHPUT_MESSAGE =
   "SerpApi hit this plan’s hourly request limit (HTTP 429). Several customers and admins can search at once; try the same lookup again in a little while.";
+
+export const SERPAPI_UNAVAILABLE_MESSAGE =
+  "Google Shopping via SerpApi was briefly unavailable (HTTP 503). Store variants can still load. Run the lookup again for retailer comparison.";
 
 /** @deprecated Use quota or throughput messages; kept for existing 429 checks. */
 export const SERPAPI_RATE_LIMIT_MESSAGE = SERPAPI_QUOTA_EXHAUSTED_MESSAGE;
@@ -33,11 +38,61 @@ export function isSerpApiRateLimitError(err: unknown): boolean {
   );
 }
 
+export function isSerpApiTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /HTTP 502|HTTP 503|HTTP 504|briefly unavailable/i.test(msg);
+}
+
 function messageFor429(bodyError?: string): string {
   if (bodyError && /run out of searches|out of searches|no searches remaining/i.test(bodyError)) {
     return SERPAPI_QUOTA_EXHAUSTED_MESSAGE;
   }
   return SERPAPI_THROUGHPUT_MESSAGE;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function serpApiFetchOnce(
+  requestUrl: string,
+): Promise<Record<string, unknown>> {
+  const res = await fetch(requestUrl, {
+    method: "GET",
+    next: { revalidate: 0 },
+  });
+
+  if (res.status === 429) {
+    let bodyError: string | undefined;
+    try {
+      const payload = (await res.json()) as { error?: string };
+      bodyError = payload.error;
+    } catch {
+      /* body may be empty */
+    }
+    throw new Error(messageFor429(bodyError));
+  }
+
+  if (TRANSIENT_STATUS.has(res.status)) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+
+  if (!res.ok) {
+    throw new Error(`SerpApi request failed (HTTP ${res.status}).`);
+  }
+
+  const data = (await res.json()) as Record<string, unknown> & { error?: string };
+  if (data.error) {
+    if (/run out of searches|out of searches/i.test(data.error)) {
+      throw new Error(SERPAPI_QUOTA_EXHAUSTED_MESSAGE);
+    }
+    if (isSerpApiRateLimitError(data.error)) {
+      throw new Error(messageFor429(data.error));
+    }
+    throw new Error(data.error);
+  }
+
+  return data;
 }
 
 export async function serpApiGet<T extends Record<string, unknown>>(
@@ -65,46 +120,36 @@ export async function serpApiGet<T extends Record<string, unknown>>(
       url.searchParams.set(k, v);
     }
     url.searchParams.set("api_key", apiKey);
+    const requestUrl = url.toString();
 
-    const res = await fetch(url.toString(), {
-      method: "GET",
-      next: { revalidate: 0 },
-    });
-
-    if (res.status === 429) {
-      let bodyError: string | undefined;
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= TRANSIENT_ATTEMPTS; attempt++) {
       try {
-        const payload = (await res.json()) as { error?: string };
-        bodyError = payload.error;
-      } catch {
-        /* body may be empty */
+        const data = await serpApiFetchOnce(requestUrl);
+        responseCache.set(key, { expires: Date.now() + CACHE_TTL_MS, data });
+        const ctx = getSerpApiUsageContext();
+        void recordSerpApiSearchEvent({
+          clerkUserId: ctx?.userId ?? null,
+          source: ctx?.source ?? "other",
+          engine: params.engine?.trim() || null,
+        });
+        return data;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        lastError = error;
+        const retryable =
+          isSerpApiTransientError(error) && attempt < TRANSIENT_ATTEMPTS;
+        if (!retryable) {
+          if (isSerpApiTransientError(error)) {
+            throw new Error(SERPAPI_UNAVAILABLE_MESSAGE);
+          }
+          throw error;
+        }
+        await sleep(400 * 2 ** (attempt - 1));
       }
-      throw new Error(messageFor429(bodyError));
     }
 
-    if (!res.ok) {
-      throw new Error(`SerpApi request failed (HTTP ${res.status}).`);
-    }
-
-    const data = (await res.json()) as T & { error?: string };
-    if (data.error) {
-      if (/run out of searches|out of searches/i.test(data.error)) {
-        throw new Error(SERPAPI_QUOTA_EXHAUSTED_MESSAGE);
-      }
-      if (isSerpApiRateLimitError(data.error)) {
-        throw new Error(messageFor429(data.error));
-      }
-      throw new Error(data.error);
-    }
-
-    responseCache.set(key, { expires: Date.now() + CACHE_TTL_MS, data });
-    const ctx = getSerpApiUsageContext();
-    void recordSerpApiSearchEvent({
-      clerkUserId: ctx?.userId ?? null,
-      source: ctx?.source ?? "other",
-      engine: params.engine?.trim() || null,
-    });
-    return data;
+    throw lastError ?? new Error(SERPAPI_UNAVAILABLE_MESSAGE);
   })().finally(() => {
     inflight.delete(key);
   });

@@ -86,6 +86,27 @@ export function isLikelyRetailerUiAssetImageUrl(
   return false;
 }
 
+/**
+ * Walmart CDN thumbs: raise odnHeight/Width so admin/shopper thumbs are the
+ * product photo, not a 30px chip. Color-chip URLs stay rejected.
+ */
+export function upscaleWalmartCdnImageUrl(
+  raw: string | null | undefined,
+): string | null {
+  const u = normalizeRetailerImageUrl(raw);
+  if (!u) return null;
+  try {
+    const url = new URL(u);
+    if (!url.hostname.toLowerCase().includes("walmartimages")) return u;
+    url.searchParams.set("odnHeight", "640");
+    url.searchParams.set("odnWidth", "640");
+    if (!url.searchParams.get("odnBg")) url.searchParams.set("odnBg", "FFFFFF");
+    return url.href;
+  } catch {
+    return u;
+  }
+}
+
 /** HTTPS product photo, excluding color-chip swatches. */
 export function usableRetailerProductImageUrl(
   raw: string | null | undefined,
@@ -98,7 +119,7 @@ export function usableRetailerProductImageUrl(
   ) {
     return null;
   }
-  return u;
+  return upscaleWalmartCdnImageUrl(u) ?? u;
 }
 
 /** True when no variant row has a usable product photo (swatches do not count). */

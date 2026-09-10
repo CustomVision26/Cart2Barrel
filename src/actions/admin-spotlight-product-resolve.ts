@@ -25,6 +25,11 @@ import {
 } from "@/lib/validations/spotlight-category-product";
 import { spotlightVariantFieldsFromInput } from "@/lib/validations/spotlight-product-variant";
 import { z } from "zod";
+import {
+  clipSpotlightLabel,
+  normalizeHttpsUrl,
+  SPOTLIGHT_LABEL_MAX,
+} from "@/lib/product-url/https";
 
 export type AdminResolveSpotlightProductResult =
   | {
@@ -120,20 +125,39 @@ export async function adminResolveSpotlightProductAction(
 
 const adminSaveSpotlightOfferSchema = z.object({
   categorySlug: adminCreateSpotlightProductSchema.shape.categorySlug,
-  productUrl: z.string().trim().url().max(2048).refine((s) => /^https:\/\//i.test(s)),
-  label: z.string().trim().max(200).optional(),
+  productUrl: z.preprocess(
+    (v) => normalizeHttpsUrl(v) ?? v,
+    z
+      .string()
+      .trim()
+      .min(8)
+      .max(2048)
+      .refine((s) => /^https:\/\//i.test(s), {
+        message: "Product URL must start with https://",
+      }),
+  ),
+  label: z.preprocess(
+    (v) => (typeof v === "string" ? clipSpotlightLabel(v) : v),
+    z.string().trim().max(SPOTLIGHT_LABEL_MAX).optional(),
+  ),
   priceUsd: z.string().trim().optional(),
   productSize: z.string().trim().max(120).optional(),
   productColor: z.string().trim().max(120).optional(),
   packLabel: z.string().trim().max(120).optional(),
-  imageUrl: z
-    .string()
-    .trim()
-    .max(2048)
-    .optional()
-    .refine((s) => !s || /^https:\/\//i.test(s), {
-      message: "Image URL must be https.",
-    }),
+  imageUrl: z.preprocess(
+    (v) => {
+      if (v == null || v === "") return undefined;
+      return normalizeHttpsUrl(v) ?? v;
+    },
+    z
+      .string()
+      .trim()
+      .max(2048)
+      .optional()
+      .refine((s) => !s || /^https:\/\//i.test(s), {
+        message: "Image URL must be https.",
+      }),
+  ),
 });
 
 export type AdminSaveSpotlightOfferResult =
@@ -185,23 +209,42 @@ export async function adminSaveSpotlightProductOfferAction(
 
 const adminSaveVariantOfferSchema = z.object({
   parentProductId: z.string().uuid(),
-  label: z.string().trim().max(200).optional(),
+  label: z.preprocess(
+    (v) => (typeof v === "string" ? clipSpotlightLabel(v) : v),
+    z.string().trim().max(SPOTLIGHT_LABEL_MAX).optional(),
+  ),
   priceUsd: z.string().trim().optional(),
   productSize: z.string().trim().max(120).optional(),
   productColor: z.string().trim().max(120).optional(),
   packLabel: z.string().trim().max(120).optional(),
-  productUrl: z
-    .string()
-    .trim()
-    .max(2048)
-    .optional()
-    .refine((s) => !s || /^https:\/\//i.test(s)),
-  imageUrl: z
-    .string()
-    .trim()
-    .max(2048)
-    .optional()
-    .refine((s) => !s || /^https:\/\//i.test(s)),
+  productUrl: z.preprocess(
+    (v) => {
+      if (v == null || v === "") return undefined;
+      return normalizeHttpsUrl(v) ?? v;
+    },
+    z
+      .string()
+      .trim()
+      .max(2048)
+      .optional()
+      .refine((s) => !s || /^https:\/\//i.test(s), {
+        message: "Variant URL must start with https:// when provided.",
+      }),
+  ),
+  imageUrl: z.preprocess(
+    (v) => {
+      if (v == null || v === "") return undefined;
+      return normalizeHttpsUrl(v) ?? v;
+    },
+    z
+      .string()
+      .trim()
+      .max(2048)
+      .optional()
+      .refine((s) => !s || /^https:\/\//i.test(s), {
+        message: "Image URL must start with https://",
+      }),
+  ),
 });
 
 /** Save one SerpApi variant row under an existing spotlight parent. */

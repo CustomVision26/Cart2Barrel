@@ -1,30 +1,48 @@
 import { z } from "zod";
 
-const httpsProductUrl = z
-  .string()
-  .trim()
-  .min(8)
-  .max(2048)
-  .refine((s) => /^https:\/\//i.test(s), {
-    message: "Product URL must start with https://",
-  });
+import {
+  clipSpotlightLabel,
+  normalizeHttpsUrl,
+  SPOTLIGHT_LABEL_MAX,
+} from "@/lib/product-url/https";
+
+const httpsProductUrl = z.preprocess(
+  (v) => normalizeHttpsUrl(v) ?? v,
+  z
+    .string()
+    .trim()
+    .min(8)
+    .max(2048)
+    .refine((s) => /^https:\/\//i.test(s), {
+      message: "Product URL must start with https://",
+    }),
+);
 
 export const adminResolveSpotlightProductSchema = z.object({
   productUrl: httpsProductUrl,
 });
 
-const optionalHttps = z
-  .string()
-  .trim()
-  .max(2048)
-  .optional()
-  .refine((s) => !s || /^https:\/\//i.test(s), {
-    message: "URL must start with https:// when provided.",
-  });
+const optionalHttps = z.preprocess(
+  (v) => {
+    if (v == null || v === "") return undefined;
+    return normalizeHttpsUrl(v) ?? v;
+  },
+  z
+    .string()
+    .trim()
+    .max(2048)
+    .optional()
+    .refine((s) => !s || /^https:\/\//i.test(s), {
+      message: "URL must start with https:// when provided.",
+    }),
+);
 
 export const adminSaveSpotlightVariantRowSchema = z.object({
   id: z.string().trim().min(1).max(200),
-  label: z.string().trim().max(200).optional(),
+  label: z.preprocess(
+    (v) => (typeof v === "string" ? clipSpotlightLabel(v) : v),
+    z.string().trim().max(SPOTLIGHT_LABEL_MAX).optional(),
+  ),
   priceUsd: z.string().trim().optional(),
   productSize: z.string().trim().max(120).optional(),
   productColor: z.string().trim().max(120).optional(),

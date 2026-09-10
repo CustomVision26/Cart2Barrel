@@ -117,10 +117,18 @@ export async function compareRetailerPrices(input: {
       input.productName,
       input.originalRetailer,
     );
-    const immersiveStores =
-      immersiveHit?.immersiveProductPageToken ?
-        await fetchImmersiveProductStoreOffers(immersiveHit.immersiveProductPageToken)
-      : [];
+    let immersiveStores: Awaited<
+      ReturnType<typeof fetchImmersiveProductStoreOffers>
+    > = [];
+    if (immersiveHit?.immersiveProductPageToken) {
+      try {
+        immersiveStores = await fetchImmersiveProductStoreOffers(
+          immersiveHit.immersiveProductPageToken,
+        );
+      } catch {
+        /* Google Immersive often 503s; shopping hits still compare retailers. */
+      }
+    }
 
     const verificationCandidates: ShoppingMatchCandidate[] = [];
 

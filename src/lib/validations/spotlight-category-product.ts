@@ -2,15 +2,23 @@ import { z } from "zod";
 
 import { priceUsdStringToCents } from "@/lib/validations/container-offering";
 import { SPOTLIGHT_CATEGORY_ICON_NAMES } from "@/lib/spotlight-categories";
+import {
+  clipSpotlightLabel,
+  normalizeHttpsUrl,
+  SPOTLIGHT_LABEL_MAX,
+} from "@/lib/product-url/https";
 
-const httpsProductUrl = z
-  .string()
-  .trim()
-  .min(8)
-  .max(2048)
-  .refine((s) => /^https:\/\//i.test(s), {
-    message: "Product URL must start with https://",
-  });
+const httpsProductUrl = z.preprocess(
+  (v) => normalizeHttpsUrl(v) ?? v,
+  z
+    .string()
+    .trim()
+    .min(8)
+    .max(2048)
+    .refine((s) => /^https:\/\//i.test(s), {
+      message: "Product URL must start with https://",
+    }),
+);
 
 const optionalPriceUsd = z
   .string()
@@ -26,14 +34,20 @@ const optionalPriceUsd = z
 
 const optionalVariantText = z.string().trim().max(120).optional();
 
-const optionalHttpsImageUrl = z
-  .string()
-  .trim()
-  .max(2048)
-  .optional()
-  .refine((s) => !s || /^https:\/\//i.test(s), {
-    message: "Image URL must start with https://",
-  });
+const optionalHttpsImageUrl = z.preprocess(
+  (v) => {
+    if (v == null || v === "") return undefined;
+    return normalizeHttpsUrl(v) ?? v;
+  },
+  z
+    .string()
+    .trim()
+    .max(2048)
+    .optional()
+    .refine((s) => !s || /^https:\/\//i.test(s), {
+      message: "Image URL must start with https://",
+    }),
+);
 
 export const spotlightCategorySlugInputSchema = z
   .string()
@@ -47,7 +61,10 @@ export const spotlightCategorySlugInputSchema = z
 export const adminCreateSpotlightProductSchema = z.object({
   categorySlug: spotlightCategorySlugInputSchema,
   productUrl: httpsProductUrl,
-  label: z.string().trim().max(200).optional(),
+  label: z.preprocess(
+    (v) => (typeof v === "string" ? clipSpotlightLabel(v) : v),
+    z.string().trim().max(SPOTLIGHT_LABEL_MAX).optional(),
+  ),
   /** USD dollars; omit or leave blank when unknown. */
   priceUsd: optionalPriceUsd,
   productSize: optionalVariantText,
@@ -111,7 +128,10 @@ export const adminDeleteSpotlightCategorySchema = z.object({
 
 export const adminUpdateSpotlightProductSchema = z.object({
   id: z.string().uuid(),
-  label: z.string().trim().max(300),
+  label: z.preprocess(
+    (v) => (typeof v === "string" ? clipSpotlightLabel(v) : v),
+    z.string().trim().max(SPOTLIGHT_LABEL_MAX),
+  ),
   /** USD dollars; empty string clears the stored price. */
   priceUsd: optionalPriceUsd.transform((s) => s ?? ""),
   productSize: z.string().trim().max(120),

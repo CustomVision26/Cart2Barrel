@@ -1,5 +1,5 @@
 import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
-import { isSerpApiRateLimitError, serpApiGet } from "@/lib/serpapi/http";
+import { isSerpApiRateLimitError, isSerpApiTransientError, serpApiGet } from "@/lib/serpapi/http";
 
 export type SerpShoppingResult = {
   title: string;
@@ -88,7 +88,7 @@ export async function searchGoogleShopping(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Shopping search failed.";
-    if (isSerpApiRateLimitError(msg)) {
+    if (isSerpApiRateLimitError(msg) || isSerpApiTransientError(msg)) {
       throw err instanceof Error ? err : new Error(msg);
     }
     const http = /HTTP \d+/.exec(msg)?.[0];

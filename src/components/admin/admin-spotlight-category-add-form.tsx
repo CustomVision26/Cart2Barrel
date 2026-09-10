@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { formatUsd } from "@/lib/admin-markup";
 import { appTableVariantRowCurrent } from "@/lib/app-table-surfaces";
 import type { SpotlightCategorySlug } from "@/lib/spotlight-categories";
+import { clipSpotlightLabel, normalizeHttpsUrl } from "@/lib/product-url/https";
 import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
 import { cn } from "@/lib/utils";
 
@@ -110,17 +111,22 @@ function variantSavePayload(
   variant: SpotlightLookupVariant,
   listingImageUrl: string | null,
 ) {
+  const compactLabel = [variant.color, variant.size, variant.packLabel]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" · ");
   return {
-    label: variant.label,
+    label: clipSpotlightLabel(compactLabel || variant.label),
     priceUsd: centsToUsdField(variant.priceUsdCents),
     productSize: variant.size ?? undefined,
     productColor: variant.color ?? undefined,
     packLabel: variant.packLabel ?? undefined,
-    productUrl: variant.productUrl ?? undefined,
+    productUrl: normalizeHttpsUrl(variant.productUrl) ?? undefined,
     imageUrl:
-      usableRetailerProductImageUrl(variant.imageUrl) ??
-      usableRetailerProductImageUrl(listingImageUrl) ??
-      undefined,
+      normalizeHttpsUrl(
+        usableRetailerProductImageUrl(variant.imageUrl) ??
+          usableRetailerProductImageUrl(listingImageUrl),
+      ) ?? undefined,
   };
 }
 
@@ -273,7 +279,9 @@ export function AdminSpotlightCategoryAddForm({
           : null,
         res.compareMessage ? `Compare: ${res.compareMessage}` : null,
       ].filter(Boolean);
-      const compareLimited = /429|rate limit/i.test(res.compareMessage ?? "");
+      const compareLimited = /429|rate limit|503|unavailable/i.test(
+        res.compareMessage ?? "",
+      );
       if (compareLimited) {
         toast.warning(parts.join(" "));
       } else {
@@ -328,12 +336,13 @@ export function AdminSpotlightCategoryAddForm({
     }
     const res = await adminSaveSpotlightProductOfferAction({
       categorySlug,
-      productUrl: fields.productUrl,
-      label: fields.productName || undefined,
+      productUrl: normalizeHttpsUrl(fields.productUrl) ?? fields.productUrl,
+      label: clipSpotlightLabel(fields.productName),
       priceUsd: fields.priceUsd || undefined,
       productSize: fields.productSize || undefined,
       productColor: fields.productColor || undefined,
-      imageUrl: fields.imageUrl?.trim() || undefined,
+      imageUrl:
+        normalizeHttpsUrl(fields.imageUrl?.trim()) || undefined,
     });
     if (!res.ok) {
       toast.error(res.message);

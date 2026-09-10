@@ -22,9 +22,12 @@ const AMAZON_ASIN_QUERY = /[?&](?:asin|ASIN)=([A-Z0-9]{10})(?:&|$)/i;
 export function parseProductUrl(productUrl: string): ParsedProductUrl | null {
   let url: URL;
   try {
-    url = new URL(productUrl.trim());
+    url = new URL(productUrl.trim().replace(/['"`]+$/g, ""));
   } catch {
     return null;
+  }
+  if (url.protocol === "http:") {
+    url.protocol = "https:";
   }
   if (url.protocol !== "https:") return null;
 

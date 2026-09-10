@@ -1,19 +1,29 @@
 import { z } from "zod";
 
 import {
+  clipSpotlightLabel,
+  normalizeHttpsUrl,
+  SPOTLIGHT_LABEL_MAX,
+} from "@/lib/product-url/https";
+import {
   normalizeOptionalVariantField,
   parseOptionalPriceUsdToCents,
 } from "@/lib/validations/spotlight-category-product";
 
-const httpsProductUrlOptional = z
-  .string()
-  .trim()
-  .max(2048)
-  .optional()
-  .refine(
-    (s) => !s || /^https:\/\//i.test(s),
-    { message: "Variant URL must start with https:// when provided." },
-  );
+const httpsProductUrlOptional = z.preprocess(
+  (v) => {
+    if (v == null || v === "") return undefined;
+    return normalizeHttpsUrl(v) ?? v;
+  },
+  z
+    .string()
+    .trim()
+    .max(2048)
+    .optional()
+    .refine((s) => !s || /^https:\/\//i.test(s), {
+      message: "Variant URL must start with https:// when provided.",
+    }),
+);
 
 const optionalPriceUsd = z
   .string()
@@ -34,18 +44,27 @@ export const adminImportSpotlightVariantsSchema = z.object({
   replaceExisting: z.boolean().optional().default(false),
 });
 
-const optionalHttpsImageUrl = z
-  .string()
-  .trim()
-  .max(2048)
-  .optional()
-  .refine((s) => !s || /^https:\/\//i.test(s), {
-    message: "Image URL must start with https://",
-  });
+const optionalHttpsImageUrl = z.preprocess(
+  (v) => {
+    if (v == null || v === "") return undefined;
+    return normalizeHttpsUrl(v) ?? v;
+  },
+  z
+    .string()
+    .trim()
+    .max(2048)
+    .optional()
+    .refine((s) => !s || /^https:\/\//i.test(s), {
+      message: "Image URL must start with https://",
+    }),
+);
 
 export const adminCreateSpotlightVariantSchema = z.object({
   parentProductId: z.string().uuid(),
-  label: z.string().trim().max(200).optional(),
+  label: z.preprocess(
+    (v) => (typeof v === "string" ? clipSpotlightLabel(v) : v),
+    z.string().trim().max(SPOTLIGHT_LABEL_MAX).optional(),
+  ),
   priceUsd: optionalPriceUsd,
   productSize: optionalVariantText,
   productColor: optionalVariantText,
@@ -56,7 +75,10 @@ export const adminCreateSpotlightVariantSchema = z.object({
 
 export const adminUpdateSpotlightVariantSchema = z.object({
   id: z.string().uuid(),
-  label: z.string().trim().max(200),
+  label: z.preprocess(
+    (v) => (typeof v === "string" ? clipSpotlightLabel(v) : v),
+    z.string().trim().max(SPOTLIGHT_LABEL_MAX),
+  ),
   priceUsd: optionalPriceUsd.transform((s) => s ?? ""),
   productSize: z.string().trim().max(120),
   productColor: z.string().trim().max(120),
