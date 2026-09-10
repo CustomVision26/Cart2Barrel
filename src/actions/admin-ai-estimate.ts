@@ -49,9 +49,10 @@ export async function adminAiEstimateFromUrlAction(
   raw: unknown
 ): Promise<AdminAiEstimateResult> {
   const user = await currentUser();
-  if (!isClerkAdmin(user)) {
+  if (!user || !isClerkAdmin(user)) {
     return { ok: false, message: "Admin access required." };
   }
+  const adminUserId = user.id;
 
   const parsed = parseAdminAiEstimateRequest(raw);
   if (!parsed.success) {
@@ -105,7 +106,7 @@ export async function adminAiEstimateFromUrlAction(
       };
     } else if (getSerpApiKey()) {
       const serp = await withSerpApiUsage(
-        { userId: user.id, source: "admin_estimate" },
+        { userId: adminUserId, source: "admin_estimate" },
         () =>
           extractAdminAiProductWithSerpApi({
             productUrl,

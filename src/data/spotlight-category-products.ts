@@ -283,6 +283,18 @@ export async function updateSpotlightProductDetails(
     .where(eq(spotlightCategoryProducts.id, id));
 }
 
+export async function moveSpotlightProductToCategory(
+  id: string,
+  categorySlug: string,
+): Promise<void> {
+  const sortIndex = await nextSpotlightSortIndex(categorySlug);
+  const db = getDb();
+  await db
+    .update(spotlightCategoryProducts)
+    .set({ categorySlug, sortIndex })
+    .where(eq(spotlightCategoryProducts.id, id));
+}
+
 export async function setSpotlightProductPublished(
   id: string,
   published: boolean,

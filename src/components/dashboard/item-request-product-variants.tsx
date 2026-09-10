@@ -4,7 +4,7 @@ import { Layers, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
-import { normalizeRetailerImageUrl } from "@/lib/product-variants/variant-images";
+import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,8 +66,8 @@ function variantImageSrc(
   listingImageUrl: string | null | undefined,
 ): string | null {
   return (
-    normalizeRetailerImageUrl(row.imageUrl) ??
-    normalizeRetailerImageUrl(listingImageUrl)
+    usableRetailerProductImageUrl(row.imageUrl) ??
+    usableRetailerProductImageUrl(listingImageUrl)
   );
 }
 

@@ -53,9 +53,10 @@ export async function adminImportSpotlightVariantsAction(
   input: unknown,
 ): Promise<AdminSpotlightProductMutationState> {
   const user = await currentUser();
-  if (!isClerkAdmin(user)) {
+  if (!user || !isClerkAdmin(user)) {
     return { ok: false, message: "Admin access required." };
   }
+  const adminUserId = user.id;
 
   const parsed = adminImportSpotlightVariantsSchema.safeParse(input);
   if (!parsed.success) {
@@ -71,7 +72,7 @@ export async function adminImportSpotlightVariantsAction(
   }
 
   const result = await withSerpApiUsage(
-    { userId: user.id, source: "admin_spotlight" },
+    { userId: adminUserId, source: "admin_spotlight" },
     () =>
       fetchProductVariants({
         productUrl: parent.productUrl,

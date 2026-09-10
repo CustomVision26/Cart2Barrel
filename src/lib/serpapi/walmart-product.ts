@@ -7,6 +7,7 @@ import {
 import { parseProductUrl } from "@/lib/product-url/retailer-id";
 import { titleHintFromProductUrl } from "@/lib/product-url/search-query";
 import { isSerpApiRateLimitError, serpApiGet } from "@/lib/serpapi/http";
+import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
 
 type WalmartPriceMap = {
   price?: number;
@@ -177,7 +178,9 @@ async function enrichWalmartVariantRows(
       ...row,
       priceUsdCents: row.priceUsdCents ?? summary.priceUsdCents,
       productUrl: summary.productUrl ?? row.productUrl,
-      imageUrl: summary.imageUrl ?? row.imageUrl,
+      imageUrl:
+        usableRetailerProductImageUrl(summary.imageUrl) ??
+        usableRetailerProductImageUrl(row.imageUrl),
     };
   });
 }
@@ -200,7 +203,7 @@ export async function fetchWalmartProductSummary(productId: string): Promise<{
   return {
     title: pr.title?.trim() || null,
     priceUsdCents: walmartPriceFromPriceMap(pr.price_map),
-    imageUrl: pr.images?.[0]?.trim() || null,
+    imageUrl: usableRetailerProductImageUrl(pr.images?.[0]),
     productUrl: walmartUrlFromIds(
       pr.product_page_url,
       pr.us_item_id,
@@ -289,7 +292,7 @@ export async function fetchWalmartVariants(
     pr.us_item_id,
     pr.product_id,
   );
-  const heroImage = pr.images?.[0]?.trim() || null;
+  const heroImage = usableRetailerProductImageUrl(pr.images?.[0]);
   const currentKey = (opts?.currentVariantKeys ?? pr.variants ?? []).join("|");
 
   const rows: ProductVariantOffer[] = [];
@@ -316,7 +319,8 @@ export async function fetchWalmartVariants(
 
     for (const selection of swatch.available_selections ?? []) {
       const selectionName = selection.name?.trim();
-      const selectionImage = selection.swatch_image_url?.trim() || heroImage;
+      const selectionImage =
+        usableRetailerProductImageUrl(selection.swatch_image_url) ?? heroImage;
       const products = selection.products ?? [];
 
       const productsToEmit =

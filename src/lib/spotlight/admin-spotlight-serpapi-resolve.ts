@@ -24,7 +24,7 @@ import {
   fetchWalmartProductSummary,
   resolveWalmartProductIdForLookup,
 } from "@/lib/serpapi/walmart-product";
-import { hostnameFromProductUrl, retailerLabelFromProductUrl } from "@/lib/site-name";
+import { fillMissingVariantImages } from "@/lib/product-variants/variant-images";
 
 export type AdminSpotlightPrimaryFields = {
   productUrl: string;
@@ -308,6 +308,8 @@ export async function resolveAdminSpotlightFromSerpApi(
     productSize,
     productColor,
   };
+
+  variants = fillMissingVariantImages(variants, primary.imageUrl);
 
   let compareOffers: RetailerPriceOffer[] = [];
   let compareSearchQuery = "";

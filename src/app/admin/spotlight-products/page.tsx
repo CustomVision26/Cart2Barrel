@@ -50,7 +50,8 @@ export default async function AdminSpotlightProductsPage() {
           Add retailer product URLs for each home page carousel category. New
           products start unpublished. Publish a product and its category so
           shoppers see them on Home. Double-click a record to edit details and
-          variants. Rows marked Check retailer still show when a scheduled
+          variants. Use Move on a row to send a product to another category.
+          Rows marked Check retailer still show when a scheduled
           retailer check found a live listing change.
         </p>
       </div>

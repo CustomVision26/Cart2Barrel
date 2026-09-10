@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 
 import {
   getSpotlightProductById,
+  moveSpotlightProductToCategory,
   nextSpotlightSortIndex,
   setSpotlightProductPublished,
   updateSpotlightProductDetails,
@@ -16,6 +17,7 @@ import {
 import {
   createSpotlightCategory,
   deleteSpotlightCategory,
+  listSpotlightCategoryRecords,
   setSpotlightCategoryPublished,
 } from "@/data/spotlight-categories";
 import { nextSpotlightCategoryIconName } from "@/lib/spotlight-categories";
@@ -37,6 +39,7 @@ import {
   adminCreateSpotlightProductSchema,
   adminDeleteSpotlightCategorySchema,
   adminDeleteSpotlightProductSchema,
+  adminMoveSpotlightProductSchema,
   adminRefreshSpotlightProductImageSchema,
   adminSetSpotlightCategoryPublishedSchema,
   adminSetSpotlightProductImageUrlSchema,
@@ -217,6 +220,46 @@ export async function adminUpdateSpotlightProductAction(
   });
   revalidateSpotlightPaths();
   return { ok: true, message: "Product updated." };
+}
+
+export async function adminMoveSpotlightProductAction(
+  input: unknown,
+): Promise<AdminSpotlightProductMutationState> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminMoveSpotlightProductSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  const row = await getSpotlightProductById(parsed.data.id);
+  if (!row) {
+    return { ok: false, message: "Product not found." };
+  }
+
+  if (row.categorySlug === parsed.data.categorySlug) {
+    return { ok: false, message: "Product is already in that category." };
+  }
+
+  const categories = await listSpotlightCategoryRecords();
+  const destination = categories.find((c) => c.slug === parsed.data.categorySlug);
+  if (!destination) {
+    return { ok: false, message: "Category not found." };
+  }
+
+  await moveSpotlightProductToCategory(parsed.data.id, parsed.data.categorySlug);
+  revalidateSpotlightPaths();
+  return {
+    ok: true,
+    message: `Moved to ${destination.title}. Saved variants stay with this product.`,
+    categorySlug: destination.slug,
+  };
 }
 
 export type AdminUploadSpotlightProductImageState =

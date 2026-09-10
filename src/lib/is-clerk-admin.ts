@@ -41,7 +41,7 @@ export function isClerkStaffRole(role: string | undefined): boolean {
   return STAFF_ROLES.has(role.trim().toLowerCase());
 }
 
-export function isClerkAdmin(user: User | null): boolean {
+export function isClerkAdmin(user: User | null): user is User {
   if (!user) return false;
   return isClerkStaffRole(clerkPublicMetadataRole(user.publicMetadata));
 }

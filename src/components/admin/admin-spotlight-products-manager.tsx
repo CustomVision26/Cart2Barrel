@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  FolderInput,
   ImageIcon,
   Pencil,
   Plus,
@@ -26,6 +27,7 @@ import {
   adminCreateSpotlightCategoryAction,
   adminDeleteSpotlightCategoryAction,
   adminDeleteSpotlightProductAction,
+  adminMoveSpotlightProductAction,
   adminRefreshSpotlightProductImageAction,
   adminSetSpotlightCategoryPublishedAction,
   adminSetSpotlightProductPublishedAction,
@@ -190,6 +192,7 @@ function compareSpotlightProducts(
 
 function SpotlightCategoryPanel({
   category,
+  categories,
   products,
   canDelete,
   pending,
@@ -197,8 +200,10 @@ function SpotlightCategoryPanel({
   onRefresh,
   runMutation,
   onEditProduct,
+  onMovedToCategory,
 }: {
   category: SpotlightCategoryRecord;
+  categories: SpotlightCategoryRecord[];
   products: AdminSpotlightProductRow[];
   canDelete: boolean;
   pending: boolean;
@@ -206,12 +211,17 @@ function SpotlightCategoryPanel({
   onRefresh: () => void;
   runMutation: (fn: () => Promise<void>) => void;
   onEditProduct: (product: AdminSpotlightProductRow) => void;
+  onMovedToCategory: (slug: SpotlightCategorySlug) => void;
 }) {
   const Icon = spotlightCategoryIcon(category.iconName);
   const categoryPublished = category.isActive;
   const [removeTarget, setRemoveTarget] = useState<AdminSpotlightProductRow | null>(
     null,
   );
+  const [moveTarget, setMoveTarget] = useState<AdminSpotlightProductRow | null>(
+    null,
+  );
+  const [moveToSlug, setMoveToSlug] = useState("");
   const [deleteCategoryOpen, setDeleteCategoryOpen] = useState(false);
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
   const [search, setSearch] = useState("");
@@ -234,6 +244,16 @@ function SpotlightCategoryPanel({
       a.localeCompare(b, undefined, { sensitivity: "base" }),
     );
   }, [products]);
+
+  const otherCategories = useMemo(
+    () => categories.filter((c) => c.slug !== category.slug),
+    [categories, category.slug],
+  );
+
+  useEffect(() => {
+    if (!moveTarget) return;
+    setMoveToSlug(otherCategories[0]?.slug ?? "");
+  }, [moveTarget, otherCategories]);
 
   useEffect(() => {
     if (retailerFilter !== "all" && !retailerOptions.includes(retailerFilter)) {
@@ -385,7 +405,8 @@ function SpotlightCategoryPanel({
           <div className="min-w-0 space-y-3">
             <p className="text-sm text-muted-foreground">
               Double-click a record to edit. Use Publish on a row to show that
-              product to shoppers. Each row includes the product URL. Click
+              product to shoppers. Move sends the product (and its variants) to
+              another category. Each row includes the product URL. Click
               column headers to sort, including retailer and product URL.
             </p>
             <AdminNestedFindOrganizePanel
@@ -518,8 +539,8 @@ function SpotlightCategoryPanel({
                       onSort={() => cycleSort("status")}
                       className="min-w-[8rem] whitespace-nowrap"
                     />
-                    <th className="min-w-[13.75rem] whitespace-nowrap px-3 py-2 text-right font-medium">
-                      Publish
+                    <th className="min-w-[16.5rem] whitespace-nowrap px-3 py-2 text-right font-medium">
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -737,6 +758,21 @@ function SpotlightCategoryPanel({
                               type="button"
                               variant="ghost"
                               size="icon-sm"
+                              disabled={pending || otherCategories.length === 0}
+                              title={
+                                otherCategories.length === 0
+                                  ? "Create another category to move this product"
+                                  : "Move to another category"
+                              }
+                              aria-label={`Move ${title} to another category`}
+                              onClick={() => setMoveTarget(product)}
+                            >
+                              <FolderInput />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
                               disabled={pending}
                               title="Edit"
                               aria-label={`Edit ${title}`}
@@ -867,6 +903,95 @@ function SpotlightCategoryPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={moveTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setMoveTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Move to another category</DialogTitle>
+            <DialogDescription>
+              {moveTarget ?
+                <>
+                  Move{" "}
+                  <span className="font-medium text-foreground">
+                    {moveTarget.label?.trim() ||
+                      displaySiteName(null, moveTarget.productUrl)}
+                  </span>{" "}
+                  and its saved variants from {category.title} to another
+                  Spotlight category. Publish status stays the same.
+                </>
+              : null}
+            </DialogDescription>
+          </DialogHeader>
+          <Field className="gap-1.5">
+            <FieldLabelWithHelp
+              htmlFor="spotlight-move-category"
+              label="Destination category"
+              help="The product leaves this category tab and appears on the destination tab, including extra SKUs saved under it."
+              helpLabel="About Destination category"
+            />
+            <FieldContent>
+              <select
+                id="spotlight-move-category"
+                className={nativeSelectFieldClassName}
+                value={moveToSlug}
+                onChange={(e) => setMoveToSlug(e.target.value)}
+                disabled={pending || otherCategories.length === 0}
+              >
+                {otherCategories.length === 0 ?
+                  <option value="">No other categories</option>
+                : otherCategories.map((dest) => (
+                    <option key={dest.slug} value={dest.slug}>
+                      {dest.title}
+                      {dest.isActive ? "" : " (unpublished)"}
+                    </option>
+                  ))}
+              </select>
+            </FieldContent>
+          </Field>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setMoveTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={pending || !moveTarget || !moveToSlug}
+              onClick={() => {
+                if (!moveTarget || !moveToSlug) return;
+                const product = moveTarget;
+                const destinationSlug = moveToSlug;
+                setMoveTarget(null);
+                onStatusMessage(null);
+                runMutation(async () => {
+                  const res = await adminMoveSpotlightProductAction({
+                    id: product.id,
+                    categorySlug: destinationSlug,
+                  });
+                  if (res.ok) {
+                    toast.success(res.message ?? "Product moved.");
+                    if (res.categorySlug) onMovedToCategory(res.categorySlug);
+                    onRefresh();
+                  } else {
+                    toast.error(res.message);
+                    onStatusMessage(res.message);
+                  }
+                });
+              }}
+            >
+              {pending ? "Moving…" : "Move product"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={removeTarget != null}
@@ -1064,12 +1189,14 @@ export function AdminSpotlightProductsManager({
           <SpotlightCategoryPanel
             key={activeCategory.slug}
             category={activeCategory}
+            categories={categories}
             products={activeProducts}
             canDelete={categories.length > 1}
             pending={pending}
             onStatusMessage={setStatusMessage}
             onRefresh={() => router.refresh()}
             onEditProduct={setEditProduct}
+            onMovedToCategory={setActiveSlug}
             runMutation={runMutation}
           />
         </div>

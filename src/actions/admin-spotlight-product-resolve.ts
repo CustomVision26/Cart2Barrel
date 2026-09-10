@@ -66,9 +66,10 @@ export async function adminResolveSpotlightProductAction(
   input: unknown,
 ): Promise<AdminResolveSpotlightProductResult> {
   const user = await currentUser();
-  if (!isClerkAdmin(user)) {
+  if (!user || !isClerkAdmin(user)) {
     return { ok: false, message: "Admin access required." };
   }
+  const adminUserId = user.id;
 
   const parsed = adminResolveSpotlightProductSchema.safeParse(input);
   if (!parsed.success) {
@@ -79,7 +80,7 @@ export async function adminResolveSpotlightProductAction(
   }
 
   const result = await withSerpApiUsage(
-    { userId: user.id, source: "admin_spotlight" },
+    { userId: adminUserId, source: "admin_spotlight" },
     () => resolveAdminSpotlightFromSerpApi(parsed.data.productUrl),
   );
   if (!result.ok) {

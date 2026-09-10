@@ -122,6 +122,15 @@ export type AdminUpdateSpotlightProductInput = z.infer<
   typeof adminUpdateSpotlightProductSchema
 >;
 
+export const adminMoveSpotlightProductSchema = z.object({
+  id: z.string().uuid(),
+  categorySlug: spotlightCategorySlugInputSchema,
+});
+
+export type AdminMoveSpotlightProductInput = z.infer<
+  typeof adminMoveSpotlightProductSchema
+>;
+
 /** Blank or invalid → null; positive USD → cents. */
 export function parseOptionalPriceUsdToCents(
   priceUsd: string | undefined,

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   ImageIcon,
   Loader2,
   Plus,
@@ -18,12 +20,17 @@ import {
   adminSaveSpotlightVariantOffersAction,
   type AdminResolveSpotlightProductResult,
 } from "@/actions/admin-spotlight-product-resolve";
+import {
+  AdminNestedFindOrganizePanel,
+  type AdminNestedFindOrganizePageSize,
+} from "@/components/admin/admin-nested-find-organize-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatUsd } from "@/lib/admin-markup";
 import { appTableVariantRowCurrent } from "@/lib/app-table-surfaces";
 import type { SpotlightCategorySlug } from "@/lib/spotlight-categories";
+import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
 import { cn } from "@/lib/utils";
 
 type ResolvedState = Extract<AdminResolveSpotlightProductResult, { ok: true }>;
@@ -39,6 +46,19 @@ function lookupTabClass(selected: boolean) {
   );
 }
 
+function variantLookupHaystack(row: SpotlightLookupVariant): string {
+  return [
+    row.label,
+    row.size ?? "",
+    row.color ?? "",
+    row.packLabel ?? "",
+    row.priceUsdCents != null ? centsToUsdField(row.priceUsdCents) : "",
+    row.isCurrent ? "current" : "",
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
 type AdminSpotlightCategoryAddFormProps = {
   categorySlug: SpotlightCategorySlug;
   pending: boolean;
@@ -51,8 +71,23 @@ function centsToUsdField(cents: number | null): string {
   return (cents / 100).toFixed(2);
 }
 
-function OfferThumb({ src }: { src: string | null }) {
-  if (!src?.trim()) {
+function OfferThumb({
+  src,
+  fallback = null,
+}: {
+  src: string | null;
+  fallback?: string | null;
+}) {
+  const [failed, setFailed] = useState(false);
+  const url =
+    (!failed ? usableRetailerProductImageUrl(src) : null) ??
+    usableRetailerProductImageUrl(fallback);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src, fallback]);
+
+  if (!url) {
     return (
       <div className="flex size-10 shrink-0 items-center justify-center rounded border border-border bg-muted text-muted-foreground">
         <ImageIcon className="size-4" aria-hidden />
@@ -62,14 +97,18 @@ function OfferThumb({ src }: { src: string | null }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src.trim()}
+      src={url}
       alt=""
       className="size-10 shrink-0 rounded border border-border object-cover"
+      onError={() => setFailed(true)}
     />
   );
 }
 
-function variantSavePayload(variant: SpotlightLookupVariant) {
+function variantSavePayload(
+  variant: SpotlightLookupVariant,
+  listingImageUrl: string | null,
+) {
   return {
     label: variant.label,
     priceUsd: centsToUsdField(variant.priceUsdCents),
@@ -77,7 +116,10 @@ function variantSavePayload(variant: SpotlightLookupVariant) {
     productColor: variant.color ?? undefined,
     packLabel: variant.packLabel ?? undefined,
     productUrl: variant.productUrl ?? undefined,
-    imageUrl: variant.imageUrl ?? undefined,
+    imageUrl:
+      usableRetailerProductImageUrl(variant.imageUrl) ??
+      usableRetailerProductImageUrl(listingImageUrl) ??
+      undefined,
   };
 }
 
@@ -94,6 +136,7 @@ function listingFieldsFromVariant(
   variant: SpotlightLookupVariant,
   fallbackUrl: string,
   fallbackName: string,
+  listingImageUrl: string | null,
 ): SpotlightListingFields {
   return {
     productUrl: variant.productUrl?.trim() || fallbackUrl,
@@ -102,7 +145,9 @@ function listingFieldsFromVariant(
     priceUsd: centsToUsdField(variant.priceUsdCents),
     productSize: variant.size?.trim() || variant.packLabel?.trim() || "",
     productColor: variant.color?.trim() || "",
-    imageUrl: variant.imageUrl,
+    imageUrl:
+      usableRetailerProductImageUrl(variant.imageUrl) ??
+      usableRetailerProductImageUrl(listingImageUrl),
   };
 }
 
@@ -131,10 +176,43 @@ export function AdminSpotlightCategoryAddForm({
   const [savedRetailerIds, setSavedRetailerIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [variantFindVisible, setVariantFindVisible] = useState(true);
+  const [variantSearch, setVariantSearch] = useState("");
+  const [variantPageSize, setVariantPageSize] =
+    useState<AdminNestedFindOrganizePageSize>(10);
+  const [variantPage, setVariantPage] = useState(1);
 
   const busy = pending || lookupPending;
   const unsavedVariants =
     resolved?.variants.filter((row) => !savedVariantIds.has(row.id)) ?? [];
+
+  const filteredVariants = useMemo(() => {
+    const rows = resolved?.variants ?? [];
+    const query = variantSearch.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) => variantLookupHaystack(row).includes(query));
+  }, [resolved?.variants, variantSearch]);
+
+  useEffect(() => {
+    setVariantPage(1);
+  }, [variantSearch, variantPageSize, resolved?.variants]);
+
+  const variantTotalPages = Math.max(
+    1,
+    Math.ceil(filteredVariants.length / variantPageSize),
+  );
+  const variantPageSafe = Math.min(Math.max(1, variantPage), variantTotalPages);
+  const variantSliceStart = (variantPageSafe - 1) * variantPageSize;
+  const variantPageSlice = filteredVariants.slice(
+    variantSliceStart,
+    variantSliceStart + variantPageSize,
+  );
+  const variantShowFrom =
+    filteredVariants.length === 0 ? 0 : variantSliceStart + 1;
+  const variantShowTo = Math.min(
+    variantSliceStart + variantPageSize,
+    filteredVariants.length,
+  );
 
   const resetForm = () => {
     setProductUrl("");
@@ -149,6 +227,8 @@ export function AdminSpotlightCategoryAddForm({
     setSavedVariantIds(new Set());
     setSavedRetailerIds(new Set());
     setLookupTab("variants");
+    setVariantSearch("");
+    setVariantPage(1);
     toast.message("Form cleared — ready for a new product.");
   };
 
@@ -180,6 +260,8 @@ export function AdminSpotlightCategoryAddForm({
       setSavedVariantIds(new Set());
       setSavedRetailerIds(new Set());
       setLookupTab("variants");
+      setVariantSearch("");
+      setVariantPage(1);
       const parts = [
         `Loaded from SerpApi (${res.variantRetailer}).`,
         res.variants.length > 0
@@ -218,6 +300,7 @@ export function AdminSpotlightCategoryAddForm({
         variant,
         productUrl,
         productName || resolved?.primary.productName || "",
+        imageUrl ?? resolved?.primary.imageUrl ?? null,
       ),
       variant.id,
     );
@@ -279,6 +362,7 @@ export function AdminSpotlightCategoryAddForm({
         variant,
         productUrl.trim(),
         productName.trim() || resolved?.primary.productName || "",
+        imageUrl ?? resolved?.primary.imageUrl ?? null,
       );
       const parentId = await persistPrimary(
         creatingListing ? listing : undefined,
@@ -286,7 +370,7 @@ export function AdminSpotlightCategoryAddForm({
       if (!parentId) return;
       const res = await adminSaveSpotlightVariantOfferAction({
         parentProductId: parentId,
-        ...variantSavePayload(variant),
+        ...variantSavePayload(variant, imageUrl ?? resolved?.primary.imageUrl ?? null),
       });
       if (!res.ok) {
         toast.error(res.message);
@@ -317,7 +401,7 @@ export function AdminSpotlightCategoryAddForm({
         parentProductId: parentId,
         variants: unsavedVariants.map((row) => ({
           id: row.id,
-          ...variantSavePayload(row),
+          ...variantSavePayload(row, imageUrl ?? resolved.primary.imageUrl),
         })),
       });
       if (!res.ok) {
@@ -450,7 +534,33 @@ export function AdminSpotlightCategoryAddForm({
 
               {lookupTab === "variants" ?
                 resolved.variants.length > 0 ?
-                  <div className="overflow-x-auto border-t border-border">
+                  <div className="border-t border-border">
+                    <AdminNestedFindOrganizePanel
+                      switchId={`spotlight-lookup-${categorySlug}-variant-find`}
+                      searchInputId={`spotlight-lookup-${categorySlug}-variant-search`}
+                      pageSizeSelectId={`spotlight-lookup-${categorySlug}-variant-page-size`}
+                      visible={variantFindVisible}
+                      onVisibleChange={setVariantFindVisible}
+                      search={variantSearch}
+                      onSearchChange={setVariantSearch}
+                      searchLabel="Search variants"
+                      searchPlaceholder="Size, color, name, price…"
+                      searchDescription="Filters this SerpApi variant list only. Save all variants still saves every unsaved SKU."
+                      pageSize={variantPageSize}
+                      onPageSizeChange={setVariantPageSize}
+                      pageSizeLabel="Rows per page"
+                      pageSizeDescription="Paginates the store variants shown in this table."
+                      showFrom={variantShowFrom}
+                      showTo={variantShowTo}
+                      totalCount={filteredVariants.length}
+                      totalLoaded={resolved.variants.length}
+                      totalLoadedLabel="from SerpApi"
+                      itemLabel="variant"
+                      emptyMessage="No store variants."
+                      noMatchMessage="No variants match the current search."
+                      className="m-3 mb-0"
+                    />
+                    <div className="overflow-x-auto border-t border-border">
                     <table className="w-full min-w-[720px] text-left text-sm">
                       <thead className="bg-muted text-xs text-muted-foreground">
                         <tr>
@@ -462,7 +572,16 @@ export function AdminSpotlightCategoryAddForm({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {resolved.variants.map((row) => {
+                        {variantPageSlice.length === 0 ?
+                          <tr>
+                            <td
+                              colSpan={5}
+                              className="px-3 py-8 text-center text-sm text-muted-foreground"
+                            >
+                              No variants match the current search.
+                            </td>
+                          </tr>
+                        : variantPageSlice.map((row) => {
                           const saved = savedVariantIds.has(row.id);
                           const applied = appliedVariantId === row.id;
                           return (
@@ -474,7 +593,12 @@ export function AdminSpotlightCategoryAddForm({
                               )}
                             >
                               <td className="px-3 py-2">
-                                <OfferThumb src={row.imageUrl} />
+                                <OfferThumb
+                                  src={row.imageUrl}
+                                  fallback={
+                                    imageUrl ?? resolved.primary.imageUrl
+                                  }
+                                />
                               </td>
                               <td className="px-3 py-2">
                                 <p className="font-medium text-foreground">
@@ -534,6 +658,40 @@ export function AdminSpotlightCategoryAddForm({
                         })}
                       </tbody>
                     </table>
+                    </div>
+                    <div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={variantPageSafe <= 1}
+                        onClick={() =>
+                          setVariantPage(Math.max(1, variantPageSafe - 1))
+                        }
+                        aria-label="Previous variants page"
+                      >
+                        <ChevronLeft className="size-4" />
+                        Previous
+                      </Button>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        Page {variantPageSafe} of {variantTotalPages}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={variantPageSafe >= variantTotalPages}
+                        onClick={() =>
+                          setVariantPage(
+                            Math.min(variantTotalPages, variantPageSafe + 1),
+                          )
+                        }
+                        aria-label="Next variants page"
+                      >
+                        Next
+                        <ChevronRight className="size-4" />
+                      </Button>
+                    </div>
                   </div>
                 : <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
                     SerpApi did not return store variants for this URL. Paste a
