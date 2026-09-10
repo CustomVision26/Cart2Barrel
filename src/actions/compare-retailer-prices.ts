@@ -8,6 +8,7 @@ import {
 } from "@/lib/retailer-price-compare";
 import { serpApiNotConfiguredMessage } from "@/lib/serpapi/env";
 import { getSerpApiKey } from "@/lib/serpapi/env";
+import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 import { compareRetailerPricesSchema } from "@/lib/validations/compare-retailer-prices";
 
 export async function compareRetailerPricesAction(
@@ -40,13 +41,15 @@ export async function compareRetailerPricesAction(
     originalImageUrl,
   } = parsed.data;
 
-  return compareRetailerPrices({
-    productName,
-    productSize,
-    productColor,
-    originalProductUrl,
-    originalRetailer,
-    originalPriceUsdCents,
-    originalImageUrl,
-  });
+  return withSerpApiUsage({ userId, source: "customer_quote" }, () =>
+    compareRetailerPrices({
+      productName,
+      productSize,
+      productColor,
+      originalProductUrl,
+      originalRetailer,
+      originalPriceUsdCents,
+      originalImageUrl,
+    }),
+  );
 }

@@ -73,7 +73,7 @@ import {
 } from "@/lib/spotlight-categories";
 import { formatUsd } from "@/lib/admin-markup";
 import { displaySiteName, hostnameFromProductUrl, retailerLabelFromProductUrl } from "@/lib/site-name";
-import { spotlightRetailerDriftSummary } from "@/lib/spotlight/spotlight-retailer-live-check";
+import { spotlightRetailerDriftSummary } from "@/lib/spotlight/spotlight-retailer-drift-summary";
 import { cn } from "@/lib/utils";
 
 type AdminSpotlightProductsManagerProps = {

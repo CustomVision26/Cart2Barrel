@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { fetchProductVariants } from "@/lib/product-variants/fetch-product-variants";
 import type { FetchProductVariantsResult } from "@/lib/product-variants/types";
+import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 import { fetchProductVariantsSchema } from "@/lib/validations/product-variants";
 
 export async function fetchProductVariantsAction(
@@ -22,5 +23,8 @@ export async function fetchProductVariantsAction(
     };
   }
 
-  return fetchProductVariants(parsed.data);
+  return withSerpApiUsage(
+    { userId, source: "customer_quote" },
+    () => fetchProductVariants(parsed.data),
+  );
 }

@@ -10,8 +10,8 @@ export default function AdminUsersLayout({ children }: { children: ReactNode }) 
           Users
         </h1>
         <p className="text-sm text-muted-foreground">
-          View registered accounts, grant admin access, and review assignment
-          history.
+          View registered accounts, grant admin access, review assignment
+          history, and track SerpApi search usage.
         </p>
       </div>
       <AdminUsersTabNav />

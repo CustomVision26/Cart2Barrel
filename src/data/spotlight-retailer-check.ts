@@ -3,6 +3,7 @@ import { eq, isNull, lt, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { spotlightCategoryProducts } from "@/db/schema";
 import { getSerpApiKey } from "@/lib/serpapi/env";
+import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 import {
   compareSpotlightRetailerDrift,
   fetchSpotlightRetailerLiveSnapshot,
@@ -161,6 +162,8 @@ export async function refreshStaleSpotlightRetailerChecks(options?: {
     1,
     Math.min(6, options?.concurrency ?? DEFAULT_CONCURRENCY),
   );
-  await mapPool(stale, concurrency, checkOneSpotlightProduct);
+  await withSerpApiUsage({ userId: null, source: "retailer_check" }, () =>
+    mapPool(stale, concurrency, checkOneSpotlightProduct),
+  );
   return { checked: stale.length, skipped: false };
 }

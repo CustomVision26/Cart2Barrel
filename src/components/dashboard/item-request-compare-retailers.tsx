@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, Loader2, ShoppingBag } from "lucide-react";
 
-import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
+import type { RetailerPriceOffer } from "@/lib/retailer-price-compare-types";
 import { Button } from "@/components/ui/button";
 import { HelpBalloon } from "@/components/ui/help-balloon";
 import {

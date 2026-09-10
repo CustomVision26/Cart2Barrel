@@ -9,6 +9,7 @@ import type { AiProductExtraction } from "@/lib/ai/extract-product-openai";
 import { validateItemRequestRetailerUrl } from "@/lib/product-url/item-request-retailer-url";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 import { parseCustomerAiItemDraftInput } from "@/lib/validations/customer-ai-item-draft";
+import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 
 export type CustomerAiItemDraftSuccess = {
   ok: true;
@@ -96,11 +97,15 @@ export async function draftItemRequestFromSerpApiAction(
   const { quantity, productSize, productColor } = parsed.data;
   const productUrl = retailerCheck.href;
 
-  const serp = await extractAdminAiProductWithSerpApi({
-    productUrl,
-    productSize: productSize ?? null,
-    productColor: productColor ?? null,
-  });
+  const serp = await withSerpApiUsage(
+    { userId, source: "customer_quote" },
+    () =>
+      extractAdminAiProductWithSerpApi({
+        productUrl,
+        productSize: productSize ?? null,
+        productColor: productColor ?? null,
+      }),
+  );
 
   if (serp.ok) {
     return mapSerpExtractionToDraft(

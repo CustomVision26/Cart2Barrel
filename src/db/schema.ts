@@ -1311,6 +1311,36 @@ export const adminRoleGrants = pgTable(
   ],
 );
 
+/** One row per billed SerpApi search.json call (not cache hits). */
+export const serpApiSearchSourceEnum = pgEnum("serp_api_search_source", [
+  "customer_quote",
+  "admin_estimate",
+  "admin_spotlight",
+  "retailer_check",
+  "other",
+]);
+
+export const serpApiSearchEvents = pgTable(
+  "serp_api_search_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id"),
+    source: serpApiSearchSourceEnum("source").notNull(),
+    engine: text("engine"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("serp_api_search_events_user_created_idx").on(
+      t.clerkUserId,
+      t.createdAt,
+    ),
+    index("serp_api_search_events_created_idx").on(t.createdAt),
+    index("serp_api_search_events_source_created_idx").on(t.source, t.createdAt),
+  ],
+);
+
 /** Shopper-driven updates surfaced to staff in the admin notification center. */
 export const adminUserActivityEventKindEnum = pgEnum(
   "admin_user_activity_event_kind",
@@ -3156,3 +3186,6 @@ export type SupportTicketMessage = typeof supportTicketMessages.$inferSelect;
 export type NewSupportTicketMessage = typeof supportTicketMessages.$inferInsert;
 
 export type SupportTicketStatus = SupportTicket["status"];
+
+export type SerpApiSearchEvent = typeof serpApiSearchEvents.$inferSelect;
+export type NewSerpApiSearchEvent = typeof serpApiSearchEvents.$inferInsert;

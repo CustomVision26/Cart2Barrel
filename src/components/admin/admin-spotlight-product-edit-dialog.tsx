@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import type { AdminSpotlightProductRow } from "@/data/spotlight-category-products";
 import { formatUsd } from "@/lib/admin-markup";
 import { displaySiteName } from "@/lib/site-name";
-import { spotlightRetailerDriftSummary } from "@/lib/spotlight/spotlight-retailer-live-check";
+import { spotlightRetailerDriftSummary } from "@/lib/spotlight/spotlight-retailer-drift-summary";
 
 function centsToUsdInput(cents: number | null): string {
   if (cents == null || cents <= 0) return "";

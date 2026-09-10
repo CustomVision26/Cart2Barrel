@@ -9,6 +9,8 @@ import { getSerpApiKey } from "@/lib/serpapi/env";
 import { fetchWalmartProductSummary } from "@/lib/serpapi/walmart-product";
 import { assertHttpsProductUrl } from "@/lib/ai/url-safety";
 
+export { normalizeSpotlightProductUrlInput } from "@/lib/spotlight-product-url";
+
 function decodeBasicHtmlEntities(s: string): string {
   return s
     .replace(/&amp;/gi, "&")
@@ -119,18 +121,6 @@ export async function resolveSpotlightProductPreviewImage(
 ): Promise<string | null> {
   const meta = await resolveSpotlightProductPageMeta(productUrl);
   return meta.imageUrl;
-}
-
-export function normalizeSpotlightProductUrlInput(raw: string): string | null {
-  const t = raw.trim();
-  if (!t) return null;
-  try {
-    const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
-    const u = assertHttpsProductUrl(withScheme);
-    return u.href;
-  } catch {
-    return null;
-  }
 }
 
 export function safeHttpsImageUrl(

@@ -1,9 +1,17 @@
 import { getSerpApiKey } from "@/lib/serpapi/env";
+import { getSerpApiUsageContext } from "@/lib/serpapi/usage-context";
+import { recordSerpApiSearchEvent } from "@/data/serp-api-search-events";
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
-export const SERPAPI_RATE_LIMIT_MESSAGE =
-  "SerpApi rate-limited this API key (HTTP 429). Every customer product lookup, quote estimate, and admin Spotlight search shares one key. Several people can use it at once; 429 means the plan’s request rate was exceeded for a moment. Try the same lookup again.";
+export const SERPAPI_QUOTA_EXHAUSTED_MESSAGE =
+  "SerpApi monthly searches are used up for this API key. Customer quote lookups, admin estimates, and Spotlight all share the same plan. Upgrade at serpapi.com/change-plan, or wait until the billing period resets.";
+
+export const SERPAPI_THROUGHPUT_MESSAGE =
+  "SerpApi hit this plan’s hourly request limit (HTTP 429). Several customers and admins can search at once; try the same lookup again in a little while.";
+
+/** @deprecated Use quota or throughput messages; kept for existing 429 checks. */
+export const SERPAPI_RATE_LIMIT_MESSAGE = SERPAPI_QUOTA_EXHAUSTED_MESSAGE;
 
 function cacheKey(params: Record<string, string>): string {
   return Object.keys(params)
@@ -20,7 +28,16 @@ const inflight = new Map<string, Promise<Record<string, unknown>>>();
 
 export function isSerpApiRateLimitError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /HTTP 429|rate limit|too many requests/i.test(msg);
+  return /HTTP 429|rate limit|too many requests|run out of searches|monthly searches are used up|hourly request limit/i.test(
+    msg,
+  );
+}
+
+function messageFor429(bodyError?: string): string {
+  if (bodyError && /run out of searches|out of searches|no searches remaining/i.test(bodyError)) {
+    return SERPAPI_QUOTA_EXHAUSTED_MESSAGE;
+  }
+  return SERPAPI_THROUGHPUT_MESSAGE;
 }
 
 export async function serpApiGet<T extends Record<string, unknown>>(
@@ -55,7 +72,14 @@ export async function serpApiGet<T extends Record<string, unknown>>(
     });
 
     if (res.status === 429) {
-      throw new Error(SERPAPI_RATE_LIMIT_MESSAGE);
+      let bodyError: string | undefined;
+      try {
+        const payload = (await res.json()) as { error?: string };
+        bodyError = payload.error;
+      } catch {
+        /* body may be empty */
+      }
+      throw new Error(messageFor429(bodyError));
     }
 
     if (!res.ok) {
@@ -64,13 +88,22 @@ export async function serpApiGet<T extends Record<string, unknown>>(
 
     const data = (await res.json()) as T & { error?: string };
     if (data.error) {
+      if (/run out of searches|out of searches/i.test(data.error)) {
+        throw new Error(SERPAPI_QUOTA_EXHAUSTED_MESSAGE);
+      }
       if (isSerpApiRateLimitError(data.error)) {
-        throw new Error(SERPAPI_RATE_LIMIT_MESSAGE);
+        throw new Error(messageFor429(data.error));
       }
       throw new Error(data.error);
     }
 
     responseCache.set(key, { expires: Date.now() + CACHE_TTL_MS, data });
+    const ctx = getSerpApiUsageContext();
+    void recordSerpApiSearchEvent({
+      clerkUserId: ctx?.userId ?? null,
+      source: ctx?.source ?? "other",
+      engine: params.engine?.trim() || null,
+    });
     return data;
   })().finally(() => {
     inflight.delete(key);

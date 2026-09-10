@@ -13,7 +13,7 @@ import { Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { compareRetailerPricesAction } from "@/actions/compare-retailer-prices";
-import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
+import type { RetailerPriceOffer } from "@/lib/retailer-price-compare-types";
 import { draftItemRequestFromSerpApiAction } from "@/actions/customer-ai-item-draft";
 import { fetchProductVariantsAction } from "@/actions/product-variants";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";

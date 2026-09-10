@@ -3,17 +3,13 @@ import { fetchAmazonProductSummary } from "@/lib/serpapi/amazon-product";
 import { getSerpApiKey } from "@/lib/serpapi/env";
 import { fetchWalmartProductSummary } from "@/lib/serpapi/walmart-product";
 import { resolveSpotlightProductPageMeta } from "@/lib/spotlight-product-preview";
+import type { SpotlightRetailerDriftField } from "@/lib/spotlight/spotlight-retailer-drift-summary";
 
-export const SPOTLIGHT_RETAILER_DRIFT_FIELDS = [
-  "price",
-  "url",
-  "name",
-  "image",
-  "unavailable",
-] as const;
-
-export type SpotlightRetailerDriftField =
-  (typeof SPOTLIGHT_RETAILER_DRIFT_FIELDS)[number];
+export {
+  SPOTLIGHT_RETAILER_DRIFT_FIELDS,
+  spotlightRetailerDriftSummary,
+  type SpotlightRetailerDriftField,
+} from "@/lib/spotlight/spotlight-retailer-drift-summary";
 
 export type SpotlightRetailerLiveSnapshot = {
   productUrl: string | null;
@@ -47,33 +43,6 @@ const TRACKING_QUERY_KEYS = new Set([
   "ref",
   "tag",
 ]);
-
-export function spotlightRetailerDriftSummary(
-  fields: readonly string[] | null | undefined,
-): string | null {
-  if (!fields || fields.length === 0) return null;
-  const labels = fields.map((field) => {
-    switch (field) {
-      case "price":
-        return "price";
-      case "url":
-        return "product URL";
-      case "name":
-        return "name";
-      case "image":
-        return "image";
-      case "unavailable":
-        return "listing availability";
-      default:
-        return field;
-    }
-  });
-  if (labels.length === 1) {
-    return `Retailer ${labels[0]} changed — check this product with the retailer.`;
-  }
-  const last = labels[labels.length - 1];
-  return `Retailer ${labels.slice(0, -1).join(", ")} and ${last} changed — check this product with the retailer.`;
-}
 
 function normalizeName(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim().toLowerCase();

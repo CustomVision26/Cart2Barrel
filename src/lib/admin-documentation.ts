@@ -564,12 +564,13 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     title: "Users & admin grants",
     category: "Catalog & team",
     quickReference: {
-      summary: "Customer accounts, admin role assignment, and grant audit log.",
+      summary: "Customer accounts, admin role assignment, grant audit log, and SerpApi usage.",
       location: "Sidebar → Users.",
       bullets: [
         "All users: Clerk-registered accounts synced into the database; contact, primary address, extra addresses; suspend or ban.",
         "Assign admin: grant or revoke admin role.",
         "Grant log: audit trail of admin grants.",
+        "SerpApi usage: plan searches per month and per hour, graphs of site traffic, and searches by signed-in user (search, sort, and paginate the By user table).",
       ],
       requirements: ["Admin access."],
       dos: ["Record why admin access was granted.", "Revoke admin when staff offboards."],
@@ -577,18 +578,20 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Users management covers registered customer accounts and internal admin access control. Only existing admins should grant new admins; the grant log provides accountability.",
+        "Users management covers registered customer accounts, internal admin access control, and SerpApi search traffic. Only existing admins should grant new admins; the grant log provides accountability.",
       ],
       walkthrough: [
         "All users tab: browse registered profiles (synced from Clerk), contact details, and saved shipping addresses (one primary). Suspend or reinstate accounts.",
         "Assign admin tab: search for a user and grant or remove Clerk admin role.",
         "Grant log tab: review historical admin assignments with timestamps.",
+        "SerpApi usage tab: compare billed searches against the plan (month and hour), view 24-hour and 30-day graphs, and see which signed-in users consumed searches. Use Find & organize to search the By user table, click column headers to sort, and paginate the list. One lookup can count as several searches.",
         "Account suspension triggers customer notifications in the user app.",
       ],
       requirements: ["Admin access."],
       dos: [
         "Follow least-privilege—grant admin only to staff who need it.",
         "Document offboarding by revoking admin promptly.",
+        "Watch SerpApi usage so customer quote lookups are not blocked by a full monthly search cap.",
       ],
       donts: [
         "Do not grant admin to customer accounts used for shopping tests without isolation.",

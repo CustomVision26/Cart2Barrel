@@ -25,6 +25,7 @@ import {
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { getSerpApiKey } from "@/lib/serpapi/env";
+import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 import { parseAdminAiEstimateRequest } from "@/lib/validations/admin-ai-estimate";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
@@ -103,12 +104,16 @@ export async function adminAiEstimateFromUrlAction(
           "Manual quote — product page was not fetched (retailer blocked automated access or staff chose manual entry).",
       };
     } else if (getSerpApiKey()) {
-      const serp = await extractAdminAiProductWithSerpApi({
-        productUrl,
-        productName: existingProductName,
-        productSize: productSize ?? null,
-        productColor: productColor ?? null,
-      });
+      const serp = await withSerpApiUsage(
+        { userId: user.id, source: "admin_estimate" },
+        () =>
+          extractAdminAiProductWithSerpApi({
+            productUrl,
+            productName: existingProductName,
+            productSize: productSize ?? null,
+            productColor: productColor ?? null,
+          }),
+      );
       if (serp.ok) {
         extraction = serp.extraction;
       } else {

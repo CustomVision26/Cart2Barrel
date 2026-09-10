@@ -8,28 +8,15 @@ import {
   type SerpShoppingResult,
 } from "@/lib/serpapi/google-shopping";
 import { hostnameFromProductUrl } from "@/lib/site-name";
+import type {
+  CompareRetailerPricesResult,
+  RetailerPriceOffer,
+} from "@/lib/retailer-price-compare-types";
 
-export type RetailerPriceOffer = {
-  id: string;
-  retailer: string;
-  title: string;
-  productUrl: string;
-  priceUsdCents: number | null;
-  imageUrl: string | null;
-  matchConfidence: number | null;
-  /** OpenAI confirmed same SKU (see COMPARE_VERIFIED_THRESHOLD). */
-  aiVerified: boolean;
-  isOriginal: boolean;
-};
-
-export type CompareRetailerPricesResult =
-  | {
-      ok: true;
-      offers: RetailerPriceOffer[];
-      searchQuery: string;
-      verifiedCount: number;
-    }
-  | { ok: false; message: string };
+export type {
+  CompareRetailerPricesResult,
+  RetailerPriceOffer,
+} from "@/lib/retailer-price-compare-types";
 
 /** Minimum AI confidence to label an offer as verified (same SKU). */
 export const COMPARE_VERIFIED_THRESHOLD = 0.75;

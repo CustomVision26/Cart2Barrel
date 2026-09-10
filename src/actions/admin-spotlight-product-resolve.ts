@@ -8,6 +8,7 @@ import { adminCreateSpotlightVariantAction } from "@/actions/admin-spotlight-var
 import { resolveAdminSpotlightFromSerpApi } from "@/lib/spotlight/admin-spotlight-serpapi-resolve";
 import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 import {
   adminResolveSpotlightProductSchema,
   adminSaveSpotlightVariantRowsSchema,
@@ -77,7 +78,10 @@ export async function adminResolveSpotlightProductAction(
     };
   }
 
-  const result = await resolveAdminSpotlightFromSerpApi(parsed.data.productUrl);
+  const result = await withSerpApiUsage(
+    { userId: user.id, source: "admin_spotlight" },
+    () => resolveAdminSpotlightFromSerpApi(parsed.data.productUrl),
+  );
   if (!result.ok) {
     return { ok: false, message: result.message };
   }

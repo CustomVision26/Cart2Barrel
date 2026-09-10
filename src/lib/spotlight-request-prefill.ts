@@ -1,6 +1,6 @@
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
-import { normalizeSpotlightProductUrlInput } from "@/lib/spotlight-product-preview";
 import { hostnameFromProductUrl } from "@/lib/site-name";
+import { normalizeSpotlightProductUrlInput } from "@/lib/spotlight-product-url";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

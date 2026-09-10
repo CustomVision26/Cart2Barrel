@@ -23,6 +23,7 @@ import { spotlightProductVariants } from "@/db/schema";
 import { fetchProductVariants } from "@/lib/product-variants/fetch-product-variants";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 import {
   isRetailerReceiptImageMime,
   retailerReceiptExtensionForMime,
@@ -69,12 +70,16 @@ export async function adminImportSpotlightVariantsAction(
     return { ok: false, message: "Parent product not found." };
   }
 
-  const result = await fetchProductVariants({
-    productUrl: parent.productUrl,
-    productName: parent.label?.trim() || undefined,
-    productSize: parent.productSize ?? undefined,
-    productColor: parent.productColor ?? undefined,
-  });
+  const result = await withSerpApiUsage(
+    { userId: user.id, source: "admin_spotlight" },
+    () =>
+      fetchProductVariants({
+        productUrl: parent.productUrl,
+        productName: parent.label?.trim() || undefined,
+        productSize: parent.productSize ?? undefined,
+        productColor: parent.productColor ?? undefined,
+      }),
+  );
 
   if (!result.ok) {
     return { ok: false, message: result.message };
