@@ -5,7 +5,10 @@ import { currentUser } from "@clerk/nextjs/server";
 import type { AdminSpotlightProductMutationState } from "@/actions/admin-spotlight-products";
 import { adminCreateSpotlightProductAction } from "@/actions/admin-spotlight-products";
 import { adminCreateSpotlightVariantAction } from "@/actions/admin-spotlight-variants";
-import { resolveAdminSpotlightFromSerpApi } from "@/lib/spotlight/admin-spotlight-serpapi-resolve";
+import {
+  resolveAdminSpotlightFromSerpApi,
+  type AdminSpotlightSerpApiResolveResult,
+} from "@/lib/spotlight/admin-spotlight-serpapi-resolve";
 import type { RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
@@ -64,7 +67,7 @@ export type AdminResolveSpotlightProductResult =
 
 const LOOKUP_BUDGET_MS = 20_000;
 
-function lookupTimeoutResult(): Promise<AdminResolveSpotlightProductResult> {
+function lookupTimeoutResult(): Promise<AdminSpotlightSerpApiResolveResult> {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({
