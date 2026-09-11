@@ -1,4 +1,5 @@
 import { hostnameLikelyBlocksHtmlFetch } from "@/lib/ai/fetch-page-for-ai";
+import { assertHttpsProductUrl } from "@/lib/ai/url-safety";
 import { retailerLabelFromProductUrl } from "@/lib/site-name";
 import {
   parseProductUrl,
