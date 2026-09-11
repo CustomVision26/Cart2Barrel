@@ -46,6 +46,10 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { FieldHoverHint, FieldInlineHint } from "@/components/ui/field-hover-hint";
+import {
+  contactUsHref,
+  openContactUsDialog,
+} from "@/lib/contact-us-open";
 import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { HelpBalloon } from "@/components/ui/help-balloon";
 import { Input, inputFieldClassName } from "@/components/ui/input";
@@ -1126,7 +1130,23 @@ export function ItemRequestWorkspace({
           <Alert variant="destructive">
             <CircleAlert aria-hidden />
             <AlertTitle>This store link is not supported</AlertTitle>
-            <AlertDescription>{unsupportedStoreLookupMessage}</AlertDescription>
+            <AlertDescription>
+              <p>{unsupportedStoreLookupMessage}</p>
+              <p>
+                If you still need this item,{" "}
+                <a
+                  className="font-medium"
+                  href={contactUsHref()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    openContactUsDialog();
+                  }}
+                >
+                  Contact us
+                </a>{" "}
+                and send staff the product name.
+              </p>
+            </AlertDescription>
           </Alert>
         : null}
 

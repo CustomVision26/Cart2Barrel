@@ -109,7 +109,7 @@ export function unsupportedShopperCatalogLookupMessage(
   }
   if (!hostnameLikelyBlocksHtmlFetch(host)) return null;
   const retailer = retailerLabelFromProductUrl(productUrl);
-  return `Amani Cart2Barrel cannot load ${retailer} product links automatically. That store blocks our catalog lookup, and unlike Amazon or Walmart there is no product listing feed we can read. Paste a product page from Amazon, Walmart, Target, eBay, Temu, or SHEIN. If you still need this item, send staff a message with the product name.`;
+  return `Amani Cart2Barrel cannot load ${retailer} product links automatically. That store blocks our catalog lookup, and unlike Amazon or Walmart there is no product listing feed we can read. Paste a product page from Amazon, Walmart, Target, eBay, Temu, or SHEIN.`;
 }
 
 /** Client + server guard for AI-assisted item request product links. */

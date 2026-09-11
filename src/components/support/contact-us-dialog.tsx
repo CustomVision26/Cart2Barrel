@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, Mail, MessageCircle, Phone } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,6 +23,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DASHBOARD_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
+import {
+  clearContactUsQuery,
+  CONTACT_US_OPEN_EVENT,
+  urlRequestsContactUsDialog,
+} from "@/lib/contact-us-open";
 
 export function ContactUsDialog({
   hubContact,
@@ -31,6 +36,24 @@ export function ContactUsDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const openDialog = () => setOpen(true);
+    if (urlRequestsContactUsDialog()) {
+      openDialog();
+    }
+    window.addEventListener(CONTACT_US_OPEN_EVENT, openDialog);
+    return () => {
+      window.removeEventListener(CONTACT_US_OPEN_EVENT, openDialog);
+    };
+  }, []);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      clearContactUsQuery();
+    }
+  }
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -49,6 +72,7 @@ export function ContactUsDialog({
         setSubject("");
         setBody("");
         setOpen(false);
+        clearContactUsQuery();
         if (res.ticketId) {
           router.push(DASHBOARD_SUPPORT_ROUTES.ticket(res.ticketId));
         } else {
@@ -65,7 +89,7 @@ export function ContactUsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         type="button"
         className="text-sm font-medium text-foreground hover:text-primary"

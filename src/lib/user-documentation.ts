@@ -635,7 +635,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Respond promptly when an estimate is ready so stock does not change.",
       ],
       donts: [
-        "Do not paste Bath & Body Works links—Amani Cart2Barrel cannot load that store automatically.",
+        "Do not paste Bath & Body Works links—Amani Cart2Barrel cannot load that store automatically. Use Contact us if you still need the item.",
         "Do not submit duplicate requests for the same product—use the existing line or reinstate if withdrawn.",
         "Do not request items from unsupported retailers without checking How it works.",
         "Do not treat a submitted request as a confirmed purchase until you pay in the cart.",
