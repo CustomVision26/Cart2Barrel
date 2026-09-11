@@ -138,8 +138,27 @@ export async function findShoppingListingForRetailer(opts: {
   return match ?? null;
 }
 
+/** Align "Bath & Body Works" with bathandbodyworks.com (ampersand vs "and"). */
 function normalizeRetailerToken(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function compactRetailerToken(value: string): string {
+  return normalizeRetailerToken(value).replace(/and/g, "");
+}
+
+function tokensOverlap(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a.includes(b) || b.includes(a);
+}
+
+function compactTokensOverlap(a: string, b: string): boolean {
+  const ca = compactRetailerToken(a);
+  const cb = compactRetailerToken(b);
+  return ca.length >= 8 && cb.length >= 8 && tokensOverlap(ca, cb);
 }
 
 function shoppingHitMatchesRetailer(
@@ -153,8 +172,8 @@ function shoppingHitMatchesRetailer(
 
   const retailerToken = normalizeRetailerToken(hit.retailer);
   if (
-    retailerToken.includes(needle) ||
-    needle.includes(retailerToken)
+    tokensOverlap(retailerToken, needle) ||
+    compactTokensOverlap(hit.retailer, hostNeedle)
   ) {
     return true;
   }
@@ -162,10 +181,11 @@ function shoppingHitMatchesRetailer(
   try {
     const urlHost = new URL(hit.productUrl).hostname.toLowerCase();
     if (urlHost.includes("google.")) return false;
-    const urlStem = normalizeRetailerToken(
-      urlHost.replace(/^www\./, "").split(".")[0] ?? "",
+    const urlStem = urlHost.replace(/^www\./, "").split(".")[0] ?? "";
+    return (
+      tokensOverlap(normalizeRetailerToken(urlStem), needle) ||
+      compactTokensOverlap(urlStem, hostNeedle)
     );
-    return urlStem.includes(needle) || needle.includes(urlStem);
   } catch {
     return false;
   }

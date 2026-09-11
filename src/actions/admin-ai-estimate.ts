@@ -5,7 +5,7 @@ import { currentUser } from "@clerk/nextjs/server";
 
 import {
   fetchPageHtmlForAi,
-  RetailerPageBlockedError,
+  isRetailerPageAccessError,
   retailerPageFetchBlockedUserMessage,
 } from "@/lib/ai/fetch-page-for-ai";
 import { extractProductWithOpenAI } from "@/lib/ai/extract-product-openai";
@@ -170,7 +170,7 @@ export async function adminAiEstimateFromUrlAction(
       settings,
     };
   } catch (e) {
-    if (e instanceof RetailerPageBlockedError) {
+    if (isRetailerPageAccessError(e)) {
       return { ok: false, message: e.message };
     }
     const msg = e instanceof Error ? e.message : "Something went wrong.";

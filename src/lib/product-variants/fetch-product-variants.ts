@@ -1,5 +1,9 @@
 import { extractProductVariantsWithOpenAI } from "@/lib/ai/extract-product-variants-openai";
-import { fetchPageHtmlForAi } from "@/lib/ai/fetch-page-for-ai";
+import {
+  fetchPageHtmlForAi,
+  isRetailerPageAccessError,
+  isRetailerPageFetchBlockedMessage,
+} from "@/lib/ai/fetch-page-for-ai";
 import { extractOgImageFromHtml } from "@/lib/ai/product-image-url";
 import {
   amazonProductUrl,
@@ -492,7 +496,12 @@ export async function fetchProductVariants(input: {
         if (variants.length === 0) {
           const msg =
             pageErr instanceof Error ? pageErr.message : "Could not read product page.";
-          return { ok: false, message: msg };
+          const pageBlocked =
+            isRetailerPageAccessError(pageErr) ||
+            isRetailerPageFetchBlockedMessage(msg);
+          if (!pageBlocked) {
+            return { ok: false, message: msg };
+          }
         }
       }
     }

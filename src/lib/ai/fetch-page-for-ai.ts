@@ -1,10 +1,13 @@
 import { assertHttpsProductUrl } from "@/lib/ai/url-safety";
 
-const MAX_REDIRECTS = 5;
+const MAX_REDIRECTS = 8;
 const MAX_BYTES = 180_000;
 const FETCH_TIMEOUT_MS = 18_000;
 
 const RETAILER_BLOCKED_STATUSES = new Set([401, 403, 429, 451, 503]);
+
+export const RETAILER_PAGE_REDIRECT_USER_MESSAGE =
+  "This retailer redirected the lookup (geo, cookies, or bot check). Name, price, and image can still fill from Google Shopping when SerpApi finds the listing; otherwise open the product page and enter them yourself.";
 
 /** Browser-like headers — many retailers block obvious bot user-agents. */
 const BROWSER_FETCH_HEADERS: Readonly<Record<string, string>> = {
@@ -37,19 +40,73 @@ function isRetailerBlockedStatus(status: number): boolean {
   return RETAILER_BLOCKED_STATUSES.has(status);
 }
 
+export function isRetailerPageFetchRedirectMessage(message: string): boolean {
+  const low = message.toLowerCase();
+  return (
+    low.includes("too many redirects") ||
+    low.includes("missing location header") ||
+    low.includes("redirected the lookup")
+  );
+}
+
 export function isRetailerPageFetchBlockedMessage(message: string): boolean {
   const low = message.toLowerCase();
   return (
     low.includes("http 403") ||
     low.includes("http 401") ||
     low.includes("http 429") ||
-    low.includes("blocked automated access")
+    low.includes("blocked automated access") ||
+    isRetailerPageFetchRedirectMessage(message)
   );
 }
 
 export function retailerPageFetchBlockedUserMessage(status?: number): string {
-  const code = status != null ? ` (HTTP ${status})` : "";
+  const code = status != null && status > 0 ? ` (HTTP ${status})` : "";
   return `This retailer blocked automated page access${code}. Use Enter quote manually below, or open the product URL in your browser and fill in name, price, and image yourself.`;
+}
+
+function firstHeaderValue(value: string | null): string | null {
+  if (!value) return null;
+  const first = value.split(",")[0]?.trim().replace(/^['"]|['"]$/g, "");
+  return first || null;
+}
+
+function resolveRedirectTarget(current: URL, res: Response): URL | null {
+  const loc = firstHeaderValue(res.headers.get("location"));
+  if (loc) {
+    try {
+      return new URL(loc, current);
+    } catch {
+      return null;
+    }
+  }
+  const refresh = res.headers.get("refresh");
+  const refreshMatch = refresh?.match(/url\s*=\s*['"]?([^;'"]+)/i);
+  if (refreshMatch?.[1]) {
+    try {
+      return new URL(refreshMatch[1].trim(), current);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function parseMetaRefreshUrl(html: string, current: URL): URL | null {
+  const patterns = [
+    /<meta[^>]+http-equiv=["']refresh["'][^>]+content=["'][^"']*url\s*=\s*([^"'>\s]+)/i,
+    /<meta[^>]+content=["'][^"']*url\s*=\s*([^"'>\s]+)[^"']*["'][^>]+http-equiv=["']refresh["']/i,
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (!m?.[1]) continue;
+    try {
+      return new URL(m[1].replace(/&amp;/gi, "&").trim(), current);
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 async function readResponseBody(res: Response): Promise<string> {
@@ -58,28 +115,75 @@ async function readResponseBody(res: Response): Promise<string> {
   return new TextDecoder("utf-8", { fatal: false }).decode(slice);
 }
 
+export class RetailerPageBlockedError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(retailerPageFetchBlockedUserMessage(status));
+    this.name = "RetailerPageBlockedError";
+    this.status = status;
+  }
+}
+
+export class RetailerPageRedirectError extends Error {
+  constructor() {
+    super(RETAILER_PAGE_REDIRECT_USER_MESSAGE);
+    this.name = "RetailerPageRedirectError";
+  }
+}
+
+export function isRetailerPageAccessError(
+  err: unknown,
+): err is RetailerPageBlockedError | RetailerPageRedirectError {
+  return (
+    err instanceof RetailerPageBlockedError ||
+    err instanceof RetailerPageRedirectError
+  );
+}
+
 async function fetchDirectHtml(
   productUrl: string,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): Promise<string> {
   let url = assertHttpsProductUrl(productUrl);
+  const seen = new Set<string>();
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    assertHttpsProductUrl(url.toString());
+    const href = url.toString();
+    if (seen.has(href)) {
+      throw new RetailerPageRedirectError();
+    }
+    seen.add(href);
+    assertHttpsProductUrl(href);
 
-    const res = await fetch(url.toString(), {
+    const res = await fetch(href, {
       method: "GET",
       redirect: "manual",
       signal,
-      headers: BROWSER_FETCH_HEADERS,
+      headers: {
+        ...BROWSER_FETCH_HEADERS,
+        Referer: `${url.origin}/`,
+      },
     });
 
     if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (!loc || hop === MAX_REDIRECTS) {
-        throw new Error("Too many redirects or missing Location header.");
+      let next = resolveRedirectTarget(url, res);
+      if (!next) {
+        try {
+          const body = await readResponseBody(res);
+          next = parseMetaRefreshUrl(body, url);
+        } catch {
+          next = null;
+        }
       }
-      url = new URL(loc, url);
+      if (!next || hop === MAX_REDIRECTS) {
+        throw new RetailerPageRedirectError();
+      }
+      try {
+        url = assertHttpsProductUrl(next.toString());
+      } catch {
+        throw new RetailerPageRedirectError();
+      }
       continue;
     }
 
@@ -95,13 +199,13 @@ async function fetchDirectHtml(
 
     return readResponseBody(res);
   }
-  throw new Error("Too many redirects.");
+  throw new RetailerPageRedirectError();
 }
 
 /** Optional Jina Reader proxy when direct fetch is blocked (set JINA_READER_API_KEY for higher limits). */
 async function fetchViaJinaReader(
   productUrl: string,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): Promise<string> {
   const target = assertHttpsProductUrl(productUrl).toString();
   const readerUrl = `https://r.jina.ai/${target}`;
@@ -130,19 +234,9 @@ async function fetchViaJinaReader(
   return readResponseBody(res);
 }
 
-export class RetailerPageBlockedError extends Error {
-  readonly status: number;
-
-  constructor(status: number) {
-    super(retailerPageFetchBlockedUserMessage(status));
-    this.name = "RetailerPageBlockedError";
-    this.status = status;
-  }
-}
-
 /**
  * Fetch a public product page over HTTPS with redirect and size limits.
- * Falls back to Jina Reader when the retailer blocks the server fetch.
+ * Falls back to Jina Reader when the retailer blocks the server fetch or loops redirects.
  */
 export async function fetchPageHtmlForAi(productUrl: string): Promise<string> {
   const controller = new AbortController();
@@ -152,7 +246,7 @@ export async function fetchPageHtmlForAi(productUrl: string): Promise<string> {
     try {
       return await fetchDirectHtml(productUrl, controller.signal);
     } catch (e) {
-      if (!(e instanceof RetailerPageBlockedError)) {
+      if (!isRetailerPageAccessError(e)) {
         throw e;
       }
       try {

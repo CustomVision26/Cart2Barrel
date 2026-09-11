@@ -1,7 +1,12 @@
 import { compareRetailerPrices, type RetailerPriceOffer } from "@/lib/retailer-price-compare";
+import {
+  isRetailerPageFetchRedirectMessage,
+  RETAILER_PAGE_REDIRECT_USER_MESSAGE,
+} from "@/lib/ai/fetch-page-for-ai";
 import { fetchProductVariants } from "@/lib/product-variants/fetch-product-variants";
 import { priceUsdToCents } from "@/lib/product-variants/labels";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
+import type { SerpShoppingResult } from "@/lib/serpapi/google-shopping";
 import {
   amazonProductUrl,
   isIncompleteAmazonDpUrl,
@@ -69,11 +74,72 @@ function looksLikeHostnameName(name: string): boolean {
   return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(name.trim());
 }
 
+function sanitizeLookupPart(message: string | null): string | null {
+  if (!message) return null;
+  if (isRetailerPageFetchRedirectMessage(message)) {
+    return RETAILER_PAGE_REDIRECT_USER_MESSAGE;
+  }
+  return message;
+}
+
+function shoppingUrlIsSameRetailer(originalHost: string, candidateUrl: string): boolean {
+  try {
+    const hitHost = new URL(candidateUrl).hostname.toLowerCase().replace(/^www\./, "");
+    if (hitHost.includes("google.")) return false;
+    const orig = originalHost.toLowerCase().replace(/^www\./, "");
+    const origStem = orig.split(".")[0] ?? "";
+    const hitStem = hitHost.split(".")[0] ?? "";
+    return (
+      hitHost === orig ||
+      hitHost.endsWith(`.${orig}`) ||
+      orig.endsWith(`.${hitHost}`) ||
+      (origStem.length >= 4 && hitStem.includes(origStem)) ||
+      (hitStem.length >= 4 && origStem.includes(hitStem))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function applyShoppingHit(
+  hit: SerpShoppingResult,
+  state: {
+    productName: string;
+    priceUsdCents: number | null;
+    imageUrl: string | null;
+    resolvedUrl: string;
+    originalHost: string;
+  },
+): {
+  productName: string;
+  priceUsdCents: number | null;
+  imageUrl: string | null;
+  resolvedUrl: string;
+} {
+  let productName = state.productName;
+  if (!productName || productName.length < 2 || looksLikeHostnameName(productName)) {
+    productName = hit.title;
+  }
+  return {
+    productName,
+    priceUsdCents: state.priceUsdCents ?? priceUsdToCents(hit.priceUsd),
+    imageUrl:
+      usableRetailerProductImageUrl(state.imageUrl) ??
+      usableRetailerProductImageUrl(hit.imageUrl),
+    resolvedUrl:
+      hit.productUrl && shoppingUrlIsSameRetailer(state.originalHost, hit.productUrl)
+        ? hit.productUrl
+        : state.resolvedUrl,
+  };
+}
+
 function lookupFailureMessage(input: {
   productUrl: string;
   listingError: string | null;
   variantMessage: string | null;
 }): string {
+  const listingError = sanitizeLookupPart(input.listingError);
+  const variantMessage = sanitizeLookupPart(input.variantMessage);
   const parts: string[] = [];
   if (isIncompleteAmazonDpUrl(input.productUrl)) {
     parts.push(
@@ -95,12 +161,9 @@ function lookupFailureMessage(input: {
       "This eBay URL is missing the item number after /itm/. Paste the full listing URL.",
     );
   }
-  if (input.listingError) parts.push(input.listingError);
-  if (
-    input.variantMessage &&
-    input.variantMessage !== input.listingError
-  ) {
-    parts.push(input.variantMessage);
+  if (listingError) parts.push(listingError);
+  if (variantMessage && variantMessage !== listingError) {
+    parts.push(variantMessage);
   }
   if (
     parts.some((p) => isSerpApiRateLimitError(p)) &&
@@ -223,6 +286,46 @@ export async function resolveAdminSpotlightFromSerpApi(
     };
   }
 
+  if (
+    !listingFromSerp &&
+    (slugName || productName) &&
+    !looksLikeHostnameName(productName || slugName || "")
+  ) {
+    try {
+      const hit = await findShoppingListingForRetailer({
+        query: [productName, slugName, retailerLabel].filter(Boolean).join(" "),
+        retailerHostname: parsed.hostname,
+      });
+      if (hit) {
+        const applied = applyShoppingHit(hit, {
+          productName,
+          priceUsdCents,
+          imageUrl,
+          resolvedUrl,
+          originalHost: parsed.hostname,
+        });
+        productName = applied.productName;
+        priceUsdCents = applied.priceUsdCents;
+        imageUrl = applied.imageUrl;
+        resolvedUrl = applied.resolvedUrl;
+        listingFromSerp = true;
+      }
+    } catch (err) {
+      listingError = listingError ?? errorMessage(err, "Shopping lookup failed.");
+    }
+  }
+
+  if (isSerpApiRateLimitError(listingError) && !listingFromSerp) {
+    return {
+      ok: false,
+      message: lookupFailureMessage({
+        productUrl: url,
+        listingError,
+        variantMessage: null,
+      }),
+    };
+  }
+
   const variantResult = await fetchProductVariants({
     productUrl: resolvedUrl,
     productName: productName || slugName || undefined,
@@ -274,17 +377,20 @@ export async function resolveAdminSpotlightFromSerpApi(
         retailerHostname: parsed.hostname,
       });
       if (hit) {
+        const applied = applyShoppingHit(hit, {
+          productName,
+          priceUsdCents,
+          imageUrl,
+          resolvedUrl,
+          originalHost: parsed.hostname,
+        });
         if (!listingFromSerp) {
-          if (!productName || productName.length < 2) {
-            productName = hit.title;
-          }
-          priceUsdCents = priceUsdCents ?? priceUsdToCents(hit.priceUsd);
-          if (hit.productUrl) resolvedUrl = hit.productUrl;
+          productName = applied.productName;
+          priceUsdCents = applied.priceUsdCents;
+          resolvedUrl = applied.resolvedUrl;
           listingFromSerp = true;
         }
-        imageUrl =
-          usableRetailerProductImageUrl(imageUrl) ??
-          usableRetailerProductImageUrl(hit.imageUrl);
+        imageUrl = applied.imageUrl;
       }
     } catch (err) {
       listingError = listingError ?? errorMessage(err, "Shopping lookup failed.");

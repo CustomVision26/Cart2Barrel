@@ -695,7 +695,9 @@ function AdminSpecialFeatureRow({
             </span>
           </div>
         </div>
-        <CardDescription className="font-mono text-xs">{offer.id}</CardDescription>
+        <CardDescription className="font-mono text-xs font-medium text-cyan-600 dark:text-cyan-400">
+          {offer.id}
+        </CardDescription>
         {isDraft ?
           <p className="text-xs text-muted-foreground">
             Draft — edit fields below, then Save changes. Publish when ready for shoppers.
