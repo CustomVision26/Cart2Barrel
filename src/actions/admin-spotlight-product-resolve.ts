@@ -62,6 +62,20 @@ export type AdminResolveSpotlightProductResult =
     }
   | { ok: false; message: string };
 
+const LOOKUP_BUDGET_MS = 20_000;
+
+function lookupTimeoutResult(): Promise<AdminResolveSpotlightProductResult> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        ok: false,
+        message:
+          "Lookup took too long and was stopped so this page would not crash. Try again, or fill name and price from the product page.",
+      });
+    }, LOOKUP_BUDGET_MS);
+  });
+}
+
 function centsToUsdField(cents: number | null): string {
   if (cents == null || cents <= 0) return "";
   return (cents / 100).toFixed(2);
@@ -70,57 +84,68 @@ function centsToUsdField(cents: number | null): string {
 export async function adminResolveSpotlightProductAction(
   input: unknown,
 ): Promise<AdminResolveSpotlightProductResult> {
-  const user = await currentUser();
-  if (!user || !isClerkAdmin(user)) {
-    return { ok: false, message: "Admin access required." };
-  }
-  const adminUserId = user.id;
+  try {
+    const user = await currentUser();
+    if (!user || !isClerkAdmin(user)) {
+      return { ok: false, message: "Admin access required." };
+    }
+    const adminUserId = user.id;
 
-  const parsed = adminResolveSpotlightProductSchema.safeParse(input);
-  if (!parsed.success) {
+    const parsed = adminResolveSpotlightProductSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        message: parsed.error.issues[0]?.message ?? "Invalid input.",
+      };
+    }
+
+    const result = await Promise.race([
+      withSerpApiUsage(
+        { userId: adminUserId, source: "admin_spotlight" },
+        () => resolveAdminSpotlightFromSerpApi(parsed.data.productUrl),
+      ),
+      lookupTimeoutResult(),
+    ]);
+    if (!result.ok) {
+      return { ok: false, message: result.message };
+    }
+
+    const { primary } = result;
     return {
-      ok: false,
-      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+      ok: true,
+      primary: {
+        productUrl: primary.productUrl,
+        productName: primary.productName,
+        priceUsd: centsToUsdField(primary.priceUsdCents),
+        imageUrl: primary.imageUrl,
+        productSize: primary.productSize ?? "",
+        productColor: primary.productColor ?? "",
+      },
+      variants: result.variants.map((v) => ({
+        id: v.id,
+        label: v.label,
+        size: v.size,
+        color: v.color,
+        packLabel: v.packLabel,
+        priceUsdCents: v.priceUsdCents,
+        productUrl: v.productUrl,
+        imageUrl: v.imageUrl,
+        isCurrent: v.isCurrent,
+        productTitle: v.productTitle ?? null,
+      })),
+      variantMethod: result.variantMethod,
+      variantRetailer: result.variantRetailer,
+      compareOffers: result.compareOffers,
+      compareSearchQuery: result.compareSearchQuery,
+      compareMessage: result.compareMessage,
     };
+  } catch (err) {
+    const message =
+      err instanceof Error && err.message.trim()
+        ? err.message
+        : "Product lookup failed. Try again.";
+    return { ok: false, message };
   }
-
-  const result = await withSerpApiUsage(
-    { userId: adminUserId, source: "admin_spotlight" },
-    () => resolveAdminSpotlightFromSerpApi(parsed.data.productUrl),
-  );
-  if (!result.ok) {
-    return { ok: false, message: result.message };
-  }
-
-  const { primary } = result;
-  return {
-    ok: true,
-    primary: {
-      productUrl: primary.productUrl,
-      productName: primary.productName,
-      priceUsd: centsToUsdField(primary.priceUsdCents),
-      imageUrl: primary.imageUrl,
-      productSize: primary.productSize ?? "",
-      productColor: primary.productColor ?? "",
-    },
-    variants: result.variants.map((v) => ({
-      id: v.id,
-      label: v.label,
-      size: v.size,
-      color: v.color,
-      packLabel: v.packLabel,
-      priceUsdCents: v.priceUsdCents,
-      productUrl: v.productUrl,
-      imageUrl: v.imageUrl,
-      isCurrent: v.isCurrent,
-      productTitle: v.productTitle ?? null,
-    })),
-    variantMethod: result.variantMethod,
-    variantRetailer: result.variantRetailer,
-    compareOffers: result.compareOffers,
-    compareSearchQuery: result.compareSearchQuery,
-    compareMessage: result.compareMessage,
-  };
 }
 
 const adminSaveSpotlightOfferSchema = z.object({

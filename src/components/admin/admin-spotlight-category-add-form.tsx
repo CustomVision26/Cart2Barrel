@@ -246,46 +246,55 @@ export function AdminSpotlightCategoryAddForm({
       return;
     }
     startLookup(async () => {
-      const res = await adminResolveSpotlightProductAction({
-        productUrl: trimmed,
-      });
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      setResolved(res);
-      setProductUrl(res.primary.productUrl);
-      setProductName(res.primary.productName);
-      setPriceUsd(res.primary.priceUsd);
-      setProductSize(res.primary.productSize);
-      setProductColor(res.primary.productColor);
-      setImageUrl(res.primary.imageUrl);
-      setAppliedVariantId(
-        res.variants.find((row) => row.isCurrent)?.id ?? null,
-      );
-      setSavedParentId(null);
-      setSavedVariantIds(new Set());
-      setSavedRetailerIds(new Set());
-      setLookupTab("variants");
-      setVariantSearch("");
-      setVariantPage(1);
-      const parts = [
-        `Loaded from SerpApi (${res.variantRetailer}).`,
-        res.variants.length > 0
-          ? `${res.variants.length} variant${res.variants.length === 1 ? "" : "s"}.`
-          : "No store variants returned.",
-        res.compareOffers.length > 0
-          ? `${res.compareOffers.length} retailer offer${res.compareOffers.length === 1 ? "" : "s"}.`
-          : null,
-        res.compareMessage ? `Compare: ${res.compareMessage}` : null,
-      ].filter(Boolean);
-      const compareLimited = /429|rate limit|503|unavailable/i.test(
-        res.compareMessage ?? "",
-      );
-      if (compareLimited) {
-        toast.warning(parts.join(" "));
-      } else {
-        toast.success(parts.join(" "));
+      try {
+        const res = await adminResolveSpotlightProductAction({
+          productUrl: trimmed,
+        });
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        setResolved(res);
+        setProductUrl(res.primary.productUrl);
+        setProductName(res.primary.productName);
+        setPriceUsd(res.primary.priceUsd);
+        setProductSize(res.primary.productSize);
+        setProductColor(res.primary.productColor);
+        setImageUrl(res.primary.imageUrl);
+        setAppliedVariantId(
+          res.variants.find((row) => row.isCurrent)?.id ?? null,
+        );
+        setSavedParentId(null);
+        setSavedVariantIds(new Set());
+        setSavedRetailerIds(new Set());
+        setLookupTab("variants");
+        setVariantSearch("");
+        setVariantPage(1);
+        const parts = [
+          `Loaded from SerpApi (${res.variantRetailer}).`,
+          res.variants.length > 0
+            ? `${res.variants.length} variant${res.variants.length === 1 ? "" : "s"}.`
+            : "No store variants returned.",
+          res.compareOffers.length > 0
+            ? `${res.compareOffers.length} retailer offer${res.compareOffers.length === 1 ? "" : "s"}.`
+            : null,
+          res.compareMessage ? `Compare: ${res.compareMessage}` : null,
+        ].filter(Boolean);
+        const compareLimited = /429|rate limit|503|unavailable/i.test(
+          res.compareMessage ?? "",
+        );
+        if (compareLimited) {
+          toast.warning(parts.join(" "));
+        } else {
+          toast.success(parts.join(" "));
+        }
+      } catch (error) {
+        const raw = error instanceof Error ? error.message : "";
+        toast.error(
+          /fetch|network|timeout|load|aborted/i.test(raw)
+            ? "Lookup stopped because the connection dropped. Reload this page if it went blank, then try again or fill name and price from the product page."
+            : raw || "Product lookup failed. Try again.",
+        );
       }
     });
   };

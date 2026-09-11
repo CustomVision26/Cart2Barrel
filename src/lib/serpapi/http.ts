@@ -5,6 +5,10 @@ import { recordSerpApiSearchEvent } from "@/data/serp-api-search-events";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const TRANSIENT_STATUS = new Set([502, 503, 504]);
 const TRANSIENT_ATTEMPTS = 3;
+const SERPAPI_FETCH_TIMEOUT_MS = 8_000;
+
+export const SERPAPI_TIMEOUT_MESSAGE =
+  "SerpApi took too long to respond. Try the lookup again, or fill name and price from the product page.";
 
 export const SERPAPI_QUOTA_EXHAUSTED_MESSAGE =
   "SerpApi monthly searches are used up for this API key. Customer quote lookups, admin estimates, and Spotlight all share the same plan. Upgrade at serpapi.com/change-plan, or wait until the billing period resets.";
@@ -43,6 +47,15 @@ export function isSerpApiTransientError(err: unknown): boolean {
   return /HTTP 502|HTTP 503|HTTP 504|briefly unavailable/i.test(msg);
 }
 
+function isSerpApiTimeoutError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (
+    err.name === "AbortError" ||
+    err.name === "TimeoutError" ||
+    /aborted|timed out|timeout/i.test(err.message)
+  );
+}
+
 function messageFor429(bodyError?: string): string {
   if (bodyError && /run out of searches|out of searches|no searches remaining/i.test(bodyError)) {
     return SERPAPI_QUOTA_EXHAUSTED_MESSAGE;
@@ -54,13 +67,31 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function abortSignalTimeout(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 async function serpApiFetchOnce(
   requestUrl: string,
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(requestUrl, {
-    method: "GET",
-    next: { revalidate: 0 },
-  });
+  let res: Response;
+  try {
+    res = await fetch(requestUrl, {
+      method: "GET",
+      next: { revalidate: 0 },
+      signal: abortSignalTimeout(SERPAPI_FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (isSerpApiTimeoutError(err)) {
+      throw new Error(SERPAPI_TIMEOUT_MESSAGE);
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  }
 
   if (res.status === 429) {
     let bodyError: string | undefined;
@@ -137,6 +168,9 @@ export async function serpApiGet<T extends Record<string, unknown>>(
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         lastError = error;
+        if (isSerpApiTimeoutError(error) || error.message === SERPAPI_TIMEOUT_MESSAGE) {
+          throw new Error(SERPAPI_TIMEOUT_MESSAGE);
+        }
         const retryable =
           isSerpApiTransientError(error) && attempt < TRANSIENT_ATTEMPTS;
         if (!retryable) {
