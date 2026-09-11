@@ -1,11 +1,13 @@
 import { compareRetailerPrices, type RetailerPriceOffer } from "@/lib/retailer-price-compare";
 import {
+  hostnameLikelyBlocksHtmlFetch,
   isRetailerPageFetchRedirectMessage,
   RETAILER_PAGE_REDIRECT_USER_MESSAGE,
 } from "@/lib/ai/fetch-page-for-ai";
 import { fetchProductVariants } from "@/lib/product-variants/fetch-product-variants";
 import { priceUsdToCents } from "@/lib/product-variants/labels";
 import type { ProductVariantOffer } from "@/lib/product-variants/types";
+import { fetchImmersiveProductVariants } from "@/lib/serpapi/google-immersive-product";
 import type { SerpShoppingResult } from "@/lib/serpapi/google-shopping";
 import {
   amazonProductUrl,
@@ -23,7 +25,10 @@ import {
   resolveAmazonAsinForLookup,
 } from "@/lib/serpapi/amazon-product";
 import { getSerpApiKey, serpApiNotConfiguredMessage } from "@/lib/serpapi/env";
-import { findShoppingListingForRetailer } from "@/lib/serpapi/google-shopping";
+import {
+  findShoppingListingForRetailer,
+  searchShoppingHitsForRetailer,
+} from "@/lib/serpapi/google-shopping";
 import { isSerpApiRateLimitError, SERPAPI_RATE_LIMIT_MESSAGE } from "@/lib/serpapi/http";
 import {
   fetchWalmartProductSummary,
@@ -133,6 +138,83 @@ function applyShoppingHit(
   };
 }
 
+async function variantsFromShoppingHit(
+  hit: SerpShoppingResult,
+  hostname: string,
+  productUrl: string,
+): Promise<{ variants: ProductVariantOffer[]; method: string }> {
+  const token = hit.immersiveProductPageToken;
+  if (!token) {
+    return { variants: [], method: "google_shopping" };
+  }
+  try {
+    const variants = await fetchImmersiveProductVariants(token, {
+      retailerHostname: hostname,
+      fallbackProductUrl: hit.productUrl || productUrl,
+    });
+    return {
+      variants,
+      method:
+        variants.length > 0 ? "google_shopping+immersive" : "google_shopping",
+    };
+  } catch {
+    return { variants: [], method: "google_shopping" };
+  }
+}
+
+function compareOffersFromShoppingHits(
+  hits: SerpShoppingResult[],
+  original: {
+    productUrl: string;
+    retailer: string;
+    productName: string;
+    priceUsdCents: number | null;
+    imageUrl: string | null;
+  },
+): RetailerPriceOffer[] {
+  const offers: RetailerPriceOffer[] = [];
+  const seenUrls = new Set<string>();
+  const seenRetailers = new Set<string>();
+
+  const push = (offer: RetailerPriceOffer) => {
+    const urlKey = offer.productUrl.trim().toLowerCase();
+    const retailerKey = offer.retailer.trim().toLowerCase().replace(/\s+/g, " ");
+    if (seenUrls.has(urlKey)) return;
+    if (!offer.isOriginal && seenRetailers.has(retailerKey)) return;
+    seenUrls.add(urlKey);
+    if (!offer.isOriginal) seenRetailers.add(retailerKey);
+    offers.push(offer);
+  };
+
+  push({
+    id: "original",
+    retailer: original.retailer,
+    title: original.productName,
+    productUrl: original.productUrl,
+    priceUsdCents: original.priceUsdCents,
+    imageUrl: original.imageUrl,
+    matchConfidence: null,
+    aiVerified: true,
+    isOriginal: true,
+  });
+
+  hits.forEach((hit, i) => {
+    push({
+      id: `shop-${i}`,
+      retailer: hit.retailer,
+      title: hit.title,
+      productUrl: hit.productUrl,
+      priceUsdCents: priceUsdToCents(hit.priceUsd),
+      imageUrl: usableRetailerProductImageUrl(hit.imageUrl),
+      matchConfidence: null,
+      aiVerified: false,
+      isOriginal: false,
+    });
+  });
+
+  return offers;
+}
+
 function lookupFailureMessage(input: {
   productUrl: string;
   listingError: string | null;
@@ -207,6 +289,9 @@ export async function resolveAdminSpotlightFromSerpApi(
   let walmartProductId = parsed.walmartProductId;
   let listingFromSerp = false;
   let listingError: string | null = null;
+  let shoppingHit: SerpShoppingResult | null = null;
+  let shoppingHits: SerpShoppingResult[] = [];
+  let shoppingQuery = "";
 
   if (parsed.kind === "amazon" && !amazonAsin) {
     try {
@@ -292,12 +377,16 @@ export async function resolveAdminSpotlightFromSerpApi(
     !looksLikeHostnameName(productName || slugName || "")
   ) {
     try {
-      const hit = await findShoppingListingForRetailer({
-        query: [productName, slugName, retailerLabel].filter(Boolean).join(" "),
+      shoppingQuery = [productName, slugName, retailerLabel]
+        .filter(Boolean)
+        .join(" ");
+      const { match, hits } = await searchShoppingHitsForRetailer({
+        query: shoppingQuery,
         retailerHostname: parsed.hostname,
       });
-      if (hit) {
-        const applied = applyShoppingHit(hit, {
+      shoppingHits = hits;
+      if (match) {
+        const applied = applyShoppingHit(match, {
           productName,
           priceUsdCents,
           imageUrl,
@@ -309,6 +398,7 @@ export async function resolveAdminSpotlightFromSerpApi(
         imageUrl = applied.imageUrl;
         resolvedUrl = applied.resolvedUrl;
         listingFromSerp = true;
+        shoppingHit = match;
       }
     } catch (err) {
       listingError = listingError ?? errorMessage(err, "Shopping lookup failed.");
@@ -326,24 +416,26 @@ export async function resolveAdminSpotlightFromSerpApi(
     };
   }
 
-  const variantResult = await fetchProductVariants({
-    productUrl: resolvedUrl,
-    productName: productName || slugName || undefined,
-    productSize: productSize ?? undefined,
-    productColor: productColor ?? undefined,
-  });
-
   let variants: ProductVariantOffer[] = [];
   let variantMethod = "";
   let variantRetailer = hostnameFromProductUrl(resolvedUrl) ?? "Store";
+  let variantFailureMessage: string | null = null;
 
-  if (variantResult.ok) {
-    variants = variantResult.variants;
-    variantMethod = variantResult.method;
-    variantRetailer = variantResult.retailer;
+  const mergeVariantRows = (
+    rows: ProductVariantOffer[],
+    method: string,
+    opts?: {
+      retailer?: string;
+      listingTitle?: string | null;
+      listingImageUrl?: string | null;
+    },
+  ) => {
+    variants = rows;
+    variantMethod = method;
+    if (opts?.retailer) variantRetailer = opts.retailer;
     imageUrl =
       usableRetailerProductImageUrl(imageUrl) ??
-      usableRetailerProductImageUrl(variantResult.listingImageUrl);
+      usableRetailerProductImageUrl(opts?.listingImageUrl);
     const pick = variants.find((v) => v.isCurrent) ?? variants[0];
     if (pick) {
       const pickTitle = pick.productTitle?.trim() || pick.label;
@@ -358,42 +450,75 @@ export async function resolveAdminSpotlightFromSerpApi(
       listingFromSerp =
         listingFromSerp || Boolean(pickTitle || pick.priceUsdCents || pick.imageUrl);
     }
-    if (variantResult.listingTitle?.trim() && (!productName || productName.length < 2)) {
-      productName = variantResult.listingTitle.trim();
+    if (opts?.listingTitle?.trim() && (!productName || productName.length < 2)) {
+      productName = opts.listingTitle.trim();
       listingFromSerp = true;
     }
-  }
+  };
 
-  const needsShoppingImage = !usableRetailerProductImageUrl(imageUrl);
-  if (
-    (!listingFromSerp || needsShoppingImage) &&
-    !isSerpApiRateLimitError(variantResult.ok ? null : variantResult.message) &&
-    (slugName || productName) &&
-    !looksLikeHostnameName(productName || slugName || "")
-  ) {
-    try {
-      const hit = await findShoppingListingForRetailer({
-        query: [productName, slugName, retailerLabel].filter(Boolean).join(" "),
-        retailerHostname: parsed.hostname,
+  if (shoppingHit) {
+    if (
+      shoppingHit.immersiveProductPageToken &&
+      !hostnameLikelyBlocksHtmlFetch(parsed.hostname)
+    ) {
+      const fromHit = await variantsFromShoppingHit(
+        shoppingHit,
+        parsed.hostname,
+        resolvedUrl,
+      );
+      mergeVariantRows(fromHit.variants, fromHit.method);
+    } else {
+      variantMethod = "google_shopping";
+    }
+  } else {
+    const variantResult = await fetchProductVariants({
+      productUrl: resolvedUrl,
+      productName: productName || slugName || undefined,
+      productSize: productSize ?? undefined,
+      productColor: productColor ?? undefined,
+    });
+
+    if (variantResult.ok) {
+      mergeVariantRows(variantResult.variants, variantResult.method, {
+        retailer: variantResult.retailer,
+        listingTitle: variantResult.listingTitle,
+        listingImageUrl: variantResult.listingImageUrl,
       });
-      if (hit) {
-        const applied = applyShoppingHit(hit, {
-          productName,
-          priceUsdCents,
-          imageUrl,
-          resolvedUrl,
-          originalHost: parsed.hostname,
+    } else {
+      variantFailureMessage = variantResult.message;
+    }
+
+    const needsShoppingImage = !usableRetailerProductImageUrl(imageUrl);
+    if (
+      (!listingFromSerp || needsShoppingImage) &&
+      !isSerpApiRateLimitError(variantFailureMessage) &&
+      (slugName || productName) &&
+      !looksLikeHostnameName(productName || slugName || "")
+    ) {
+      try {
+        const hit = await findShoppingListingForRetailer({
+          query: [productName, slugName, retailerLabel].filter(Boolean).join(" "),
+          retailerHostname: parsed.hostname,
         });
-        if (!listingFromSerp) {
-          productName = applied.productName;
-          priceUsdCents = applied.priceUsdCents;
-          resolvedUrl = applied.resolvedUrl;
-          listingFromSerp = true;
+        if (hit) {
+          const applied = applyShoppingHit(hit, {
+            productName,
+            priceUsdCents,
+            imageUrl,
+            resolvedUrl,
+            originalHost: parsed.hostname,
+          });
+          if (!listingFromSerp) {
+            productName = applied.productName;
+            priceUsdCents = applied.priceUsdCents;
+            resolvedUrl = applied.resolvedUrl;
+            listingFromSerp = true;
+          }
+          imageUrl = applied.imageUrl;
         }
-        imageUrl = applied.imageUrl;
+      } catch (err) {
+        listingError = listingError ?? errorMessage(err, "Shopping lookup failed.");
       }
-    } catch (err) {
-      listingError = listingError ?? errorMessage(err, "Shopping lookup failed.");
     }
   }
 
@@ -413,7 +538,7 @@ export async function resolveAdminSpotlightFromSerpApi(
       message: lookupFailureMessage({
         productUrl: url,
         listingError,
-        variantMessage: variantResult.ok ? null : variantResult.message,
+        variantMessage: variantFailureMessage,
       }),
     };
   }
@@ -435,9 +560,21 @@ export async function resolveAdminSpotlightFromSerpApi(
 
   if (looksLikeHostnameName(primary.productName)) {
     compareMessage = "Skipped retailer comparison because the product name is missing.";
-  } else if (isSerpApiRateLimitError(listingError) || isSerpApiRateLimitError(variantResult.ok ? null : variantResult.message)) {
+  } else if (
+    isSerpApiRateLimitError(listingError) ||
+    isSerpApiRateLimitError(variantFailureMessage)
+  ) {
     compareMessage =
       "Retailer comparison skipped so this listing could load. SerpApi already rate-limited this API key (shared across all admin browsers).";
+  } else if (shoppingHits.length > 0) {
+    compareOffers = compareOffersFromShoppingHits(shoppingHits, {
+      productUrl: primary.productUrl,
+      retailer: variantRetailer,
+      productName: primary.productName,
+      priceUsdCents: primary.priceUsdCents,
+      imageUrl: primary.imageUrl,
+    });
+    compareSearchQuery = shoppingQuery;
   } else {
     const compare = await compareRetailerPrices({
       productName: primary.productName,
@@ -461,7 +598,7 @@ export async function resolveAdminSpotlightFromSerpApi(
     ok: true,
     primary,
     variants,
-    variantMethod: variantMethod || (variantResult.ok ? variantResult.method : ""),
+    variantMethod,
     variantRetailer,
     compareOffers,
     compareSearchQuery,

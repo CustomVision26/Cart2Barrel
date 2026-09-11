@@ -118,13 +118,13 @@ export async function searchGoogleShopping(
   return out;
 }
 
-/** First Google Shopping hit for this retailer (title, price, image, URL). */
-export async function findShoppingListingForRetailer(opts: {
+/** Google Shopping hits plus the first row that matches this retailer. */
+export async function searchShoppingHitsForRetailer(opts: {
   query: string;
   retailerHostname?: string;
-}): Promise<SerpShoppingResult | null> {
+}): Promise<{ match: SerpShoppingResult | null; hits: SerpShoppingResult[] }> {
   const q = opts.query.trim();
-  if (q.length < 2) return null;
+  if (q.length < 2) return { match: null, hits: [] };
 
   const hits = await searchGoogleShopping(q, { maxResults: 15 });
   const hostNeedle = opts.retailerHostname
@@ -133,9 +133,18 @@ export async function findShoppingListingForRetailer(opts: {
     .split(".")[0];
 
   const match = hostNeedle
-    ? hits.find((h) => shoppingHitMatchesRetailer(h, hostNeedle))
-    : hits[0];
-  return match ?? null;
+    ? hits.find((h) => shoppingHitMatchesRetailer(h, hostNeedle)) ?? null
+    : hits[0] ?? null;
+  return { match, hits };
+}
+
+/** First Google Shopping hit for this retailer (title, price, image, URL). */
+export async function findShoppingListingForRetailer(opts: {
+  query: string;
+  retailerHostname?: string;
+}): Promise<SerpShoppingResult | null> {
+  const { match } = await searchShoppingHitsForRetailer(opts);
+  return match;
 }
 
 /** Align "Bath & Body Works" with bathandbodyworks.com (ampersand vs "and"). */

@@ -8,6 +8,7 @@ import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export default async function AdminSpotlightProductsPage() {
   const cu = await safeCurrentUser();

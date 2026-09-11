@@ -141,6 +141,12 @@ export function isRetailerPageAccessError(
   );
 }
 
+/** Hosts that return 307 with no Location (Fastly / geo walls) — skip HTML scrape. */
+export function hostnameLikelyBlocksHtmlFetch(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^www\./, "");
+  return h.includes("bathandbodyworks");
+}
+
 async function fetchDirectHtml(
   productUrl: string,
   signal: AbortSignal,
@@ -236,7 +242,8 @@ async function fetchViaJinaReader(
 
 /**
  * Fetch a public product page over HTTPS with redirect and size limits.
- * Falls back to Jina Reader when the retailer blocks the server fetch or loops redirects.
+ * Falls back to Jina Reader when the retailer returns 401/403/429 — not on
+ * Fastly 307-with-no-Location, which the reader also cannot open.
  */
 export async function fetchPageHtmlForAi(productUrl: string): Promise<string> {
   const controller = new AbortController();
@@ -246,7 +253,7 @@ export async function fetchPageHtmlForAi(productUrl: string): Promise<string> {
     try {
       return await fetchDirectHtml(productUrl, controller.signal);
     } catch (e) {
-      if (!isRetailerPageAccessError(e)) {
+      if (!(e instanceof RetailerPageBlockedError)) {
         throw e;
       }
       try {

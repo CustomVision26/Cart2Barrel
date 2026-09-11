@@ -1,6 +1,7 @@
 import { extractProductVariantsWithOpenAI } from "@/lib/ai/extract-product-variants-openai";
 import {
   fetchPageHtmlForAi,
+  hostnameLikelyBlocksHtmlFetch,
   isRetailerPageAccessError,
   isRetailerPageFetchBlockedMessage,
 } from "@/lib/ai/fetch-page-for-ai";
@@ -327,21 +328,12 @@ async function tryImmersiveVariantFallback(
   productUrl: string,
   searchQuery: string,
 ): Promise<ProductVariantOffer[]> {
-  const queries = [searchQuery];
-  if (!searchQuery.includes(productUrl)) {
-    queries.push(productUrl);
+  if (searchQuery.length < 4) return [];
+  try {
+    return await fetchImmersiveFallback(parsed, productUrl, searchQuery);
+  } catch {
+    return [];
   }
-
-  for (const query of queries) {
-    if (query.length < 4) continue;
-    try {
-      const rows = await fetchImmersiveFallback(parsed, productUrl, query);
-      if (rows.length > 0) return rows;
-    } catch {
-      /* try next query */
-    }
-  }
-  return [];
 }
 
 export async function fetchProductVariants(input: {
@@ -473,10 +465,11 @@ export async function fetchProductVariants(input: {
         parsed.hostname.includes("shein."));
 
     const skipPageAi =
-      serpListingResolved &&
-      parsed.kind !== "amazon" &&
-      variants.length >= 1 &&
-      serpRowsLookComplete(variants);
+      hostnameLikelyBlocksHtmlFetch(parsed.hostname) ||
+      (serpListingResolved &&
+        parsed.kind !== "amazon" &&
+        variants.length >= 1 &&
+        serpRowsLookComplete(variants));
 
     if (needsPageAi && !skipPageAi) {
       try {
