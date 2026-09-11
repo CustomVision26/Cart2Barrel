@@ -246,6 +246,14 @@ export function AdminSpotlightCategoryAddForm({
       return;
     }
     startLookup(async () => {
+      setResolved(null);
+      setAppliedVariantId(null);
+      setSavedParentId(null);
+      setSavedVariantIds(new Set());
+      setSavedRetailerIds(new Set());
+      setLookupTab("variants");
+      setVariantSearch("");
+      setVariantPage(1);
       try {
         const res = await adminResolveSpotlightProductAction({
           productUrl: trimmed,

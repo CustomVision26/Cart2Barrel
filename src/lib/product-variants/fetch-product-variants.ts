@@ -20,6 +20,7 @@ import {
 } from "@/lib/serpapi/amazon-product";
 import { fetchImmersiveProductVariants } from "@/lib/serpapi/google-immersive-product";
 import { findShoppingImmersiveToken } from "@/lib/serpapi/google-shopping";
+import { isGoogleHostedProductUrl } from "@/lib/product-url/listing-url";
 import { getSerpApiKey } from "@/lib/serpapi/env";
 import { isDirectListingRetailer } from "@/lib/product-variants/direct-listing-hosts";
 import { mergeVariantsPreferPageAi } from "@/lib/product-variants/merge-variants-prefer-page-ai";
@@ -45,6 +46,7 @@ import {
 import { displaySiteName, hostnameFromProductUrl } from "@/lib/site-name";
 import {
   buildVariantSearchQuery,
+  listingMatchesExpectedProduct,
   titleHintFromProductUrl,
 } from "@/lib/product-url/search-query";
 
@@ -317,10 +319,24 @@ async function fetchImmersiveFallback(
   });
   if (!token) return [];
 
-  return fetchImmersiveProductVariants(token, {
+  const rows = await fetchImmersiveProductVariants(token, {
     retailerHostname: parsed.hostname,
-    fallbackProductUrl: hitUrl ?? productUrl,
+    fallbackProductUrl: hitUrl && !isGoogleHostedProductUrl(hitUrl) ? hitUrl : productUrl,
   });
+  const title =
+    rows.find((r) => r.productTitle?.trim())?.productTitle ??
+    rows[0]?.label ??
+    null;
+  if (!listingMatchesExpectedProduct(title, searchQuery)) {
+    return [];
+  }
+  return rows.map((row) => ({
+    ...row,
+    productUrl:
+      row.productUrl && !isGoogleHostedProductUrl(row.productUrl)
+        ? row.productUrl
+        : productUrl,
+  }));
 }
 
 async function tryImmersiveVariantFallback(

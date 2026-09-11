@@ -34,6 +34,43 @@ export function titleHintFromProductUrl(productUrl: string): string | null {
   return null;
 }
 
+const TITLE_STOP = new Set([
+  "this",
+  "that",
+  "with",
+  "from",
+  "your",
+  "store",
+  "shop",
+  "the",
+  "and",
+  "for",
+  "size",
+  "color",
+  "pack",
+]);
+
+function significantTitleTokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 4 && !TITLE_STOP.has(t));
+}
+
+/** True when a SerpApi/Immersive title is the same product the admin searched for. */
+export function listingMatchesExpectedProduct(
+  listingTitle: string | null | undefined,
+  expected: string | null | undefined,
+): boolean {
+  const expectedTokens = significantTitleTokens(expected ?? "");
+  if (expectedTokens.length === 0) return true;
+  const listingTokens = significantTitleTokens(listingTitle ?? "");
+  if (listingTokens.length === 0) return false;
+  const overlap = expectedTokens.filter((t) => listingTokens.includes(t)).length;
+  const need = expectedTokens.length >= 3 ? 2 : 1;
+  return overlap >= need;
+}
+
 /** Shopping / immersive search string for variant lookup. */
 export function buildVariantSearchQuery(input: {
   productUrl: string;

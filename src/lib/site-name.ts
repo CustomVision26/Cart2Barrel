@@ -65,6 +65,7 @@ export function retailerLabelFromProductUrl(productUrl: string): string {
   const lower = host.toLowerCase();
   if (lower.includes("temu")) return "Temu";
   if (lower.includes("shein")) return "SHEIN";
+  if (lower.includes("bathandbodyworks")) return "Bath & Body Works";
 
   const stem = host.split(".")[0];
   if (!stem) return host;

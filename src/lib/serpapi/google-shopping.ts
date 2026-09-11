@@ -1,4 +1,5 @@
 import { usableRetailerProductImageUrl } from "@/lib/product-variants/variant-images";
+import { preferDirectRetailerUrl } from "@/lib/product-url/listing-url";
 import { isSerpApiRateLimitError, isSerpApiTransientError, serpApiGet } from "@/lib/serpapi/http";
 
 export type SerpShoppingResult = {
@@ -24,11 +25,10 @@ type SerpShoppingRaw = {
 };
 
 function shoppingResultUrl(raw: SerpShoppingRaw): string | null {
-  const direct = raw.link?.trim();
-  if (direct && /^https:\/\//i.test(direct)) return direct;
-  const productLink = raw.product_link?.trim();
-  if (productLink && /^https:\/\//i.test(productLink)) return productLink;
-  return null;
+  const preferred = preferDirectRetailerUrl(raw.link, raw.product_link);
+  if (preferred) return preferred;
+  const fallback = raw.product_link?.trim() || raw.link?.trim() || "";
+  return /^https:\/\//i.test(fallback) ? fallback : null;
 }
 
 function shoppingResultImage(raw: SerpShoppingRaw): string | null {

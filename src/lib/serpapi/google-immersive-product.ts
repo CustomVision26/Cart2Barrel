@@ -2,6 +2,10 @@ import type { ProductVariantOffer } from "@/lib/product-variants/types";
 import { buildVariantLabel, priceUsdToCents } from "@/lib/product-variants/labels";
 import { serpApiGet } from "@/lib/serpapi/http";
 import { normalizeRetailerImageUrl } from "@/lib/product-variants/variant-images";
+import {
+  isGoogleHostedProductUrl,
+  listingUrlMatchesRetailer,
+} from "@/lib/product-url/listing-url";
 
 type ImmersiveVariantItem = {
   name?: string;
@@ -79,16 +83,21 @@ export async function fetchImmersiveProductVariants(
     hostNeedle ?
       (pr.stores ?? []).find((s) => {
         const name = s.name?.trim() ?? "";
-        const token = name.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const needle = hostNeedle.replace(/[^a-z0-9]/g, "");
+        const token = name.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]/g, "");
+        const needle = hostNeedle.replace(/&/g, "and").replace(/[^a-z0-9]/g, "");
         return token.includes(needle) || needle.includes(token);
       })
     : (pr.stores ?? [])[0];
 
+  const storeLink = store?.link?.trim() || null;
+  const fallback = opts?.fallbackProductUrl?.trim() || null;
   const defaultUrl =
-    store?.link?.trim() ||
-    opts?.fallbackProductUrl?.trim() ||
-    null;
+    (storeLink &&
+    (!host || listingUrlMatchesRetailer(host, storeLink))
+      ? storeLink
+      : null) ||
+    (fallback && !isGoogleHostedProductUrl(fallback) ? fallback : null);
+  const listingTitle = pr.title?.trim() || null;
   const defaultImage = normalizeRetailerImageUrl(pr.thumbnails?.[0]) ?? null;
   const defaultPrice = parsePriceFromRow(store ?? {});
 
@@ -139,6 +148,7 @@ export async function fetchImmersiveProductVariants(
         priceUsdCents: priceUsdToCents(defaultPrice),
         productUrl: defaultUrl,
         imageUrl: defaultImage,
+        productTitle: listingTitle,
         inStock: item.available ?? null,
         isCurrent: Boolean(item.selected),
       });
@@ -152,8 +162,9 @@ export async function fetchImmersiveProductVariants(
       color: null,
       packLabel: null,
       priceUsdCents: priceUsdToCents(defaultPrice),
-      productUrl: opts?.fallbackProductUrl?.trim() || defaultUrl,
+      productUrl: defaultUrl,
       imageUrl: defaultImage,
+      productTitle: listingTitle,
       inStock: null,
       isCurrent: true,
     });
@@ -170,6 +181,7 @@ export async function fetchImmersiveProductVariants(
       priceUsdCents: priceUsdToCents(parsePriceFromRow(opt)),
       productUrl: defaultUrl,
       imageUrl: normalizeRetailerImageUrl(opt.thumbnail) ?? defaultImage,
+      productTitle: listingTitle,
       inStock: true,
       isCurrent: false,
     });
@@ -184,6 +196,7 @@ export async function fetchImmersiveProductVariants(
       priceUsdCents: priceUsdToCents(defaultPrice),
       productUrl: defaultUrl,
       imageUrl: defaultImage,
+      productTitle: listingTitle,
       inStock: null,
       isCurrent: true,
     });
@@ -219,6 +232,7 @@ export async function fetchImmersiveProductStoreOffers(
   for (const store of pr.stores) {
     const productUrl = store.link?.trim();
     if (!productUrl || !/^https:\/\//i.test(productUrl)) continue;
+    if (isGoogleHostedProductUrl(productUrl)) continue;
 
     const retailer = store.name?.trim();
     const title = store.title?.trim() || pr.title?.trim();
