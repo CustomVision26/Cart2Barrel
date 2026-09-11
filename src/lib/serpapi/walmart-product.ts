@@ -181,7 +181,7 @@ async function enrichWalmartVariantRows(
     if (usableRetailerProductImageUrl(row.imageUrl)) continue;
     const id = row.retailerProductId?.trim();
     if (!id) continue;
-    const color = row.productColor?.trim().toLowerCase() ?? "";
+    const color = row.color?.trim().toLowerCase() ?? "";
     if (seenColors.has(color)) continue;
     seenColors.add(color);
     if (!priceIds.includes(id)) colorIds.push(id);
@@ -207,7 +207,7 @@ async function enrichWalmartVariantRows(
   const imageByColor = new Map<string, string>();
   for (const row of rows) {
     const id = row.retailerProductId?.trim();
-    const color = row.productColor?.trim().toLowerCase() ?? "";
+    const color = row.color?.trim().toLowerCase() ?? "";
     if (!id || imageByColor.has(color)) continue;
     const photo = usableRetailerProductImageUrl(byId.get(id)?.imageUrl);
     if (photo) imageByColor.set(color, photo);
@@ -216,7 +216,7 @@ async function enrichWalmartVariantRows(
   return rows.map((row) => {
     const id = row.retailerProductId?.trim();
     const summary = id ? byId.get(id) : undefined;
-    const color = row.productColor?.trim().toLowerCase() ?? "";
+    const color = row.color?.trim().toLowerCase() ?? "";
     return {
       ...row,
       priceUsdCents: row.priceUsdCents ?? summary?.priceUsdCents ?? null,
