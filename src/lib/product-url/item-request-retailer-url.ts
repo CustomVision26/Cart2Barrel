@@ -1,4 +1,5 @@
-import { assertHttpsProductUrl } from "@/lib/ai/url-safety";
+import { hostnameLikelyBlocksHtmlFetch } from "@/lib/ai/fetch-page-for-ai";
+import { retailerLabelFromProductUrl } from "@/lib/site-name";
 import {
   parseProductUrl,
   type ParsedProductUrl,
@@ -95,6 +96,21 @@ export type ItemRequestRetailerUrlValidation =
   | { ok: true; href: string }
   | { ok: false; message: string };
 
+/** Shopper-facing reason we cannot auto-load this store (e.g. Bath & Body Works). */
+export function unsupportedShopperCatalogLookupMessage(
+  productUrl: string,
+): string | null {
+  let host: string;
+  try {
+    host = new URL(productUrl.trim()).hostname;
+  } catch {
+    return null;
+  }
+  if (!hostnameLikelyBlocksHtmlFetch(host)) return null;
+  const retailer = retailerLabelFromProductUrl(productUrl);
+  return `Amani Cart2Barrel cannot load ${retailer} product links automatically. That store blocks our catalog lookup, and unlike Amazon or Walmart there is no product listing feed we can read. Paste a product page from Amazon, Walmart, Target, eBay, Temu, or SHEIN. If you still need this item, send staff a message with the product name.`;
+}
+
 /** Client + server guard for AI-assisted item request product links. */
 export function validateItemRequestRetailerUrl(
   raw: string,
@@ -121,6 +137,11 @@ export function validateItemRequestRetailerUrl(
       message:
         "This link is not from a retailer product page. Paste a direct https product URL from a store (e.g. Walmart, Amazon, Target, Temu).",
     };
+  }
+
+  const unsupported = unsupportedShopperCatalogLookupMessage(href);
+  if (unsupported) {
+    return { ok: false, message: unsupported };
   }
 
   const parsed = parseProductUrl(href);

@@ -6,6 +6,7 @@ import { fetchProductVariants } from "@/lib/product-variants/fetch-product-varia
 import type { FetchProductVariantsResult } from "@/lib/product-variants/types";
 import { withSerpApiUsage } from "@/lib/serpapi/usage-context";
 import { fetchProductVariantsSchema } from "@/lib/validations/product-variants";
+import { validateItemRequestRetailerUrl } from "@/lib/product-url/item-request-retailer-url";
 
 export async function fetchProductVariantsAction(
   raw: unknown,
@@ -21,6 +22,11 @@ export async function fetchProductVariantsAction(
       ok: false,
       message: parsed.error.issues[0]?.message ?? "Invalid input.",
     };
+  }
+
+  const retailerCheck = validateItemRequestRetailerUrl(parsed.data.productUrl);
+  if (!retailerCheck.ok) {
+    return { ok: false, message: retailerCheck.message };
   }
 
   return withSerpApiUsage(

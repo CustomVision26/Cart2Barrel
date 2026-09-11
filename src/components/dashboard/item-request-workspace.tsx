@@ -9,7 +9,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { Info, Loader2 } from "lucide-react";
+import { CircleAlert, Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { compareRetailerPricesAction } from "@/actions/compare-retailer-prices";
@@ -30,6 +30,7 @@ import { createItemRequestAction } from "@/actions/item-request";
 import { ItemRequestCompareRetailers } from "@/components/dashboard/item-request-compare-retailers";
 import { uploadItemRequestProductImageAction } from "@/actions/upload-item-request-product-image";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -448,6 +449,12 @@ export function ItemRequestWorkspace({
       );
       return;
     }
+    const retailerCheck = validateItemRequestRetailerUrl(alignedUrl);
+    if (!retailerCheck.ok) {
+      setVariantsMessage(retailerCheck.message);
+      toast.error(retailerCheck.message);
+      return;
+    }
     if (!urlsMatchForSubmit(storeUrl, linkUrl)) {
       setVariantsMessage(
         "Store product URL and Product link must match before loading from the store.",
@@ -543,7 +550,20 @@ export function ItemRequestWorkspace({
     () => validateItemRequestRetailerUrl(productUrl),
     [productUrl],
   );
-  const isRetailerProductUrl = retailerProductUrlCheck.ok;
+  const storeProductUrlCheck = useMemo(
+    () => validateItemRequestRetailerUrl(previewInput),
+    [previewInput],
+  );
+  const unsupportedStoreLookupMessage =
+    (normalizeUrlInput(previewInput) && !storeProductUrlCheck.ok
+      ? storeProductUrlCheck.message
+      : null) ||
+    (normalizeUrlInput(productUrl) && !retailerProductUrlCheck.ok
+      ? retailerProductUrlCheck.message
+      : null);
+  const isRetailerProductUrl =
+    retailerProductUrlCheck.ok &&
+    (!normalizeUrlInput(previewInput) || storeProductUrlCheck.ok);
   const canUseUrlSync = hasPreviewUrl || hasProductLinkUrl;
 
   const urlsAligned = urlsMatchForSubmit(previewInput, productUrl);
@@ -567,7 +587,8 @@ export function ItemRequestWorkspace({
     !storeVariantsLoaded &&
     !isVariantsPending;
   const quantityOk = parseQuantity(quantity) != null;
-  const canSubmit = urlsAligned && quantityOk && !isPending;
+  const canSubmit =
+    urlsAligned && quantityOk && !isPending && isRetailerProductUrl;
   const productNameReadyForCompare = isProductNameReadyForCompare(productName);
   const needsManualProductName =
     Boolean(normalizeUrlInput(productUrl)) && !productNameReadyForCompare;
@@ -575,11 +596,13 @@ export function ItemRequestWorkspace({
     productNameReadyForCompare && !isComparePending && !isPending;
   const canLoadVariants =
     hasValidProductLinkUrl &&
+    isRetailerProductUrl &&
     urlsAligned &&
     !isVariantsPending &&
     !isPending;
   const loadVariantsDisabledTitle =
     isVariantsPending || isPending ? undefined
+    : unsupportedStoreLookupMessage ? unsupportedStoreLookupMessage
     : !hasValidProductLinkUrl ?
       "Enter a valid https product link"
     : !urlsAligned ?
@@ -661,6 +684,12 @@ export function ItemRequestWorkspace({
       setFormMessage(
         'Store product URL and Product link must be the same address. Use "Use store URL" or edit both fields so they match.'
       );
+      return;
+    }
+    const retailerCheck = validateItemRequestRetailerUrl(productUrl);
+    if (!retailerCheck.ok) {
+      setFormMessage(retailerCheck.message);
+      toast.error(retailerCheck.message);
       return;
     }
     if (parseQuantity(quantity) == null) {
@@ -1011,8 +1040,8 @@ export function ItemRequestWorkspace({
           Product from store
           <HelpBalloon label="About Product from store" tooltipClassName="w-80">
             Paste the retailer product URL and load sizes, colors, and prices from the store
-            listing (SerpAPI for Walmart, Amazon, and similar retailers). Must match the product
-            link on your request.
+            listing (Amazon, Walmart, Target, eBay, Temu, and SHEIN). Bath & Body Works pages
+            cannot be loaded automatically. Must match the product link on your request.
           </HelpBalloon>
         </CardTitle>
       </CardHeader>
@@ -1093,6 +1122,13 @@ export function ItemRequestWorkspace({
             </Button>
           </div>
         </div>
+        {unsupportedStoreLookupMessage ?
+          <Alert variant="destructive">
+            <CircleAlert aria-hidden />
+            <AlertTitle>This store link is not supported</AlertTitle>
+            <AlertDescription>{unsupportedStoreLookupMessage}</AlertDescription>
+          </Alert>
+        : null}
 
         {variantRows.length > 0 || isVariantsPending || variantsMessage ?
           <ItemRequestProductVariants
@@ -1276,7 +1312,14 @@ export function ItemRequestWorkspace({
                     onChange={(e) => setProductUrl(e.target.value)}
                     aria-invalid={Boolean(fieldError("productUrl")?.length)}
                   />
-                  <FieldError errors={fieldError("productUrl")?.map((m) => ({ message: m }))} />
+                  <FieldError
+                    errors={(
+                      fieldError("productUrl") ??
+                      (!retailerProductUrlCheck.ok && normalizeUrlInput(productUrl)
+                        ? [retailerProductUrlCheck.message]
+                        : undefined)
+                    )?.map((m) => ({ message: m }))}
+                  />
                 </FieldContent>
               </Field>
               <div className="flex flex-col gap-2.5">

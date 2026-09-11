@@ -590,7 +590,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Submit new US retailer requests and track quote status.",
       location: "Sidebar → Requested items, or Home → Get an estimate.",
       bullets: [
-        "AI-assisted request: paste product URLs.",
+        "AI-assisted request: paste Amazon, Walmart, Target, eBay, Temu, or SHEIN product URLs.",
         "Select a variant row to copy that row's photo into Request details.",
         "Staff publish quotes you accept into the cart.",
         "Statuses: pending, estimate ready, out of stock, withdrawn.",
@@ -598,7 +598,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       requirements: [
         "Signed-in account.",
-        "Valid US retailer product URLs.",
+        "Valid US retailer product URLs (not Bath & Body Works).",
       ],
       dos: [
         "Paste exact product page URLs.",
@@ -627,7 +627,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       requirements: [
         "Signed-in account.",
-        "Valid US retailer product URLs for new requests.",
+        "Valid US retailer product URLs for new requests (Amazon, Walmart, Target, eBay, Temu, or SHEIN—not Bath & Body Works).",
       ],
       dos: [
         "Paste the exact product page URL, not a search results page.",
@@ -635,6 +635,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Respond promptly when an estimate is ready so stock does not change.",
       ],
       donts: [
+        "Do not paste Bath & Body Works links—Amani Cart2Barrel cannot load that store automatically.",
         "Do not submit duplicate requests for the same product—use the existing line or reinstate if withdrawn.",
         "Do not request items from unsupported retailers without checking How it works.",
         "Do not treat a submitted request as a confirmed purchase until you pay in the cart.",

@@ -11,6 +11,7 @@ import { formatUsd } from "@/lib/admin-markup";
 import { parseUsdToCents } from "@/lib/admin-pricing-form-utils";
 import { hostnameFromProductUrl } from "@/lib/site-name";
 import { parseCreateItemRequestInput } from "@/lib/validations/item-request";
+import { validateItemRequestRetailerUrl } from "@/lib/product-url/item-request-retailer-url";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
 export type CreateItemRequestState = {
@@ -40,6 +41,15 @@ export async function createItemRequestAction(
       }
     }
     return { ok: false, fieldErrors };
+  }
+
+  const retailerCheck = validateItemRequestRetailerUrl(parsed.data.productUrl);
+  if (!retailerCheck.ok) {
+    return {
+      ok: false,
+      message: retailerCheck.message,
+      fieldErrors: { productUrl: [retailerCheck.message] },
+    };
   }
 
   const siteName =
