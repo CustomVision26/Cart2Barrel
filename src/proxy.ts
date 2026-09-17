@@ -1,6 +1,11 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 import {
+  CLERK_SIGN_IN_PATH,
+  CLERK_SIGN_UP_PATH,
+  clerkSignInUrl,
+} from "@/lib/clerk-auth-paths";
+import {
   clerkAuthorizedParties,
   clerkFrontendApiProxyEnabled,
   parseClerkJwtKeyForMiddleware,
@@ -21,7 +26,9 @@ const jwtKey = parseClerkJwtKeyForMiddleware();
 export default clerkMiddleware(
   async (auth, request) => {
     if (!isPublicRoute(request)) {
-      await auth.protect();
+      await auth.protect({
+        unauthenticatedUrl: clerkSignInUrl(request.url, request.url),
+      });
     }
   },
   {
@@ -32,6 +39,8 @@ export default clerkMiddleware(
      */
     ...(jwtKey ? { jwtKey } : {}),
     authorizedParties: clerkAuthorizedParties(),
+    signInUrl: CLERK_SIGN_IN_PATH,
+    signUpUrl: CLERK_SIGN_UP_PATH,
     /**
      * Proxy Clerk Frontend API through this app (`/__clerk`) on `*.vercel.app`.
      * Override with CLERK_FRONTEND_API_PROXY=true|false.
