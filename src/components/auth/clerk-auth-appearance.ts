@@ -55,8 +55,12 @@ export const clerkAuthCardAppearance: ClerkAuthAppearance = {
     headerSubtitle: "text-muted-foreground",
     socialButtonsBlockButton: "bg-background/50 backdrop-blur-sm",
     formFieldInput: "bg-background/50 backdrop-blur-sm",
-    footer: "bg-transparent",
-    footerAction: "bg-transparent",
+    footer:
+      "!bg-zinc-800/95 !text-zinc-50 border-t border-white/15 backdrop-blur-md",
+    footerAction: "!bg-transparent !text-zinc-100",
+    footerActionText: "!text-zinc-200",
+    footerActionLink:
+      "!text-sky-400 hover:!text-sky-200 !font-semibold",
   },
 };
 

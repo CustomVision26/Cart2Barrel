@@ -899,3 +899,53 @@
 .special-feature-promo-banner:focus-within .special-feature-promo-banner__track {
   animation-play-state: paused;
 }
+
+/* Clerk Sign-in footer is a dark strip; keep “Sign up” and branding readable. */
+.cl-signIn-root .cl-footer,
+.cl-signUp-root .cl-footer,
+.cl-cardBox > .cl-footer {
+  background-color: rgb(39 39 42 / 0.96) !important;
+  background-image: none !important;
+  color: #fafafa !important;
+  opacity: 1 !important;
+}
+
+.cl-signIn-root .cl-footerAction,
+.cl-signUp-root .cl-footerAction,
+.cl-cardBox > .cl-footer .cl-footerAction {
+  background: transparent !important;
+  color: #f4f4f5 !important;
+}
+
+.cl-signIn-root .cl-footerActionText,
+.cl-signIn-root .cl-footer p,
+.cl-signIn-root .cl-footer span,
+.cl-signUp-root .cl-footerActionText,
+.cl-signUp-root .cl-footer p,
+.cl-signUp-root .cl-footer span,
+.cl-cardBox > .cl-footer p,
+.cl-cardBox > .cl-footer span {
+  color: #e4e4e7 !important;
+}
+
+.cl-signIn-root .cl-footerActionLink,
+.cl-signIn-root .cl-footer a,
+.cl-signUp-root .cl-footerActionLink,
+.cl-signUp-root .cl-footer a,
+.cl-cardBox > .cl-footer a {
+  color: #7dd3fc !important;
+  font-weight: 600;
+}
+
+.cl-signIn-root .cl-footer a:hover,
+.cl-signUp-root .cl-footer a:hover,
+.cl-cardBox > .cl-footer a:hover {
+  color: #e0f2fe !important;
+}
+
+.cl-signIn-root .cl-footer svg,
+.cl-signUp-root .cl-footer svg,
+.cl-cardBox > .cl-footer svg {
+  color: #d4d4d8 !important;
+  opacity: 1 !important;
+}
