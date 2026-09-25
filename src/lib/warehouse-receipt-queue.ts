@@ -1,8 +1,12 @@
-import type { OrderItem } from "@/db/schema";
+import type { Order, OrderItem } from "@/db/schema";
 import {
   BARREL_PIPELINE_IN_CONTAINER,
   BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID,
 } from "@/lib/barrel-pipeline-fulfillment";
+import {
+  effectiveOrderItemFulfillmentStatus,
+  type OrderItemReadCore,
+} from "@/lib/order-item-read-compat";
 
 /** All hub “delivery received” outcomes on `order_items.fulfillment_status`. */
 export const DELIVERY_RECEIVED_FULFILLMENT_STATUSES: OrderItem["fulfillmentStatus"][] =
@@ -73,4 +77,18 @@ export function canSubmitWarehouseReceiptForFulfillment(
   status: OrderItem["fulfillmentStatus"],
 ): boolean {
   return WAREHOUSE_RECEIPT_SUBMITTABLE_FULFILLMENT_STATUSES.includes(status);
+}
+
+/**
+ * Staff may attach warehouse proof photos / barcode images on paid lines that
+ * are still in purchase, receiving, or packing — including store pickup on
+ * Approve purchase. Refunded and unpaid lines are blocked.
+ */
+export function canManageWarehouseIntakeMedia(
+  orderItem: OrderItemReadCore,
+  order: Pick<Order, "status">,
+): boolean {
+  if (order.status !== "paid") return false;
+  const effective = effectiveOrderItemFulfillmentStatus(orderItem, order);
+  return effective !== "refunded" && effective !== "pending_payment";
 }

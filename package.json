@@ -12,6 +12,7 @@
     "db:ensure-out-of-stock-enum": "node scripts/ensure-out-of-stock-enum.mjs",
     "db:ensure-spotlight": "node scripts/ensure-spotlight-schema.mjs",
     "db:ensure-serp-api-usage": "node scripts/ensure-serp-api-usage-schema.mjs",
+    "db:ensure-page-visits": "node scripts/ensure-page-visits-schema.mjs",
     "db:ensure-user-status-updates": "node scripts/ensure-user-status-update-schema.mjs",
     "db:ensure-support": "node scripts/ensure-support-schema.mjs",
     "db:ensure-quote-expiry": "node scripts/ensure-quote-expiry-settings.mjs",

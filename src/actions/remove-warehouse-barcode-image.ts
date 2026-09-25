@@ -11,8 +11,8 @@ import {
   orderListSelect,
 } from "@/data/order-list-select";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
-import { canManageRetailerReceiptImages } from "@/lib/retailer-receipt-images";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
+import { canManageWarehouseIntakeMedia } from "@/lib/warehouse-receipt-queue";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 import { warehouseBarcodeImageOrderItemSchema } from "@/lib/validations/warehouse-barcode-image";
 
@@ -70,7 +70,7 @@ export async function removeWarehouseBarcodeImageAction(
     return { ok: false, message: "This line was refunded." };
   }
 
-  if (!canManageRetailerReceiptImages(row.orderItem, row.order)) {
+  if (!canManageWarehouseIntakeMedia(row.orderItem, row.order)) {
     return {
       ok: false,
       message:

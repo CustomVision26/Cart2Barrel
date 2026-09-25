@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 
 import { PageLogoWatermark } from "@/components/brand/page-logo-watermark";
+import { SiteTrafficTracker } from "@/components/site-traffic-tracker";
 import { ThemedToaster } from "@/components/theme/themed-toaster";
 
 import { AppProviders } from "./providers";
@@ -43,6 +44,7 @@ export default function RootLayout({
       >
         <AppProviders>
           <PageLogoWatermark />
+          <SiteTrafficTracker />
           <div className="relative z-[1] flex min-h-full flex-1 flex-col">
             {children}
           </div>

@@ -566,13 +566,14 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     title: "Users & admin grants",
     category: "Catalog & team",
     quickReference: {
-      summary: "Customer accounts, admin role assignment, grant audit log, and SerpApi usage.",
+      summary: "Customer accounts, admin role assignment, grant audit log, SerpApi usage, and site traffic.",
       location: "Sidebar → Users.",
       bullets: [
         "All users: Clerk-registered accounts synced into the database; contact, primary address, extra addresses; suspend or ban.",
         "Assign admin: grant or revoke admin role.",
         "Grant log: audit trail of admin grants.",
         "SerpApi usage: plan searches per month and per hour, graphs of site traffic, and searches for every registered account (zero when they have not run a lookup). Search, sort, and paginate the By user table. Use the Find & organize switch to show or hide those filters.",
+        "Site traffic: registered and unregistered visitors plus the pages they opened. Expand a visitor row for their page list. Search, sort, and paginate each table.",
       ],
       requirements: ["Admin access."],
       dos: ["Record why admin access was granted.", "Revoke admin when staff offboards."],
@@ -580,13 +581,14 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Users management covers registered customer accounts, internal admin access control, and SerpApi search traffic. Only existing admins should grant new admins; the grant log provides accountability.",
+        "Users management covers registered customer accounts, internal admin access control, SerpApi search traffic, and first-party site page views. Only existing admins should grant new admins; the grant log provides accountability.",
       ],
       walkthrough: [
         "All users tab: browse registered profiles (synced from Clerk), contact details, and saved shipping addresses (one primary). Suspend or reinstate accounts.",
         "Assign admin tab: search for a user and grant or remove Clerk admin role.",
         "Grant log tab: review historical admin assignments with timestamps.",
         "SerpApi usage tab: compare billed searches against the plan (month and hour), view 24-hour and 30-day graphs, and see every registered account with searches this hour and this month (including zeros). Scheduled jobs show as Scheduled / unattributed. Turn on Find & organize to search the By user table, click column headers to sort, and paginate the list. One lookup can count as several searches.",
+        "Site traffic tab: compare registered and unregistered visitors, expand a row to list pages they visited, and review the pages and recent-visit tables. Admin screens are not recorded.",
         "Account suspension triggers customer notifications in the user app.",
       ],
       requirements: ["Admin access."],
@@ -598,6 +600,54 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Do not grant admin to customer accounts used for shopping tests without isolation.",
         "Do not suspend paying customers without checking open orders and shipments.",
+      ],
+    },
+  },
+  {
+    id: "users-site-traffic",
+    title: "Users — Site traffic",
+    category: "Catalog & team",
+    quickReference: {
+      summary:
+        "Registered and unregistered visitors, with tables of the pages they opened.",
+      location: "Sidebar → Users → Site traffic tab.",
+      bullets: [
+        "Summary cards: visits (24h / 30d), unique visitors, registered vs unregistered.",
+        "Visitors table: expand a row to see every page that browser opened. Filter All / Registered / Unregistered.",
+        "Pages table: visit counts per route, split by signed-in vs guest.",
+        "Recent visits: repeat views from the same visitor are grouped; use the up/down control to open a subtable of pages.",
+        "Admin routes are excluded so staff browsing does not inflate shopper traffic.",
+      ],
+      requirements: ["Admin access."],
+      dos: [
+        "Use Registered / Unregistered filters when reviewing marketing vs dashboard traffic.",
+        "Expand a visitor to confirm which pages they opened before following up.",
+      ],
+      donts: [
+        "Do not treat anonymous guest cookies as a legal identity.",
+        "Do not expect admin screens to appear in this log.",
+      ],
+    },
+    article: {
+      overview: [
+        "Site traffic records first-party page views on public and customer dashboard routes. Signed-in Clerk users show as registered; browsers without an account show as unregistered guests. The same browser cookie is reused after sign-in so a guest session can later appear as registered.",
+      ],
+      walkthrough: [
+        "Open Users, then Site traffic.",
+        "Read the 24-hour and 30-day visit cards and the registered vs unregistered unique-visitor counts.",
+        "Filter All, Registered, or Unregistered, then search the Visitors table. Click a row’s chevron to list pages that visitor opened, with visit counts and last-seen times.",
+        "Use the Pages table for site-wide route popularity (total visits, unique visitors, registered vs unregistered hits).",
+        "Use Recent visits to see each visitor once; expand the up/down control to open a subtable of every page they opened, newest first.",
+        "Turn on Find & organize to search, change rows per page, and sort by column headers.",
+      ],
+      requirements: ["Admin access."],
+      dos: [
+        "Refresh the tab after sending someone to a public page if you need to confirm the view was recorded.",
+        "Keep the visitor cookie first-party only—this log is not a third-party analytics vendor.",
+      ],
+      donts: [
+        "Do not use this table as a substitute for All users contact records.",
+        "Do not assume a guest id belongs to a specific person until they sign in.",
       ],
     },
   },

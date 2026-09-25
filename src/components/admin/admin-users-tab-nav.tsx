@@ -20,6 +20,7 @@ export function AdminUsersTabNav() {
   const assignHref = ADMIN_USERS_ROUTES.assignAdmin;
   const logHref = ADMIN_USERS_ROUTES.grantLog;
   const serpHref = ADMIN_USERS_ROUTES.serpApiUsage;
+  const trafficHref = ADMIN_USERS_ROUTES.siteTraffic;
 
   const linkClass = (href: string) => tabClass(pathname === href);
 
@@ -60,6 +61,14 @@ export function AdminUsersTabNav() {
         className={linkClass(serpHref)}
       >
         SerpApi usage
+      </Link>
+      <Link
+        href={trafficHref}
+        role="tab"
+        aria-selected={pathname === trafficHref}
+        className={linkClass(trafficHref)}
+      >
+        Site traffic
       </Link>
     </div>
   );

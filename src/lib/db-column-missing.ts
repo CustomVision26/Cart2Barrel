@@ -447,3 +447,12 @@ export function isMissingUserStatusUpdateTablesError(e: unknown): boolean {
   if (code === "42P01") return true;
   return /does not exist|relation\b/i.test(msg);
 }
+
+/** `page_visits` — `npm run db:ensure-page-visits` or `npm run db:push`. */
+export function isMissingPageVisitsTableError(e: unknown): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("page_visits")) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}

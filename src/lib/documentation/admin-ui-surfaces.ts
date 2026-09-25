@@ -1,6 +1,7 @@
 import { ADMIN_GUIDE_ROUTE } from "@/lib/admin-guide-routes";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
 import { ADMIN_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
+import { ADMIN_USERS_ROUTES } from "@/lib/admin-users-routes";
 import type {
   SidebarNavLinkDefinition,
   UiSurfaceDefinition,
@@ -107,6 +108,14 @@ const ADMIN_HEADER_AND_EXTRA_SURFACES: UiSurfaceDefinition[] = [
     category: "Commerce",
     route: ADMIN_ITEM_REQUESTS_ROUTES.batchItemsSubmitted,
     location: "Sidebar → Item requests → Batch Items tab.",
+    kind: "tab",
+  },
+  {
+    id: "users-site-traffic",
+    title: "Users — Site traffic",
+    category: "Catalog & team",
+    route: ADMIN_USERS_ROUTES.siteTraffic,
+    location: "Sidebar → Users → Site traffic tab.",
     kind: "tab",
   },
 ];

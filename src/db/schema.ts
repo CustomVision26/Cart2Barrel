@@ -1341,6 +1341,27 @@ export const serpApiSearchEvents = pgTable(
   ],
 );
 
+/** First-party page views for registered shoppers and anonymous visitors. */
+export const pageVisits = pgTable(
+  "page_visits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    visitorId: uuid("visitor_id").notNull(),
+    clerkUserId: text("clerk_user_id"),
+    path: text("path").notNull(),
+    referrer: text("referrer"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("page_visits_visitor_created_idx").on(t.visitorId, t.createdAt),
+    index("page_visits_user_created_idx").on(t.clerkUserId, t.createdAt),
+    index("page_visits_path_created_idx").on(t.path, t.createdAt),
+    index("page_visits_created_idx").on(t.createdAt),
+  ],
+);
+
 /** Shopper-driven updates surfaced to staff in the admin notification center. */
 export const adminUserActivityEventKindEnum = pgEnum(
   "admin_user_activity_event_kind",
@@ -3189,3 +3210,6 @@ export type SupportTicketStatus = SupportTicket["status"];
 
 export type SerpApiSearchEvent = typeof serpApiSearchEvents.$inferSelect;
 export type NewSerpApiSearchEvent = typeof serpApiSearchEvents.$inferInsert;
+
+export type PageVisit = typeof pageVisits.$inferSelect;
+export type NewPageVisit = typeof pageVisits.$inferInsert;

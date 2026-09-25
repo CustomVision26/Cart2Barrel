@@ -3,4 +3,5 @@ export const ADMIN_USERS_ROUTES = {
   assignAdmin: "/admin/users/assign-admin",
   grantLog: "/admin/users/grant-log",
   serpApiUsage: "/admin/users/serp-api-usage",
+  siteTraffic: "/admin/users/site-traffic",
 } as const;

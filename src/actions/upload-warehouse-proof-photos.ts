@@ -13,7 +13,6 @@ import {
 } from "@/data/order-list-select";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import {
-  canManageRetailerReceiptImages,
   isRetailerReceiptImageMime,
   retailerReceiptExtensionForMime,
   RETAILER_RECEIPT_IMAGE_MAX_BYTES,
@@ -26,6 +25,7 @@ import {
   blobReadWriteNotConfiguredMessage,
   getBlobReadWriteToken,
 } from "@/lib/vercel-blob-env";
+import { canManageWarehouseIntakeMedia } from "@/lib/warehouse-receipt-queue";
 
 export type UploadWarehouseProofPhotosState =
   | { ok: true; newUrls: string[]; allUrls: string[] }
@@ -102,7 +102,7 @@ export async function uploadWarehouseProofPhotosAction(
     return { ok: false, message: "This line was refunded." };
   }
 
-  if (!canManageRetailerReceiptImages(row.orderItem, row.order)) {
+  if (!canManageWarehouseIntakeMedia(row.orderItem, row.order)) {
     return {
       ok: false,
       message: "Proof photos cannot be uploaded for this line in its current state.",

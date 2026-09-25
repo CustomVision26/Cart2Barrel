@@ -63,7 +63,10 @@ function isSearchOrBrowseOnlyPath(url: URL, parsed: ParsedProductUrl): boolean {
     path === "/s" ||
     path.startsWith("/browse") ||
     path.startsWith("/shop/all") ||
-    path.startsWith("/stores")
+    path.startsWith("/stores") ||
+    path.startsWith("/channel/") ||
+    path.startsWith("/category") ||
+    path.includes("search_result")
   ) {
     return true;
   }
@@ -71,6 +74,40 @@ function isSearchOrBrowseOnlyPath(url: URL, parsed: ParsedProductUrl): boolean {
     return true;
   }
   return false;
+}
+
+const TEMU_SHEIN_NON_PRODUCT_SEGMENTS = new Set([
+  "cart",
+  "login",
+  "signup",
+  "about",
+  "help",
+  "mall",
+  "channel",
+  "category",
+  "categories",
+  "best-sellers",
+  "new-arrivals",
+  "flash-sale",
+]);
+
+function looksLikeTemuOrSheinListing(url: URL): boolean {
+  const segments = url.pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return false;
+  const slug = segments[segments.length - 1] ?? "";
+  const slugLower = slug.toLowerCase();
+  if (TEMU_SHEIN_NON_PRODUCT_SEGMENTS.has(slugLower)) return false;
+
+  // Goods / product ids: ...-g-601099670847207.html or ...-p-123456.html
+  if (/-g-\d+/i.test(slug) || /-p-\d+/i.test(slug)) return true;
+  if (/\.html$/i.test(slug) && slug.length >= 8) return true;
+
+  // Temu often uses a single hyphenated product slug with no extra folders.
+  if (segments.length === 1) {
+    return slug.length >= 12 && slug.includes("-");
+  }
+
+  return url.pathname.length >= 8;
 }
 
 function looksLikeProductListing(url: URL, parsed: ParsedProductUrl): boolean {
@@ -82,12 +119,9 @@ function looksLikeProductListing(url: URL, parsed: ParsedProductUrl): boolean {
   const segments = url.pathname.split("/").filter(Boolean);
   if (segments.length === 0) return false;
 
-  // Temu / Shein / most fashion marketplaces use deep paths for SKUs.
-  if (
-    parsed.hostname.includes("temu.") ||
-    parsed.hostname.includes("shein.")
-  ) {
-    return segments.length >= 2;
+  const host = parsed.hostname.toLowerCase();
+  if (host.includes("temu.") || host.includes("shein.")) {
+    return looksLikeTemuOrSheinListing(url);
   }
 
   return segments.length >= 1 && url.pathname.length >= 4;
