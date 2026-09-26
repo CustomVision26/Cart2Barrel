@@ -8,6 +8,7 @@ import {
   deleteCustomerQuoteExpirySettingsAction,
   upsertCustomerQuoteExpirySettingsAction,
 } from "@/actions/customer-quote-expiry-settings";
+import { AdminQuoteExpiryDurationFields } from "@/components/admin/admin-quote-expiry-duration-fields";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,8 +25,7 @@ import type { AdminProfilePickerRow } from "@/data/customer-pricing-packages";
 import type { CustomerQuoteExpiryOverrideRow } from "@/data/quote-expiry-settings";
 import {
   formatQuoteExpiryWindowLabel,
-  MAX_QUOTE_EXPIRY_MINUTES,
-  MIN_QUOTE_EXPIRY_MINUTES,
+  isNeverExpireMinutes,
   preferredDurationUnit,
   type QuoteExpiryDurationUnit,
 } from "@/lib/quote-expiry";
@@ -51,21 +51,33 @@ export function AdminCustomerQuoteExpiryPanel({
 }: AdminCustomerQuoteExpiryPanelProps) {
   const router = useRouter();
   const [userFilter, setUserFilter] = useState("");
-  const initialMinutes = selectedOverrideMinutes ?? globalExpiryMinutes;
+  const [selectedId, setSelectedId] = useState(selectedClerkUserId ?? "");
+  const selectedOverrideMinutesResolved =
+    overrides.find((o) => o.clerkUserId === selectedId)?.expiryMinutes ??
+    (selectedId === (selectedClerkUserId ?? "")
+      ? selectedOverrideMinutes
+      : null);
+  const initialMinutes =
+    selectedOverrideMinutesResolved ?? globalExpiryMinutes;
   const initial = useMemo(
     () => preferredDurationUnit(initialMinutes),
     [initialMinutes],
   );
   const [amount, setAmount] = useState(String(initial.amount));
   const [unit, setUnit] = useState<QuoteExpiryDurationUnit>(initial.unit);
+  const [neverExpires, setNeverExpires] = useState(
+    isNeverExpireMinutes(initialMinutes),
+  );
   const [removeOpen, setRemoveOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    const next = preferredDurationUnit(initialMinutes);
-    setAmount(String(next.amount));
-    setUnit(next.unit);
-  }, [initialMinutes, selectedClerkUserId]);
+    setSelectedId(selectedClerkUserId ?? "");
+  }, [selectedClerkUserId]);
+
+  useEffect(() => {
+    syncFormFromMinutes(initialMinutes);
+  }, [initialMinutes, selectedId]);
 
   const filteredUsers = useMemo(() => {
     const q = userFilter.trim().toLowerCase();
@@ -78,36 +90,49 @@ export function AdminCustomerQuoteExpiryPanel({
     );
   }, [users, userFilter]);
 
-  const selectedUser = users.find((u) => u.clerkUserId === selectedClerkUserId);
+  const selectedUser = users.find((u) => u.clerkUserId === selectedId);
   const overrideUserIds = useMemo(
     () => new Set(overrides.map((o) => o.clerkUserId)),
     [overrides],
   );
 
   function selectUser(clerkUserId: string) {
+    setSelectedId(clerkUserId);
     const params = new URLSearchParams();
     params.set("tab", "quote-expiry");
     params.set("expiryTab", "customer");
     if (clerkUserId) params.set("userId", clerkUserId);
-    router.push(`/admin/overview?${params.toString()}`);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `/admin/overview?${params.toString()}`,
+    );
+    const ov = overrides.find((o) => o.clerkUserId === clerkUserId);
+    syncFormFromMinutes(ov?.expiryMinutes ?? globalExpiryMinutes);
   }
 
   function syncFormFromMinutes(minutes: number) {
+    if (isNeverExpireMinutes(minutes)) {
+      setNeverExpires(true);
+      return;
+    }
+    setNeverExpires(false);
     const next = preferredDurationUnit(minutes);
     setAmount(String(next.amount));
     setUnit(next.unit);
   }
 
   function handlePublish() {
-    if (!selectedClerkUserId) {
+    if (!selectedId) {
       toast.error("Select a customer first.");
       return;
     }
     startTransition(async () => {
       const res = await upsertCustomerQuoteExpirySettingsAction({
-        clerkUserId: selectedClerkUserId,
-        amount: Number.parseInt(amount, 10),
-        unit,
+        clerkUserId: selectedId,
+        neverExpires,
+        amount: neverExpires ? 7 : Number.parseInt(amount, 10),
+        unit: neverExpires ? "days" : unit,
       });
       if (!res.ok) {
         toast.error(res.message);
@@ -120,10 +145,10 @@ export function AdminCustomerQuoteExpiryPanel({
   }
 
   function handleRemove() {
-    if (!selectedClerkUserId) return;
+    if (!selectedId) return;
     startTransition(async () => {
       const res = await deleteCustomerQuoteExpirySettingsAction({
-        clerkUserId: selectedClerkUserId,
+        clerkUserId: selectedId,
       });
       setRemoveOpen(false);
       if (!res.ok) {
@@ -146,7 +171,8 @@ export function AdminCustomerQuoteExpiryPanel({
             of their open quoted products—single lines and batch quote lines—
             unless a product override is set on a specific line. Shoppers
             without an override use the hub default (
-            {formatQuoteExpiryWindowLabel(globalExpiryMinutes)}).
+            {formatQuoteExpiryWindowLabel(globalExpiryMinutes)}). You can also
+            turn on Do not expire quotes for this shopper.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -174,7 +200,7 @@ export function AdminCustomerQuoteExpiryPanel({
               <select
                 id="quote-expiry-customer-override-select"
                 className={cn(SELECT_CLASS, "max-w-md min-w-[16rem]")}
-                value={selectedClerkUserId ?? ""}
+                value={selectedId}
                 disabled={pending}
                 onChange={(e) => {
                   const id = e.target.value;
@@ -194,11 +220,11 @@ export function AdminCustomerQuoteExpiryPanel({
               </select>
               {selectedUser ?
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  {selectedOverrideMinutes != null ?
+                  {selectedOverrideMinutesResolved != null ?
                     <>
                       Active override:{" "}
                       <span className="font-medium text-foreground">
-                        {formatQuoteExpiryWindowLabel(selectedOverrideMinutes)}
+                        {formatQuoteExpiryWindowLabel(selectedOverrideMinutesResolved)}
                       </span>
                       .
                     </>
@@ -212,52 +238,26 @@ export function AdminCustomerQuoteExpiryPanel({
             </FieldContent>
           </Field>
 
-          <Field>
-            <FieldLabel htmlFor="quote-expiry-customer-override-amount">
-              Time until quote expires
-            </FieldLabel>
-            <FieldContent>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  id="quote-expiry-customer-override-amount"
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="max-w-[10rem] tabular-nums"
-                  disabled={pending || !selectedClerkUserId}
-                />
-                <select
-                  aria-label="Customer expiry duration unit"
-                  className={SELECT_CLASS}
-                  value={unit}
-                  disabled={pending || !selectedClerkUserId}
-                  onChange={(e) =>
-                    setUnit(e.target.value as QuoteExpiryDurationUnit)
-                  }
-                >
-                  <option value="minutes">Minutes</option>
-                  <option value="hours">Hours</option>
-                  <option value="days">Days</option>
-                </select>
-              </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                From {MIN_QUOTE_EXPIRY_MINUTES} minute to 90 days (
-                {MAX_QUOTE_EXPIRY_MINUTES.toLocaleString()} minutes).
-              </p>
-            </FieldContent>
-          </Field>
+          <AdminQuoteExpiryDurationFields
+            idPrefix="quote-expiry-customer"
+            neverExpires={neverExpires}
+            onNeverExpiresChange={setNeverExpires}
+            amount={amount}
+            onAmountChange={setAmount}
+            unit={unit}
+            onUnitChange={setUnit}
+            disabled={pending || !selectedId}
+          />
         </CardContent>
         <CardFooter className="flex flex-wrap gap-2 border-t border-border/50 bg-muted/30">
           <Button
             type="button"
-            disabled={pending || !selectedClerkUserId}
+            disabled={pending || !selectedId}
             onClick={handlePublish}
           >
             {pending ? "Saving…" : "Publish customer override"}
           </Button>
-          {selectedClerkUserId && selectedOverrideMinutes != null ?
+          {selectedId && selectedOverrideMinutesResolved != null ?
             <Button
               type="button"
               variant="outline"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Package } from "lucide-react";
 
 import { OutboundShippingCartRemoveButton } from "@/components/dashboard/outbound-shipping-cart-remove-button";
+import { BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS } from "@/lib/barrel-outbound-shipping-charge";
 import { formatUsd } from "@/lib/admin-markup";
 import type { OutboundShippingCartLineView } from "@/data/barrel-outbound-shipping-charges";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
@@ -24,11 +25,19 @@ export function CartOutboundShippingLineItem({
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <p className="font-medium text-foreground">
-              Outbound shipping — {line.alias}
+              {BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[line.chargeKind]}
+              {line.partnerName ? ` — ${line.partnerName}` : ""} · {line.alias}
             </p>
             <p className="text-sm text-muted-foreground">
               {line.slotLabel} · {containerOfferingKindLabel(line.kind)}
             </p>
+            {line.partnerCountry || line.partnerAddress ?
+              <p className="text-xs text-muted-foreground">
+                {[line.partnerCountry, line.partnerAddress]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            : null}
           </div>
           <p className="shrink-0 text-base font-semibold tabular-nums text-foreground">
             {formatUsd(line.totalCents)}

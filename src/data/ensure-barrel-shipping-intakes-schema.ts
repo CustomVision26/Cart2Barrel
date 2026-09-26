@@ -37,6 +37,8 @@ export async function ensureBarrelShippingIntakesSchema(): Promise<boolean> {
         "delivery_address_id" uuid,
         "contact_phone" text,
         "special_instructions" text,
+        "selected_broker_key" text,
+        "selected_courier_key" text,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL,
         "updated_at" timestamp with time zone DEFAULT now() NOT NULL
       )
@@ -83,6 +85,15 @@ export async function ensureBarrelShippingIntakesSchema(): Promise<boolean> {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS "barrel_shipping_intakes_clerk_user_id_idx"
       ON "barrel_shipping_intakes" USING btree ("clerk_user_id")
+    `);
+
+    await db.execute(sql`
+      ALTER TABLE "barrel_shipping_intakes"
+      ADD COLUMN IF NOT EXISTS "selected_broker_key" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_shipping_intakes"
+      ADD COLUMN IF NOT EXISTS "selected_courier_key" text
     `);
 
     schemaReady = true;

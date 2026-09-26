@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { AdminCustomerQuoteExpiryPanel } from "@/components/admin/admin-customer-quote-expiry-panel";
 import { AdminProductQuoteExpiryPanel } from "@/components/admin/admin-product-quote-expiry-panel";
@@ -39,6 +39,18 @@ function subTabHref(
   return `/admin/overview?${params.toString()}`;
 }
 
+function syncExpiryTabUrl(
+  sub: QuoteExpirySubTab,
+  selectedClerkUserId?: string,
+) {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(
+    window.history.state,
+    "",
+    subTabHref(sub, selectedClerkUserId),
+  );
+}
+
 export function AdminQuoteExpiryHub({
   expiryTab,
   selectedClerkUserId,
@@ -49,58 +61,77 @@ export function AdminQuoteExpiryHub({
   selectedCustomerOverrideMinutes,
   productRows,
 }: AdminQuoteExpiryHubProps) {
+  const [tab, setTab] = useState<QuoteExpirySubTab>(expiryTab);
+
+  useEffect(() => {
+    setTab(expiryTab);
+  }, [expiryTab]);
+
+  function goTo(sub: QuoteExpirySubTab) {
+    setTab(sub);
+    syncExpiryTabUrl(sub, selectedClerkUserId);
+  }
+
+  const tabClass = (sub: QuoteExpirySubTab) =>
+    cn(
+      "-mb-px rounded-t-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
+      tab === sub
+        ? "border-border border-b-background bg-background text-foreground"
+        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+    );
+
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Set how long a quoted price stays valid. Priority is{" "}
+        Set how long a quoted price stays valid, or turn on{" "}
+        <span className="font-medium text-foreground">Do not expire quotes</span>{" "}
+        so that layer has no accept/pay deadline. Priority is{" "}
         <span className="font-medium text-foreground">Product</span>, then{" "}
         <span className="font-medium text-foreground">Customer</span>, then{" "}
         <span className="font-medium text-foreground">Hub</span>. Changes apply
         immediately to open quoted products (single lines and batch lines).
       </p>
 
-      <div className="flex flex-wrap gap-1 border-b border-border">
-        <Link
-          href={subTabHref("hub")}
-          className={cn(
-            "-mb-px rounded-t-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
-            expiryTab === "hub"
-              ? "border-border border-b-background bg-background text-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
+      <div
+        role="tablist"
+        aria-label="Quote expiry level"
+        className="flex flex-wrap gap-1 border-b border-border"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "hub"}
+          className={tabClass("hub")}
+          onClick={() => goTo("hub")}
         >
           Hub
-        </Link>
-        <Link
-          href={subTabHref("customer", selectedClerkUserId)}
-          className={cn(
-            "-mb-px rounded-t-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
-            expiryTab === "customer"
-              ? "border-border border-b-background bg-background text-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "customer"}
+          className={tabClass("customer")}
+          onClick={() => goTo("customer")}
         >
           Customer
-        </Link>
-        <Link
-          href={subTabHref("product", selectedClerkUserId)}
-          className={cn(
-            "-mb-px rounded-t-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
-            expiryTab === "product"
-              ? "border-border border-b-background bg-background text-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "product"}
+          className={tabClass("product")}
+          onClick={() => goTo("product")}
         >
           Product
-        </Link>
+        </button>
       </div>
 
-      {expiryTab === "hub" ?
+      {tab === "hub" ?
         <AdminQuoteExpirySettingsPanel
           initialExpiryMinutes={hubExpiryMinutes}
           updatedAt={hubUpdatedAt}
         />
-      : expiryTab === "customer" ?
+      : tab === "customer" ?
         <AdminCustomerQuoteExpiryPanel
           users={users}
           overrides={customerOverrides}

@@ -5,6 +5,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   barrelItems,
+  barrelOutboundShippingCharges,
   barrelShippingIntakes,
   barrels,
   orderContainerItems,
@@ -16,9 +17,15 @@ import type {
   BarrelShippingIntakeSubmittedRow,
 } from "@/lib/barrel-shipping-intake";
 import { isContainerReadyForShippingIntake } from "@/lib/barrel-shipping-intake";
+import { OWN_TRANSPORT_COURIER_KEY } from "@/lib/destination-clearance-partners";
 import { parseContainerOfferingKind } from "@/lib/validations/container-offering";
-import { getOutboundShippingChargesByBarrelIds } from "@/data/barrel-outbound-shipping-charges";
+import { getBarrelContentsByBarrelIds } from "@/data/barrel-contents";
+import {
+  getOutboundShippingChargesByBarrelIds,
+  resetBrokerAndCourierPaymentsForBarrel,
+} from "@/data/barrel-outbound-shipping-charges";
 import { getPrimaryImageUrlByOfferingIds } from "@/data/container-offerings";
+import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { ensureBarrelShippingIntakesSchema } from "@/data/ensure-barrel-shipping-intakes-schema";
 import { ensureBarrelsProvisionedForUser } from "@/data/ensure-paid-order-barrels";
 import { isMissingBarrelShippingIntakesTableError } from "@/lib/db-column-missing";
@@ -49,8 +56,9 @@ function mapBarrelRows(
     intake: typeof barrelShippingIntakes.$inferSelect | null;
   }[],
   countByBarrel: Map<string, number>,
-  chargesByBarrel: Map<string, import("@/lib/barrel-outbound-shipping-charge").BarrelOutboundShippingChargeView>,
+  chargesByBarrel: Map<string, import("@/lib/barrel-outbound-shipping-charge").BarrelOutboundShippingChargeView[]>,
   imageByOfferingId: Map<string, string>,
+  contentsByBarrel: Map<string, import("@/lib/barrel-contents").BarrelContentItem[]>,
 ): {
   awaiting: BarrelShippingIntakeContainerRow[];
   submitted: BarrelShippingIntakeSubmittedRow[];
@@ -79,11 +87,12 @@ function mapBarrelRows(
           unitOrdinal: r.barrel.unitOrdinal,
         })
       : `Container ${r.barrel.id.slice(0, 8)}…`;
-    const itemCount = countByBarrel.get(r.barrel.id) ?? 0;
     const containerName = oci?.nameSnapshot.trim() || alias;
     const offeringId = oci?.containerOfferingId ?? null;
     const containerImageUrl =
       offeringId ? (imageByOfferingId.get(offeringId) ?? null) : null;
+    const itemCount = countByBarrel.get(r.barrel.id) ?? 0;
+    const outboundCharges = chargesByBarrel.get(r.barrel.id) ?? [];
 
     const base: BarrelShippingIntakeContainerRow = {
       barrelId: r.barrel.id,
@@ -95,6 +104,8 @@ function mapBarrelRows(
       status: r.barrel.status,
       capacityPercentage: r.barrel.capacityPercentage,
       itemCount,
+      contents: contentsByBarrel.get(r.barrel.id) ?? [],
+      outboundCharges,
     };
 
     if (r.intake) {
@@ -102,10 +113,11 @@ function mapBarrelRows(
         ...base,
         intakeId: r.intake.id,
         deliveryMethod: r.intake.deliveryMethod,
+        selectedBrokerKey: r.intake.selectedBrokerKey,
+        selectedCourierKey: r.intake.selectedCourierKey,
         contactPhone: r.intake.contactPhone,
         specialInstructions: r.intake.specialInstructions,
         submittedAt: r.intake.createdAt,
-        outboundCharge: chargesByBarrel.get(r.barrel.id) ?? null,
       });
       continue;
     }
@@ -171,9 +183,6 @@ export async function getBarrelShippingIntakePageData(
   }
 
   const barrelIds = rows.map((r) => r.barrel.id);
-  const submittedBarrelIds = rows
-    .filter((r) => r.intake != null)
-    .map((r) => r.barrel.id);
   const offeringIds = [
     ...new Set(
       rows
@@ -181,12 +190,20 @@ export async function getBarrelShippingIntakePageData(
         .filter((id): id is string => Boolean(id)),
     ),
   ];
-  const [countByBarrel, chargesByBarrel, imageByOfferingId] = await Promise.all([
-    loadItemCountsByBarrel(barrelIds),
-    getOutboundShippingChargesByBarrelIds(clerkUserId, submittedBarrelIds),
-    getPrimaryImageUrlByOfferingIds(offeringIds),
-  ]);
-  return mapBarrelRows(rows, countByBarrel, chargesByBarrel, imageByOfferingId);
+  const [countByBarrel, chargesByBarrel, imageByOfferingId, contentsByBarrel] =
+    await Promise.all([
+      loadItemCountsByBarrel(barrelIds),
+      getOutboundShippingChargesByBarrelIds(clerkUserId, barrelIds),
+      getPrimaryImageUrlByOfferingIds(offeringIds),
+      getBarrelContentsByBarrelIds(clerkUserId, barrelIds),
+    ]);
+  return mapBarrelRows(
+    rows,
+    countByBarrel,
+    chargesByBarrel,
+    imageByOfferingId,
+    contentsByBarrel,
+  );
 }
 
 export async function getBarrelForShippingIntake(
@@ -218,4 +235,260 @@ export async function getBarrelForShippingIntake(
     return undefined;
   }
   return row;
+}
+
+export async function switchShippingIntakeToSelfClearance(
+  clerkUserId: string,
+  intakeId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureBarrelShippingIntakesSchema();
+  const db = getDb();
+  const [row] = await db
+    .select({
+      intake: barrelShippingIntakes,
+      barrel: barrels,
+    })
+    .from(barrelShippingIntakes)
+    .innerJoin(barrels, eq(barrelShippingIntakes.barrelId, barrels.id))
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, intakeId),
+        eq(barrelShippingIntakes.clerkUserId, clerkUserId),
+        eq(barrels.clerkUserId, clerkUserId),
+      )!,
+    )
+    .limit(1);
+
+  if (!row) {
+    return { ok: false, message: "Submitted preferences not found." };
+  }
+  if (row.barrel.status === "shipped" || row.barrel.status === "delivered") {
+    return {
+      ok: false,
+      message: "This container has already shipped. Clearance cannot be changed.",
+    };
+  }
+  if (row.intake.deliveryMethod === "customs_pickup") {
+    return { ok: true };
+  }
+
+  await ensureBarrelOutboundShippingChargesSchema();
+  const [brokerCharge] = await db
+    .select({
+      paidAt: barrelOutboundShippingCharges.paidAt,
+    })
+    .from(barrelOutboundShippingCharges)
+    .where(
+      and(
+        eq(barrelOutboundShippingCharges.barrelId, row.intake.barrelId),
+        eq(barrelOutboundShippingCharges.clerkUserId, clerkUserId),
+        eq(barrelOutboundShippingCharges.chargeKind, "broker"),
+      ),
+    )
+    .limit(1);
+  if (brokerCharge?.paidAt) {
+    return {
+      ok: false,
+      message: "The broker charge is already paid, so this selection cannot change.",
+    };
+  }
+
+  await db
+    .update(barrelShippingIntakes)
+    .set({
+      deliveryMethod: "customs_pickup",
+      selectedBrokerKey: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, intakeId),
+        eq(barrelShippingIntakes.clerkUserId, clerkUserId),
+      )!,
+    );
+
+  return { ok: true };
+}
+
+export async function switchShippingIntakeToOwnTransport(
+  clerkUserId: string,
+  intakeId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureBarrelShippingIntakesSchema();
+  const db = getDb();
+  const [row] = await db
+    .select({
+      intake: barrelShippingIntakes,
+      barrel: barrels,
+    })
+    .from(barrelShippingIntakes)
+    .innerJoin(barrels, eq(barrelShippingIntakes.barrelId, barrels.id))
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, intakeId),
+        eq(barrelShippingIntakes.clerkUserId, clerkUserId),
+        eq(barrels.clerkUserId, clerkUserId),
+      )!,
+    )
+    .limit(1);
+
+  if (!row) {
+    return { ok: false, message: "Submitted preferences not found." };
+  }
+  if (row.barrel.status === "shipped" || row.barrel.status === "delivered") {
+    return {
+      ok: false,
+      message:
+        "This container has already shipped. Transportation cannot be changed.",
+    };
+  }
+  const currentKey = row.intake.selectedCourierKey?.trim() || "";
+  if (
+    currentKey === OWN_TRANSPORT_COURIER_KEY ||
+    currentKey === "self-arrange-local"
+  ) {
+    return { ok: true };
+  }
+
+  await ensureBarrelOutboundShippingChargesSchema();
+  const [courierCharge] = await db
+    .select({
+      paidAt: barrelOutboundShippingCharges.paidAt,
+    })
+    .from(barrelOutboundShippingCharges)
+    .where(
+      and(
+        eq(barrelOutboundShippingCharges.barrelId, row.intake.barrelId),
+        eq(barrelOutboundShippingCharges.clerkUserId, clerkUserId),
+        eq(barrelOutboundShippingCharges.chargeKind, "courier"),
+      ),
+    )
+    .limit(1);
+  if (courierCharge?.paidAt) {
+    return {
+      ok: false,
+      message:
+        "The local courier charge is already paid, so this selection cannot change.",
+    };
+  }
+
+  await db
+    .update(barrelShippingIntakes)
+    .set({
+      selectedCourierKey: OWN_TRANSPORT_COURIER_KEY,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, intakeId),
+        eq(barrelShippingIntakes.clerkUserId, clerkUserId),
+      )!,
+    );
+
+  return { ok: true };
+}
+
+export async function cancelShippingIntakeForUser(
+  clerkUserId: string,
+  intakeId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureBarrelShippingIntakesSchema();
+  const db = getDb();
+  const [row] = await db
+    .select({
+      intake: barrelShippingIntakes,
+      barrel: barrels,
+    })
+    .from(barrelShippingIntakes)
+    .innerJoin(barrels, eq(barrelShippingIntakes.barrelId, barrels.id))
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, intakeId),
+        eq(barrelShippingIntakes.clerkUserId, clerkUserId),
+        eq(barrels.clerkUserId, clerkUserId),
+      )!,
+    )
+    .limit(1);
+
+  if (!row) {
+    return { ok: false, message: "Submitted preferences not found." };
+  }
+
+  if (row.barrel.status === "shipped" || row.barrel.status === "delivered") {
+    return {
+      ok: false,
+      message: "This container has already shipped and cannot be cancelled.",
+    };
+  }
+
+  await resetBrokerAndCourierPaymentsForBarrel(
+    clerkUserId,
+    row.intake.barrelId,
+  );
+
+  await db
+    .delete(barrelShippingIntakes)
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, intakeId),
+        eq(barrelShippingIntakes.clerkUserId, clerkUserId),
+      )!,
+    );
+
+  return { ok: true };
+}
+
+export async function updateShippingIntakeRow(
+  clerkUserId: string,
+  input: {
+    intakeId: string;
+    deliveryMethod: "customs_pickup" | "broker_delivery";
+    selectedBrokerKey: string | null;
+    selectedCourierKey: string;
+  },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureBarrelShippingIntakesSchema();
+  const db = getDb();
+  const [row] = await db
+    .select({
+      intake: barrelShippingIntakes,
+      barrel: barrels,
+    })
+    .from(barrelShippingIntakes)
+    .innerJoin(barrels, eq(barrelShippingIntakes.barrelId, barrels.id))
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, input.intakeId),
+        eq(barrelShippingIntakes.clerkUserId, clerkUserId),
+        eq(barrels.clerkUserId, clerkUserId),
+      )!,
+    )
+    .limit(1);
+
+  if (!row) {
+    return { ok: false, message: "Submitted preferences not found." };
+  }
+  if (row.barrel.status === "shipped" || row.barrel.status === "delivered") {
+    return {
+      ok: false,
+      message: "This container has already shipped. Clearance cannot be changed.",
+    };
+  }
+
+  await db
+    .update(barrelShippingIntakes)
+    .set({
+      deliveryMethod: input.deliveryMethod,
+      selectedBrokerKey: input.selectedBrokerKey,
+      selectedCourierKey: input.selectedCourierKey,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, input.intakeId),
+        eq(barrelShippingIntakes.clerkUserId, clerkUserId),
+      )!,
+    );
+
+  return { ok: true };
 }

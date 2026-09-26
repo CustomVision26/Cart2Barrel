@@ -15,10 +15,10 @@ import {
   restoreOrphanQuotedItemRequestQuote,
 } from "@/data/item-quotes";
 import {
-  clampExpiryMinutes,
   DEFAULT_QUOTE_EXPIRY_MINUTES,
   effectiveQuoteExpiryMinutes,
   isQuoteExpired,
+  normalizeExpiryMinutes,
   resolveQuoteExpiryClockStart,
   type QuoteExpirySource,
 } from "@/lib/quote-expiry";
@@ -59,7 +59,7 @@ async function loadGlobalQuoteExpiryRow(): Promise<{
       };
     }
     return {
-      expiryMinutes: clampExpiryMinutes(row.expiryMinutes),
+      expiryMinutes: normalizeExpiryMinutes(row.expiryMinutes),
       updatedAt: row.updatedAt,
     };
   } catch {
@@ -87,7 +87,7 @@ export async function getCustomerQuoteExpiryOverride(
       .limit(1);
     if (!row) return null;
     return {
-      expiryMinutes: clampExpiryMinutes(row.expiryMinutes),
+      expiryMinutes: normalizeExpiryMinutes(row.expiryMinutes),
       updatedAt: row.updatedAt,
     };
   } catch {
@@ -125,7 +125,7 @@ export async function upsertQuoteExpirySettings(params: {
   updatedByClerkUserId: string;
 }): Promise<QuoteExpirySettingsPublic> {
   const db = getDb();
-  const expiryMinutes = clampExpiryMinutes(params.expiryMinutes);
+  const expiryMinutes = normalizeExpiryMinutes(params.expiryMinutes);
   const updatedAt = new Date().toISOString();
 
   const [existing] = await db
@@ -162,7 +162,7 @@ export async function upsertCustomerQuoteExpirySettings(params: {
 }): Promise<QuoteExpirySettingsPublic> {
   const db = getDb();
   const clerkUserId = params.clerkUserId.trim();
-  const expiryMinutes = clampExpiryMinutes(params.expiryMinutes);
+  const expiryMinutes = normalizeExpiryMinutes(params.expiryMinutes);
   const updatedAt = new Date().toISOString();
 
   const [existing] = await db
@@ -240,7 +240,7 @@ export async function listCustomerQuoteExpiryOverridesForAdmin(): Promise<
         clerkUserId: r.clerkUserId,
         displayName: name || email || r.clerkUserId,
         email,
-        expiryMinutes: clampExpiryMinutes(r.expiryMinutes),
+        expiryMinutes: normalizeExpiryMinutes(r.expiryMinutes),
         updatedAt: r.updatedAt,
       };
     });
@@ -289,7 +289,7 @@ async function enrichQuotedProductExpiryRows(
     const account = await loadQuoteExpirySettings(r.clerkUserId);
     const productOverride =
       r.quoteExpiryMinutesOverride != null
-        ? clampExpiryMinutes(r.quoteExpiryMinutesOverride)
+        ? normalizeExpiryMinutes(r.quoteExpiryMinutesOverride)
         : null;
     const effective = effectiveQuoteExpiryMinutes(
       account.expiryMinutes,
@@ -463,7 +463,7 @@ export async function upsertProductQuoteExpiryOverride(params: {
   clerkUserId: string;
 }> {
   const db = getDb();
-  const expiryMinutes = clampExpiryMinutes(params.expiryMinutes);
+  const expiryMinutes = normalizeExpiryMinutes(params.expiryMinutes);
   const anchoredAt = new Date().toISOString();
   const updated = await db
     .update(itemRequests)
@@ -489,7 +489,7 @@ export async function upsertProductQuoteExpiryOverride(params: {
   }
   return {
     itemRequestId: updated[0]!.id,
-    expiryMinutes: clampExpiryMinutes(
+    expiryMinutes: normalizeExpiryMinutes(
       updated[0]!.quoteExpiryMinutesOverride ?? expiryMinutes,
     ),
     clerkUserId: updated[0]!.clerkUserId,

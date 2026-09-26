@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
@@ -9,9 +9,13 @@ import {
   barrelOutboundShippingCharges,
   barrels,
 } from "@/db/schema";
+import { getPrimaryOutboundShippingPartner } from "@/data/barrel-outbound-shipping-partners";
+import { approveOutboundOffPlatformPayment } from "@/data/barrel-outbound-shipping-charges";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import { BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS } from "@/lib/barrel-outbound-shipping-charge";
 import {
+  approveOutboundOffPlatformPaymentSchema,
   parseUsdInputToCents,
   saveBarrelOutboundShippingChargeSchema,
 } from "@/lib/validations/barrel-outbound-shipping-charge";
@@ -37,7 +41,16 @@ export async function saveBarrelOutboundShippingChargeAction(
     };
   }
 
-  const { barrelId, adminNote, lines } = parsed.data;
+  const {
+    barrelId,
+    chargeKind,
+    partnerName,
+    partnerLocation,
+    partnerAddress,
+    partnerCountry,
+    adminNote,
+    lines,
+  } = parsed.data;
   const linePayload = lines.map((line, index) => ({
     label: line.label.trim(),
     amountCents: parseUsdInputToCents(line.amountUsd),
@@ -64,7 +77,12 @@ export async function saveBarrelOutboundShippingChargeAction(
   const [existing] = await db
     .select()
     .from(barrelOutboundShippingCharges)
-    .where(eq(barrelOutboundShippingCharges.barrelId, barrelId))
+    .where(
+      and(
+        eq(barrelOutboundShippingCharges.barrelId, barrelId),
+        eq(barrelOutboundShippingCharges.chargeKind, chargeKind),
+      ),
+    )
     .limit(1);
 
   let chargeId = existing?.id;
@@ -72,15 +90,46 @@ export async function saveBarrelOutboundShippingChargeAction(
   if (existing?.paidAt) {
     return {
       ok: false,
-      message: "This shipping charge was already paid and cannot be edited.",
+      message: "This charge was already paid and cannot be edited.",
     };
   }
+
+  const primaryPartner = await getPrimaryOutboundShippingPartner(
+    barrelId,
+    chargeKind,
+  );
+  const partnerNameValue =
+    primaryPartner?.name.trim() || partnerName.trim() || null;
+  const partnerLocationValue =
+    chargeKind === "freight"
+      ? null
+      : primaryPartner?.location?.trim() || partnerLocation.trim() || null;
+  const partnerAddressValue =
+    primaryPartner?.address?.trim() || partnerAddress.trim() || null;
+  const partnerCountryValue =
+    chargeKind === "freight"
+      ? null
+      : primaryPartner?.country?.trim() || partnerCountry.trim() || null;
+  const partnerPhoneValue = primaryPartner?.phone?.trim() || null;
+  const partnerCashappIdValue = primaryPartner?.cashappId?.trim() || null;
+  const partnerCashappAccountValue = primaryPartner?.cashappAccount?.trim() || null;
+  const partnerZelleIdValue = primaryPartner?.zelleId?.trim() || null;
+  const partnerZelleAccountValue = primaryPartner?.zelleAccount?.trim() || null;
 
   if (chargeId) {
     await db
       .update(barrelOutboundShippingCharges)
       .set({
         adminNote: adminNote.trim() || null,
+        partnerName: partnerNameValue,
+        partnerLocation: partnerLocationValue,
+        partnerAddress: partnerAddressValue,
+        partnerCountry: partnerCountryValue,
+        partnerPhone: partnerPhoneValue,
+        partnerCashappId: partnerCashappIdValue,
+        partnerCashappAccount: partnerCashappAccountValue,
+        partnerZelleId: partnerZelleIdValue,
+        partnerZelleAccount: partnerZelleAccountValue,
         recordedByClerkUserId: cu.user.id,
         updatedAt: new Date().toISOString(),
       })
@@ -95,6 +144,16 @@ export async function saveBarrelOutboundShippingChargeAction(
       .values({
         barrelId,
         clerkUserId: barrel.clerkUserId,
+        chargeKind,
+        partnerName: partnerNameValue,
+        partnerLocation: partnerLocationValue,
+        partnerAddress: partnerAddressValue,
+        partnerCountry: partnerCountryValue,
+        partnerPhone: partnerPhoneValue,
+        partnerCashappId: partnerCashappIdValue,
+        partnerCashappAccount: partnerCashappAccountValue,
+        partnerZelleId: partnerZelleIdValue,
+        partnerZelleAccount: partnerZelleAccountValue,
         adminNote: adminNote.trim() || null,
         recordedByClerkUserId: cu.user.id,
       })
@@ -120,8 +179,39 @@ export async function saveBarrelOutboundShippingChargeAction(
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
 
+  const kindLabel = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[chargeKind];
+  const customerAction =
+    chargeKind === "freight"
+      ? "The customer can add it to their cart on Shipping."
+      : "The customer can pay it with Zelle, Cash App, or at the local office.";
   return {
     ok: true,
-    message: "Shipping charge saved. The customer can add it to their cart.",
+    message: `${kindLabel} published. ${customerAction}`,
   };
+}
+
+export async function approveOutboundOffPlatformPaymentAction(
+  raw: unknown,
+): Promise<SaveBarrelOutboundShippingChargeState> {
+  const cu = await safeCurrentUser();
+  if (!cu.ok || !cu.user || !isClerkAdmin(cu.user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = approveOutboundOffPlatformPaymentSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid charge.",
+    };
+  }
+
+  const result = await approveOutboundOffPlatformPayment(parsed.data.chargeId);
+  if (!result.ok) return result;
+
+  revalidatePath("/admin/shipments");
+  revalidatePath("/dashboard/shipping");
+  revalidatePath("/dashboard/shipping/pricing");
+  revalidatePath("/dashboard/cart");
+  return { ok: true, message: "Payment approved." };
 }

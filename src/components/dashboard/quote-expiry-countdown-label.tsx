@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
-import { getQuoteExpiryCountdown } from "@/lib/quote-expiry";
+import {
+  getQuoteExpiryCountdown,
+  isNeverExpireMinutes,
+} from "@/lib/quote-expiry";
 
 type QuoteExpiryCountdownLabelProps = {
   quotedAt: string;
@@ -27,6 +30,7 @@ export function QuoteExpiryCountdownLabel({
   useEffect(() => {
     setNowMs(Date.now());
     expiredNotified.current = false;
+    if (isNeverExpireMinutes(expiryMinutes)) return;
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, [quotedAt, expiryMinutes]);
@@ -35,10 +39,11 @@ export function QuoteExpiryCountdownLabel({
     nowMs == null ? null : getQuoteExpiryCountdown(quotedAt, expiryMinutes, nowMs);
 
   useEffect(() => {
+    if (countdown?.neverExpires) return;
     if (!countdown?.expired || expiredNotified.current) return;
     expiredNotified.current = true;
     onExpired?.();
-  }, [countdown?.expired, onExpired]);
+  }, [countdown?.expired, countdown?.neverExpires, onExpired]);
 
   const shellClassName = cn(
     "flex w-[8.75rem] flex-col gap-1 rounded-md border border-border/70 bg-muted/60 px-2.5 py-2",
@@ -66,6 +71,28 @@ export function QuoteExpiryCountdownLabel({
         title="Waiting for staff quote timestamp"
       >
         —
+      </span>
+    );
+  }
+
+  if (countdown.neverExpires) {
+    return (
+      <span
+        className={cn(
+          "flex w-[8.75rem] flex-col gap-1 rounded-md border border-border/70 bg-muted/60 px-2.5 py-2",
+          className,
+        )}
+        title="This quote does not expire."
+      >
+        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Time left
+        </span>
+        <span className="text-sm font-semibold text-foreground">
+          No expiry
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          Does not expire
+        </span>
       </span>
     );
   }

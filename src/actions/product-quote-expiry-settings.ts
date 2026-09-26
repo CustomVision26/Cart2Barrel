@@ -16,6 +16,7 @@ import { getClerkSessionGate } from "@/lib/clerk-session";
 import {
   formatQuoteExpiryWindowLabel,
   minutesFromDurationAmount,
+  NEVER_EXPIRE_MINUTES,
 } from "@/lib/quote-expiry";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import {
@@ -83,10 +84,9 @@ export async function upsertProductQuoteExpirySettingsAction(
     };
   }
 
-  const expiryMinutes = minutesFromDurationAmount(
-    parsed.data.amount,
-    parsed.data.unit,
-  );
+  const expiryMinutes = parsed.data.neverExpires
+    ? NEVER_EXPIRE_MINUTES
+    : minutesFromDurationAmount(parsed.data.amount!, parsed.data.unit!);
 
   try {
     const existing = await getItemRequestById(parsed.data.itemRequestId);
@@ -116,11 +116,16 @@ export async function upsertProductQuoteExpirySettingsAction(
     });
     revalidateProductExpirySurfaces();
     revalidateDashboardAddItem();
+    const windowLabel = formatQuoteExpiryWindowLabel(saved.expiryMinutes);
     return {
       ok: true,
-      message: parsed.data.restoreToActive
-        ? `Published ${formatQuoteExpiryWindowLabel(saved.expiryMinutes)} window. Product left Expired Quotes and is back on Active.`
-        : `Product override published: ${formatQuoteExpiryWindowLabel(saved.expiryMinutes)} for this quoted product.`,
+      message: parsed.data.neverExpires
+        ? parsed.data.restoreToActive
+          ? "Published no-expiry window. Product left Expired Quotes and is back on Active."
+          : "Product override published: this quoted product does not expire."
+        : parsed.data.restoreToActive
+          ? `Published ${windowLabel} window. Product left Expired Quotes and is back on Active.`
+          : `Product override published: ${windowLabel} for this quoted product.`,
       expiryMinutes: saved.expiryMinutes,
     };
   } catch (e) {

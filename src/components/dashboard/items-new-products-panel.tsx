@@ -8,7 +8,6 @@ import {
   ChevronRightIcon,
   Loader2Icon,
   SearchIcon,
-  TriangleAlertIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -40,8 +39,8 @@ import {
   dashItemsTableHeadPlain,
   dashItemsTableRowBatchSelected,
   dashItemsTableRowInBatch,
+  dashItemsTableFilterPanel,
   dashItemsTableScroll,
-  dashItemsTableToolbar,
 } from "@/lib/app-table-surfaces";
 import {
   AlertDialog,
@@ -74,7 +73,10 @@ import type {
 import type { ItemRequestOrderContext } from "@/data/item-request-order-context";
 import { validateQuotedFullSiteSelection } from "@/lib/batch-quote-validation";
 import { canonicalBatchSiteKey } from "@/lib/batch-site-key";
-import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
+import {
+  DASHBOARD_ADD_ITEM_ROUTES,
+  dashboardBatchQuotesActiveCreatedHref,
+} from "@/lib/dashboard-add-item-routes";
 import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
 import {
   itemRequestStatusBadgeKindForDisplay,
@@ -86,6 +88,7 @@ import {
   formatItemRequestProductNumber,
   formatQuoteExpiryWindowLabel,
   getLatestOperationalQuoteIssuedAt,
+  isNeverExpireMinutes,
   resolveQuoteExpiryClockStart,
 } from "@/lib/quote-expiry";
 import { QuoteExpiryCountdownLabel } from "@/components/dashboard/quote-expiry-countdown-label";
@@ -101,7 +104,11 @@ import {
   parseOutsidePurchaseReceivedCondition,
 } from "@/lib/outside-purchase-display";
 import { isOutsidePurchaseRequest, outsidePurchaseReferenceDisplay } from "@/lib/outside-purchase";
-import { displayProductSiteName, displaySiteName } from "@/lib/site-name";
+import {
+  displayProductSiteName,
+  displaySiteName,
+  retailerLabelFromProductUrl,
+} from "@/lib/site-name";
 import { itemRequestWorkflowBadgeKind } from "@/lib/status-badge-map";
 import type { SortDir } from "@/lib/table-sort";
 import {
@@ -393,7 +400,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
 
   const quotedRows = useMemo(
     () =>
-      sortedActive.filter(
+      activeRequests.filter(
         (r) =>
           r.status === "quoted" &&
           !isInBatchQuote(r) &&
@@ -401,7 +408,7 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
           // be combined into a same-retailer batch quote.
           !isOutsidePurchaseRequest(r)
       ),
-    [sortedActive, isInBatchQuote]
+    [activeRequests, isInBatchQuote]
   );
 
   const quotedSiteGroups = useMemo(() => {
@@ -418,9 +425,12 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
+      const productUrl = rows[0]?.productUrl ?? "";
       list.push({
         key,
-        label: displaySiteName(rows[0]?.siteName, rows[0]?.productUrl ?? ""),
+        label:
+          retailerLabelFromProductUrl(productUrl) ||
+          displaySiteName(rows[0]?.siteName, productUrl),
         rows,
       });
     }
@@ -438,8 +448,6 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
       validateQuotedFullSiteSelection(quotedRows, [...batchSelectedIds]),
     [quotedRows, batchSelectedIds]
   );
-
-  const showBatchSuggestion = eligibleQuotedSites.length > 0;
 
   const toggleBatchRow = (row: ItemRequest) => {
     if (row.status !== "quoted") return;
@@ -524,20 +532,46 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
     const ids = [...batchSelectedIds];
 
     startAddBatch(async () => {
-      const res = await createCustomerBatchQuoteAction({ itemRequestIds: ids });
-      if (!res.ok) {
-        toast.error(res.message ?? "Unable to batch.");
-        return;
+      try {
+        const res = await createCustomerBatchQuoteAction({ itemRequestIds: ids });
+        if (!res.ok) {
+          toast.error(res.message ?? "Unable to batch.");
+          return;
+        }
+        toast.success(res.message ?? "Batch created.");
+        setBatchSelectedIds(new Set());
+        router.push(
+          res.batchSessionId
+            ? dashboardBatchQuotesActiveCreatedHref(res.batchSessionId)
+            : DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive,
+        );
+      } catch {
+        toast.error(
+          "The page did not update. Open Batch Quotes to continue if the batch was added.",
+        );
+        router.push(DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive);
       }
-      toast.success(res.message ?? "Batch created.");
-      setBatchSelectedIds(new Set());
-      router.push(DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive);
-      router.refresh();
     });
   };
 
+  const canAddBatch =
+    batchSelectionCheck.ok && !addingBatch && !removingRequests;
+
+  const addBatchDisabledReason = addingBatch
+    ? "Creating the batch…"
+    : removingRequests
+      ? "Wait until remove finishes."
+      : batchSelectedIds.size === 0
+        ? "Select at least two quoted products from the same retailer, then Add Batch."
+        : !batchSelectionCheck.ok
+          ? batchSelectionCheck.message
+          : undefined;
+
   const siteAllCheckedFor = (rows: ItemRequest[]): boolean =>
     rows.length > 0 && rows.every((r) => batchSelectedIds.has(r.id));
+
+  const siteSomeCheckedFor = (rows: ItemRequest[]): boolean =>
+    rows.some((r) => batchSelectedIds.has(r.id)) && !siteAllCheckedFor(rows);
 
   const removableCheckedIds = useMemo(() => {
     return [...batchSelectedIds].filter((id) => {
@@ -642,181 +676,162 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
         >
           Pending and quoted submissions. Purchase-price top-ups appear in this
           table as add-on rows (Top-up due) — add them to cart from Actions.
-          Because retailer prices can change quickly, each quoted estimate stays
-          valid for{" "}
-          <span className="font-medium text-foreground">
-            {formatQuoteExpiryWindowLabel(quoteExpiryMinutes)}
-          </span>{" "}
-          (see Quote Expiry Settings). Accept and pay within that window to keep
-          the locked price; after it expires the product moves to Expired Quotes
-          so you can resubmit for a fresh estimate. Items you accept appear in
+          {isNeverExpireMinutes(quoteExpiryMinutes) ?
+            <>
+              {" "}
+              Quoted estimates{" "}
+              <span className="font-medium text-foreground">do not expire</span>{" "}
+              until staff change Quote Expiry Settings.
+            </>
+          : <>
+              {" "}
+              Because retailer prices can change quickly, each quoted estimate
+              stays valid for{" "}
+              <span className="font-medium text-foreground">
+                {formatQuoteExpiryWindowLabel(quoteExpiryMinutes)}
+              </span>{" "}
+              (see Quote Expiry Settings). Accept and pay within that window to
+              keep the locked price; after it expires the product moves to
+              Expired Quotes so you can resubmit for a fresh estimate.
+            </>
+          }{" "}
+          Items you accept appear in
           your cart only. Rows that belong to a batch quote are dimmed here —
           open Batch Quotes to preview or accept the bundle. Submit a new request
           from Requested items.
         </HelpBalloon>
       </div>
-      {showBatchSuggestion ? (
-        <div
-          role="status"
-          className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-foreground dark:border-amber-400/25 dark:bg-amber-400/10"
-        >
-          <p className="font-medium text-foreground">Same-site batch suggestion</p>
-          <p className="mt-1 text-muted-foreground">
-            You have quoted items from retailers with two or more open lines—check{" "}
-            <span className="font-semibold text-foreground">
-              two or more quoted products from the same site
-            </span>{" "}
-            to send a combined quote request. You can create another batch from the same site
-            afterward with the remaining lines.
-          </p>
-        </div>
-      ) : null}
       {quotedRows.length > 0 ? (
-        <div className="space-y-2">
-          {batchSelectedIds.size > 0 ? (
-            <div
-              role="alert"
-              className="flex gap-2.5 rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2.5 text-xs leading-relaxed text-foreground dark:border-destructive/30 dark:bg-destructive/10"
-            >
-              <TriangleAlertIcon
-                className="mt-0.5 size-4 shrink-0 text-destructive"
-                aria-hidden
-              />
-              <div className="min-w-0 space-y-1">
-                <p className="font-medium text-foreground">Remove checked</p>
-                <p className="text-muted-foreground">
-                  {removableCheckedCount === 0 ?
-                    "Checked rows that are in a batch quote cannot be removed here — use Batch Quotes or uncheck them first."
-                  : removableCheckedCount === 1 ?
-                    "Remove checked moves this product to Product history. You can reinstate it from the History tab later."
-                  : `Remove checked moves ${removableCheckedCount} products to Product history. You can reinstate them from the History tab later.`}
-                </p>
+        <section
+          aria-labelledby="dash-batch-estimate-heading"
+          className={cn(dashItemsTableFilterPanel, "space-y-4")}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2">
+                <h2
+                  id="dash-batch-estimate-heading"
+                  className="text-sm font-semibold tracking-tight text-foreground"
+                >
+                  Batch estimate
+                </h2>
+                <HelpBalloon
+                  label="About batch estimates"
+                  tooltipClassName="w-80"
+                >
+                  Select two or more quoted products from one retailer in the
+                  Batch column, then choose Add batch. Retailer shortcuts select
+                  every quoted line from that store. Remaining products from the
+                  same retailer may be submitted as a later batch. Remove moves
+                  selected products to Product history; they can be reinstated
+                  from the History tab.
+                </HelpBalloon>
               </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Combine quoted products from one retailer into a single staff
+                estimate, or select individual lines in the table.
+              </p>
             </div>
-          ) : null}
-          <div
-            className={cn(
-              dashItemsTableToolbar,
-              "flex flex-col gap-3 p-3 sm:p-4",
-            )}
-          >
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
-              <div className="min-w-0 flex-1 space-y-2.5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Batch selection
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {eligibleQuotedSites.map((site) => {
-                    const allChecked = siteAllCheckedFor(site.rows);
-                    return (
-                      <label
-                        key={site.key}
-                        className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          className="rounded border-input"
-                          checked={allChecked}
-                          onChange={(e) =>
-                            toggleSelectAllQuotedForSiteKey(
-                              site.rows,
-                              e.target.checked,
-                            )
-                          }
-                        />
-                        <span>
-                          Select all on this site ·{" "}
-                          <span className="font-medium">{site.label}</span>{" "}
-                          <span className="text-muted-foreground">
-                            ({site.rows.length})
+            <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={
+                  batchSelectedIds.size === 0 ||
+                  removableCheckedCount === 0 ||
+                  removingRequests ||
+                  addingBatch
+                }
+                title={
+                  removableCheckedCount === 0 && batchSelectedIds.size > 0
+                    ? "Checked products in a batch quote cannot be removed here."
+                    : "Move selected products to Product history."
+                }
+                onClick={() => setRemoveCheckedDialogOpen(true)}
+              >
+                Remove
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={!canAddBatch}
+                title={addBatchDisabledReason}
+                onClick={onAddBatch}
+              >
+                {addingBatch ?
+                  <>
+                    <Loader2Icon
+                      className="size-3.5 animate-spin"
+                      aria-hidden
+                    />
+                    Adding…
+                  </>
+                : "Add batch"}
+              </Button>
+            </div>
+          </div>
+
+          {eligibleQuotedSites.length > 0 ?
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Select all from retailer
+              </p>
+              <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border/80 bg-background">
+                {eligibleQuotedSites.map((site) => {
+                  const allChecked = siteAllCheckedFor(site.rows);
+                  const someChecked = siteSomeCheckedFor(site.rows);
+                  const count = site.rows.length;
+                  const batchSelectLabel = `Select all ${site.label} products for a batch estimate`;
+                  return (
+                    <li key={site.key}>
+                      <label className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-muted/70">
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            className="size-4 rounded border-input"
+                            checked={allChecked}
+                            ref={(el) => {
+                              if (el) el.indeterminate = someChecked;
+                            }}
+                            aria-label={`${batchSelectLabel} (${count})`}
+                            onChange={(e) =>
+                              toggleSelectAllQuotedForSiteKey(
+                                site.rows,
+                                e.target.checked,
+                              )
+                            }
+                          />
+                          <span className="truncate font-medium text-foreground">
+                            {site.label}
                           </span>
                         </span>
+                        <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                          {count} {count === 1 ? "product" : "products"}
+                        </span>
                       </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={
-                      batchSelectedIds.size === 0 ||
-                      removableCheckedCount === 0 ||
-                      removingRequests ||
-                      addingBatch
-                    }
-                    className={cn(
-                      batchSelectedIds.size > 0 &&
-                        "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive",
-                    )}
-                    onClick={() => setRemoveCheckedDialogOpen(true)}
-                  >
-                    Remove checked
-                  </Button>
-                  <HelpBalloon label="What does Remove checked do?">
-                    Moves all checked products to{" "}
-                    <span className="font-medium text-foreground">
-                      Product history
-                    </span>{" "}
-                    at once, so you stop tracking them here. Checked items already
-                    in a batch quote are skipped — uncheck them or use Batch Quotes.
-                    Nothing is deleted; you can reinstate items from the History tab
-                    anytime.
-                  </HelpBalloon>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={
-                    batchSelectedIds.size === 0 ||
-                    !batchSelectionCheck.ok ||
-                    addingBatch ||
-                    removingRequests
-                  }
-                  onClick={onAddBatch}
-                >
-                  {addingBatch ?
-                    <>
-                      <Loader2Icon
-                        className="mr-2 size-3.5 animate-spin"
-                        aria-hidden
-                      />
-                      Adding batch…
-                    </>
-                  : "Add Batch"}
-                </Button>
-              </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
+          : null}
 
-            {batchSelectedIds.size > 0 ?
-              <div className="space-y-1.5 border-t border-border/60 pt-3">
-                {!batchSelectionCheck.ok ?
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    {batchSelectionCheck.message}
-                  </p>
-                : (
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      {batchSelectedIds.size}{" "}
-                      {batchSelectedIds.size === 1 ? "product" : "products"}
-                    </span>{" "}
-                    selected. Add Batch to send this group to staff; leave other
-                    quoted lines unchecked to form another batch from the same site
-                    later.
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Checked rows are dimmed and can&apos;t be accepted individually
-                  until you clear their checkboxes or finish Add Batch.
-                </p>
-              </div>
-            : null}
-          </div>
-        </div>
+          <p
+            className={cn(
+              "text-xs leading-relaxed",
+              batchSelectedIds.size > 0 && !batchSelectionCheck.ok
+                ? "text-amber-700 dark:text-amber-400"
+                : "text-muted-foreground",
+            )}
+          >
+            {batchSelectedIds.size === 0 ?
+              "No products selected. Check two or more quoted lines from the same retailer, then add a batch."
+            : !batchSelectionCheck.ok ?
+              batchSelectionCheck.message
+            : `${batchSelectedIds.size} ${batchSelectedIds.size === 1 ? "product" : "products"} selected for this batch estimate.`}
+          </p>
+        </section>
       ) : null}
       {activeRequests.length === 0 &&
       merchandiseTopupAddOnCharges.length === 0 ? (
@@ -922,7 +937,10 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                 <table className="w-full min-w-[78rem] table-fixed border-separate border-spacing-0 text-left text-sm">
                   <thead className={dashItemsTableHeadPlain}>
                     <tr>
-                      <th className="w-12 px-2 py-2.5 text-center text-xs font-medium text-foreground">
+                      <th
+                        className="w-12 px-2 py-2.5 text-center text-xs font-medium text-foreground"
+                        title="Check quoted products to include in a batch estimate. You may select any two or more from the same retailer."
+                      >
                         Batch
                       </th>
                       <th className="w-16 px-3 py-2.5 text-xs font-medium text-foreground">
@@ -1040,8 +1058,8 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
                                     : r.status !== "quoted"
                                       ? "Only quoted items can batch"
                                       : inBatchSelection
-                                        ? "Uncheck to use this row as a single-quote line again."
-                                        : "Include in retailer batch quote"
+                                        ? "Uncheck to leave this product out of the batch estimate."
+                                        : "Select this product for a batch estimate with other items from the same retailer."
                               }
                               onChange={() => toggleBatchRow(r)}
                               className={cn(

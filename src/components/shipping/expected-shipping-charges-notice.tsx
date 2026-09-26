@@ -1,74 +1,117 @@
 "use client";
 
-import Link from "next/link";
+import type { ReactNode } from "react";
 
+import { BarrelPublishedOutboundCharges } from "@/components/shipping/barrel-published-outbound-charges";
+import { CustomsClearancePolicyLink } from "@/components/shipping/customs-clearance-policy-link";
+import { OutboundShippingAddedChargesPanel } from "@/components/shipping/outbound-shipping-added-charges-panel";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
-import {
-  customsClearancePolicyLabel,
-  customsClearancePolicyUrl,
-  EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS,
-} from "@/lib/outbound-shipping-expected-charges";
+import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
+import { EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS } from "@/lib/outbound-shipping-expected-charges";
 
 type ExpectedShippingChargesNoticeProps = {
   destinationCountry?: string | null;
   className?: string;
   /** When false, the section starts collapsed. */
   defaultOpen?: boolean;
+  /** Replaces the static customs bullet (customer clearance + courier choice). */
+  customsContent?: ReactNode;
+  /** Published freight / broker / courier charges for this container. */
+  charges?: BarrelOutboundShippingChargeView[];
 };
 
 export function ExpectedShippingChargesNotice({
   destinationCountry,
   className,
   defaultOpen = false,
+  customsContent,
+  charges,
 }: ExpectedShippingChargesNoticeProps) {
-  const customsUrl = customsClearancePolicyUrl(destinationCountry);
+  const freightItem = EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS.find(
+    (item) => item.id === "freight",
+  );
+  const customsItem = EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS.find(
+    (item) => item.id === "customs",
+  );
+  const freightCharges = (charges ?? []).filter(
+    (charge) => charge.chargeKind === "freight",
+  );
+  const showSummary = charges != null;
 
   return (
     <CollapsibleFieldSection
-      title="Charges before you receive your container"
-      description="Freight, customs clearance, and related fees due before courier release"
+      title="Outbound shipping charges"
+      description="Freight, customs clearance, and local transportation due before container release"
       defaultOpen={defaultOpen}
       className={
         className ??
         "border-amber-500/25 bg-amber-500/10 shadow-none hover:bg-amber-500/15"
       }
     >
-      <p className="text-sm text-muted-foreground">
-        Your barrel or bin is full. Before we release it to the courier, you will
-        need to pay shipping-related fees. Typical charges include:
-      </p>
-      <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
-        {EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS.map((item) => (
-          <li key={item.id}>
-            <span className="font-medium text-foreground">{item.label}</span>
-            {" — "}
-            {item.description}
-            {item.id === "customs" && customsUrl ?
-              <>
-                {" "}
-                <Link
-                  href={customsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {customsClearancePolicyLabel(destinationCountry)}
-                </Link>
-              </>
-            : item.id === "customs" ?
-              <span className="text-muted-foreground">
-                {" "}
-                (customs policy link will be provided for your destination country)
-              </span>
-            : null}
-          </li>
-        ))}
-      </ul>
-      <p className="text-xs text-muted-foreground">
-        Continue to the <span className="font-medium text-foreground">Pricing</span>{" "}
-        tab for itemized amounts and add them to your cart when staff publish your
-        quote.
-      </p>
+      <div
+        className={
+          showSummary
+            ? "grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(16rem,0.85fr)]"
+            : undefined
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            This container is ready to ship. Freight, customs clearance, and
+            related fees are due before release. Typical charges include:
+          </p>
+          {freightCharges.length > 0 ?
+            <BarrelPublishedOutboundCharges
+              charges={freightCharges}
+              kinds={["freight"]}
+              showHeading={false}
+              includePaid
+            />
+          : freightItem ?
+            <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
+              <li>
+                <span className="font-medium text-foreground">
+                  {freightItem.label}
+                </span>
+                {" — "}
+                {freightItem.description}
+              </li>
+            </ul>
+          : null}
+          {customsItem && !customsContent ?
+            <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
+              <li>
+                <span className="font-medium text-foreground">
+                  {customsItem.label}
+                </span>
+                {" — "}
+                {customsItem.description}{" "}
+                <CustomsClearancePolicyLink country={destinationCountry} />
+              </li>
+            </ul>
+          : null}
+          {customsItem && customsContent ?
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {customsItem.label}
+                </span>
+                {" — "}
+                {customsItem.description}
+              </p>
+              {customsContent}
+            </div>
+          : null}
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Continue to pricing for itemized amounts. Add freight to your cart.
+            Pay broker and local courier charges with Zelle, Cash App, or at the
+            local office.
+          </p>
+        </div>
+        {showSummary ?
+          <OutboundShippingAddedChargesPanel charges={charges} />
+        : null}
+      </div>
     </CollapsibleFieldSection>
   );
 }

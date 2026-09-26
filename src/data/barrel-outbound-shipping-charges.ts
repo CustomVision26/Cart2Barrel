@@ -9,7 +9,6 @@ import { getDb } from "@/db";
 import {
   barrelOutboundShippingChargeLines,
   barrelOutboundShippingCharges,
-  barrelShippingIntakes,
   barrels,
   orderContainerItems,
   userOutboundShippingCartLines,
@@ -22,9 +21,15 @@ import { upsertShipmentTrackingOnFreightPaid } from "@/data/barrel-outbound-ship
 import { ensureBarrelShippingIntakesSchema } from "@/data/ensure-barrel-shipping-intakes-schema";
 import type {
   BarrelOutboundShippingChargeView,
+  OffPlatformPaymentMethod,
   OutboundShippingChargeLineView,
 } from "@/lib/barrel-outbound-shipping-charge";
-import { sumChargeLineCents } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  isBarrelOutboundShippingChargeKind,
+  isOffPlatformOutboundChargeKind,
+  isOffPlatformPaymentMethod,
+  sumChargeLineCents,
+} from "@/lib/barrel-outbound-shipping-charge";
 import { formatBarrelSlotLabel } from "@/lib/barrel-slot-label";
 import { buildContainerAliasMap } from "@/lib/container-slot-alias";
 import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-column-missing";
@@ -37,6 +42,10 @@ export type OutboundShippingCartLineView = {
   alias: string;
   slotLabel: string;
   kind: ContainerOfferingKind;
+  chargeKind: import("@/lib/barrel-outbound-shipping-charge").BarrelOutboundShippingChargeKind;
+  partnerName: string | null;
+  partnerAddress: string | null;
+  partnerCountry: string | null;
   lines: OutboundShippingChargeLineView[];
   totalCents: number;
   adminNote: string | null;
@@ -45,7 +54,7 @@ export type OutboundShippingCartLineView = {
 async function loadChargeViewsForBarrelIds(
   clerkUserId: string,
   barrelIds: string[],
-): Promise<Map<string, BarrelOutboundShippingChargeView>> {
+): Promise<Map<string, BarrelOutboundShippingChargeView[]>> {
   if (barrelIds.length === 0) {
     return new Map();
   }
@@ -96,19 +105,46 @@ async function loadChargeViewsForBarrelIds(
     charges.map((c) => c.barrelId),
   );
 
-  const byBarrel = new Map<string, BarrelOutboundShippingChargeView>();
+  const byBarrel = new Map<string, BarrelOutboundShippingChargeView[]>();
   for (const charge of charges) {
     const lines = linesByCharge.get(charge.id) ?? [];
-    byBarrel.set(charge.barrelId, {
+    const list = byBarrel.get(charge.barrelId) ?? [];
+    list.push({
       chargeId: charge.id,
+      chargeKind: isBarrelOutboundShippingChargeKind(charge.chargeKind)
+        ? charge.chargeKind
+        : "freight",
+      partnerName: charge.partnerName,
+      partnerLocation: charge.partnerLocation,
+      partnerAddress: charge.partnerAddress,
+      partnerCountry: charge.partnerCountry,
+      partnerPhone: charge.partnerPhone,
+      partnerCashappId: charge.partnerCashappId,
+      partnerCashappAccount: charge.partnerCashappAccount,
+      partnerZelleId: charge.partnerZelleId,
+      partnerZelleAccount: charge.partnerZelleAccount,
       lines,
       totalCents: sumChargeLineCents(lines),
       adminNote: charge.adminNote,
-      inCart: inCartIds.has(charge.id),
+      inCart:
+        isBarrelOutboundShippingChargeKind(charge.chargeKind) &&
+        charge.chargeKind === "freight" &&
+        inCartIds.has(charge.id),
       paidAt: charge.paidAt,
       paymentReferenceNumber: charge.paymentReferenceNumber,
+      paidOrderId: charge.paidOrderId,
+      offPlatformPaymentMethod: isOffPlatformPaymentMethod(
+        charge.offPlatformPaymentMethod,
+      )
+        ? charge.offPlatformPaymentMethod
+        : null,
+      offPlatformPayerName: charge.offPlatformPayerName,
+      offPlatformReceiptUrl: charge.offPlatformReceiptUrl,
+      offPlatformSubmittedAt: charge.offPlatformSubmittedAt,
       shipmentTracking: trackingByBarrel.get(charge.barrelId) ?? null,
+      updatedByClerkUserId: charge.recordedByClerkUserId,
     });
+    byBarrel.set(charge.barrelId, list);
   }
   return byBarrel;
 }
@@ -116,7 +152,7 @@ async function loadChargeViewsForBarrelIds(
 export async function getOutboundShippingChargesByBarrelIds(
   clerkUserId: string,
   barrelIds: string[],
-): Promise<Map<string, BarrelOutboundShippingChargeView>> {
+): Promise<Map<string, BarrelOutboundShippingChargeView[]>> {
   await ensureBarrelShippingIntakesSchema();
   try {
     return await loadChargeViewsForBarrelIds(clerkUserId, barrelIds);
@@ -186,7 +222,13 @@ export async function listUserOutboundShippingCartLines(
     })),
   );
 
-  return cartRows.map((r) => {
+  return cartRows
+    .filter(
+      (r) =>
+        isBarrelOutboundShippingChargeKind(r.charge.chargeKind) &&
+        r.charge.chargeKind === "freight",
+    )
+    .map((r) => {
     const kind = parseContainerOfferingKind(r.oci?.kindSnapshot ?? "barrel");
     const alias =
       aliasMap.get(r.barrel.id) ?? (kind === "barrel" ? "Barrel" : "Bin");
@@ -207,6 +249,12 @@ export async function listUserOutboundShippingCartLines(
       alias,
       slotLabel,
       kind,
+      chargeKind: isBarrelOutboundShippingChargeKind(r.charge.chargeKind)
+        ? r.charge.chargeKind
+        : "freight",
+      partnerName: r.charge.partnerName,
+      partnerAddress: r.charge.partnerAddress,
+      partnerCountry: r.charge.partnerCountry,
       lines,
       totalCents: sumChargeLineCents(lines),
       adminNote: r.charge.adminNote,
@@ -227,10 +275,22 @@ export async function countUserOutboundShippingCartLineRows(
   const db = getDb();
   try {
     const rows = await db
-      .select({ chargeId: userOutboundShippingCartLines.chargeId })
+      .select({ chargeKind: barrelOutboundShippingCharges.chargeKind })
       .from(userOutboundShippingCartLines)
-      .where(eq(userOutboundShippingCartLines.clerkUserId, clerkUserId));
-    return rows.length;
+      .innerJoin(
+        barrelOutboundShippingCharges,
+        eq(
+          userOutboundShippingCartLines.chargeId,
+          barrelOutboundShippingCharges.id,
+        ),
+      )
+      .where(
+        and(
+          eq(userOutboundShippingCartLines.clerkUserId, clerkUserId),
+          eq(barrelOutboundShippingCharges.clerkUserId, clerkUserId),
+        ),
+      );
+    return rows.filter((row) => row.chargeKind === "freight").length;
   } catch (e) {
     if (isMissingBarrelOutboundShippingChargesTableError(e)) {
       return 0;
@@ -282,7 +342,9 @@ export function buildStripeLineItemsFromOutboundShippingCart(
             unit_amount: charge.amountCents,
             product_data: {
               name: `Shipping: ${charge.label}`,
-              description: `${line.alias} · ${line.slotLabel}`,
+              description: `${line.alias} · ${line.slotLabel}${
+                line.partnerName ? ` · ${line.partnerName}` : ""
+              }`,
             },
           },
         });
@@ -338,7 +400,10 @@ export async function restoreOutboundShippingCartForCharges(
   const db = getDb();
 
   const restorable = await db
-    .select({ id: barrelOutboundShippingCharges.id })
+    .select({
+      id: barrelOutboundShippingCharges.id,
+      chargeKind: barrelOutboundShippingCharges.chargeKind,
+    })
     .from(barrelOutboundShippingCharges)
     .where(
       and(
@@ -347,11 +412,12 @@ export async function restoreOutboundShippingCartForCharges(
         isNull(barrelOutboundShippingCharges.paidAt),
       ),
     );
-  if (restorable.length === 0) return;
+  const freightOnly = restorable.filter((c) => c.chargeKind === "freight");
+  if (freightOnly.length === 0) return;
 
   await db
     .insert(userOutboundShippingCartLines)
-    .values(restorable.map((c) => ({ clerkUserId, chargeId: c.id })))
+    .values(freightOnly.map((c) => ({ clerkUserId, chargeId: c.id })))
     .onConflictDoNothing();
 }
 
@@ -409,7 +475,6 @@ export async function getOutboundShippingChargeForUser(
 ): Promise<
   | {
       charge: typeof barrelOutboundShippingCharges.$inferSelect;
-      intake: typeof barrelShippingIntakes.$inferSelect;
     }
   | undefined
 > {
@@ -418,13 +483,8 @@ export async function getOutboundShippingChargeForUser(
   const [row] = await db
     .select({
       charge: barrelOutboundShippingCharges,
-      intake: barrelShippingIntakes,
     })
     .from(barrelOutboundShippingCharges)
-    .innerJoin(
-      barrelShippingIntakes,
-      eq(barrelShippingIntakes.barrelId, barrelOutboundShippingCharges.barrelId),
-    )
     .where(
       and(
         eq(barrelOutboundShippingCharges.id, chargeId),
@@ -434,4 +494,139 @@ export async function getOutboundShippingChargeForUser(
     .limit(1);
 
   return row;
+}
+
+export async function recordOutboundOffPlatformPayment(input: {
+  clerkUserId: string;
+  chargeId: string;
+  paymentMethod: OffPlatformPaymentMethod;
+  payerAccountName: string | null;
+  receiptUrl: string | null;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureBarrelOutboundShippingChargesSchema();
+  const db = getDb();
+  const [charge] = await db
+    .select()
+    .from(barrelOutboundShippingCharges)
+    .where(
+      and(
+        eq(barrelOutboundShippingCharges.id, input.chargeId),
+        eq(barrelOutboundShippingCharges.clerkUserId, input.clerkUserId),
+      ),
+    )
+    .limit(1);
+  if (!charge) {
+    return { ok: false, message: "Shipping charge not found." };
+  }
+  if (!isBarrelOutboundShippingChargeKind(charge.chargeKind) ||
+      !isOffPlatformOutboundChargeKind(charge.chargeKind)) {
+    return {
+      ok: false,
+      message: "This charge is paid through the cart, not Zelle or Cash App.",
+    };
+  }
+  if (charge.paidAt) {
+    return { ok: false, message: "This charge is already marked paid." };
+  }
+  const replacingLocalOffice =
+    Boolean(charge.offPlatformSubmittedAt) &&
+    charge.offPlatformPaymentMethod === "local_office" &&
+    (input.paymentMethod === "zelle" || input.paymentMethod === "cashapp");
+  if (charge.offPlatformSubmittedAt && !replacingLocalOffice) {
+    return { ok: false, message: "This charge already has a payment on file." };
+  }
+
+  const now = new Date().toISOString();
+
+  await db
+    .update(barrelOutboundShippingCharges)
+    .set({
+      offPlatformPaymentMethod: input.paymentMethod,
+      offPlatformPayerName: input.payerAccountName,
+      offPlatformReceiptUrl: input.receiptUrl,
+      offPlatformSubmittedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(barrelOutboundShippingCharges.id, charge.id));
+
+  await db
+    .delete(userOutboundShippingCartLines)
+    .where(
+      and(
+        eq(userOutboundShippingCartLines.clerkUserId, input.clerkUserId),
+        eq(userOutboundShippingCartLines.chargeId, charge.id),
+      ),
+    );
+
+  return { ok: true };
+}
+
+export async function approveOutboundOffPlatformPayment(
+  chargeId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureBarrelOutboundShippingChargesSchema();
+  const db = getDb();
+  const [charge] = await db
+    .select()
+    .from(barrelOutboundShippingCharges)
+    .where(eq(barrelOutboundShippingCharges.id, chargeId))
+    .limit(1);
+  if (!charge) {
+    return { ok: false, message: "Shipping charge not found." };
+  }
+  if (
+    !isBarrelOutboundShippingChargeKind(charge.chargeKind) ||
+    !isOffPlatformOutboundChargeKind(charge.chargeKind)
+  ) {
+    return { ok: false, message: "This charge is not a broker or courier payment." };
+  }
+  if (charge.paidAt) {
+    return { ok: false, message: "This charge is already approved as paid." };
+  }
+  if (!charge.offPlatformSubmittedAt) {
+    return {
+      ok: false,
+      message: "The customer has not submitted a payment for this charge yet.",
+    };
+  }
+
+  const now = new Date().toISOString();
+  const paymentReferenceNumber = await generateOutboundShippingPaymentReference();
+  await db
+    .update(barrelOutboundShippingCharges)
+    .set({
+      paidAt: now,
+      paymentReferenceNumber,
+      updatedAt: now,
+    })
+    .where(eq(barrelOutboundShippingCharges.id, charge.id));
+
+  return { ok: true };
+}
+
+/** Clears broker/courier payment so the customer can submit receipts again. Freight stays paid. */
+export async function resetBrokerAndCourierPaymentsForBarrel(
+  clerkUserId: string,
+  barrelId: string,
+): Promise<void> {
+  await ensureBarrelOutboundShippingChargesSchema();
+  const db = getDb();
+  await db
+    .update(barrelOutboundShippingCharges)
+    .set({
+      offPlatformPaymentMethod: null,
+      offPlatformPayerName: null,
+      offPlatformReceiptUrl: null,
+      offPlatformSubmittedAt: null,
+      paidAt: null,
+      paymentReferenceNumber: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(barrelOutboundShippingCharges.clerkUserId, clerkUserId),
+        eq(barrelOutboundShippingCharges.barrelId, barrelId),
+        inArray(barrelOutboundShippingCharges.chargeKind, ["broker", "courier"]),
+      ),
+    );
 }

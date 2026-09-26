@@ -22,6 +22,7 @@ import { fetchImmersiveProductVariants } from "@/lib/serpapi/google-immersive-pr
 import { findShoppingImmersiveToken } from "@/lib/serpapi/google-shopping";
 import { isGoogleHostedProductUrl } from "@/lib/product-url/listing-url";
 import { getSerpApiKey } from "@/lib/serpapi/env";
+import { isSerpApiRateLimitError } from "@/lib/serpapi/http";
 import { isDirectListingRetailer } from "@/lib/product-variants/direct-listing-hosts";
 import { mergeVariantsPreferPageAi } from "@/lib/product-variants/merge-variants-prefer-page-ai";
 import { mergeWalmartVariantsWithPageAi } from "@/lib/product-variants/merge-walmart-variants";
@@ -406,22 +407,26 @@ export async function fetchProductVariants(input: {
 
   try {
     if (hasSerp && (parsed.kind === "walmart" || parsed.kind === "amazon")) {
-      const serpResult = await fetchSerpApiRoute(
-        parsed,
-        productUrl,
-        walmartId,
-        asin,
-        {
-          productName: input.productName,
-          productSize: input.productSize,
-          productColor: input.productColor,
-        },
-      );
-      if (serpResult.variants.length > 0) {
-        variants = serpResult.variants;
-        method = serpResult.method;
-        listingTitle = serpResult.listingTitle;
-        listingImageUrl = serpResult.listingImageUrl;
+      try {
+        const serpResult = await fetchSerpApiRoute(
+          parsed,
+          productUrl,
+          walmartId,
+          asin,
+          {
+            productName: input.productName,
+            productSize: input.productSize,
+            productColor: input.productColor,
+          },
+        );
+        if (serpResult.variants.length > 0) {
+          variants = serpResult.variants;
+          method = serpResult.method;
+          listingTitle = serpResult.listingTitle;
+          listingImageUrl = serpResult.listingImageUrl;
+        }
+      } catch (err) {
+        if (isSerpApiRateLimitError(err)) throw err;
       }
     }
 

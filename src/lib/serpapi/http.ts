@@ -5,7 +5,9 @@ import { recordSerpApiSearchEvent } from "@/data/serp-api-search-events";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const TRANSIENT_STATUS = new Set([502, 503, 504]);
 const TRANSIENT_ATTEMPTS = 3;
-const SERPAPI_FETCH_TIMEOUT_MS = 8_000;
+/** Amazon Product often needs 8–15s; 8s aborts valid listings. */
+const SERPAPI_FETCH_TIMEOUT_MS = 30_000;
+const AMAZON_ENGINE_TIMEOUT_MS = 45_000;
 
 export const SERPAPI_TIMEOUT_MESSAGE =
   "SerpApi took too long to respond. Try the lookup again, or fill name and price from the product page.";
@@ -47,13 +49,21 @@ export function isSerpApiTransientError(err: unknown): boolean {
   return /HTTP 502|HTTP 503|HTTP 504|briefly unavailable/i.test(msg);
 }
 
-function isSerpApiTimeoutError(err: unknown): boolean {
+export function isSerpApiTimeoutError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   return (
     err.name === "AbortError" ||
     err.name === "TimeoutError" ||
+    err.message === SERPAPI_TIMEOUT_MESSAGE ||
     /aborted|timed out|timeout/i.test(err.message)
   );
+}
+
+function timeoutMsForEngine(engine: string | undefined): number {
+  if (engine === "amazon" || engine === "amazon_product") {
+    return AMAZON_ENGINE_TIMEOUT_MS;
+  }
+  return SERPAPI_FETCH_TIMEOUT_MS;
 }
 
 function messageFor429(bodyError?: string): string {
@@ -78,13 +88,14 @@ function abortSignalTimeout(ms: number): AbortSignal {
 
 async function serpApiFetchOnce(
   requestUrl: string,
+  timeoutMs: number,
 ): Promise<Record<string, unknown>> {
   let res: Response;
   try {
     res = await fetch(requestUrl, {
       method: "GET",
-      next: { revalidate: 0 },
-      signal: abortSignalTimeout(SERPAPI_FETCH_TIMEOUT_MS),
+      cache: "no-store",
+      signal: abortSignalTimeout(timeoutMs),
     });
   } catch (err) {
     if (isSerpApiTimeoutError(err)) {
@@ -152,11 +163,12 @@ export async function serpApiGet<T extends Record<string, unknown>>(
     }
     url.searchParams.set("api_key", apiKey);
     const requestUrl = url.toString();
+    const timeoutMs = timeoutMsForEngine(params.engine);
 
     let lastError: Error | null = null;
     for (let attempt = 1; attempt <= TRANSIENT_ATTEMPTS; attempt++) {
       try {
-        const data = await serpApiFetchOnce(requestUrl);
+        const data = await serpApiFetchOnce(requestUrl, timeoutMs);
         responseCache.set(key, { expires: Date.now() + CACHE_TTL_MS, data });
         const ctx = getSerpApiUsageContext();
         void recordSerpApiSearchEvent({
@@ -168,12 +180,14 @@ export async function serpApiGet<T extends Record<string, unknown>>(
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         lastError = error;
-        if (isSerpApiTimeoutError(error) || error.message === SERPAPI_TIMEOUT_MESSAGE) {
-          throw new Error(SERPAPI_TIMEOUT_MESSAGE);
-        }
-        const retryable =
-          isSerpApiTransientError(error) && attempt < TRANSIENT_ATTEMPTS;
+        const timedOut = isSerpApiTimeoutError(error);
+        const retryable = timedOut
+          ? attempt < 2
+          : isSerpApiTransientError(error) && attempt < TRANSIENT_ATTEMPTS;
         if (!retryable) {
+          if (timedOut) {
+            throw new Error(SERPAPI_TIMEOUT_MESSAGE);
+          }
           if (isSerpApiTransientError(error)) {
             throw new Error(SERPAPI_UNAVAILABLE_MESSAGE);
           }

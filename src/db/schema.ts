@@ -218,6 +218,12 @@ export const orderItemRefundRequestStatusEnum = pgEnum(
   ["pending_approval", "rejected", "fulfilled"],
 );
 
+/** Which checkout charge on a container line the shopper wants refunded. */
+export const orderContainerRefundTargetEnum = pgEnum(
+  "order_container_refund_target",
+  ["container", "packing_fee"],
+);
+
 export const barrelStatusEnum = pgEnum("barrel_status", [
   "filling",
   "ready_to_ship",
@@ -241,6 +247,12 @@ export const shipmentStatusEnum = pgEnum("shipment_status", [
 export const barrelShippingDeliveryMethodEnum = pgEnum(
   "barrel_shipping_delivery_method",
   ["customs_pickup", "broker_delivery"],
+);
+
+/** Admin-published outbound charge slices the shopper can add to cart separately. */
+export const barrelOutboundShippingChargeKindEnum = pgEnum(
+  "barrel_outbound_shipping_charge_kind",
+  ["freight", "broker", "courier"],
 );
 
 /** Post-payment outbound logistics timeline per container. */
@@ -439,6 +451,7 @@ export const itemRequests = pgTable(
     /**
      * Optional per-product quote window (minutes). When set, overrides hub default
      * and any customer-level override for this request only.
+     * Use -1 for no accept/pay deadline.
      * Countdown starts from {@link quoteExpiryOverrideAnchoredAt} (publish time).
      */
     quoteExpiryMinutesOverride: integer("quote_expiry_minutes_override"),
@@ -1560,10 +1573,11 @@ export const hubShipFromAddresses = pgTable(
 /**
  * Singleton: minutes a customer has to accept/pay after staff quotes a product
  * (single line or batch). Default 7 days (10080 minutes). Min 1 minute.
+ * Use -1 for no expiry at the hub layer.
  */
 export const quoteExpirySettings = pgTable("quote_expiry_settings", {
   singletonKey: text("singleton_key").primaryKey().default("default"),
-  /** Whole minutes from quote `createdAt` until the estimate expires. */
+  /** Whole minutes from quote `createdAt` until the estimate expires. -1 = never expires. */
   expiryMinutes: integer("expiry_minutes").notNull().default(10080),
   updatedByClerkUserId: text("updated_by_clerk_user_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
@@ -1581,6 +1595,7 @@ export const customerQuoteExpirySettings = pgTable(
     clerkUserId: text("clerk_user_id")
       .primaryKey()
       .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    /** Whole minutes, or -1 for no expiry. Missing row means inherit hub. */
     expiryMinutes: integer("expiry_minutes").notNull(),
     updatedByClerkUserId: text("updated_by_clerk_user_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
@@ -1877,6 +1892,10 @@ export const barrelShippingIntakes = pgTable(
     }),
     contactPhone: text("contact_phone"),
     specialInstructions: text("special_instructions"),
+    /** Catalog key from destination customs brokers for this country. */
+    selectedBrokerKey: text("selected_broker_key"),
+    /** Catalog key from destination local couriers for this country. */
+    selectedCourierKey: text("selected_courier_key"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1892,7 +1911,7 @@ export const barrelShippingIntakes = pgTable(
 
 /**
  * Admin-published outbound shipping cost breakdown per container (after customer intake).
- * Customer pays via cart before courier handoff.
+ * Freight is paid via cart; broker and courier charges are paid with Zelle, Cash App, or at the local office.
  */
 export const barrelOutboundShippingCharges = pgTable(
   "barrel_outbound_shipping_charges",
@@ -1904,6 +1923,27 @@ export const barrelOutboundShippingCharges = pgTable(
     clerkUserId: text("clerk_user_id")
       .notNull()
       .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    chargeKind: barrelOutboundShippingChargeKindEnum("charge_kind")
+      .notNull()
+      .default("freight"),
+    /** Broker or local courier name, or freight company name. */
+    partnerName: text("partner_name"),
+    partnerLocation: text("partner_location"),
+    partnerAddress: text("partner_address"),
+    partnerCountry: text("partner_country"),
+    partnerPhone: text("partner_phone"),
+    partnerCashappId: text("partner_cashapp_id"),
+    partnerCashappAccount: text("partner_cashapp_account"),
+    partnerZelleId: text("partner_zelle_id"),
+    partnerZelleAccount: text("partner_zelle_account"),
+    /** zelle | cashapp | local_office — broker/courier paid outside Stripe. */
+    offPlatformPaymentMethod: text("off_platform_payment_method"),
+    offPlatformPayerName: text("off_platform_payer_name"),
+    offPlatformReceiptUrl: text("off_platform_receipt_url"),
+    offPlatformSubmittedAt: timestamp("off_platform_submitted_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     /** Optional note shown to the customer on the shipping charge card. */
     adminNote: text("admin_note"),
     paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }),
@@ -1923,7 +1963,10 @@ export const barrelOutboundShippingCharges = pgTable(
       .notNull(),
   },
   (t) => [
-    uniqueIndex("barrel_outbound_shipping_charges_barrel_unique").on(t.barrelId),
+    uniqueIndex("barrel_outbound_shipping_charges_barrel_kind_uidx").on(
+      t.barrelId,
+      t.chargeKind,
+    ),
     index("barrel_outbound_shipping_charges_clerk_user_id_idx").on(t.clerkUserId),
     uniqueIndex("barrel_outbound_shipping_charges_payment_ref_unique").on(
       t.paymentReferenceNumber,
@@ -2011,6 +2054,40 @@ export const userOutboundShippingCartLines = pgTable(
       t.chargeId,
     ),
     index("user_outbound_shipping_cart_lines_clerk_user_id_idx").on(t.clerkUserId),
+  ],
+);
+
+/** Freight companies, brokers, and couriers saved on a container; one primary per kind. */
+export const barrelOutboundShippingPartners = pgTable(
+  "barrel_outbound_shipping_partners",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    barrelId: uuid("barrel_id")
+      .notNull()
+      .references(() => barrels.id, { onDelete: "cascade" }),
+    chargeKind: barrelOutboundShippingChargeKindEnum("charge_kind").notNull(),
+    name: text("name").notNull(),
+    location: text("location"),
+    address: text("address"),
+    country: text("country"),
+    phone: text("phone"),
+    cashappId: text("cashapp_id"),
+    cashappAccount: text("cashapp_account"),
+    zelleId: text("zelle_id"),
+    zelleAccount: text("zelle_account"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("barrel_outbound_shipping_partners_barrel_kind_idx").on(
+      t.barrelId,
+      t.chargeKind,
+    ),
   ],
 );
 
@@ -2487,6 +2564,13 @@ export const orderContainerItems = pgTable(
     quantity: integer("quantity").notNull(),
     unitPriceCents: integer("unit_price_cents").notNull(),
     lineTotalCents: integer("line_total_cents").notNull(),
+    /**
+     * Packing fee allocated to this container line at checkout (single vs multi
+     * barrel/bin rate × quantity). 0 for suitcases or when packing was not charged.
+     */
+    packagingFeeCents: integer("packaging_fee_cents").notNull().default(0),
+    /** Per-unit packing rate used for this line at checkout. */
+    packagingPerUnitCents: integer("packaging_per_unit_cents").notNull().default(0),
     nameSnapshot: text("name_snapshot").notNull(),
     sizeSnapshot: text("size_snapshot").notNull(),
     /** `barrel` | `bin` | `suitcase` at checkout (matches `container_offering_kind`). */
@@ -2498,6 +2582,63 @@ export const orderContainerItems = pgTable(
     }),
   },
   (t) => [index("order_container_items_order_id_idx").on(t.orderId)],
+);
+
+/** Customer-initiated refund request for a container SKU or its packing fee. */
+export const orderContainerRefundRequests = pgTable(
+  "order_container_refund_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderContainerItemId: uuid("order_container_item_id")
+      .notNull()
+      .references(() => orderContainerItems.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id").notNull(),
+    chargeTarget: orderContainerRefundTargetEnum("charge_target").notNull(),
+    reasonKind: orderItemRefundReasonKindEnum("reason_kind").notNull(),
+    details: text("details").notNull(),
+    requestedAmountCents: integer("requested_amount_cents"),
+    status: orderItemRefundRequestStatusEnum("status")
+      .notNull()
+      .default("pending_approval"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "string" }),
+    reviewedByClerkUserId: text("reviewed_by_clerk_user_id"),
+    rejectionNote: text("rejection_note"),
+    fulfilledStripeRefundId: text("fulfilled_stripe_refund_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("order_container_refund_requests_item_idx").on(t.orderContainerItemId),
+    index("order_container_refund_requests_status_idx").on(t.status),
+    index("order_container_refund_requests_clerk_user_id_idx").on(t.clerkUserId),
+  ],
+);
+
+/** Stripe refunds applied to a container SKU or packing-fee charge. */
+export const orderContainerRefunds = pgTable(
+  "order_container_refunds",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderContainerItemId: uuid("order_container_item_id")
+      .notNull()
+      .references(() => orderContainerItems.id, { onDelete: "cascade" }),
+    chargeTarget: orderContainerRefundTargetEnum("charge_target").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    stripeRefundId: text("stripe_refund_id").notNull(),
+    reason: text("reason"),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("order_container_refunds_item_idx").on(t.orderContainerItemId),
+    uniqueIndex("order_container_refunds_stripe_charge_uidx").on(
+      t.stripeRefundId,
+      t.chargeTarget,
+    ),
+  ],
 );
 
 /* --- Relations (db.query graph) --- */
@@ -2734,6 +2875,28 @@ export const orderContainerItemsRelations = relations(
       references: [containerOfferings.id],
     }),
     provisionedBarrels: many(barrels),
+    refundRequests: many(orderContainerRefundRequests),
+    refunds: many(orderContainerRefunds),
+  }),
+);
+
+export const orderContainerRefundRequestsRelations = relations(
+  orderContainerRefundRequests,
+  ({ one }) => ({
+    containerItem: one(orderContainerItems, {
+      fields: [orderContainerRefundRequests.orderContainerItemId],
+      references: [orderContainerItems.id],
+    }),
+  }),
+);
+
+export const orderContainerRefundsRelations = relations(
+  orderContainerRefunds,
+  ({ one }) => ({
+    containerItem: one(orderContainerItems, {
+      fields: [orderContainerRefunds.orderContainerItemId],
+      references: [orderContainerItems.id],
+    }),
   }),
 );
 
@@ -3134,6 +3297,11 @@ export type UserOutboundShippingCartLine =
 export type NewUserOutboundShippingCartLine =
   typeof userOutboundShippingCartLines.$inferInsert;
 
+export type BarrelOutboundShippingPartner =
+  typeof barrelOutboundShippingPartners.$inferSelect;
+export type NewBarrelOutboundShippingPartner =
+  typeof barrelOutboundShippingPartners.$inferInsert;
+
 export type BarrelOutboundShipmentTracking =
   typeof barrelOutboundShipmentTracking.$inferSelect;
 export type NewBarrelOutboundShipmentTracking =
@@ -3178,6 +3346,11 @@ export type NewBarrelPackageAssignmentEvent =
 
 export type OrderContainerItem = typeof orderContainerItems.$inferSelect;
 export type NewOrderContainerItem = typeof orderContainerItems.$inferInsert;
+export type OrderContainerRefundRequest =
+  typeof orderContainerRefundRequests.$inferSelect;
+export type NewOrderContainerRefundRequest =
+  typeof orderContainerRefundRequests.$inferInsert;
+export type OrderContainerRefund = typeof orderContainerRefunds.$inferSelect;
 
 export type HubStockProduct = typeof hubStockProducts.$inferSelect;
 export type NewHubStockProduct = typeof hubStockProducts.$inferInsert;

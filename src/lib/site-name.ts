@@ -66,6 +66,9 @@ export function retailerLabelFromProductUrl(productUrl: string): string {
   if (lower.includes("temu")) return "Temu";
   if (lower.includes("shein")) return "SHEIN";
   if (lower.includes("bathandbodyworks")) return "Bath & Body Works";
+  if (lower.includes("dollartree") || lower.includes("dollar-tree")) {
+    return "Dollar Tree";
+  }
 
   const stem = host.split(".")[0];
   if (!stem) return host;

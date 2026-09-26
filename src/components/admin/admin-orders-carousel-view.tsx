@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/carousel";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
+import type { ContainerLineRefundState } from "@/data/container-line-refund-state";
 import type { HubStockOrderPackingPackage } from "@/lib/hub-stock-box";
 import type {
   BatchQuoteEstimate,
@@ -50,6 +51,7 @@ export function AdminOrdersCarouselView({
   latestQuotesByRequestId = {},
   batchEstimatesBySessionId = {},
   orderContainerLinesByOrderId = {},
+  containerRefundStateByLineId = {},
   hubStockPackingByOrderId = {},
   staffProfilesByClerkUserId = {},
   highlightOrderId = null,
@@ -59,6 +61,7 @@ export function AdminOrdersCarouselView({
   latestQuotesByRequestId?: Record<string, ItemQuote>;
   batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  containerRefundStateByLineId?: Record<string, ContainerLineRefundState>;
   hubStockPackingByOrderId?: Record<string, HubStockOrderPackingPackage[]>;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
   highlightOrderId?: string | null;
@@ -183,6 +186,7 @@ export function AdminOrdersCarouselView({
         latestQuotesByRequestId={latestQuotesByRequestId}
         batchEstimatesBySessionId={batchEstimatesBySessionId}
         orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+        containerRefundStateByLineId={containerRefundStateByLineId}
         hubStockPackingByOrderId={hubStockPackingByOrderId}
         staffProfilesByClerkUserId={staffProfilesByClerkUserId}
       />

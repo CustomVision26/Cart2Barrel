@@ -13,6 +13,8 @@ import { AdminShipHubStockPackageForm } from "@/components/admin/admin-ship-hub-
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
 import { DashboardCheckoutChargesPreviewDialog } from "@/components/dashboard/dashboard-checkout-charges-preview-dialog";
+import { OrderShippingContainerLines } from "@/components/orders/order-shipping-container-lines";
+import { AdminContainerChargeRefundControls } from "@/components/admin/admin-container-charge-refund-controls";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -25,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
+import type { ContainerLineRefundState } from "@/data/container-line-refund-state";
 import type {
   HubStockOrderPackingPackage,
 } from "@/lib/hub-stock-box";
@@ -265,6 +268,7 @@ export function AdminOrderLinesDetailDialog({
   latestQuotesByRequestId = {},
   batchEstimatesBySessionId = {},
   orderContainerLinesByOrderId = {},
+  containerRefundStateByLineId = {},
   hubStockPackingByOrderId = {},
   staffProfilesByClerkUserId = {},
 }: {
@@ -275,6 +279,7 @@ export function AdminOrderLinesDetailDialog({
   latestQuotesByRequestId?: Record<string, ItemQuote>;
   batchEstimatesBySessionId?: Record<string, BatchQuoteEstimate>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  containerRefundStateByLineId?: Record<string, ContainerLineRefundState>;
   hubStockPackingByOrderId?: Record<string, HubStockOrderPackingPackage[]>;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
@@ -396,7 +401,8 @@ export function AdminOrderLinesDetailDialog({
                 Order products
               </DialogTitle>
               <DialogDescription className="text-left text-xs leading-relaxed">
-                Products on this paid order, grouped by batch and singles.
+                Products and shipping containers on this paid order, grouped by
+                batch and singles.
               </DialogDescription>
             </div>
             <div className="shrink-0 space-y-2 text-right">
@@ -621,37 +627,15 @@ export function AdminOrderLinesDetailDialog({
               );
             })}
 
-            {containerLines.length > 0 ?
-              <section className="overflow-hidden rounded-2xl border border-border/80 bg-muted/25 ring-1 ring-border/30">
-                <header className="border-b border-border/60 bg-muted/50 px-3.5 py-3">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                    Shipping containers
-                  </p>
-                </header>
-                <ul className="space-y-2.5 p-3" role="list">
-                  {containerLines.map((c) => (
-                    <li
-                      key={c.id}
-                      className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border/70 bg-background px-3.5 py-3"
-                    >
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-semibold text-foreground">
-                          {c.nameSnapshot}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Checkout merchandise
-                          <span className="mx-1.5 text-border">·</span>
-                          Qty {c.quantity}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-base font-semibold tabular-nums text-foreground">
-                        {formatUsd(c.lineTotalCents)}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            : null}
+            <OrderShippingContainerLines
+              lines={containerLines}
+              renderLineFooter={(line) => (
+                <AdminContainerChargeRefundControls
+                  line={line}
+                  state={containerRefundStateByLineId[line.id]}
+                />
+              )}
+            />
           </div>
 
           <p className="mt-4 text-xs text-muted-foreground">

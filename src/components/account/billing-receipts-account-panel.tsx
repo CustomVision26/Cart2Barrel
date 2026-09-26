@@ -74,6 +74,11 @@ function prorationReceiptHrefForRecord(
   return null;
 }
 
+function documentReceiptHref(record: CustomerBillingReceiptRecord): string | null {
+  const url = record.documentUrl?.trim();
+  return url || null;
+}
+
 function scopeLabel(scope: BillingReceiptScope): string {
   switch (scope) {
     case "order":
@@ -84,11 +89,20 @@ function scopeLabel(scope: BillingReceiptScope): string {
       return "Batch";
     case "hub":
       return "In-hub";
+    case "shipping":
+      return "Shipping";
   }
 }
 
 function categoryLabel(category: CustomerBillingReceiptRecord["category"]): string {
-  return category === "payment" ? "Checkout" : "Proration";
+  switch (category) {
+    case "payment":
+      return "Checkout";
+    case "proration":
+      return "Proration";
+    case "transfer":
+      return "Transfer";
+  }
 }
 
 function matchesSearch(record: CustomerBillingReceiptRecord, query: string): boolean {
@@ -102,8 +116,10 @@ function ReceiptBadge({ children }: { children: string }) {
 }
 
 function BillingReceiptRow({ record }: { record: CustomerBillingReceiptRecord }) {
-  const isPayment = record.category === "payment" && Boolean(record.orderId);
+  const orderId = record.orderId?.trim() || null;
+  const isPayment = record.category === "payment" && Boolean(orderId);
   const prorationHref = prorationReceiptHrefForRecord(record);
+  const documentHref = documentReceiptHref(record);
 
   return (
     <li className={panelClass.row}>
@@ -116,9 +132,11 @@ function BillingReceiptRow({ record }: { record: CustomerBillingReceiptRecord })
         {record.subtitle ?
           <p className={panelClass.mutedXs}>{record.subtitle}</p>
         : null}
-        <p className={panelClass.meta} title={record.orderId}>
-          Order {record.orderId.slice(0, 8)}…
-        </p>
+        {orderId ?
+          <p className={panelClass.meta} title={orderId}>
+            Order {orderId.slice(0, 8)}…
+          </p>
+        : null}
         <time dateTime={record.createdAt} className={cn("block", panelClass.mutedXs)}>
           {new Date(record.createdAt).toLocaleString()}
         </time>
@@ -126,10 +144,10 @@ function BillingReceiptRow({ record }: { record: CustomerBillingReceiptRecord })
 
       <div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
         <p className={panelClass.amount}>{formatUsd(record.amountCents)}</p>
-        {isPayment ?
+        {isPayment && orderId ?
           <div className="flex flex-wrap items-center justify-end gap-2">
             <a
-              href={paymentInvoiceHref(record.orderId, "inline")}
+              href={paymentInvoiceHref(orderId, "inline")}
               target="_blank"
               rel="noopener noreferrer"
               className={panelClass.link}
@@ -138,14 +156,14 @@ function BillingReceiptRow({ record }: { record: CustomerBillingReceiptRecord })
               <ExternalLink className="size-3 shrink-0" aria-hidden />
             </a>
             <a
-              href={paymentInvoiceHref(record.orderId, "attachment")}
+              href={paymentInvoiceHref(orderId, "attachment")}
               className={panelClass.linkSecondary}
             >
               Download PDF
               <Download className="size-3 shrink-0" aria-hidden />
             </a>
             <a
-              href={paymentInvoiceHtmlHref(record.orderId)}
+              href={paymentInvoiceHtmlHref(orderId)}
               target="_blank"
               rel="noopener noreferrer"
               className={panelClass.linkSecondary}
@@ -163,6 +181,42 @@ function BillingReceiptRow({ record }: { record: CustomerBillingReceiptRecord })
             View Stripe receipt
             <ExternalLink className="size-3 shrink-0" aria-hidden />
           </a>
+        : documentHref ?
+          <div className="flex w-full max-w-xs flex-col items-start gap-1.5 sm:items-end">
+            {/\.pdf(?:$|\?)/i.test(documentHref) ? null : (
+              <a
+                href={documentHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block overflow-hidden rounded-md border border-zinc-600 bg-zinc-950"
+              >
+                <img
+                  src={documentHref}
+                  alt={record.label}
+                  className="max-h-28 w-auto max-w-full object-contain"
+                />
+              </a>
+            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <a
+                href={documentHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={panelClass.link}
+              >
+                View receipt
+                <ExternalLink className="size-3 shrink-0" aria-hidden />
+              </a>
+              <a
+                href={documentHref}
+                download
+                className={panelClass.linkSecondary}
+              >
+                Download
+                <Download className="size-3 shrink-0" aria-hidden />
+              </a>
+            </div>
+          </div>
         : (
           <span className={panelClass.mutedXs}>Receipt unavailable</span>
         )}
@@ -240,7 +294,8 @@ export function BillingReceiptsAccountPanel() {
         <h2 className={panelClass.heading}>Billing receipts</h2>
         <p className={panelClass.description}>
           View or download PDF invoices for checkout payments, including in-hub warehouse
-          products. Proration refunds still open Stripe-hosted receipts when available.
+          products. Zelle and Cash App shipping receipts stay on this account after you
+          submit them. Proration refunds still open Stripe-hosted receipts when available.
         </p>
       </div>
 
@@ -253,7 +308,7 @@ export function BillingReceiptsAccountPanel() {
             id="billing-receipts-search"
             type="search"
             className={panelClass.field}
-            placeholder="Order id, product, batch #, Stripe ref…"
+            placeholder="Order id, product, batch #, Zelle, Cash App…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoComplete="off"
@@ -273,6 +328,7 @@ export function BillingReceiptsAccountPanel() {
             <option value="all">All receipts</option>
             <option value="hub">In-hub products</option>
             <option value="order">Order checkout</option>
+            <option value="shipping">Shipping transfers</option>
             <option value="single">Single product</option>
             <option value="batch">Batch</option>
           </select>
@@ -303,7 +359,7 @@ export function BillingReceiptsAccountPanel() {
       : filteredRecords.length === 0 ?
         <p className={panelClass.empty}>
           {records.length === 0 ?
-            "No billing receipts yet. Receipts appear here after you pay for an order (including in-hub products) or receive a proration refund."
+            "No billing receipts yet. Receipts appear here after you pay for an order, submit a Zelle or Cash App shipping receipt, or receive a proration refund."
           : "No receipts match your search or filter."}
         </p>
       : (

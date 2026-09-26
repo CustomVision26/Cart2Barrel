@@ -1,17 +1,19 @@
 "use client";
 
-import { MapPinIcon } from "lucide-react";
+import { FileTextIcon, MapPinIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
+  adminRemoveCustomsDeclarationFormAction,
   adminSaveBarrelShipmentCustomsAction,
   adminUpdateBarrelShipmentStageAction,
 } from "@/actions/admin-barrel-shipment-tracking";
 import { adminUploadCustomsDeclarationFormAction } from "@/actions/admin-upload-customs-declaration-form";
 import { BarrelShipmentTrackingTimeline } from "@/components/shipping/barrel-shipment-tracking-timeline";
-import { Button } from "@/components/ui/button";
+import { paidOutboundCharges } from "@/lib/barrel-outbound-shipping-charge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,6 +22,7 @@ import {
   type BarrelOutboundShipmentStage,
 } from "@/lib/barrel-shipment-tracking";
 import type { AdminBarrelOutboundShippingChargeRow } from "@/lib/barrel-outbound-shipping-charge";
+import { cn } from "@/lib/utils";
 
 function toDateInputValue(iso: string | null): string {
   if (!iso) return "";
@@ -42,8 +45,14 @@ export function AdminShipmentCustomsPanel({
   const [pending, startTransition] = useTransition();
   const tracking = row.shipmentTracking;
 
+  const paid = paidOutboundCharges(row.charges);
+  const paidCharge = paid.find((c) => c.chargeKind === "freight") ?? paid[0] ?? null;
+  const freightPartnerName =
+    row.charges.find((charge) => charge.chargeKind === "freight")?.partnerName?.trim() ||
+    "";
+
   const [freightCompanyName, setFreightCompanyName] = useState(
-    tracking?.freightCompanyName ?? "",
+    tracking?.freightCompanyName?.trim() || freightPartnerName,
   );
   const [freightDropOffAt, setFreightDropOffAt] = useState(
     toDateInputValue(tracking?.freightDropOffAt ?? null),
@@ -116,6 +125,24 @@ export function AdminShipmentCustomsPanel({
     });
   }
 
+  function removeUploadedForm() {
+    startTransition(async () => {
+      const res = await adminRemoveCustomsDeclarationFormAction({
+        barrelId: row.barrelId,
+      });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setFormImageUrl("");
+      if (fileRef.current) {
+        fileRef.current.value = "";
+      }
+      toast.success(res.message);
+      router.refresh();
+    });
+  }
+
   function uploadForm() {
     const file = fileRef.current?.files?.[0];
     if (!file) {
@@ -137,7 +164,7 @@ export function AdminShipmentCustomsPanel({
     });
   }
 
-  if (!row.paidAt) {
+  if (!paidCharge?.paidAt) {
     return (
       <p className="text-xs text-muted-foreground">
         Freight must be paid before customs clearance and tracking apply.
@@ -155,16 +182,16 @@ export function AdminShipmentCustomsPanel({
       </div>
 
       <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-foreground">
-        Paid freight
-        {row.paymentReferenceNumber ?
-          <> · ref <span className="font-mono">{row.paymentReferenceNumber}</span></>
+        Paid
+        {paidCharge.paymentReferenceNumber ?
+          <> · ref <span className="font-mono">{paidCharge.paymentReferenceNumber}</span></>
         : null}
       </p>
 
       <BarrelShipmentTrackingTimeline
         tracking={tracking}
-        paidAt={row.paidAt}
-        paymentReferenceNumber={row.paymentReferenceNumber}
+        paidAt={paidCharge.paidAt}
+        paymentReferenceNumber={paidCharge.paymentReferenceNumber}
         compact
       />
 
@@ -212,14 +239,25 @@ export function AdminShipmentCustomsPanel({
             </Button>
           </div>
           {formImageUrl ?
-            <a
-              href={formImageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium text-primary underline-offset-4 hover:underline"
-            >
-              View uploaded form
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={formImageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+              >
+                View uploaded form
+              </a>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                disabled={pending}
+                onClick={removeUploadedForm}
+              >
+                Remove upload
+              </Button>
+            </div>
           : null}
         </div>
 
@@ -230,7 +268,7 @@ export function AdminShipmentCustomsPanel({
             value={freightCompanyName}
             disabled={pending}
             onChange={(e) => setFreightCompanyName(e.target.value)}
-            placeholder="e.g. DHL Freight"
+            placeholder={freightPartnerName || "e.g. Tropical Shipping"}
           />
         </div>
 
@@ -257,9 +295,27 @@ export function AdminShipmentCustomsPanel({
           </div>
         </div>
 
-        <Button type="button" size="sm" disabled={pending} onClick={saveCustoms}>
-          Save customs info
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" disabled={pending} onClick={saveCustoms}>
+            Save customs info
+          </Button>
+          <a
+            href={`/api/admin/customs-clearance-pack?barrelId=${encodeURIComponent(row.barrelId)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "inline-flex items-center gap-1.5",
+            )}
+          >
+            <FileTextIcon className="size-3.5" aria-hidden />
+            View clearance form PDF
+          </a>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          After you save customs info, the customer can view and download this
+          pack on Shipping and Pricing.
+        </p>
       </div>
 
       <div className="space-y-2 rounded-md border border-border/60 p-3">

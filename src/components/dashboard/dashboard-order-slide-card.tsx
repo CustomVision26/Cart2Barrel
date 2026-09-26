@@ -49,7 +49,7 @@ function previewTiles(group: OrderSlideGroup): {
   return tiles.slice(0, 4);
 }
 
-function countSummary(group: OrderSlideGroup): string {
+function countSummary(group: OrderSlideGroup, containerCount: number): string {
   const buckets = partitionPaidLinesIntoBatchBuckets(group.lines);
   let batchProducts = 0;
   let singles = 0;
@@ -66,6 +66,11 @@ function countSummary(group: OrderSlideGroup): string {
   if (singles > 0) {
     parts.push(`${singles} single ${singles === 1 ? "item" : "items"}`);
   }
+  if (containerCount > 0) {
+    parts.push(
+      `${containerCount} ${containerCount === 1 ? "container" : "containers"}`,
+    );
+  }
   return parts.join(" · ") || `${group.lines.length} items`;
 }
 
@@ -75,11 +80,13 @@ export function DashboardOrderSlideCard({
   group,
   lane,
   onOpenDetail,
+  containerCount = 0,
   className,
 }: {
   group: OrderSlideGroup & { lines: DashboardPaidOrderLineRow[] };
   lane: OrdersSlideLane;
   onOpenDetail: () => void;
+  containerCount?: number;
   className?: string;
 }) {
   const tiles = previewTiles(group);
@@ -160,7 +167,7 @@ export function DashboardOrderSlideCard({
             <p className="line-clamp-1 font-mono text-sm font-semibold text-primary">
               {group.order.id.slice(0, 8)}…
             </p>
-            <p className="text-xs text-muted-foreground">{countSummary(group)}</p>
+            <p className="text-xs text-muted-foreground">{countSummary(group, containerCount)}</p>
             <div className="mt-auto flex items-center justify-between gap-2 text-xs">
               <span className="font-medium tabular-nums text-foreground">
                 {formatUsd(group.order.totalAmount)}

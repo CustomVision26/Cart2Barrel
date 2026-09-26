@@ -17,6 +17,8 @@ import {
 } from "@/components/dashboard/dashboard-paid-orders-table";
 import { DashboardStripeRefundReceiptLinks } from "@/components/dashboard/dashboard-stripe-refund-receipt-links";
 import { WarehouseIntakePreviewDialog } from "@/components/orders/warehouse-intake-preview-dialog";
+import { OrderShippingContainerLines } from "@/components/orders/order-shipping-container-lines";
+import { DashboardContainerChargeRefundDialog } from "@/components/dashboard/dashboard-container-charge-refund-dialog";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +30,8 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { DashboardPaidOrderLineRow } from "@/data/dashboard-order-lines";
+import type { ContainerLineRefundState } from "@/data/container-line-refund-state";
+import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import type { OrderSlideGroup } from "@/lib/admin-orders-slide-filters";
 import { formatUsd } from "@/lib/admin-markup";
@@ -224,11 +228,15 @@ export function DashboardOrderLinesDetailDialog({
   onOpenChange,
   group,
   snapshotsByRequestId = {},
+  orderContainerLinesByOrderId = {},
+  containerRefundStateByLineId = {},
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   group: (OrderSlideGroup & { lines: DashboardPaidOrderLineRow[] }) | null;
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
+  orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  containerRefundStateByLineId?: Record<string, ContainerLineRefundState>;
 }) {
   const router = useRouter();
   const [refreshPending, startRefresh] = useTransition();
@@ -250,6 +258,7 @@ export function DashboardOrderLinesDetailDialog({
   if (!group) return null;
 
   const buckets = partitionPaidLinesIntoBatchBuckets(group.lines);
+  const containerLines = orderContainerLinesByOrderId[group.order.id] ?? [];
   const checkoutTotalCents = group.order.totalAmount;
   const adjustedOrderTotalCents = checkoutTotalCents + paidTopupCents;
   const headerTrackings = collectOrderHeaderTrackings(group.lines);
@@ -275,7 +284,8 @@ export function DashboardOrderLinesDetailDialog({
                 Order products
               </DialogTitle>
               <DialogDescription className="text-left text-xs leading-relaxed">
-                Products on this paid order, grouped by batch and singles.
+                Products and shipping containers on this paid order, grouped by
+                batch and singles.
               </DialogDescription>
             </div>
             <div className="shrink-0 space-y-2 text-right">
@@ -410,6 +420,17 @@ export function DashboardOrderLinesDetailDialog({
               </section>
             );
           })}
+
+            <OrderShippingContainerLines
+              lines={containerLines}
+              renderLineActions={(line) => (
+                <DashboardContainerChargeRefundDialog
+                  line={line}
+                  orderId={group.order.id}
+                  state={containerRefundStateByLineId[line.id]}
+                />
+              )}
+            />
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <DashboardCheckoutChargesPreviewDialog

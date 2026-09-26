@@ -146,6 +146,7 @@ export function AdminAiEstimateDialog({
   const [result, setResult] = useState<AdminAiEstimateResult | null>(null);
   const [isAiPending, startAiTransition] = useTransition();
   const [isSavePending, startSaveTransition] = useTransition();
+  const saveInFlightRef = useRef(false);
 
   const [variantColor, setVariantColor] = useState("");
   const [variantSize, setVariantSize] = useState("");
@@ -355,47 +356,56 @@ export function AdminAiEstimateDialog({
 
   const save = useCallback(() => {
     if (!result?.ok || !derived || derived.packCount < 1) return;
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     startSaveTransition(async () => {
-      const fallbackUrl =
-        stagedProductImageFile ?
-          null
-        : uploadedProductImageUrl?.trim() ||
-          initialProductImageUrl?.trim() ||
-          result.extraction.productImageUrl?.trim() ||
-          null;
+      try {
+        const fallbackUrl =
+          stagedProductImageFile ?
+            null
+          : uploadedProductImageUrl?.trim() ||
+            initialProductImageUrl?.trim() ||
+            result.extraction.productImageUrl?.trim() ||
+            null;
 
-      const imageRes = await persistStagedProductImage(
-        itemRequestId,
-        stagedProductImageFile,
-        fallbackUrl,
-      );
-      if (!imageRes.ok) {
-        toast.error(imageRes.message);
-        return;
-      }
+        const imageRes = await persistStagedProductImage(
+          itemRequestId,
+          stagedProductImageFile,
+          fallbackUrl,
+        );
+        if (!imageRes.ok) {
+          toast.error(imageRes.message);
+          return;
+        }
 
-      const res = await saveAdminItemQuoteAction({
-        itemRequestId,
-        itemCost: derived.merch,
-        merchandiseSavingsCents:
-          derived.savingsCents > 0 ? derived.savingsCents : undefined,
-        serviceFee: derived.serv,
-        estimatedShipping: derived.ship,
-        tax: derived.tax,
-        merchandiseIncludesSiteShippingTax,
-        productColor: variantColor.trim() || undefined,
-        productSize: variantSize.trim() || undefined,
-        staffNote: editStaffNote.trim() || undefined,
-        ...(imageRes.imageUrl ? { productImageUrl: imageRes.imageUrl } : {}),
-      });
-      if (res.ok) {
-        revokeBlobPreviewUrl(uploadedProductImageUrl);
-        setStagedProductImageFile(null);
-        toast.success(res.message ?? "Quote saved.");
-        router.refresh();
-        return;
+        const res = await saveAdminItemQuoteAction({
+          itemRequestId,
+          itemCost: derived.merch,
+          merchandiseSavingsCents:
+            derived.savingsCents > 0 ? derived.savingsCents : undefined,
+          serviceFee: derived.serv,
+          estimatedShipping: derived.ship,
+          tax: derived.tax,
+          merchandiseIncludesSiteShippingTax,
+          productColor: variantColor.trim() || undefined,
+          productSize: variantSize.trim() || undefined,
+          staffNote: editStaffNote.trim() || undefined,
+          ...(imageRes.imageUrl ? { productImageUrl: imageRes.imageUrl } : {}),
+        });
+        if (res.ok) {
+          revokeBlobPreviewUrl(uploadedProductImageUrl);
+          setStagedProductImageFile(null);
+          toast.success(res.message ?? "Quote saved.", {
+            id: "admin-quote-saved",
+          });
+          setOpen(false);
+          router.refresh();
+          return;
+        }
+        toast.error(res.message ?? "Could not save quote.");
+      } finally {
+        saveInFlightRef.current = false;
       }
-      toast.error(res.message ?? "Could not save quote.");
     });
   }, [
     result,

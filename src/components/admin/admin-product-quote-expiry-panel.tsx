@@ -9,6 +9,7 @@ import {
   searchQuotedProductsForExpiryAction,
   upsertProductQuoteExpirySettingsAction,
 } from "@/actions/product-quote-expiry-settings";
+import { AdminQuoteExpiryDurationFields } from "@/components/admin/admin-quote-expiry-duration-fields";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,8 +24,7 @@ import type { AdminProfilePickerRow } from "@/data/customer-pricing-packages";
 import type { AdminQuotedProductExpiryRow } from "@/data/quote-expiry-settings";
 import {
   formatQuoteExpiryWindowLabel,
-  MAX_QUOTE_EXPIRY_MINUTES,
-  MIN_QUOTE_EXPIRY_MINUTES,
+  isNeverExpireMinutes,
   preferredDurationUnit,
   type QuoteExpiryDurationUnit,
 } from "@/lib/quote-expiry";
@@ -62,6 +62,7 @@ export function AdminProductQuoteExpiryPanel({
   const [revivedIds, setRevivedIds] = useState<Set<string>>(() => new Set());
   const [amount, setAmount] = useState("7");
   const [unit, setUnit] = useState<QuoteExpiryDurationUnit>("days");
+  const [neverExpires, setNeverExpires] = useState(false);
   const [pending, startTransition] = useTransition();
   const [searching, startSearch] = useTransition();
 
@@ -100,9 +101,14 @@ export function AdminProductQuoteExpiryPanel({
 
   useEffect(() => {
     if (!selected) return;
-    const next = preferredDurationUnit(
-      selected.productOverrideMinutes ?? selected.effectiveExpiryMinutes,
-    );
+    const mins =
+      selected.productOverrideMinutes ?? selected.effectiveExpiryMinutes;
+    if (isNeverExpireMinutes(mins)) {
+      setNeverExpires(true);
+      return;
+    }
+    setNeverExpires(false);
+    const next = preferredDurationUnit(mins);
     setAmount(String(next.amount));
     setUnit(next.unit);
   }, [selectedId, selected?.productOverrideMinutes, selected?.effectiveExpiryMinutes]);
@@ -113,7 +119,12 @@ export function AdminProductQuoteExpiryPanel({
     params.set("tab", "quote-expiry");
     params.set("expiryTab", "product");
     if (nextClerkUserId) params.set("userId", nextClerkUserId);
-    router.push(`/admin/overview?${params.toString()}`);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `/admin/overview?${params.toString()}`,
+    );
+    runSearch(query, nextClerkUserId);
   }
 
   function runSearch(nextQuery = query, nextClerkUserId = clerkUserId) {
@@ -167,9 +178,11 @@ export function AdminProductQuoteExpiryPanel({
     }
     const wasExpired = row.quoteExpired;
     const useFormValues = selectedId === targetId;
-    const fromRow = preferredDurationUnit(
-      row.productOverrideMinutes ?? row.effectiveExpiryMinutes,
-    );
+    const fromRowMinutes =
+      row.productOverrideMinutes ?? row.effectiveExpiryMinutes;
+    const fromRowNever = isNeverExpireMinutes(fromRowMinutes);
+    const fromRow = preferredDurationUnit(fromRowMinutes);
+    const publishNever = useFormValues ? neverExpires : fromRowNever;
     const publishAmount = useFormValues
       ? Number.parseInt(amount, 10)
       : fromRow.amount;
@@ -177,8 +190,9 @@ export function AdminProductQuoteExpiryPanel({
     startTransition(async () => {
       const res = await upsertProductQuoteExpirySettingsAction({
         itemRequestId: targetId,
-        amount: publishAmount,
-        unit: publishUnit,
+        neverExpires: publishNever,
+        amount: publishNever ? 7 : publishAmount,
+        unit: publishNever ? "days" : publishUnit,
         restoreToActive: wasExpired,
       });
       if (!res.ok) {
@@ -226,7 +240,8 @@ export function AdminProductQuoteExpiryPanel({
           accept/pay window for that line. The countdown starts when you publish
           (not from the original quote time). Expired rows turn red — Revive to
           edit the window, then Publish to move the product from Expired Quotes
-          back to Active. Hub default is{" "}
+          back to Active. You can also turn on Do not expire quotes for one
+          line. Hub default is{" "}
           {formatQuoteExpiryWindowLabel(globalExpiryMinutes)}.
         </CardDescription>
       </CardHeader>
@@ -481,46 +496,24 @@ export function AdminProductQuoteExpiryPanel({
                 <> Revived here — adjust the window if needed, then Publish to move it from Expired Quotes to Active.</>
               : null}
             </p>
-            <Field
-              className={cn("gap-1.5", selectedLocked && "pointer-events-none opacity-45")}
+            <div
+              className={cn(
+                "space-y-3",
+                selectedLocked && "pointer-events-none opacity-45",
+              )}
             >
-              <FieldLabel htmlFor="quote-expiry-product-amount">
-                Time until quote expires
-              </FieldLabel>
-              <FieldContent>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    id="quote-expiry-product-amount"
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="max-w-[10rem] tabular-nums"
-                    disabled={pending || selectedLocked}
-                    aria-disabled={selectedLocked}
-                  />
-                  <select
-                    aria-label="Product expiry duration unit"
-                    className={SELECT_CLASS}
-                    value={unit}
-                    disabled={pending || selectedLocked}
-                    onChange={(e) =>
-                      setUnit(e.target.value as QuoteExpiryDurationUnit)
-                    }
-                  >
-                    <option value="minutes">Minutes</option>
-                    <option value="hours">Hours</option>
-                    <option value="days">Days</option>
-                  </select>
-                </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  From {MIN_QUOTE_EXPIRY_MINUTES} minute to 90 days (
-                  {MAX_QUOTE_EXPIRY_MINUTES.toLocaleString()} minutes). Starts
-                  when you publish this override.
-                </p>
-              </FieldContent>
-            </Field>
+              <AdminQuoteExpiryDurationFields
+                idPrefix="quote-expiry-product"
+                neverExpires={neverExpires}
+                onNeverExpiresChange={setNeverExpires}
+                amount={amount}
+                onAmountChange={setAmount}
+                unit={unit}
+                onUnitChange={setUnit}
+                disabled={pending || selectedLocked}
+                durationHint={`From 1 minute to 90 days. Starts when you publish this override.`}
+              />
+            </div>
             <div className="flex flex-wrap gap-2">
               {selectedLocked ?
                 <Button

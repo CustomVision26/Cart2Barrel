@@ -35,11 +35,12 @@ export function BarrelShippingIntakeSection({
             </h2>
             <p className="text-sm text-muted-foreground">
               {awaiting.length} container{awaiting.length === 1 ? "" : "s"} at
-              100% load or marked full. Continue to pricing for each one below.
+              100% load or marked full. Choose destination clearance and a local
+              courier for each one below, then continue to pricing.
             </p>
           </header>
 
-          <div className="flex max-w-2xl flex-col gap-6">
+          <div className="flex max-w-6xl flex-col gap-6">
             {awaiting.map((container) => (
               <BarrelShippingIntakeForm
                 key={container.barrelId}
@@ -71,7 +72,7 @@ export function BarrelShippingIntakeSection({
             </p>
           </header>
 
-          <ul className="flex max-w-2xl flex-col gap-6">
+          <ul className="flex max-w-6xl flex-col gap-6">
             {submitted.map((row) => (
               <li key={row.intakeId}>
                 <BarrelShippingIntakeSubmittedCard

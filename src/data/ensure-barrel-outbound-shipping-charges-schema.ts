@@ -18,10 +18,27 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
   const db = getDb();
   try {
     await db.execute(sql`
+      DO $$ BEGIN
+        CREATE TYPE "public"."barrel_outbound_shipping_charge_kind" AS ENUM(
+          'freight',
+          'broker',
+          'courier'
+        );
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$
+    `);
+
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS "barrel_outbound_shipping_charges" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "barrel_id" uuid NOT NULL,
         "clerk_user_id" text NOT NULL,
+        "charge_kind" "barrel_outbound_shipping_charge_kind" DEFAULT 'freight' NOT NULL,
+        "partner_name" text,
+        "partner_location" text,
+        "partner_address" text,
+        "partner_country" text,
         "admin_note" text,
         "paid_at" timestamp with time zone,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -104,8 +121,33 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
     `);
 
     await db.execute(sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS "barrel_outbound_shipping_charges_barrel_unique"
-      ON "barrel_outbound_shipping_charges" USING btree ("barrel_id")
+      DROP INDEX IF EXISTS "barrel_outbound_shipping_charges_barrel_unique"
+    `);
+
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "charge_kind" "barrel_outbound_shipping_charge_kind" DEFAULT 'freight' NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_name" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_location" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_address" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_country" text
+    `);
+
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS "barrel_outbound_shipping_charges_barrel_kind_uidx"
+      ON "barrel_outbound_shipping_charges" USING btree ("barrel_id", "charge_kind")
     `);
 
     await db.execute(sql`
@@ -124,8 +166,91 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
     `);
 
     await db.execute(sql`
-      CREATE INDEX IF NOT EXISTS "user_outbound_shipping_cart_lines_clerk_user_id_idx"
-      ON "user_outbound_shipping_cart_lines" USING btree ("clerk_user_id")
+      CREATE TABLE IF NOT EXISTS "barrel_outbound_shipping_partners" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "barrel_id" uuid NOT NULL,
+        "charge_kind" "barrel_outbound_shipping_charge_kind" NOT NULL,
+        "name" text NOT NULL,
+        "location" text,
+        "address" text,
+        "country" text,
+        "is_primary" boolean DEFAULT false NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+
+    await db.execute(sql`
+      DO $$ BEGIN
+        ALTER TABLE "barrel_outbound_shipping_partners"
+          ADD CONSTRAINT "barrel_outbound_shipping_partners_barrel_id_fk"
+          FOREIGN KEY ("barrel_id") REFERENCES "public"."barrels"("id")
+          ON DELETE cascade ON UPDATE no action;
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS "barrel_outbound_shipping_partners_barrel_kind_idx"
+      ON "barrel_outbound_shipping_partners" USING btree ("barrel_id", "charge_kind")
+    `);
+
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ADD COLUMN IF NOT EXISTS "phone" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ADD COLUMN IF NOT EXISTS "cashapp_id" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ADD COLUMN IF NOT EXISTS "zelle_id" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_phone" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_cashapp_id" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_zelle_id" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ADD COLUMN IF NOT EXISTS "cashapp_account" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ADD COLUMN IF NOT EXISTS "zelle_account" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_cashapp_account" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "partner_zelle_account" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "off_platform_payment_method" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "off_platform_payer_name" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "off_platform_receipt_url" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_charges"
+      ADD COLUMN IF NOT EXISTS "off_platform_submitted_at" timestamp with time zone
     `);
 
     schemaReady = true;

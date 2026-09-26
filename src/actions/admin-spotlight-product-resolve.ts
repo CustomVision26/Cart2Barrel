@@ -65,7 +65,7 @@ export type AdminResolveSpotlightProductResult =
     }
   | { ok: false; message: string };
 
-const LOOKUP_BUDGET_MS = 20_000;
+const LOOKUP_BUDGET_MS = 55_000;
 
 function lookupTimeoutResult(): Promise<AdminSpotlightSerpApiResolveResult> {
   return new Promise((resolve) => {

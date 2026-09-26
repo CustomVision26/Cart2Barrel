@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import { BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS } from "@/lib/barrel-outbound-shipping-charge";
+
+export const barrelOutboundShippingChargeKindSchema = z.enum(
+  BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS,
+);
+
 const chargeLineSchema = z.object({
   label: z
     .string()
@@ -18,6 +24,11 @@ const chargeLineSchema = z.object({
 
 export const saveBarrelOutboundShippingChargeSchema = z.object({
   barrelId: z.string().uuid("Invalid container."),
+  chargeKind: barrelOutboundShippingChargeKindSchema,
+  partnerName: z.string().trim().max(160).optional().default(""),
+  partnerLocation: z.string().trim().max(160).optional().default(""),
+  partnerAddress: z.string().trim().max(500).optional().default(""),
+  partnerCountry: z.string().trim().max(80).optional().default(""),
   adminNote: z.string().trim().max(2000).optional().default(""),
   lines: z
     .array(chargeLineSchema)
@@ -29,6 +40,48 @@ export type SaveBarrelOutboundShippingChargeInput = z.infer<
   typeof saveBarrelOutboundShippingChargeSchema
 >;
 
+export const addBarrelOutboundShippingPartnerSchema = z.object({
+  barrelId: z.string().uuid("Invalid container."),
+  chargeKind: barrelOutboundShippingChargeKindSchema,
+  name: z.string().trim().min(1, "Enter a name.").max(160),
+  location: z.string().trim().max(160).optional().default(""),
+  address: z.string().trim().max(500).optional().default(""),
+  country: z.string().trim().max(80).optional().default(""),
+  phone: z.string().trim().max(40).optional().default(""),
+  cashappId: z.string().trim().max(80).optional().default(""),
+  cashappAccount: z.string().trim().max(160).optional().default(""),
+  zelleId: z.string().trim().max(80).optional().default(""),
+  zelleAccount: z.string().trim().max(160).optional().default(""),
+  isPrimary: z.boolean().optional().default(false),
+});
+
+export const updateBarrelOutboundShippingPartnerSchema = z.object({
+  id: z.string().uuid("Invalid record."),
+  name: z.string().trim().min(1, "Enter a name.").max(160),
+  location: z.string().trim().max(160).optional().default(""),
+  address: z.string().trim().max(500).optional().default(""),
+  country: z.string().trim().max(80).optional().default(""),
+  phone: z.string().trim().max(40).optional().default(""),
+  cashappId: z.string().trim().max(80).optional().default(""),
+  cashappAccount: z.string().trim().max(160).optional().default(""),
+  zelleId: z.string().trim().max(80).optional().default(""),
+  zelleAccount: z.string().trim().max(160).optional().default(""),
+  isPrimary: z.boolean().optional().default(false),
+});
+
+export const applyCatalogOutboundShippingPartnerSchema = z.object({
+  sourcePartnerId: z.string().uuid("Invalid record."),
+  barrelId: z.string().uuid("Invalid container."),
+});
+
+export const setBarrelOutboundShippingPartnerPrimarySchema = z.object({
+  id: z.string().uuid("Invalid record."),
+});
+
+export const deleteBarrelOutboundShippingPartnerSchema = z.object({
+  id: z.string().uuid("Invalid record."),
+});
+
 export const addOutboundShippingChargeToCartSchema = z.object({
   chargeId: z.string().uuid("Invalid charge."),
 });
@@ -36,6 +89,24 @@ export const addOutboundShippingChargeToCartSchema = z.object({
 export const removeOutboundShippingChargeFromCartSchema = z.object({
   chargeId: z.string().uuid("Invalid charge."),
 });
+
+export const submitOutboundOffPlatformPaymentSchema = z.object({
+  chargeId: z.string().uuid("Invalid charge."),
+  paymentMethod: z.enum(["zelle", "cashapp", "local_office"]),
+  payerAccountName: z.string().trim().max(160).optional().default(""),
+});
+
+export type SubmitOutboundOffPlatformPaymentInput = z.infer<
+  typeof submitOutboundOffPlatformPaymentSchema
+>;
+
+export const approveOutboundOffPlatformPaymentSchema = z.object({
+  chargeId: z.string().uuid("Invalid charge."),
+});
+
+export type ApproveOutboundOffPlatformPaymentInput = z.infer<
+  typeof approveOutboundOffPlatformPaymentSchema
+>;
 
 export function parseUsdInputToCents(raw: string): number {
   const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");

@@ -13,6 +13,7 @@ import {
 } from "@/data/item-request-line-snapshots";
 import { listHubStockOrderPackingByOrderIds } from "@/data/hub-stock-order-packing";
 import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
+import { listContainerLineRefundStateByLines } from "@/data/container-line-refund-state";
 import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
 import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
@@ -74,6 +75,9 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
     admin && orderIdsOnPage.length > 0
       ? Object.fromEntries(await listOrderContainerItemsByOrderIds(orderIdsOnPage))
       : {};
+  const containerRefundStateByLineId = await listContainerLineRefundStateByLines(
+    Object.values(orderContainerLinesByOrderId).flat(),
+  );
   const hubStockPackingByOrderId =
     admin && orderIdsOnPage.length > 0
       ? Object.fromEntries(await listHubStockOrderPackingByOrderIds(orderIdsOnPage))
@@ -144,6 +148,7 @@ export default async function AdminOrdersHistoryPage({ searchParams }: PageProps
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
               orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+              containerRefundStateByLineId={containerRefundStateByLineId}
               hubStockPackingByOrderId={hubStockPackingByOrderId}
               staffProfilesByClerkUserId={staffProfilesByClerkUserId}
             />

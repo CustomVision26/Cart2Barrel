@@ -33,6 +33,7 @@ import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item"
 export type CustomerBatchQuoteState = {
   ok: boolean;
   message?: string;
+  batchSessionId?: string;
   fieldErrors?: Record<string, string[] | undefined>;
 };
 
@@ -73,10 +74,16 @@ export async function createCustomerBatchQuoteAction(
   }
 
   try {
-    await createDraftBatchSessionForOwner({
+    const session = await createDraftBatchSessionForOwner({
       clerkUserId: userId,
       itemRequestIds: parsed.data.itemRequestIds,
     });
+    revalidateDashboardAddItem();
+    return {
+      ok: true,
+      message: "Batch added under Batch Quotes.",
+      batchSessionId: session.id,
+    };
   } catch (e) {
     if (isMissingBatchCartAcceptanceColumnsError(e)) {
       return {
@@ -88,9 +95,6 @@ export async function createCustomerBatchQuoteAction(
     const msg = e instanceof Error ? e.message : "Could not create batch.";
     return { ok: false, message: msg };
   }
-
-  revalidateDashboardAddItem();
-  return { ok: true, message: "Batch added under Batch Quotes." };
 }
 
 export async function submitCustomerBatchQuoteAction(

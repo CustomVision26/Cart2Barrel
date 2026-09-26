@@ -12,6 +12,8 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import type { DashboardPaidOrderLineRow } from "@/data/dashboard-order-lines";
+import type { ContainerLineRefundState } from "@/data/container-line-refund-state";
+import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import {
   groupOrdersForSlideLane,
@@ -43,10 +45,14 @@ type DashboardOrderSlideGroup = OrderSlideGroup & {
 export function DashboardOrdersCarouselView({
   rows,
   snapshotsByRequestId = {},
+  orderContainerLinesByOrderId = {},
+  containerRefundStateByLineId = {},
   highlightOrderId = null,
 }: {
   rows: DashboardPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
+  orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  containerRefundStateByLineId?: Record<string, ContainerLineRefundState>;
   highlightOrderId?: string | null;
 }) {
   const [detailGroup, setDetailGroup] = useState<DashboardOrderSlideGroup | null>(
@@ -150,6 +156,9 @@ export function DashboardOrdersCarouselView({
                           <DashboardOrderSlideCard
                             group={group}
                             lane={lane}
+                            containerCount={
+                              orderContainerLinesByOrderId[group.order.id]?.length ?? 0
+                            }
                             onOpenDetail={() => setDetailGroup(group)}
                             className="h-full"
                           />
@@ -181,6 +190,8 @@ export function DashboardOrdersCarouselView({
         }}
         group={detailGroup}
         snapshotsByRequestId={snapshotsByRequestId}
+        orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+        containerRefundStateByLineId={containerRefundStateByLineId}
       />
     </>
   );

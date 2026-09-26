@@ -1,10 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { submitBarrelShippingIntakeAction } from "@/actions/barrel-shipping-intake";
+import {
+  DestinationClearanceChoices,
+  isDestinationClearanceChoiceComplete,
+  type DestinationClearanceChoiceValue,
+} from "@/components/shipping/destination-clearance-choices";
 import { ExpectedShippingChargesNotice } from "@/components/shipping/expected-shipping-charges-notice";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,15 +31,46 @@ import {
 import type { Address } from "@/db/schema";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import {
+  barrelShippingDeliveryMethodLabel,
   containerFullnessLabel,
   type BarrelShippingIntakeContainerRow,
 } from "@/lib/barrel-shipping-intake";
+import { unpaidPublishedChargesForDestination } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  findDestinationBroker,
+  findDestinationCourier,
+  PUBLISHED_BROKER_KEY,
+  PUBLISHED_COURIER_KEY,
+} from "@/lib/destination-clearance-partners";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 
 type BarrelShippingIntakeFormProps = {
   container: BarrelShippingIntakeContainerRow;
   shippingAddress: Address | undefined;
 };
+
+const EMPTY_CHOICE: DestinationClearanceChoiceValue = {
+  deliveryMethod: null,
+  brokerKey: null,
+  courierKey: null,
+};
+
+function SummaryRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[8.25rem_minmax(0,1fr)] sm:gap-x-4 sm:gap-y-0">
+      <dt className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="min-w-0 text-sm leading-snug text-foreground">{children}</dd>
+    </div>
+  );
+}
 
 export function BarrelShippingIntakeForm({
   container,
@@ -43,11 +79,51 @@ export function BarrelShippingIntakeForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [choice, setChoice] = useState<DestinationClearanceChoiceValue>(EMPTY_CHOICE);
+  const destinationCountry = shippingAddress?.country?.trim() || null;
+  const choiceComplete =
+    Boolean(destinationCountry) && isDestinationClearanceChoiceComplete(choice);
+  const broker = findDestinationBroker(choice.brokerKey, destinationCountry);
+  const courier = findDestinationCourier(choice.courierKey, destinationCountry);
+  const publishedBrokerName = unpaidPublishedChargesForDestination(
+    container.outboundCharges,
+    destinationCountry,
+    "broker",
+  )[0]?.partnerName?.trim();
+  const publishedCourierName = unpaidPublishedChargesForDestination(
+    container.outboundCharges,
+    destinationCountry,
+    "courier",
+  )[0]?.partnerName?.trim();
+  const brokerLabel =
+    choice.brokerKey === PUBLISHED_BROKER_KEY
+      ? publishedBrokerName || broker?.name
+      : broker?.name;
+  const courierLabel =
+    choice.courierKey === PUBLISHED_COURIER_KEY
+      ? publishedCourierName || courier?.name
+      : courier?.name;
 
   function submit() {
+    const deliveryMethod = choice.deliveryMethod;
+    if (!deliveryMethod) {
+      toast.error("Choose how you will clear customs.");
+      return;
+    }
+    if (!choice.courierKey) {
+      toast.error("Choose a local courier or provide your own transportation.");
+      return;
+    }
+    if (deliveryMethod === "broker_delivery" && !choice.brokerKey) {
+      toast.error("Choose a selected broker for this destination country.");
+      return;
+    }
     startTransition(async () => {
       const res = await submitBarrelShippingIntakeAction({
         barrelId: container.barrelId,
+        deliveryMethod,
+        brokerKey: choice.brokerKey,
+        courierKey: choice.courierKey,
       });
 
       if (res.ok) {
@@ -78,19 +154,31 @@ export function BarrelShippingIntakeForm({
       </CardHeader>
       <CardContent className="space-y-6">
         <ExpectedShippingChargesNotice
-          destinationCountry={shippingAddress?.country ?? "Jamaica"}
+          destinationCountry={destinationCountry}
+          defaultOpen
+          charges={container.outboundCharges}
+          customsContent={
+            <DestinationClearanceChoices
+              destinationCountry={destinationCountry}
+              namePrefix={container.barrelId}
+              value={choice}
+              onChange={setChoice}
+              disabled={pending}
+              charges={container.outboundCharges}
+            />
+          }
         />
 
-        <p className="text-sm text-muted-foreground">
-          Your container is full and ready for outbound shipping. Continue to the{" "}
-          <span className="font-medium text-foreground">Pricing</span> tab to review
-          freight, customs, and pickup charges when staff publish your quote.
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Select destination customs clearance and local transportation for{" "}
+          {destinationCountry ?? "your destination"}, then continue to pricing
+          to review published freight and related charges.
         </p>
       </CardContent>
       <CardFooter className="border-t border-border/60 pt-6">
         <Button
           type="button"
-          disabled={pending}
+          disabled={pending || !choiceComplete}
           onClick={() => setConfirmOpen(true)}
         >
           Continue to pricing
@@ -98,30 +186,53 @@ export function BarrelShippingIntakeForm({
       </CardFooter>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-md" showCloseButton={!pending}>
-          <DialogHeader>
-            <DialogTitle>Continue to shipping pricing?</DialogTitle>
-            <DialogDescription>
-              You are confirming that{" "}
+        <DialogContent className="sm:max-w-lg" showCloseButton={!pending}>
+          <DialogHeader className="gap-2 pr-8">
+            <DialogTitle className="text-lg font-semibold tracking-tight">
+              Confirm shipping preferences
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed">
+              Please review the selections for{" "}
               <span className="font-medium text-foreground">
                 {container.alias}
-              </span>{" "}
-              is ready for outbound shipping. You will open the Pricing tab to view
-              freight, customs, and pickup charges when staff publish your quote.
+              </span>
+              . Confirming will save these preferences and open shipping pricing.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-lg border border-border/80 bg-muted p-4 text-sm">
-            <p className="font-medium text-foreground">
-              {container.alias} — {container.slotLabel}
-            </p>
-            <p className="mt-1 text-muted-foreground">
-              {containerOfferingKindLabel(container.kind)} ·{" "}
-              {containerFullnessLabel(container)}
-            </p>
-          </div>
+          <dl className="divide-y divide-border/70 overflow-hidden rounded-lg border border-border/80 bg-muted/40">
+            <SummaryRow label="Container">
+              <p className="font-medium text-foreground">{container.alias}</p>
+              {container.containerName ?
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                  {container.containerName}
+                </p>
+              : null}
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {container.slotLabel}
+                {" · "}
+                {containerOfferingKindLabel(container.kind)}
+                {" · "}
+                {containerFullnessLabel(container)}
+              </p>
+            </SummaryRow>
+            {destinationCountry ?
+              <SummaryRow label="Destination">{destinationCountry}</SummaryRow>
+            : null}
+            {choice.deliveryMethod ?
+              <SummaryRow label="Clearance">
+                {barrelShippingDeliveryMethodLabel(choice.deliveryMethod)}
+              </SummaryRow>
+            : null}
+            {brokerLabel ?
+              <SummaryRow label="Customs broker">{brokerLabel}</SummaryRow>
+            : null}
+            {courierLabel ?
+              <SummaryRow label="Transportation">{courierLabel}</SummaryRow>
+            : null}
+          </dl>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
@@ -130,8 +241,12 @@ export function BarrelShippingIntakeForm({
             >
               Cancel
             </Button>
-            <Button type="button" disabled={pending} onClick={submit}>
-              {pending ? "Continuing…" : "Confirm"}
+            <Button
+              type="button"
+              disabled={pending || !choiceComplete}
+              onClick={submit}
+            >
+              {pending ? "Saving…" : "Confirm and continue"}
             </Button>
           </DialogFooter>
         </DialogContent>

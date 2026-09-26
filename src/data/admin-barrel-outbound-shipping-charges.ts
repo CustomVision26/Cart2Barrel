@@ -1,17 +1,22 @@
 import "server-only";
 
-import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, notInArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
-  barrelOutboundShippingChargeLines,
-  barrelOutboundShippingCharges,
   barrelShippingIntakes,
   barrels,
   orderContainerItems,
   profiles,
 } from "@/db/schema";
 import { getPrimaryShippingAddressesByClerkUserIds } from "@/data/addresses";
+import { getOutboundShippingChargesByBarrelIds } from "@/data/barrel-outbound-shipping-charges";
+import {
+  backfillOutboundShippingPartnersFromCharges,
+  listOutboundShippingPartnerCatalog,
+  listOutboundShippingPartnersByBarrelIds,
+  mergePartnersWithCatalog,
+} from "@/data/barrel-outbound-shipping-partners";
 import { getShipmentTrackingByBarrelIds } from "@/data/barrel-outbound-shipment-tracking";
 import { getPrimaryImageUrlByOfferingIds } from "@/data/container-offerings";
 import { formatShippingDestinationLines } from "@/lib/shipping-address-format";
@@ -23,38 +28,14 @@ import type {
   AdminBarrelOutboundShippingChargeRow,
   AdminShipmentChargePageData,
   AdminShipmentCustomerGroup,
+  BarrelOutboundShippingChargeView,
+  OutboundShippingPartnerRecord,
 } from "@/lib/barrel-outbound-shipping-charge";
-import { sumChargeLineCents } from "@/lib/barrel-outbound-shipping-charge";
+import { sumOutboundChargesCents } from "@/lib/barrel-outbound-shipping-charge";
 import { formatBarrelSlotLabel } from "@/lib/barrel-slot-label";
 import { buildContainerAliasMap } from "@/lib/container-slot-alias";
 import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-column-missing";
 import { parseContainerOfferingKind } from "@/lib/validations/container-offering";
-
-async function loadChargeLinesByChargeId(
-  chargeIds: string[],
-): Promise<Map<string, { label: string; amountCents: number }[]>> {
-  if (chargeIds.length === 0) {
-    return new Map();
-  }
-  const db = getDb();
-  const rows = await db
-    .select({
-      chargeId: barrelOutboundShippingChargeLines.chargeId,
-      label: barrelOutboundShippingChargeLines.label,
-      amountCents: barrelOutboundShippingChargeLines.amountCents,
-    })
-    .from(barrelOutboundShippingChargeLines)
-    .where(inArray(barrelOutboundShippingChargeLines.chargeId, chargeIds))
-    .orderBy(asc(barrelOutboundShippingChargeLines.sortIndex));
-
-  const map = new Map<string, { label: string; amountCents: number }[]>();
-  for (const row of rows) {
-    const list = map.get(row.chargeId) ?? [];
-    list.push({ label: row.label, amountCents: row.amountCents });
-    map.set(row.chargeId, list);
-  }
-  return map;
-}
 
 async function loadAllActiveBarrelRows(clerkUserId?: string) {
   const db = getDb();
@@ -65,7 +46,6 @@ async function loadAllActiveBarrelRows(clerkUserId?: string) {
       oci: orderContainerItems,
       profile: profiles,
       intake: barrelShippingIntakes,
-      charge: barrelOutboundShippingCharges,
     })
     .from(barrels)
     .innerJoin(profiles, eq(barrels.clerkUserId, profiles.clerkUserId))
@@ -76,10 +56,6 @@ async function loadAllActiveBarrelRows(clerkUserId?: string) {
     .leftJoin(
       barrelShippingIntakes,
       eq(barrelShippingIntakes.barrelId, barrels.id),
-    )
-    .leftJoin(
-      barrelOutboundShippingCharges,
-      eq(barrelOutboundShippingCharges.barrelId, barrels.id),
     )
     .where(
       clerkUserId ?
@@ -94,7 +70,6 @@ type AdminChargeSourceRow = {
   oci: typeof orderContainerItems.$inferSelect | null;
   profile: typeof profiles.$inferSelect | null;
   intake: typeof barrelShippingIntakes.$inferSelect | null;
-  charge: typeof barrelOutboundShippingCharges.$inferSelect | null;
 };
 
 function mapSingleAdminRow(
@@ -103,7 +78,9 @@ function mapSingleAdminRow(
   imageByOfferingId: Map<string, string>,
   trackingByBarrel: Map<string, import("@/lib/barrel-shipment-tracking").BarrelOutboundShipmentTrackingView>,
   destinationLinesByUser: Map<string, string[]>,
-  linesByCharge?: Map<string, { label: string; amountCents: number }[]>,
+  chargesByBarrel: Map<string, BarrelOutboundShippingChargeView[]>,
+  partnersByBarrel: Map<string, OutboundShippingPartnerRecord[]>,
+  partnerCatalog: OutboundShippingPartnerRecord[],
 ): AdminBarrelOutboundShippingChargeRow {
   const kind = parseContainerOfferingKind(r.oci?.kindSnapshot ?? "barrel");
   const alias =
@@ -121,8 +98,9 @@ function mapSingleAdminRow(
   const offeringId = oci?.containerOfferingId ?? null;
   const containerImageUrl =
     offeringId ? (imageByOfferingId.get(offeringId) ?? null) : null;
-  const chargeId = r.charge?.id ?? null;
-  const lines = chargeId && linesByCharge ? (linesByCharge.get(chargeId) ?? []) : [];
+  const charges = chargesByBarrel.get(r.barrel.id) ?? [];
+  const primary =
+    charges.find((c) => c.chargeKind === "freight") ?? charges[0] ?? null;
   const readyForShipping = isContainerReadyForShippingIntake({
     status: r.barrel.status,
     capacityPercentage: r.barrel.capacityPercentage,
@@ -143,16 +121,27 @@ function mapSingleAdminRow(
     capacityPercentage: r.barrel.capacityPercentage,
     readyForShipping,
     deliveryMethod: r.intake?.deliveryMethod ?? "customs_pickup",
+    selectedBrokerKey: r.intake?.selectedBrokerKey ?? null,
+    selectedCourierKey: r.intake?.selectedCourierKey ?? null,
     submittedAt: r.intake?.createdAt ?? r.barrel.createdAt,
-    chargeId,
-    adminNote: r.charge?.adminNote ?? null,
-    lines,
-    totalCents: sumChargeLineCents(lines),
-    paidAt: r.charge?.paidAt ?? null,
-    paymentReferenceNumber: r.charge?.paymentReferenceNumber ?? null,
+    charges,
+    partners: mergePartnersWithCatalog(
+      partnersByBarrel.get(r.barrel.id) ?? [],
+      partnerCatalog,
+    ),
+    chargeId: primary?.chargeId ?? null,
+    adminNote: primary?.adminNote ?? null,
+    lines: primary?.lines ?? [],
+    totalCents: sumOutboundChargesCents(charges),
+    paidAt: charges.every((c) => c.paidAt) && charges.length > 0
+      ? charges[charges.length - 1]!.paidAt
+      : null,
+    paymentReferenceNumber: primary?.paymentReferenceNumber ?? null,
     shipmentTracking: trackingByBarrel.get(r.barrel.id) ?? null,
     destinationLines: destinationLinesByUser.get(r.barrel.clerkUserId) ?? [],
-    updatedByClerkUserId: r.charge?.recordedByClerkUserId ?? null,
+    updatedByClerkUserId:
+      charges.find((c) => c.updatedByClerkUserId)?.updatedByClerkUserId ??
+      null,
   };
 }
 
@@ -161,7 +150,9 @@ function buildCustomerGroups(
   imageByOfferingId: Map<string, string>,
   trackingByBarrel: Map<string, import("@/lib/barrel-shipment-tracking").BarrelOutboundShipmentTrackingView>,
   destinationLinesByUser: Map<string, string[]>,
-  linesByCharge: Map<string, { label: string; amountCents: number }[]>,
+  chargesByBarrel: Map<string, BarrelOutboundShippingChargeView[]>,
+  partnersByBarrel: Map<string, OutboundShippingPartnerRecord[]>,
+  partnerCatalog: OutboundShippingPartnerRecord[],
 ): AdminShipmentCustomerGroup[] {
   const byUser = new Map<string, AdminChargeSourceRow[]>();
   for (const row of sourceRows) {
@@ -190,7 +181,9 @@ function buildCustomerGroups(
         imageByOfferingId,
         trackingByBarrel,
         destinationLinesByUser,
-        linesByCharge,
+        chargesByBarrel,
+        partnersByBarrel,
+        partnerCatalog,
       ),
     );
 
@@ -256,31 +249,54 @@ export async function listAdminShipmentChargePageData(
         .filter((id): id is string => Boolean(id)),
     ),
   ];
-  const chargeIds = sourceRows
-    .map((r) => r.charge?.id)
-    .filter((id): id is string => id != null);
 
   const barrelIds = sourceRows.map((r) => r.barrel.id);
   const ownerClerkUserIds = sourceRows.map((r) => r.barrel.clerkUserId);
-  const [imageByOfferingId, linesByCharge, trackingByBarrel, addressByUser] =
+  const chargesByOwner = new Map<string, string[]>();
+  for (const r of sourceRows) {
+    const list = chargesByOwner.get(r.barrel.clerkUserId) ?? [];
+    list.push(r.barrel.id);
+    chargesByOwner.set(r.barrel.clerkUserId, list);
+  }
+
+  const [imageByOfferingId, trackingByBarrel, addressByUser, chargeMaps] =
     await Promise.all([
       getPrimaryImageUrlByOfferingIds(offeringIds),
-      loadChargeLinesByChargeId(chargeIds),
       getShipmentTrackingByBarrelIds(barrelIds),
       getPrimaryShippingAddressesByClerkUserIds(ownerClerkUserIds),
+      Promise.all(
+        [...chargesByOwner.entries()].map(([uid, ids]) =>
+          getOutboundShippingChargesByBarrelIds(uid, ids),
+        ),
+      ),
     ]);
+
+  const chargesByBarrel = new Map<string, BarrelOutboundShippingChargeView[]>();
+  for (const map of chargeMaps) {
+    for (const [barrelId, charges] of map) {
+      chargesByBarrel.set(barrelId, charges);
+    }
+  }
 
   const destinationLinesByUser = new Map<string, string[]>();
   for (const [userId, address] of addressByUser) {
     destinationLinesByUser.set(userId, formatShippingDestinationLines(address));
   }
 
+  await backfillOutboundShippingPartnersFromCharges(barrelIds);
+  const [partnersByBarrel, partnerCatalog] = await Promise.all([
+    listOutboundShippingPartnersByBarrelIds(barrelIds),
+    listOutboundShippingPartnerCatalog(),
+  ]);
+
   const customerGroups = buildCustomerGroups(
     sourceRows,
     imageByOfferingId,
     trackingByBarrel,
     destinationLinesByUser,
-    linesByCharge,
+    chargesByBarrel,
+    partnersByBarrel,
+    partnerCatalog,
   );
 
   return { customerGroups };

@@ -1,18 +1,32 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
+import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { ensureHubStockSchemaEnums } from "@/data/ensure-hub-stock-schema";
 import { getDb } from "@/db";
 import {
+  barrelOutboundShippingChargeLines,
+  barrelOutboundShippingCharges,
+  barrels,
   batchQuoteSessionLines,
   batchQuoteSessions,
   hubStockOrderItems,
   itemRequests,
+  orderContainerItems,
   orderItemRefunds,
   orderItems,
   orders,
 } from "@/db/schema";
-import { combinedErrorText } from "@/lib/db-column-missing";
+import {
+  BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
+  isBarrelOutboundShippingChargeKind,
+  isOffPlatformPaymentMethod,
+  OFF_PLATFORM_PAYMENT_METHOD_LABELS,
+} from "@/lib/barrel-outbound-shipping-charge";
+import {
+  combinedErrorText,
+  isMissingBarrelOutboundShippingChargesTableError,
+} from "@/lib/db-column-missing";
 import type {
   BillingReceiptCategory,
   BillingReceiptScope,
@@ -81,6 +95,7 @@ function paymentRecord(row: {
     productName: uniqueNames[0] ?? null,
     stripePaymentIntentId,
     stripeRefundId: null,
+    documentUrl: null,
     searchHaystack: buildSearchHaystack([
       "order checkout receipt payment",
       row.hasHubStock ? "in-hub warehouse product receipt" : null,
@@ -130,6 +145,7 @@ function prorationRecord(row: {
     productName,
     stripePaymentIntentId: null,
     stripeRefundId: row.stripeRefundId,
+    documentUrl: null,
     searchHaystack: buildSearchHaystack([
       "proration refund receipt",
       row.orderId,
@@ -142,7 +158,143 @@ function prorationRecord(row: {
   };
 }
 
-/** Paid checkout invoices and proration refunds for the signed-in customer. */
+function shippingTransferRecord(row: {
+  chargeId: string;
+  chargeKind: string;
+  partnerName: string | null;
+  paymentMethod: string | null;
+  payerName: string | null;
+  receiptUrl: string;
+  submittedAt: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  amountCents: number;
+  containerName: string | null;
+}): CustomerBillingReceiptRecord {
+  const methodLabel = isOffPlatformPaymentMethod(row.paymentMethod)
+    ? OFF_PLATFORM_PAYMENT_METHOD_LABELS[row.paymentMethod]
+    : "Payment";
+  const kindLabel = isBarrelOutboundShippingChargeKind(row.chargeKind)
+    ? BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[row.chargeKind]
+    : "Shipping";
+  const containerName = row.containerName?.trim() || null;
+  const partnerName = row.partnerName?.trim() || null;
+  const status = row.paidAt ? "Approved" : "Submitted";
+  const subtitle = [kindLabel, partnerName, containerName, status]
+    .filter(Boolean)
+    .join(" · ");
+
+  return {
+    id: `shipping:${row.chargeId}`,
+    scope: "shipping",
+    category: "transfer",
+    label: `${methodLabel} receipt`,
+    subtitle: subtitle || null,
+    amountCents: row.amountCents,
+    createdAt: row.submittedAt ?? row.paidAt ?? row.createdAt,
+    orderId: null,
+    orderItemId: null,
+    batchNumber: null,
+    batchSessionId: null,
+    productName: containerName,
+    stripePaymentIntentId: null,
+    stripeRefundId: null,
+    documentUrl: row.receiptUrl,
+    searchHaystack: buildSearchHaystack([
+      "shipping transfer receipt zelle cash app local office",
+      methodLabel,
+      kindLabel,
+      partnerName,
+      containerName,
+      row.payerName,
+      row.chargeId,
+      status,
+    ]),
+  };
+}
+
+async function listOutboundOffPlatformReceipts(
+  clerkUserId: string,
+): Promise<CustomerBillingReceiptRecord[]> {
+  await ensureBarrelOutboundShippingChargesSchema();
+  const db = getDb();
+
+  try {
+    const chargeRows = await db
+      .select({
+        chargeId: barrelOutboundShippingCharges.id,
+        chargeKind: barrelOutboundShippingCharges.chargeKind,
+        partnerName: barrelOutboundShippingCharges.partnerName,
+        paymentMethod: barrelOutboundShippingCharges.offPlatformPaymentMethod,
+        payerName: barrelOutboundShippingCharges.offPlatformPayerName,
+        receiptUrl: barrelOutboundShippingCharges.offPlatformReceiptUrl,
+        submittedAt: barrelOutboundShippingCharges.offPlatformSubmittedAt,
+        paidAt: barrelOutboundShippingCharges.paidAt,
+        createdAt: barrelOutboundShippingCharges.createdAt,
+        containerName: orderContainerItems.nameSnapshot,
+      })
+      .from(barrelOutboundShippingCharges)
+      .innerJoin(barrels, eq(barrelOutboundShippingCharges.barrelId, barrels.id))
+      .leftJoin(
+        orderContainerItems,
+        eq(barrels.orderContainerItemId, orderContainerItems.id),
+      )
+      .where(
+        and(
+          eq(barrelOutboundShippingCharges.clerkUserId, clerkUserId),
+          eq(barrels.clerkUserId, clerkUserId),
+          isNotNull(barrelOutboundShippingCharges.offPlatformReceiptUrl),
+          sql`NULLIF(TRIM(${barrelOutboundShippingCharges.offPlatformReceiptUrl}), '') IS NOT NULL`,
+        ),
+      )
+      .orderBy(desc(barrelOutboundShippingCharges.offPlatformSubmittedAt));
+
+    if (chargeRows.length === 0) {
+      return [];
+    }
+
+    const chargeIds = chargeRows.map((row) => row.chargeId);
+    const lineRows = await db
+      .select({
+        chargeId: barrelOutboundShippingChargeLines.chargeId,
+        amountCents: barrelOutboundShippingChargeLines.amountCents,
+      })
+      .from(barrelOutboundShippingChargeLines)
+      .where(inArray(barrelOutboundShippingChargeLines.chargeId, chargeIds));
+
+    const amounts = new Map<string, number>();
+    for (const line of lineRows) {
+      const current = amounts.get(line.chargeId) ?? 0;
+      amounts.set(line.chargeId, current + Math.max(0, line.amountCents));
+    }
+
+    return chargeRows.flatMap((row) => {
+      const receiptUrl = row.receiptUrl?.trim();
+      if (!receiptUrl) return [];
+      return [
+        shippingTransferRecord({
+          ...row,
+          receiptUrl,
+          amountCents: amounts.get(row.chargeId) ?? 0,
+        }),
+      ];
+    });
+  } catch (error) {
+    if (isMissingBarrelOutboundShippingChargesTableError(error)) {
+      return [];
+    }
+    const text = combinedErrorText(error).toLowerCase();
+    if (
+      text.includes("off_platform_receipt_url") ||
+      text.includes("does not exist")
+    ) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+/** Paid checkout invoices, proration refunds, and shipping transfer receipts for the signed-in customer. */
 export async function listCustomerBillingReceipts(
   clerkUserId: string,
 ): Promise<CustomerBillingReceiptRecord[]> {
@@ -213,6 +365,8 @@ export async function listCustomerBillingReceipts(
     .where(eq(orders.clerkUserId, clerkUserId))
     .orderBy(desc(orderItemRefunds.createdAt));
 
+  const shippingReceipts = await listOutboundOffPlatformReceipts(clerkUserId);
+
   const records: CustomerBillingReceiptRecord[] = [
     ...paidOrders.map((row) => {
       const hubProductNames = hubNamesByOrderId.get(row.id) ?? [];
@@ -223,6 +377,7 @@ export async function listCustomerBillingReceipts(
       });
     }),
     ...refundRows.map(prorationRecord),
+    ...shippingReceipts,
   ];
 
   records.sort(

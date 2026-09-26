@@ -3,12 +3,16 @@
 import { CheckCircle2Icon } from "lucide-react";
 
 import { BarrelShipmentTrackingTimeline } from "@/components/shipping/barrel-shipment-tracking-timeline";
-import { CustomsClearanceForm } from "@/components/shipping/customs-clearance-form";
+import { CustomsClearanceDocumentsPanel } from "@/components/shipping/customs-clearance-documents-panel";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
+import { BarrelContentsPreviewDialog } from "@/components/shipping/barrel-contents-preview-dialog";
+import { PaidContainerClearanceChoices } from "@/components/shipping/paid-container-clearance-choices";
 import { Card, CardContent } from "@/components/ui/card";
+import { paidOutboundCharges } from "@/lib/barrel-outbound-shipping-charge";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS,
+  hasCustomsClearanceInfo,
   type BarrelOutboundShipmentTrackingView,
 } from "@/lib/barrel-shipment-tracking";
 import type { BarrelShippingIntakeSubmittedRow } from "@/lib/barrel-shipping-intake";
@@ -17,6 +21,7 @@ import { containerOfferingKindLabel } from "@/lib/validations/container-offering
 
 type BarrelOutboundShippingPaidCardProps = {
   row: BarrelShippingIntakeSubmittedRow;
+  destinationCountry?: string | null;
 };
 
 function currentStageLabel(
@@ -28,14 +33,21 @@ function currentStageLabel(
 
 export function BarrelOutboundShippingPaidCard({
   row,
+  destinationCountry,
 }: BarrelOutboundShippingPaidCardProps) {
-  const charge = row.outboundCharge;
+  const paid = paidOutboundCharges(row.outboundCharges);
+  const charge = paid[0] ?? null;
   if (!charge?.paidAt) {
     return null;
   }
+  const paidTotal = paid.reduce((s, c) => s + c.totalCents, 0);
 
   const tracking = charge.shipmentTracking;
   const customsFormUrl = tracking?.customsDeclarationFormUrl?.trim() || null;
+  const packPublished = hasCustomsClearanceInfo({
+    customsDeclarationFormUrl: customsFormUrl,
+    freightCompanyName: tracking?.freightCompanyName ?? null,
+  });
 
   return (
     <Card className="overflow-hidden border-emerald-500/30 bg-card shadow-sm">
@@ -52,17 +64,25 @@ export function BarrelOutboundShippingPaidCard({
               <h3 className="truncate text-sm font-semibold text-foreground">
                 {row.containerName}
               </h3>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2Icon className="size-3" aria-hidden />
-                Paid
-              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <BarrelContentsPreviewDialog
+                  barrelId={row.barrelId}
+                  containerLabel={row.containerName}
+                  containerAlias={row.alias}
+                  items={row.contents}
+                />
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2Icon className="size-3" aria-hidden />
+                  Paid
+                </span>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
               {row.alias} · {containerOfferingKindLabel(row.kind)} ·{" "}
               {containerFullnessLabel(row)}
             </p>
             <p className="text-xs font-medium tabular-nums text-muted-foreground">
-              Total paid {formatUsd(charge.totalCents)}
+              Total paid {formatUsd(paidTotal)}
               {charge.paidAt ?
                 <span className="ml-1 font-normal">
                   on{" "}
@@ -91,21 +111,17 @@ export function BarrelOutboundShippingPaidCard({
           />
         </div>
 
-        <div className="border-t border-border/60 pt-3">
-          <p className="mb-1.5 text-xs font-medium text-foreground">
-            Customs clearance form
-          </p>
-          {customsFormUrl ?
-            <CustomsClearanceForm
-              url={customsFormUrl}
-              containerName={row.containerName}
-            />
-          : <p className="text-xs text-muted-foreground">
-              Your customs clearance form will appear here once our team uploads
-              it.
-            </p>
-          }
-        </div>
+        <PaidContainerClearanceChoices
+          row={row}
+          destinationCountry={destinationCountry}
+        />
+
+        <CustomsClearanceDocumentsPanel
+          barrelId={row.barrelId}
+          published={packPublished}
+          customsFormUrl={customsFormUrl}
+          containerName={row.containerName}
+        />
       </CardContent>
     </Card>
   );

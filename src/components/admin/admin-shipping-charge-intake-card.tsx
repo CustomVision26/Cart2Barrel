@@ -1,57 +1,29 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { type ChangeEvent, useMemo, useState, useTransition } from "react";
-import { ChevronDownIcon, Pencil } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from "react";
+import { ChevronDownIcon } from "lucide-react";
 
-import { saveBarrelOutboundShippingChargeAction } from "@/actions/admin-barrel-outbound-shipping-charge";
+import { AdminOutboundChargeKindTabs } from "@/components/admin/admin-outbound-charge-kind-tabs";
+import { AdminOutboundPaymentReceiptDialog } from "@/components/admin/admin-outbound-off-platform-payment-review";
 import { AdminShipmentCustomsPanel } from "@/components/admin/admin-shipment-customs-panel";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
 import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { AdminBarrelOutboundShippingChargeRow } from "@/lib/barrel-outbound-shipping-charge";
 import {
-  ADMIN_OUTBOUND_SHIPPING_CHARGE_LABELS,
-  DEFAULT_ADMIN_OUTBOUND_SHIPPING_CUSTOMER_NOTE,
-} from "@/lib/outbound-shipping-expected-charges";
+  BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
+  isOffPlatformPaymentPendingReview,
+  paidOutboundCharges,
+} from "@/lib/barrel-outbound-shipping-charge";
 import { formatUsd } from "@/lib/admin-markup";
-import {
-  barrelShippingDeliveryMethodLabel,
-  containerFullnessLabel,
-} from "@/lib/barrel-shipping-intake";
-import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
-
-type ChargeLineForm = {
-  label: string;
-  amountUsd: string;
-};
-
-function centsToUsdInput(cents: number): string {
-  return cents > 0 ? (cents / 100).toFixed(2) : "";
-}
-
-function buildInitialLines(row: AdminBarrelOutboundShippingChargeRow): ChargeLineForm[] {
-  if (row.lines.length > 0) {
-    return row.lines.map((l) => ({
-      label: l.label,
-      amountUsd: centsToUsdInput(l.amountCents),
-    }));
-  }
-  return ADMIN_OUTBOUND_SHIPPING_CHARGE_LABELS.map((label) => ({
-    label,
-    amountUsd: "",
-  }));
-}
+import { containerFullnessLabel } from "@/lib/barrel-shipping-intake";
 
 type AdminShippingChargeIntakeCardProps = {
   row: AdminBarrelOutboundShippingChargeRow;
-  /** When false, form is visible but publish is disabled (preview or awaiting customer). */
+  /** When false, form is visible but publish is disabled (preview or still packing). */
   publishEnabled?: boolean;
   lockMessage?: string;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
@@ -63,30 +35,20 @@ export function AdminShippingChargeIntakeCard({
   lockMessage,
   staffProfilesByClerkUserId = {},
 }: AdminShippingChargeIntakeCardProps) {
-  const router = useRouter();
-  const [expanded, setExpanded] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const pendingReviewCount = row.charges.filter(
+    isOffPlatformPaymentPendingReview,
+  ).length;
+  const [expanded, setExpanded] = useState(pendingReviewCount > 0);
   const [customsOpen, setCustomsOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [lines, setLines] = useState<ChargeLineForm[]>(() => buildInitialLines(row));
-  const [adminNote, setAdminNote] = useState(
-    row.adminNote ?? DEFAULT_ADMIN_OUTBOUND_SHIPPING_CUSTOMER_NOTE,
-  );
-  const [error, setError] = useState<string | null>(null);
-
-  const previewTotalCents = useMemo(() => {
-    return lines.reduce((sum, line) => {
-      const t = line.amountUsd.trim().replace(/^\$/, "").replace(/,/g, "");
-      const n = Number.parseFloat(t);
-      if (!Number.isFinite(n) || n <= 0) return sum;
-      return sum + Math.round(n * 100);
-    }, 0);
-  }, [lines]);
-
-  const isPaid = row.paidAt != null;
-  const formDisabled = isPaid || pending || !publishEnabled;
-  const displayTotalCents =
-    editing && previewTotalCents > 0 ? previewTotalCents : row.totalCents;
+  const paidCharges = paidOutboundCharges(row.charges);
+  const allPaid = paidCharges.length > 0 && paidCharges.length === row.charges.length;
+  const publishedSummary = row.charges
+    .filter((c) => c.totalCents > 0)
+    .map(
+      (c) =>
+        `${BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[c.chargeKind]} ${formatUsd(c.totalCents)}`,
+    )
+    .join(" · ");
 
   const statusDetail =
     !row.readyForShipping ?
@@ -96,39 +58,6 @@ export function AdminShippingChargeIntakeCard({
     : `Confirmed ${new Date(row.submittedAt).toLocaleDateString(undefined, {
         dateStyle: "medium",
       })}`;
-
-  function updateLine(index: number, patch: Partial<ChargeLineForm>) {
-    setLines((prev) =>
-      prev.map((line, i) => (i === index ? { ...line, ...patch } : line)),
-    );
-  }
-
-  function addLine() {
-    setLines((prev) => [...prev, { label: "", amountUsd: "" }]);
-  }
-
-  function removeLine(index: number) {
-    setLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
-  }
-
-  function save() {
-    setError(null);
-    startTransition(async () => {
-      const res = await saveBarrelOutboundShippingChargeAction({
-        barrelId: row.barrelId,
-        adminNote,
-        lines: lines.filter((l) => l.label.trim() || l.amountUsd.trim()),
-      });
-      if (!res.ok) {
-        setError(res.message);
-        toast.error(res.message);
-        return;
-      }
-      toast.success(res.message);
-      setEditing(false);
-      router.refresh();
-    });
-  }
 
   return (
     <Card className="overflow-hidden border-border/80 bg-card shadow-sm">
@@ -144,20 +73,17 @@ export function AdminShippingChargeIntakeCard({
             <h3 className="truncate text-sm font-semibold text-foreground">
               {row.containerName}
             </h3>
-            {isPaid ?
+            {allPaid ?
               <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                Paid freight
-                {row.paymentReferenceNumber ?
-                  <span className="font-mono text-muted-foreground">
-                    {" "}
-                    · {row.paymentReferenceNumber}
-                  </span>
-                : null}
+                Paid outbound charges
               </p>
-            : displayTotalCents > 0 ?
+            : row.charges.some(isOffPlatformPaymentPendingReview) ?
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                Payment receipt waiting for verification
+              </p>
+            : publishedSummary ?
               <p className="text-xs tabular-nums text-muted-foreground">
-                {formatUsd(displayTotalCents)}
-                {row.chargeId ? " · Published" : null}
+                {publishedSummary}
               </p>
             : (
               <p className="text-xs text-muted-foreground">{statusDetail}</p>
@@ -181,10 +107,7 @@ export function AdminShippingChargeIntakeCard({
             onClick={() =>
               setExpanded((value) => {
                 const next = !value;
-                if (!next) {
-                  setEditing(false);
-                  setCustomsOpen(false);
-                }
+                if (!next) setCustomsOpen(false);
                 return next;
               })
             }
@@ -201,215 +124,40 @@ export function AdminShippingChargeIntakeCard({
         </article>
 
         {expanded ?
-          <div className="mt-3 flex flex-col gap-1 border-t border-border/60 pt-3 sm:flex-row sm:flex-wrap">
-            {isPaid ?
-              <Button
-                type="button"
-                variant={customsOpen ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setCustomsOpen((open) => !open);
-                  setEditing(false);
-                }}
-              >
-                {customsOpen ? "Close" : "Customs clearance"}
-              </Button>
-            : null}
-            <Button
-              type="button"
-              variant={editing ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => {
-                setEditing((open) => !open);
-                setCustomsOpen(false);
-              }}
-            >
-              <Pencil className="size-3.5" aria-hidden />
-              {editing ? "Close" : "Edit"}
-            </Button>
-          </div>
-        : null}
-
-        {expanded && customsOpen ?
-          <div className="mt-3 border-t border-border/60 pt-3">
-            <AdminShipmentCustomsPanel
-              row={row}
-              onClose={() => setCustomsOpen(false)}
-            />
-          </div>
-        : null}
-
-        {expanded && editing ?
           <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
-            <dl className="grid gap-2 text-xs sm:grid-cols-2">
-              <div>
-                <dt className="text-muted-foreground">Customer</dt>
-                <dd className="font-medium text-foreground">
-                  {row.customerName ?? "—"}
-                  {row.customerEmail ?
-                    <span className="mt-0.5 block font-normal text-muted-foreground">
-                      {row.customerEmail}
-                    </span>
-                  : null}
-                  {row.destinationLines.length > 0 ?
-                    <span className="mt-1 block font-normal text-muted-foreground">
-                      {row.destinationLines.join(", ")}
-                    </span>
-                  : null}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Container</dt>
-                <dd className="text-foreground">
-                  {row.alias} · {containerOfferingKindLabel(row.kind)}
-                  <span className="mt-0.5 block text-muted-foreground">
-                    {row.slotLabel}
-                  </span>
-                </dd>
-              </div>
-              {!row.intakeId.startsWith("awaiting-") ?
-                <div className="sm:col-span-2">
-                  <dt className="text-muted-foreground">Shipping preference</dt>
-                  <dd className="text-foreground">
-                    {barrelShippingDeliveryMethodLabel(row.deliveryMethod)}
-                  </dd>
-                </div>
-              : (
-                <div className="sm:col-span-2">
-                  <dt className="text-muted-foreground">Status</dt>
-                  <dd className="text-foreground">{statusDetail}</dd>
-                </div>
-              )}
-              <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">Updated by</dt>
-                <dd>
-                  <AdminUpdatedByCell
-                    clerkUserId={row.updatedByClerkUserId}
-                    profilesByClerkUserId={staffProfilesByClerkUserId}
-                  />
-                </dd>
-              </div>
-            </dl>
-
-            {lockMessage ?
-              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-foreground">
-                {lockMessage}
-              </p>
-            : null}
-            {isPaid ?
-              <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-foreground">
-                Paid{" "}
-                {new Date(row.paidAt!).toLocaleDateString(undefined, {
-                  dateStyle: "medium",
-                })}
-                . Charges are locked.
-              </p>
-            : null}
-
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-foreground">
-                Freight, customs &amp; pickup charges
-              </p>
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                Shown on the customer Pricing tab after you publish.
-              </p>
-              <ul className="space-y-2">
-                {lines.map((line, index) => (
-                  <li
-                    key={`${index}-${line.label}`}
-                    className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
+            {paidCharges.length > 0 ||
+            row.charges.some((charge) => charge.offPlatformSubmittedAt) ?
+              <div className="flex flex-wrap items-center gap-2">
+                {paidCharges.length > 0 ?
+                  <Button
+                    type="button"
+                    variant={customsOpen ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setCustomsOpen((open) => !open)}
                   >
-                    <div className="space-y-1">
-                      <Label
-                        className="sr-only"
-                        htmlFor={`label-${row.barrelId}-${index}`}
-                      >
-                        Cost label
-                      </Label>
-                      <Input
-                        id={`label-${row.barrelId}-${index}`}
-                        value={line.label}
-                        disabled={formDisabled}
-                        placeholder="e.g. Courier freight"
-                        onChange={(e) => updateLine(index, { label: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        className="sr-only"
-                        htmlFor={`amt-${row.barrelId}-${index}`}
-                      >
-                        Amount USD
-                      </Label>
-                      <Input
-                        id={`amt-${row.barrelId}-${index}`}
-                        inputMode="decimal"
-                        placeholder="0.00"
-                        value={line.amountUsd}
-                        disabled={formDisabled}
-                        onChange={(e) =>
-                          updateLine(index, { amountUsd: e.target.value })
-                        }
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="self-end text-muted-foreground"
-                      disabled={formDisabled || lines.length <= 1}
-                      onClick={() => removeLine(index)}
-                    >
-                      Remove
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-              {!isPaid ?
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={formDisabled}
-                  onClick={addLine}
-                >
-                  Add cost line
-                </Button>
-              : null}
-            </div>
+                    {customsOpen ? "Close" : "Customs clearance"}
+                  </Button>
+                : null}
+                <AdminOutboundPaymentReceiptDialog
+                  charges={row.charges}
+                  customerName={row.customerName}
+                  customerEmail={row.customerEmail}
+                />
+              </div>
+            : null}
 
-            <div className="space-y-1.5">
-              <Label htmlFor={`note-${row.barrelId}`}>Note to customer (optional)</Label>
-              <textarea
-                id={`note-${row.barrelId}`}
-                rows={2}
-                value={adminNote}
-                disabled={formDisabled}
-                placeholder="e.g. Based on courier quote #1234 — pay before we release to DHL."
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-                  setAdminNote(e.target.value)
-                }
-                className={cn(
-                  "flex min-h-[4rem] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
-                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                )}
+            {customsOpen ?
+              <AdminShipmentCustomsPanel
+                row={row}
+                onClose={() => setCustomsOpen(false)}
               />
-            </div>
-
-            {previewTotalCents > 0 ?
-              <p className="text-sm font-medium text-foreground">
-                Customer total: {formatUsd(previewTotalCents)}
-              </p>
-            : null}
-
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-            {!isPaid && publishEnabled ?
-              <Button type="button" size="sm" disabled={pending} onClick={save}>
-                {pending ? "Saving…" : row.chargeId ? "Update charge" : "Publish charge"}
-              </Button>
-            : null}
+            : (
+              <AdminOutboundChargeKindTabs
+                row={row}
+                publishEnabled={publishEnabled}
+                lockMessage={lockMessage}
+              />
+            )}
           </div>
         : null}
       </CardContent>

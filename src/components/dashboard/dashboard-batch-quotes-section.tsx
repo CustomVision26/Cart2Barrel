@@ -4,7 +4,7 @@ import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-sc
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, Loader2Icon } from "lucide-react";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { toast } from "sonner";
 
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/field";
 import { FieldLabelWithHelp } from "@/components/ui/field-label-with-help";
 import { Input } from "@/components/ui/input";
+import { FieldHoverHint } from "@/components/ui/field-hover-hint";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { OwnerBatchQuoteSessionBundle } from "@/data/batch-quote-sessions";
@@ -76,6 +77,7 @@ type DashboardBatchQuotesSectionProps = {
   bundles: OwnerBatchQuoteSessionBundle[];
   quotesByRequestId?: Record<string, ItemQuote[]>;
   quoteExpiryMinutes: number;
+  createdBatchSessionId?: string;
 };
 
 function ownerBundleActivityMs(b: OwnerBatchQuoteSessionBundle): number {
@@ -124,6 +126,7 @@ export function DashboardBatchQuotesSection({
   bundles,
   quotesByRequestId = {},
   quoteExpiryMinutes,
+  createdBatchSessionId,
 }: DashboardBatchQuotesSectionProps) {
   const router = useRouter();
   const refreshAfterExpiry = useCallback(() => {
@@ -151,6 +154,34 @@ export function DashboardBatchQuotesSection({
     useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
   const [page, setPage] = useState(1);
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
+  const [showExpandGuide, setShowExpandGuide] = useState(false);
+  const [showSubmitGuide, setShowSubmitGuide] = useState(false);
+  const createdGuideInitRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!createdBatchSessionId) return;
+    if (createdGuideInitRef.current === createdBatchSessionId) return;
+    const draft = bundles.some(
+      (b) =>
+        b.session.id === createdBatchSessionId && b.session.status === "draft",
+    );
+    if (!draft) return;
+    createdGuideInitRef.current = createdBatchSessionId;
+    setShowExpandGuide(true);
+    setShowSubmitGuide(true);
+    setPage(1);
+    setStatusFilter("all");
+  }, [bundles, createdBatchSessionId]);
+
+  useEffect(() => {
+    if (!createdBatchSessionId || (!showExpandGuide && !showSubmitGuide)) {
+      return;
+    }
+    const el = document.getElementById(
+      `batch-${createdBatchSessionId}-card`,
+    );
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [createdBatchSessionId, showExpandGuide, showSubmitGuide]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -216,6 +247,9 @@ export function DashboardBatchQuotesSection({
     expandedSessionId === sessionId;
 
   const toggleBody = (sessionId: string) => {
+    if (sessionId === createdBatchSessionId) {
+      setShowExpandGuide(false);
+    }
     setExpandedSessionId((prev) => (prev === sessionId ? null : sessionId));
   };
 
@@ -239,6 +273,9 @@ export function DashboardBatchQuotesSection({
   );
 
   const onSubmit = (sessionId: string) => {
+    if (sessionId === createdBatchSessionId) {
+      setShowSubmitGuide(false);
+    }
     setSubmittingId(sessionId);
     submitStart(async () => {
       const res = await submitCustomerBatchQuoteAction({ batchSessionId: sessionId });
@@ -554,35 +591,67 @@ export function DashboardBatchQuotesSection({
           ids.every((id) => selSet.has(id));
         const someSelected = selected.length > 0;
         const bodyOpen = isBodyExpanded(session.id);
+        const isCreatedGuide =
+          isDraft && session.id === createdBatchSessionId;
 
         return (
           <section
             key={session.id}
-            className={dashItemsTableFilterPanel}
+            id={`batch-${session.id}-card`}
+            className={cn(
+              dashItemsTableFilterPanel,
+              "overflow-visible",
+              isCreatedGuide &&
+                (showExpandGuide || showSubmitGuide) &&
+                "relative z-20 ring-2 ring-primary/35",
+            )}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-start gap-1 sm:gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
-                  aria-expanded={bodyOpen}
-                  aria-controls={`batch-${session.id}-body`}
-                  aria-label={
-                    bodyOpen ? "Collapse batch details" : "Expand batch details"
-                  }
-                  id={`batch-${session.id}-toggle`}
-                  onClick={() => toggleBody(session.id)}
-                >
-                  <ChevronDown
-                    className={cn(
-                      "size-4 transition-transform duration-200",
-                      bodyOpen ? "rotate-180" : "rotate-0",
-                    )}
-                    aria-hidden
-                  />
-                </Button>
+                <div className="relative mt-0.5 shrink-0">
+                  <FieldHoverHint
+                    show={isCreatedGuide && showExpandGuide}
+                    id={`batch-${session.id}-expand-hint`}
+                    placement="below"
+                    anchor="center"
+                    arrowAlign="center"
+                    prominent
+                    onDismiss={() => setShowExpandGuide(false)}
+                    dismissLabel="Dismiss view products hint"
+                    className="w-[min(20rem,calc(100vw-2rem))]"
+                  >
+                    Open this control to view the products included in this
+                    batch.
+                  </FieldHoverHint>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-expanded={bodyOpen}
+                    aria-controls={`batch-${session.id}-body`}
+                    aria-label={
+                      bodyOpen
+                        ? "Collapse batch details"
+                        : "Expand batch details"
+                    }
+                    aria-describedby={
+                      isCreatedGuide && showExpandGuide
+                        ? `batch-${session.id}-expand-hint`
+                        : undefined
+                    }
+                    id={`batch-${session.id}-toggle`}
+                    onClick={() => toggleBody(session.id)}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "size-4 transition-transform duration-200",
+                        bodyOpen ? "rotate-180" : "rotate-0",
+                      )}
+                      aria-hidden
+                    />
+                  </Button>
+                </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">
                     Batch number:{" "}
@@ -636,21 +705,42 @@ export function DashboardBatchQuotesSection({
                         "Remove from batch"
                       )}
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={removePending || submitPending}
-                      onClick={() => onSubmit(session.id)}
-                    >
-                      {submitPending && submittingId === session.id ? (
-                        <>
-                          <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
-                          Sending…
-                        </>
-                      ) : (
-                        "Submit batch request"
-                      )}
-                    </Button>
+                    <div className="relative">
+                      <FieldHoverHint
+                        show={isCreatedGuide && showSubmitGuide}
+                        id={`batch-${session.id}-submit-hint`}
+                        placement="above"
+                        anchor="center"
+                        arrowAlign="center"
+                        prominent
+                        onDismiss={() => setShowSubmitGuide(false)}
+                        dismissLabel="Dismiss submit batch hint"
+                        className="w-[min(22rem,calc(100vw-2rem))]"
+                      >
+                        When you are ready, submit this batch request so staff
+                        can prepare a combined estimate.
+                      </FieldHoverHint>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={removePending || submitPending}
+                        aria-describedby={
+                          isCreatedGuide && showSubmitGuide
+                            ? `batch-${session.id}-submit-hint`
+                            : undefined
+                        }
+                        onClick={() => onSubmit(session.id)}
+                      >
+                        {submitPending && submittingId === session.id ? (
+                          <>
+                            <Loader2Icon className="size-3.5 animate-spin" aria-hidden />
+                            Sending…
+                          </>
+                        ) : (
+                          "Submit batch request"
+                        )}
+                      </Button>
+                    </div>
                   </>
                 ) : null}
                 {session.status === "submitted" ? (

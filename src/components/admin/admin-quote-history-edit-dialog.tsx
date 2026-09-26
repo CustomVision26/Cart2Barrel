@@ -113,6 +113,7 @@ export function AdminQuoteHistoryEditDialog({
   const [result, setResult] = useState<AdminAiEstimateResult | null>(null);
   const [isAiPending, startAiTransition] = useTransition();
   const [isSavePending, startSaveTransition] = useTransition();
+  const saveInFlightRef = useRef(false);
 
   const [variantColor, setVariantColor] = useState("");
   const [variantSize, setVariantSize] = useState("");
@@ -358,52 +359,60 @@ export function AdminQuoteHistoryEditDialog({
       toast.error("Set quantity to at least 1.");
       return;
     }
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
 
     startSaveTransition(async () => {
-      const customerQty = parseQuantityInput(
-        editCustomerQuantity,
-        line.request.quantity
-      );
+      try {
+        const customerQty = parseQuantityInput(
+          editCustomerQuantity,
+          line.request.quantity
+        );
 
-      const fallbackUrl =
-        stagedProductImageFile ? null : uploadedProductImageUrl;
-      const imageRes = await persistStagedProductImage(
-        line.request.id,
-        stagedProductImageFile,
-        fallbackUrl
-      );
-      if (!imageRes.ok) {
-        toast.error(imageRes.message);
-        return;
+        const fallbackUrl =
+          stagedProductImageFile ? null : uploadedProductImageUrl;
+        const imageRes = await persistStagedProductImage(
+          line.request.id,
+          stagedProductImageFile,
+          fallbackUrl
+        );
+        if (!imageRes.ok) {
+          toast.error(imageRes.message);
+          return;
+        }
+
+        const res = await adminUpdateHistoricalQuoteAction({
+          quoteId: line.quote.id,
+          itemRequestId: line.request.id,
+          itemCost: derived.merch,
+          merchandiseSavingsCents:
+            derived.savingsCents > 0 ? derived.savingsCents : undefined,
+          serviceFee: derived.serv,
+          estimatedShipping: derived.ship,
+          tax: derived.tax,
+          quantity: customerQty,
+          productName: editProductName.trim() || undefined,
+          productColor: variantColor.trim() || undefined,
+          productSize: variantSize.trim() || undefined,
+          productImageUrl: imageRes.imageUrl,
+          staffNote: editStaffNote.trim() || undefined,
+          merchandiseIncludesSiteShippingTax,
+        });
+
+        if (res.ok) {
+          revokeBlobPreviewUrl(uploadedProductImageUrl);
+          setStagedProductImageFile(null);
+          toast.success(res.message ?? "Quote saved.", {
+            id: "admin-quote-saved",
+          });
+          router.refresh();
+          onOpenChange(false);
+          return;
+        }
+        toast.error(res.message ?? "Could not save quote.");
+      } finally {
+        saveInFlightRef.current = false;
       }
-
-      const res = await adminUpdateHistoricalQuoteAction({
-        quoteId: line.quote.id,
-        itemRequestId: line.request.id,
-        itemCost: derived.merch,
-        merchandiseSavingsCents:
-          derived.savingsCents > 0 ? derived.savingsCents : undefined,
-        serviceFee: derived.serv,
-        estimatedShipping: derived.ship,
-        tax: derived.tax,
-        quantity: customerQty,
-        productName: editProductName.trim() || undefined,
-        productColor: variantColor.trim() || undefined,
-        productSize: variantSize.trim() || undefined,
-        productImageUrl: imageRes.imageUrl,
-        staffNote: editStaffNote.trim() || undefined,
-        merchandiseIncludesSiteShippingTax,
-      });
-
-      if (res.ok) {
-        revokeBlobPreviewUrl(uploadedProductImageUrl);
-        setStagedProductImageFile(null);
-        toast.success(res.message ?? "Quote saved.");
-        router.refresh();
-        onOpenChange(false);
-        return;
-      }
-      toast.error(res.message ?? "Could not save quote.");
     });
   }, [
     line,

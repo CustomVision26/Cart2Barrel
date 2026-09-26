@@ -2,6 +2,10 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
 import { DashboardShippingTabNav } from "@/components/dashboard/dashboard-shipping-tab-nav";
+import {
+  unpaidPublishedCharges,
+  unpaidPublishedChargesForIntake,
+} from "@/lib/barrel-outbound-shipping-charge";
 import { getBarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
 
 export default async function DashboardShippingLayout({
@@ -16,13 +20,15 @@ export default async function DashboardShippingLayout({
 
   const data = await getBarrelShippingIntakePageData(userId);
   const showPricingTab = data.awaiting.length > 0 || data.submitted.length > 0;
-  const pricingNeedsAttention = data.submitted.some(
-    (row) =>
-      row.outboundCharge &&
-      !row.outboundCharge.paidAt &&
-      row.outboundCharge.totalCents > 0 &&
-      !row.outboundCharge.inCart,
-  );
+  const pricingNeedsAttention =
+    data.awaiting.some((row) =>
+      unpaidPublishedCharges(row.outboundCharges).some((c) => !c.inCart),
+    ) ||
+    data.submitted.some((row) =>
+      unpaidPublishedChargesForIntake(row.outboundCharges, row).some(
+        (c) => !c.inCart,
+      ),
+    );
 
   return (
     <div className="space-y-6">

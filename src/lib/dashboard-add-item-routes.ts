@@ -13,3 +13,9 @@ export const DASHBOARD_ADD_ITEM_ROUTES = {
   /** Legacy `/batch-history` redirects to active batch quotes. */
   batchHistory: "/dashboard/items/new/add-item/batch-quotes/active",
 } as const;
+
+/** Active batch quotes after a successful Add Batch (`?created=` session id). */
+export function dashboardBatchQuotesActiveCreatedHref(batchSessionId: string): string {
+  const params = new URLSearchParams({ created: batchSessionId });
+  return `${DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive}?${params.toString()}`;
+}

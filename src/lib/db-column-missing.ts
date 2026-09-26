@@ -133,6 +133,26 @@ export function isMissingBatchQuoteSessionIdColumnError(e: unknown): boolean {
   return isUndefinedColumnError(e, "batch_quote_session_id");
 }
 
+/** `order_container_items.packaging_fee_cents` until migration `0103`. */
+export function isMissingOrderContainerPackagingFeeColumnError(
+  e: unknown,
+): boolean {
+  return (
+    isUndefinedColumnError(e, "packaging_fee_cents") ||
+    isUndefinedColumnError(e, "packaging_per_unit_cents")
+  );
+}
+
+/** Container/packing refund tables until migration `0104`. */
+export function isMissingOrderContainerRefundsTableError(e: unknown): boolean {
+  const low = combinedErrorText(e).toLowerCase();
+  return (
+    low.includes("order_container_refund_requests") ||
+    low.includes("order_container_refunds") ||
+    (getPgErrorCode(e) === "42P01" && low.includes("order_container_refund"))
+  );
+}
+
 /** `item_requests.quote_expiry_minutes_override` — `npm run db:ensure-quote-expiry`. */
 export function isMissingQuoteExpiryMinutesOverrideColumnError(
   e: unknown,
@@ -376,7 +396,8 @@ export function isMissingBarrelOutboundShippingChargesTableError(e: unknown): bo
   const mentions =
     msg.includes("barrel_outbound_shipping_charges") ||
     msg.includes("barrel_outbound_shipping_charge_lines") ||
-    msg.includes("user_outbound_shipping_cart_lines");
+    msg.includes("user_outbound_shipping_cart_lines") ||
+    msg.includes("barrel_outbound_shipping_partners");
   if (!mentions) return false;
   const code = getPgErrorCode(e);
   if (code === "42P01") return true;

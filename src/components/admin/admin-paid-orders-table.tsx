@@ -448,10 +448,26 @@ function AdminOrderContainerLineRow({
       <td className="px-3 py-3 align-top tabular-nums text-muted-foreground">{row.quantity}</td>
       <td className="px-3 py-3 align-top font-medium tabular-nums text-foreground">
         {formatUsd(row.lineTotalCents)}
+        {row.packagingFeeCents > 0 ?
+          <p className="mt-1 text-xs font-normal text-muted-foreground">
+            Packing fee {formatUsd(row.packagingFeeCents)}
+          </p>
+        : null}
       </td>
       <td className="px-3 py-3 align-top tabular-nums text-muted-foreground">—</td>
       <td className="max-w-[11rem] px-3 py-3 align-top">
         <span className="text-xs text-muted-foreground">Checkout merchandise</span>
+        {row.packagingFeeCents > 0 ?
+          <p className="mt-1 text-xs text-muted-foreground">
+            Packing fee {formatUsd(row.packagingFeeCents)}
+            {row.packagingPerUnitCents > 0 ?
+              <>
+                {" "}
+                ({row.quantity} × {formatUsd(row.packagingPerUnitCents)})
+              </>
+            : null}
+          </p>
+        : null}
       </td>
       <td className="px-3 py-3 align-top text-muted-foreground">—</td>
       <td className="px-3 py-3 align-top text-muted-foreground">—</td>

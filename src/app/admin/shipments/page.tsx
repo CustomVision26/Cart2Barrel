@@ -49,13 +49,15 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
         tooltipClassName="w-80"
         help={
           <>
-            All active customer containers — ready and still packing. Enter costs per
-            container; published charges appear on{" "}
+            All active customer containers — ready and still packing. Open Manage
+            for Freight charge, Broker, and Local courier sub-tabs. Published
+            amounts appear on{" "}
             <span className="font-medium text-foreground">
-              Dashboard → Shipping → Pricing
+              Dashboard → Shipping
             </span>{" "}
-            after the customer confirms shipping preferences. Expand a customer section for
-            nested search and pagination on their containers.
+            for the customer. Freight is added to cart; broker and local courier
+            charges are paid with Zelle, Cash App, or at the local office. Expand a
+            customer section for nested search and pagination on their containers.
           </>
         }
       />

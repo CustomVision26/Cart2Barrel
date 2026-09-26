@@ -274,6 +274,11 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const containerReserve = await insertOrderContainerItems(
     order.id,
     containerCheckoutLines,
+    {
+      barrelCount: containerPacking.barrelCount,
+      binCount: containerPacking.binCount,
+      rates: containerPackingRates,
+    },
   );
   if (!containerReserve.ok) {
     await deletePendingOrderAndRestoreContainerCart(order.id, userId);

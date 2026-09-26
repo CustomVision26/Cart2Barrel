@@ -36,6 +36,7 @@ export function AdminOverviewSubnav({ active }: { active: AdminOverviewTab }) {
         <Link
           key={id}
           href={hrefWithFilter("/admin/overview", { tab: id, ...extra })}
+          prefetch={false}
           className={cn(
             "-mb-px rounded-t-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
             active === id

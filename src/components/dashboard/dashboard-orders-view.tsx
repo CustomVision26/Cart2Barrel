@@ -15,6 +15,8 @@ import {
   groupItemRequestLineSnapshotsByRequestId,
   listItemRequestLineSnapshotsForOwnerByRequestIds,
 } from "@/data/item-request-line-snapshots";
+import { listOrderContainerItemsByOrderIds } from "@/data/order-container-admin";
+import { listContainerLineRefundStateByLines } from "@/data/container-line-refund-state";
 import {
   listDashboardPaidOrderHistoryLinesPage,
   listDashboardPaidOrderLinesPage,
@@ -90,6 +92,19 @@ export async function DashboardOrdersView({
     groupItemRequestLineSnapshotsByRequestId(snapshotRows),
   );
 
+  const orderIdsOnPage = [...new Set(pagePack.rows.map((row) => row.order.id))];
+  const orderContainerLinesByOrderId =
+    orderIdsOnPage.length > 0
+      ? Object.fromEntries(
+          await listOrderContainerItemsByOrderIds(orderIdsOnPage, {
+            ownerClerkUserId: userId,
+          }),
+        )
+      : {};
+  const containerRefundStateByLineId = await listContainerLineRefundStateByLines(
+    Object.values(orderContainerLinesByOrderId).flat(),
+  );
+
   const hasActiveSearch = query.q.trim().length > 0;
   const noOrdersAtAll = pagePack.totalOrders === 0 && !hasActiveSearch;
   const noSearchHits = pagePack.totalOrders === 0 && hasActiveSearch;
@@ -137,6 +152,8 @@ export async function DashboardOrdersView({
             <DashboardOrderHistoryTimeline
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
+              orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+              containerRefundStateByLineId={containerRefundStateByLineId}
             />
           ) : null}
         </AdminNestedPanelFocusProvider>
@@ -169,6 +186,8 @@ export async function DashboardOrdersView({
             <DashboardOrdersCarouselView
               rows={pagePack.rows}
               snapshotsByRequestId={snapshotsByRequestId}
+              orderContainerLinesByOrderId={orderContainerLinesByOrderId}
+              containerRefundStateByLineId={containerRefundStateByLineId}
               highlightOrderId={highlightOrderId}
             />
           ) : null}

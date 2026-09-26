@@ -4,7 +4,13 @@ import { HelpBalloon } from "@/components/ui/help-balloon";
 import { useAddItemPayload } from "@/components/dashboard/add-item-payload-context";
 import { DashboardBatchQuotesSection } from "@/components/dashboard/dashboard-batch-quotes-section";
 
-export function DashboardAddItemBatchQuotesPanel() {
+type DashboardAddItemBatchQuotesPanelProps = {
+  createdBatchSessionId?: string;
+};
+
+export function DashboardAddItemBatchQuotesPanel({
+  createdBatchSessionId,
+}: DashboardAddItemBatchQuotesPanelProps) {
   const { batchBundles, quotesByRequestId, quoteExpiryMinutes } =
     useAddItemPayload();
 
@@ -24,6 +30,7 @@ export function DashboardAddItemBatchQuotesPanel() {
         bundles={batchBundles}
         quotesByRequestId={quotesByRequestId}
         quoteExpiryMinutes={quoteExpiryMinutes}
+        createdBatchSessionId={createdBatchSessionId}
       />
     </>
   );

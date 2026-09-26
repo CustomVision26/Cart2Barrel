@@ -497,7 +497,11 @@ export async function listProductToBarrelLinesForUser(
 ): Promise<ProductToBarrelLineRow[]> {
   await reconcilePendingReturnBarrelHolds();
   await backfillOutsidePurchasePaidServiceFeeFulfillment();
-  await ensureBarrelsProvisionedForUser(clerkUserId);
+  try {
+    await ensureBarrelsProvisionedForUser(clerkUserId);
+  } catch (e) {
+    console.error("[listProductToBarrelLinesForUser] barrel provision skipped", e);
+  }
   await ensurePackagesForAwaitingBarrelOwner(clerkUserId);
   await ensurePackagesForOutsidePurchasePaidOwner(clerkUserId);
   const inBarrelEnumReady = await ensureInBarrelAwaitingShippingEnumValue();

@@ -6,6 +6,24 @@ export const DEFAULT_QUOTE_EXPIRY_MINUTES = 7 * 24 * 60;
 export const MIN_QUOTE_EXPIRY_MINUTES = 1;
 /** Cap at 90 days. */
 export const MAX_QUOTE_EXPIRY_MINUTES = 90 * 24 * 60;
+/**
+ * Stored minutes meaning “this layer does not expire quotes.”
+ * Distinct from product `null` (inherit customer/hub) and from a missing
+ * customer row (inherit hub).
+ */
+export const NEVER_EXPIRE_MINUTES = -1;
+
+export function isNeverExpireMinutes(
+  raw: number | null | undefined,
+): boolean {
+  return raw === NEVER_EXPIRE_MINUTES;
+}
+
+/** Preserve never-expire; otherwise clamp to the 1 minute–90 day window. */
+export function normalizeExpiryMinutes(raw: number): number {
+  if (isNeverExpireMinutes(raw)) return NEVER_EXPIRE_MINUTES;
+  return clampExpiryMinutes(raw);
+}
 
 export type QuoteExpiryDurationUnit = "minutes" | "hours" | "days";
 
@@ -36,6 +54,9 @@ export function minutesFromDurationAmount(
 export function preferredDurationUnit(
   minutes: number,
 ): { amount: number; unit: QuoteExpiryDurationUnit } {
+  if (isNeverExpireMinutes(minutes)) {
+    return { amount: 7, unit: "days" };
+  }
   const m = clampExpiryMinutes(minutes);
   if (m % (24 * 60) === 0) {
     return { amount: m / (24 * 60), unit: "days" };
@@ -47,6 +68,7 @@ export function preferredDurationUnit(
 }
 
 export function formatQuoteExpiryWindowLabel(minutes: number): string {
+  if (isNeverExpireMinutes(minutes)) return "Does not expire";
   const { amount, unit } = preferredDurationUnit(minutes);
   if (unit === "days") return `${amount} day${amount === 1 ? "" : "s"}`;
   if (unit === "hours") return `${amount} hour${amount === 1 ? "" : "s"}`;
@@ -65,12 +87,12 @@ export function effectiveQuoteExpiryMinutes(
     Number.isFinite(productOverrideMinutes)
   ) {
     return {
-      expiryMinutes: clampExpiryMinutes(productOverrideMinutes),
+      expiryMinutes: normalizeExpiryMinutes(productOverrideMinutes),
       source: "product",
     };
   }
   return {
-    expiryMinutes: clampExpiryMinutes(accountExpiryMinutes),
+    expiryMinutes: normalizeExpiryMinutes(accountExpiryMinutes),
     source: "account",
   };
 }
@@ -128,6 +150,7 @@ export function quoteExpiresAtMs(
   quotedAtIso: string,
   expiryMinutes: number,
 ): number | null {
+  if (isNeverExpireMinutes(expiryMinutes)) return null;
   const start = new Date(quotedAtIso).getTime();
   if (!Number.isFinite(start)) return null;
   const minutes = clampExpiryMinutes(expiryMinutes);
@@ -140,6 +163,7 @@ export function isQuoteExpired(
   nowMs: number = Date.now(),
 ): boolean {
   if (!quotedAtIso) return false;
+  if (isNeverExpireMinutes(expiryMinutes)) return false;
   const expires = quoteExpiresAtMs(quotedAtIso, expiryMinutes);
   if (expires == null) return false;
   return nowMs >= expires;
@@ -153,6 +177,8 @@ export type QuoteExpiryCountdown = {
   expiryMinutes: number;
   quotedAt: string;
   expiresAt: string;
+  /** True when this layer publishes no accept/pay deadline. */
+  neverExpires?: boolean;
   /**
    * Whole days remaining when ≥ 1 day left; otherwise 0 (use `remainderLabel`
    * for hours/minutes).
@@ -264,6 +290,21 @@ export function getQuoteExpiryCountdown(
   nowMs: number = Date.now(),
 ): QuoteExpiryCountdown | null {
   if (!quotedAtIso) return null;
+  if (isNeverExpireMinutes(expiryMinutes)) {
+    return {
+      expiryMinutes: NEVER_EXPIRE_MINUTES,
+      quotedAt: quotedAtIso,
+      expiresAt: quotedAtIso,
+      neverExpires: true,
+      daysRemaining: 0,
+      hoursInDay: 0,
+      minutesInDay: 0,
+      secondsInDay: 0,
+      remainderLabel: "Does not expire",
+      expired: false,
+      label: "No expiry",
+    };
+  }
   const minutes = clampExpiryMinutes(expiryMinutes);
   const expiresMs = quoteExpiresAtMs(quotedAtIso, minutes);
   if (expiresMs == null) return null;

@@ -20,6 +20,9 @@ export function inferUnitsPerPackFromProductLabel(
     /\b(\d+)\s*cans?\b/i,
     /\b(\d+)\s*ct\b/i,
     /\b(\d+)\s*count\b/i,
+    /\b(\d+)\s+keurig\b/i,
+    /\b(\d+)\s*k-?cups?\b/i,
+    /\b(\d+)\s+pods?\b/i,
     /\((\d+)\s*(?:ct|count|pk|pack)?\)/i,
   ];
   for (const re of patterns) {

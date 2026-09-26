@@ -12,6 +12,10 @@ import {
 } from "@/components/ui/card";
 import type { BarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
+import {
+  paidOutboundCharges,
+  unpaidPublishedChargesForIntake,
+} from "@/lib/barrel-outbound-shipping-charge";
 import type { BarrelShippingIntakeSubmittedRow } from "@/lib/barrel-shipping-intake";
 
 type BarrelShippingPricingSectionProps = {
@@ -25,12 +29,13 @@ function partitionSubmitted(rows: BarrelShippingIntakeSubmittedRow[]) {
   const paid: BarrelShippingIntakeSubmittedRow[] = [];
 
   for (const row of rows) {
-    const charge = row.outboundCharge;
-    if (charge?.paidAt) {
+    const unpaid = unpaidPublishedChargesForIntake(row.outboundCharges, row);
+    const paidCharges = paidOutboundCharges(row.outboundCharges);
+    if (paidCharges.length > 0 && unpaid.length === 0) {
       paid.push(row);
       continue;
     }
-    if (charge && charge.totalCents > 0) {
+    if (unpaid.length > 0) {
       readyToPay.push(row);
       continue;
     }
@@ -46,8 +51,8 @@ export function BarrelShippingPricingSection({
 }: BarrelShippingPricingSectionProps) {
   const { awaiting, submitted } = data;
   const { readyToPay, awaitingQuote, paid } = partitionSubmitted(submitted);
-  const inCartCount = readyToPay.filter(
-    (row) => row.outboundCharge?.inCart,
+  const inCartCount = readyToPay.filter((row) =>
+    unpaidPublishedChargesForIntake(row.outboundCharges, row).some((c) => c.inCart),
   ).length;
   const hasReadyContainers = awaiting.length > 0 || submitted.length > 0;
 
@@ -131,7 +136,10 @@ export function BarrelShippingPricingSection({
           <ul className="flex max-w-2xl flex-col gap-4">
             {readyToPay.map((row) => (
               <li key={row.intakeId}>
-                <BarrelOutboundShippingChargeCard row={row} />
+                <BarrelOutboundShippingChargeCard
+                  row={row}
+                  destinationCountry={destinationCountry}
+                />
               </li>
             ))}
           </ul>
@@ -179,10 +187,13 @@ export function BarrelShippingPricingSection({
               shipment status and download your customs clearance form below.
             </p>
           </header>
-          <ul className="flex max-w-2xl flex-col gap-4">
+          <ul className="flex max-w-6xl flex-col gap-4">
             {paid.map((row) => (
               <li key={row.intakeId}>
-                <BarrelOutboundShippingPaidCard row={row} />
+                <BarrelOutboundShippingPaidCard
+                  row={row}
+                  destinationCountry={destinationCountry}
+                />
               </li>
             ))}
           </ul>

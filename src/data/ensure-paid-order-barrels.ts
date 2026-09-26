@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { barrels, orderContainerItems, orders } from "@/db/schema";
+import { isMissingOrderContainerPackagingFeeColumnError } from "@/lib/db-column-missing";
 
 /**
  * Provisions one `barrels` row per purchased container unit from paid checkout. Safe to call
@@ -25,10 +26,25 @@ export async function ensureBarrelsProvisionedForPaidOrder(
     return;
   }
 
-  const lines = await db
-    .select()
-    .from(orderContainerItems)
-    .where(eq(orderContainerItems.orderId, orderId));
+  let lines: { id: string; quantity: number }[] = [];
+  try {
+    lines = await db
+      .select({
+        id: orderContainerItems.id,
+        quantity: orderContainerItems.quantity,
+      })
+      .from(orderContainerItems)
+      .where(eq(orderContainerItems.orderId, orderId));
+  } catch (e) {
+    if (isMissingOrderContainerPackagingFeeColumnError(e)) {
+      console.warn(
+        "[ensureBarrelsProvisionedForPaidOrder] order_container_items packing columns missing; skip",
+        orderId,
+      );
+      return;
+    }
+    throw e;
+  }
 
   for (const line of lines) {
     for (let u = 1; u <= line.quantity; u++) {
@@ -66,6 +82,14 @@ export async function ensureBarrelsProvisionedForUser(
     .where(and(eq(orders.clerkUserId, clerkUserId), eq(orders.status, "paid")));
 
   for (const o of paidOrders) {
-    await ensureBarrelsProvisionedForPaidOrder(o.id);
+    try {
+      await ensureBarrelsProvisionedForPaidOrder(o.id);
+    } catch (e) {
+      console.error(
+        "[ensureBarrelsProvisionedForUser] skip order",
+        o.id,
+        e,
+      );
+    }
   }
 }

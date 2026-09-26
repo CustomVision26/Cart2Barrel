@@ -18,6 +18,8 @@ type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+export const maxDuration = 60;
+
 const WORKFLOW_STEPS = [
   {
     step: "01",

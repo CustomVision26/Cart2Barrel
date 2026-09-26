@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Package } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
@@ -11,18 +11,17 @@ import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label"
 import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
 import { resolveOrderLineUpdatedByClerkUserId } from "@/lib/admin-staff-profiles";
 import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
+import { AdminContainerChargeRefundControls } from "@/components/admin/admin-container-charge-refund-controls";
+import { OrderShippingContainerLines } from "@/components/orders/order-shipping-container-lines";
 
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { AdminPaidOrderLineRow } from "@/data/admin-order-lines";
 import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
+import type { ContainerLineRefundState } from "@/data/container-line-refund-state";
 import type { HubStockOrderPackingPackage } from "@/lib/hub-stock-box";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
-import {
-  containerOfferingKindLabel,
-  parseContainerOfferingKind,
-} from "@/lib/validations/container-offering";
 import {
   auditSnapshotChangeSummary,
   auditSnapshotStatusHeadline,
@@ -481,12 +480,14 @@ export function AdminOrderHistoryTimeline({
   rows,
   snapshotsByRequestId = {},
   orderContainerLinesByOrderId = {},
+  containerRefundStateByLineId = {},
   hubStockPackingByOrderId = {},
   staffProfilesByClerkUserId = {},
 }: {
   rows: AdminPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
   orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  containerRefundStateByLineId?: Record<string, ContainerLineRefundState>;
   hubStockPackingByOrderId?: Record<string, HubStockOrderPackingPackage[]>;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 }) {
@@ -702,42 +703,15 @@ export function AdminOrderHistoryTimeline({
                     </ToggleSection>
                   );
                 })}
-                {containerLines.length > 0 ?
-                  <ToggleSection
-                    ariaLabel="Toggle shipping containers for this order"
-                    title={
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Package className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                        <span className="font-medium text-foreground">Shipping containers</span>
-                      </div>
-                    }
-                    summary={`${containerLines.length} checkout line${
-                      containerLines.length === 1 ? "" : "s"
-                    }`}
-                    className="bg-card"
-                    bodyClassName="space-y-2"
-                  >
-                    {containerLines.map((c) => (
-                      <div
-                        key={c.id}
-                        className="rounded-lg border border-border/80 bg-muted px-3 py-2 text-sm"
-                      >
-                        <p className="font-medium text-foreground">{c.nameSnapshot}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {containerOfferingKindLabel(
-                            parseContainerOfferingKind(c.kindSnapshot),
-                          )}{" "}
-                          · {c.sizeSnapshot} · Qty {c.quantity} ·{" "}
-                          {formatUsd(c.unitPriceCents)} each · Line{" "}
-                          <span className="font-mono">{shortId(c.id)}</span>
-                        </p>
-                        <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
-                          {formatUsd(c.lineTotalCents)}
-                        </p>
-                      </div>
-                    ))}
-                  </ToggleSection>
-                : null}
+                <OrderShippingContainerLines
+                  lines={containerLines}
+                  renderLineFooter={(line) => (
+                    <AdminContainerChargeRefundControls
+                      line={line}
+                      state={containerRefundStateByLineId[line.id]}
+                    />
+                  )}
+                />
               </ToggleSection>
             );
           })}

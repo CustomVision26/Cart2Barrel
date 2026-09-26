@@ -313,6 +313,18 @@ async function linesFromDatabase(
         row.lineTotalCents,
       ),
     );
+    if (row.packagingFeeCents > 0) {
+      lines.push(
+        toInvoiceLine(
+          `Packing fee — ${row.nameSnapshot.trim()}`,
+          row.packagingPerUnitCents > 0
+            ? `${row.quantity} × packing`
+            : "Container packing",
+          row.quantity,
+          row.packagingFeeCents,
+        ),
+      );
+    }
   }
 
   lines.push(...warehousePackageShippingLines(hubShippingShares));

@@ -1,24 +1,31 @@
 "use server";
 
+import { del } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@clerk/nextjs/server";
 
 import {
+  clearCustomsDeclarationFormUrl,
   saveShipmentCustomsClearance,
   updateShipmentTrackingStage,
 } from "@/data/barrel-outbound-shipment-tracking";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import {
+  adminRemoveCustomsDeclarationFormSchema,
   adminSaveBarrelShipmentCustomsSchema,
   adminUpdateBarrelShipmentStageSchema,
+  type AdminRemoveCustomsDeclarationFormInput,
+  type AdminSaveBarrelShipmentCustomsInput,
+  type AdminUpdateBarrelShipmentStageInput,
 } from "@/lib/validations/barrel-shipment-tracking";
+import { getBlobReadWriteToken } from "@/lib/vercel-blob-env";
 
 export type AdminBarrelShipmentActionResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
 export async function adminUpdateBarrelShipmentStageAction(
-  input: import("@/lib/validations/barrel-shipment-tracking").AdminUpdateBarrelShipmentStageInput,
+  input: AdminUpdateBarrelShipmentStageInput,
 ): Promise<AdminBarrelShipmentActionResult> {
   const user = await currentUser();
   if (!isClerkAdmin(user)) {
@@ -43,7 +50,7 @@ export async function adminUpdateBarrelShipmentStageAction(
 }
 
 export async function adminSaveBarrelShipmentCustomsAction(
-  input: import("@/lib/validations/barrel-shipment-tracking").AdminSaveBarrelShipmentCustomsInput,
+  input: AdminSaveBarrelShipmentCustomsInput,
 ): Promise<AdminBarrelShipmentActionResult> {
   const user = await currentUser();
   if (!isClerkAdmin(user)) {
@@ -69,5 +76,41 @@ export async function adminSaveBarrelShipmentCustomsAction(
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
 
-  return { ok: true, message: "Customs clearance info saved." };
+  return {
+    ok: true,
+    message:
+      "Customs clearance info saved. The customer can now download the clearance pack.",
+  };
+}
+
+export async function adminRemoveCustomsDeclarationFormAction(
+  input: AdminRemoveCustomsDeclarationFormInput,
+): Promise<AdminBarrelShipmentActionResult> {
+  const user = await currentUser();
+  if (!isClerkAdmin(user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = adminRemoveCustomsDeclarationFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid container." };
+  }
+
+  const previousUrl = await clearCustomsDeclarationFormUrl(parsed.data.barrelId);
+  if (previousUrl) {
+    const token = getBlobReadWriteToken();
+    if (token) {
+      try {
+        await del(previousUrl, { token });
+      } catch {
+        // The database reference is already cleared.
+      }
+    }
+  }
+
+  revalidatePath("/admin/shipments");
+  revalidatePath("/dashboard/shipping");
+  revalidatePath("/dashboard/shipping/pricing");
+
+  return { ok: true, message: "Uploaded customs form removed." };
 }

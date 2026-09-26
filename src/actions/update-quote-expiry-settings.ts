@@ -7,6 +7,7 @@ import { getClerkSessionGate } from "@/lib/clerk-session";
 import {
   formatQuoteExpiryWindowLabel,
   minutesFromDurationAmount,
+  NEVER_EXPIRE_MINUTES,
 } from "@/lib/quote-expiry";
 import { updateQuoteExpirySettingsSchema } from "@/lib/validations/quote-expiry-settings";
 
@@ -35,10 +36,9 @@ export async function updateQuoteExpirySettingsAction(
     };
   }
 
-  const expiryMinutes = minutesFromDurationAmount(
-    parsed.data.amount,
-    parsed.data.unit,
-  );
+  const expiryMinutes = parsed.data.neverExpires
+    ? NEVER_EXPIRE_MINUTES
+    : minutesFromDurationAmount(parsed.data.amount!, parsed.data.unit!);
 
   const saved = await upsertQuoteExpirySettings({
     expiryMinutes,
@@ -51,7 +51,9 @@ export async function updateQuoteExpirySettingsAction(
   const windowLabel = formatQuoteExpiryWindowLabel(saved.expiryMinutes);
   return {
     ok: true,
-    message: `Quote expiry published: ${windowLabel} after staff quotes a product (keeps estimates current when retailer prices change).`,
+    message: parsed.data.neverExpires
+      ? "Hub default published: quoted prices do not expire unless a customer or product override sets a window."
+      : `Quote expiry published: ${windowLabel} after staff quotes a product (keeps estimates current when retailer prices change).`,
     expiryMinutes: saved.expiryMinutes,
   };
 }

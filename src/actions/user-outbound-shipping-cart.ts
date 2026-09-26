@@ -40,6 +40,14 @@ export async function addOutboundShippingChargeToCartAction(
     return { ok: false, message: "This shipping charge was already paid." };
   }
 
+  if (row.charge.chargeKind !== "freight") {
+    return {
+      ok: false,
+      message:
+        "Broker and local courier charges are paid with Zelle, Cash App, or at the local office — not through the cart.",
+    };
+  }
+
   await ensureBarrelOutboundShippingChargesSchema();
   const db = getDb();
 

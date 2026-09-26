@@ -22,3 +22,11 @@ export const adminSaveBarrelShipmentCustomsSchema = z.object({
 export type AdminSaveBarrelShipmentCustomsInput = z.infer<
   typeof adminSaveBarrelShipmentCustomsSchema
 >;
+
+export const adminRemoveCustomsDeclarationFormSchema = z.object({
+  barrelId: z.string().uuid(),
+});
+
+export type AdminRemoveCustomsDeclarationFormInput = z.infer<
+  typeof adminRemoveCustomsDeclarationFormSchema
+>;

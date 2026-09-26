@@ -6,6 +6,8 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
+import { OrderShippingContainerLines } from "@/components/orders/order-shipping-container-lines";
+import { DashboardContainerChargeRefundDialog } from "@/components/dashboard/dashboard-container-charge-refund-dialog";
 
 import {
   DashboardOrderHistoryEventPreviewDialog,
@@ -14,6 +16,8 @@ import {
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { DashboardPaidOrderLineRow } from "@/data/dashboard-order-lines";
+import type { ContainerLineRefundState } from "@/data/container-line-refund-state";
+import type { OrderContainerLineAdmin } from "@/data/order-container-admin";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -471,9 +475,13 @@ function ProductHistoryCard({
 export function DashboardOrderHistoryTimeline({
   rows,
   snapshotsByRequestId = {},
+  orderContainerLinesByOrderId = {},
+  containerRefundStateByLineId = {},
 }: {
   rows: DashboardPaidOrderLineRow[];
   snapshotsByRequestId?: Record<string, ItemRequestLineSnapshot[]>;
+  orderContainerLinesByOrderId?: Record<string, OrderContainerLineAdmin[]>;
+  containerRefundStateByLineId?: Record<string, ContainerLineRefundState>;
 }) {
   if (rows.length === 0) {
     return (
@@ -602,6 +610,7 @@ export function DashboardOrderHistoryTimeline({
             : customerGroup.orderGroups
           ).map(({ order, lines }) => {
             const buckets = partitionPaidLinesIntoBatchBuckets(lines);
+            const containerLines = orderContainerLinesByOrderId[order.id] ?? [];
             return (
               <ToggleSection
                 key={order.id}
@@ -677,6 +686,16 @@ export function DashboardOrderHistoryTimeline({
                     </ToggleSection>
                   );
                 })}
+                <OrderShippingContainerLines
+                  lines={containerLines}
+                  renderLineActions={(line) => (
+                    <DashboardContainerChargeRefundDialog
+                      line={line}
+                      orderId={order.id}
+                      state={containerRefundStateByLineId[line.id]}
+                    />
+                  )}
+                />
               </ToggleSection>
             );
           })}

@@ -25,7 +25,7 @@ export default async function DashboardShippingPricingPage() {
     redirect(DASHBOARD_SHIPPING_ROUTES.tracking);
   }
 
-  const destinationCountry = shippingAddress?.country?.trim() ?? "Jamaica";
+  const destinationCountry = shippingAddress?.country?.trim() || null;
 
   return (
     <div className="space-y-8">
@@ -43,7 +43,7 @@ export default async function DashboardShippingPricingPage() {
       <BarrelShippingPricingSection
         data={data}
         destinationCountry={
-          isShippingAddressComplete(shippingAddress) ? destinationCountry : "Jamaica"
+          isShippingAddressComplete(shippingAddress) ? destinationCountry : null
         }
       />
     </div>

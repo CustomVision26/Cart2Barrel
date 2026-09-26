@@ -11,7 +11,7 @@ import { isSerpApiRateLimitError, serpApiGet } from "@/lib/serpapi/http";
 
 /** Cap SerpApi calls during admin spotlight import (full matrix still available in item request flow). */
 const MAX_ASIN_FETCHES = 24;
-const ASIN_CONCURRENCY = 1;
+const ASIN_CONCURRENCY = 3;
 
 type AmazonVariantItem = {
   asin?: string;
@@ -269,8 +269,17 @@ export async function fetchAmazonVariants(
         link: pr.link?.trim() || amazonProductUrl(row.asin, domain),
       };
     }
-    const detail = await fetchAmazonAsinPrice(row.asin, domain);
-    return { asin: row.asin, ...detail };
+    try {
+      const detail = await fetchAmazonAsinPrice(row.asin, domain);
+      return { asin: row.asin, ...detail };
+    } catch {
+      return {
+        asin: row.asin,
+        priceUsd: null,
+        imageUrl: null,
+        link: amazonProductUrl(row.asin, domain),
+      };
+    }
   });
 
   for (const p of priced) {

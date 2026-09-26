@@ -27,20 +27,48 @@ function refineDurationMinutes(
   }
 }
 
+function refineDurationOrNever(
+  val: {
+    neverExpires?: boolean;
+    amount?: number;
+    unit?: "minutes" | "hours" | "days";
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (val.neverExpires) return;
+  if (
+    val.amount == null ||
+    !Number.isFinite(val.amount) ||
+    val.amount < 1 ||
+    !val.unit
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Enter a duration from 1 minute to 90 days, or turn on Do not expire quotes.",
+      path: ["amount"],
+    });
+    return;
+  }
+  refineDurationMinutes({ amount: val.amount, unit: val.unit }, ctx);
+}
+
+const quoteExpiryDurationFields = {
+  neverExpires: z.boolean().optional().default(false),
+  amount: z.coerce.number().int().optional(),
+  unit: quoteExpiryDurationUnitSchema.optional(),
+};
+
 export const updateQuoteExpirySettingsSchema = z
-  .object({
-    amount: z.coerce.number().int().positive(),
-    unit: quoteExpiryDurationUnitSchema,
-  })
-  .superRefine(refineDurationMinutes);
+  .object(quoteExpiryDurationFields)
+  .superRefine(refineDurationOrNever);
 
 export const upsertCustomerQuoteExpirySettingsSchema = z
   .object({
     clerkUserId: z.string().min(1),
-    amount: z.coerce.number().int().positive(),
-    unit: quoteExpiryDurationUnitSchema,
+    ...quoteExpiryDurationFields,
   })
-  .superRefine(refineDurationMinutes);
+  .superRefine(refineDurationOrNever);
 
 export const deleteCustomerQuoteExpirySettingsSchema = z.object({
   clerkUserId: z.string().min(1),
@@ -49,12 +77,11 @@ export const deleteCustomerQuoteExpirySettingsSchema = z.object({
 export const upsertProductQuoteExpirySettingsSchema = z
   .object({
     itemRequestId: z.string().uuid(),
-    amount: z.coerce.number().int().positive(),
-    unit: quoteExpiryDurationUnitSchema,
+    ...quoteExpiryDurationFields,
     /** When true, detach from batch queues and restore the line to Active. */
     restoreToActive: z.boolean().optional().default(false),
   })
-  .superRefine(refineDurationMinutes);
+  .superRefine(refineDurationOrNever);
 
 export const clearProductQuoteExpirySettingsSchema = z.object({
   itemRequestId: z.string().uuid(),

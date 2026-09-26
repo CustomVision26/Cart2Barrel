@@ -136,6 +136,33 @@ export async function setCustomsDeclarationFormUrl(
     .where(eq(barrelOutboundShipmentTracking.barrelId, barrelId));
 }
 
+export async function clearCustomsDeclarationFormUrl(
+  barrelId: string,
+): Promise<string | null> {
+  await ensureBarrelOutboundShipmentTrackingSchema();
+  const db = getDb();
+  const [row] = await db
+    .select({
+      customsDeclarationFormUrl:
+        barrelOutboundShipmentTracking.customsDeclarationFormUrl,
+    })
+    .from(barrelOutboundShipmentTracking)
+    .where(eq(barrelOutboundShipmentTracking.barrelId, barrelId))
+    .limit(1);
+  const previous = row?.customsDeclarationFormUrl?.trim() || null;
+  if (!row) return null;
+
+  await db
+    .update(barrelOutboundShipmentTracking)
+    .set({
+      customsDeclarationFormUrl: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(barrelOutboundShipmentTracking.barrelId, barrelId));
+
+  return previous;
+}
+
 export async function saveShipmentCustomsClearance(input: {
   barrelId: string;
   customsDeclarationFormUrl?: string | null;

@@ -16,6 +16,7 @@ import {
 type CustomsClearanceFormProps = {
   url: string;
   containerName?: string;
+  compact?: boolean;
 };
 
 function inferFilename(url: string): string {
@@ -34,6 +35,7 @@ function inferFilename(url: string): string {
 export function CustomsClearanceForm({
   url,
   containerName,
+  compact = false,
 }: CustomsClearanceFormProps) {
   const [open, setOpen] = useState(false);
   const [downloading, startDownload] = useTransition();
@@ -64,25 +66,30 @@ export function CustomsClearanceForm({
     });
   }
 
+  const size = compact ? "xs" : "sm";
+
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <Button
         type="button"
         variant="outline"
-        size="sm"
+        size={size}
+        aria-label="View customs declaration form"
         onClick={() => setOpen(true)}
       >
-        <FileTextIcon className="size-3.5" aria-hidden />
-        View customs form
+        {compact ? null : <FileTextIcon className="size-3.5" aria-hidden />}
+        {compact ? "View" : "View customs form"}
       </Button>
       <Button
         type="button"
-        size="sm"
+        variant={compact ? "outline" : "default"}
+        size={size}
         disabled={downloading}
+        aria-label="Download customs declaration form"
         onClick={download}
       >
-        <DownloadIcon className="size-3.5" aria-hidden />
-        {downloading ? "Downloading…" : "Download form"}
+        {compact ? null : <DownloadIcon className="size-3.5" aria-hidden />}
+        {downloading ? "Downloading…" : compact ? "Download" : "Download form"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

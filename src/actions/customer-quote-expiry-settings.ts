@@ -11,6 +11,7 @@ import { getClerkSessionGate } from "@/lib/clerk-session";
 import {
   formatQuoteExpiryWindowLabel,
   minutesFromDurationAmount,
+  NEVER_EXPIRE_MINUTES,
 } from "@/lib/quote-expiry";
 import {
   deleteCustomerQuoteExpirySettingsSchema,
@@ -55,10 +56,9 @@ export async function upsertCustomerQuoteExpirySettingsAction(
     return { ok: false, message: "Customer profile not found." };
   }
 
-  const expiryMinutes = minutesFromDurationAmount(
-    parsed.data.amount,
-    parsed.data.unit,
-  );
+  const expiryMinutes = parsed.data.neverExpires
+    ? NEVER_EXPIRE_MINUTES
+    : minutesFromDurationAmount(parsed.data.amount!, parsed.data.unit!);
 
   try {
     const saved = await upsertCustomerQuoteExpirySettings({
@@ -70,7 +70,9 @@ export async function upsertCustomerQuoteExpirySettingsAction(
     const windowLabel = formatQuoteExpiryWindowLabel(saved.expiryMinutes);
     return {
       ok: true,
-      message: `Customer override published: ${windowLabel} for this shopper’s quoted products.`,
+      message: parsed.data.neverExpires
+        ? "Customer override published: this shopper’s quoted products do not expire unless a product override sets a window."
+        : `Customer override published: ${windowLabel} for this shopper’s quoted products.`,
       expiryMinutes: saved.expiryMinutes,
     };
   } catch (e) {
