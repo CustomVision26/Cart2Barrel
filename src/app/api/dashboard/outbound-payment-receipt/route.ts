@@ -25,10 +25,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid receipt." }, { status: 400 });
   }
 
+  const clerkUserId = user.id;
   const asAdmin = isClerkAdmin(user);
   const payload = await getOutboundOffPlatformReceiptPdfPayload({
     chargeId: parsed.data.chargeId,
-    clerkUserId: asAdmin ? undefined : user.id,
+    clerkUserId: asAdmin ? undefined : clerkUserId,
   });
   if (!payload) {
     return NextResponse.json({ error: "Receipt not found." }, { status: 404 });
