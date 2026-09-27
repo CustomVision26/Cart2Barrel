@@ -222,7 +222,7 @@ async function loadChargeViewsForBarrelIds(
     cityOrTown: destinationAddress?.cityOrTown,
   });
   let partnerRows: {
-    barrelId: string;
+    barrelId: string | null;
     chargeKind: string;
     name: string;
     imageUrl: string | null;
@@ -252,6 +252,7 @@ async function loadChargeViewsForBarrelIds(
   const partnerImageByBarrelKind = new Map<string, string>();
   const partnerImageByCompanyKind = new Map<string, string>();
   for (const row of partnerRows) {
+    if (!row.barrelId) continue;
     const url = row.imageUrl?.trim();
     if (!url) continue;
     const kind = isBarrelOutboundShippingChargeKind(row.chargeKind)
