@@ -610,7 +610,7 @@ export async function renderCustomsClearancePackPdf(
             Boolean(freightName) &&
             freightName?.toLowerCase() !== payload.freight.name.trim().toLowerCase();
           await drawPartner(doc, payload.freight, [
-            ["Freight company", showFreightName ? freightName : null],
+            ["Freight company", showFreightName ? (freightName ?? null) : null],
             ["Drop-off to freight", formatDate(payload.tracking.freightDropOffAt)],
             ["Estimated arrival", formatDate(payload.tracking.estimatedArrivalAt)],
             ["Payment reference", payload.tracking.paymentReference],
