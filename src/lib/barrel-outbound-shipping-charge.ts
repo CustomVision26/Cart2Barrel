@@ -734,7 +734,7 @@ export function sumOutboundChargesCents(
 
 export type OutboundShippingPartnerRecord = {
   id: string;
-  barrelId: string;
+  barrelId: string | null;
   chargeKind: BarrelOutboundShippingChargeKind;
   name: string;
   location: string | null;
@@ -824,10 +824,26 @@ export function chargeViewForKind(
   return charges.find((c) => c.chargeKind === kind) ?? null;
 }
 
+/** Sentinel barrel id on the empty-state shipments form — not a real container. */
+export const ADMIN_SHIPPING_CATALOG_PREVIEW_BARREL_ID =
+  "00000000-0000-4000-8000-000000000001";
+
+export function isAdminShippingCatalogPreviewBarrelId(
+  barrelId: string | null | undefined,
+): boolean {
+  return !barrelId || barrelId === ADMIN_SHIPPING_CATALOG_PREVIEW_BARREL_ID;
+}
+
+export function isAdminShippingCatalogPreview(
+  row: Pick<AdminBarrelOutboundShippingChargeRow, "intakeId">,
+): boolean {
+  return row.intakeId === "preview";
+}
+
 /** Shown on `/admin/shipments` when no live containers qualify yet. */
 export const ADMIN_SHIPPING_CHARGE_PREVIEW_ROW: AdminBarrelOutboundShippingChargeRow =
   {
-    barrelId: "00000000-0000-4000-8000-000000000001",
+    barrelId: ADMIN_SHIPPING_CATALOG_PREVIEW_BARREL_ID,
     intakeId: "preview",
     clerkUserId: "preview_user",
     customerEmail: "customer@example.com",
@@ -874,4 +890,6 @@ export type AdminShipmentCustomerGroup = {
 
 export type AdminShipmentChargePageData = {
   customerGroups: AdminShipmentCustomerGroup[];
+  catalogPartners: OutboundShippingPartnerRecord[];
+  companyRates: OutboundShippingCompanyRateRow[];
 };

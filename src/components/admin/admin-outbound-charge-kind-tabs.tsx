@@ -40,6 +40,7 @@ import {
   FREIGHT_TRANSPORTATION_FEE_LABEL,
   chargeViewForKind,
   chargeKindUsesCompanyRates,
+  isAdminShippingCatalogPreview,
   isOffPlatformOutboundChargeKind,
   isOffPlatformPaymentPendingReview,
   outboundChargeBundleHost,
@@ -70,7 +71,10 @@ function PartnerRecordsEditor({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const records = row.partners.filter((p) => p.chargeKind === chargeKind);
-  const localCount = records.filter((p) => p.barrelId === row.barrelId).length;
+  const catalogPreview = isAdminShippingCatalogPreview(row);
+  const localCount = records.filter((p) =>
+    catalogPreview ? !p.barrelId : p.barrelId === row.barrelId,
+  ).length;
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [address, setAddress] = useState("");
@@ -181,7 +185,7 @@ function PartnerRecordsEditor({
               ...payload,
             })
           : await addBarrelOutboundShippingPartnerAction({
-              barrelId: row.barrelId,
+              ...(catalogPreview ? {} : { barrelId: row.barrelId }),
               chargeKind,
               ...payload,
             });
@@ -200,7 +204,9 @@ function PartnerRecordsEditor({
     if (!file || busy) return;
     startTransition(async () => {
       const fd = new FormData();
-      fd.set("barrelId", row.barrelId);
+      if (!catalogPreview) {
+        fd.set("barrelId", row.barrelId);
+      }
       fd.append("file", file);
       const res = await adminUploadOutboundShippingCompanyImageAction(fd);
       if (!res.ok) {
@@ -215,7 +221,7 @@ function PartnerRecordsEditor({
   function setPrimary(record: (typeof records)[number]) {
     startTransition(async () => {
       const res =
-        record.barrelId === row.barrelId
+        catalogPreview || record.barrelId === row.barrelId
           ? await setBarrelOutboundShippingPartnerPrimaryAction({ id: record.id })
           : await applyCatalogOutboundShippingPartnerAction({
               sourcePartnerId: record.id,

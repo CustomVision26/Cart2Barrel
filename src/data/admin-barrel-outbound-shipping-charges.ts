@@ -304,7 +304,11 @@ export async function listAdminShipmentChargePageData(
     return await loadAdminShipmentChargePageData(clerkUserId);
   } catch (e) {
     console.error("[listAdminShipmentChargePageData]", e);
-    return { customerGroups: [] };
+    const [catalogPartners, companyRates] = await Promise.all([
+      listOutboundShippingPartnerCatalog().catch(() => []),
+      listOutboundShippingCompanyRates().catch(() => []),
+    ]);
+    return { customerGroups: [], catalogPartners, companyRates };
   }
 }
 
@@ -411,7 +415,10 @@ async function loadAdminShipmentChargePageData(
       console.error("[loadAdminShipmentChargePageData] partner catalog", e);
       return [];
     }),
-    listOutboundShippingCompanyRates(),
+    listOutboundShippingCompanyRates().catch((e) => {
+      console.error("[loadAdminShipmentChargePageData] company rates", e);
+      return [];
+    }),
   ]);
   const linksByUser = new Map<string, AdminCompanyRateLinkGroup[]>();
   await Promise.all(
@@ -437,7 +444,7 @@ async function loadAdminShipmentChargePageData(
     linksByUser,
   );
 
-  return { customerGroups };
+  return { customerGroups, catalogPartners: partnerCatalog, companyRates };
 }
 
 export async function listAdminBarrelOutboundShippingChargeRows(): Promise<

@@ -10,6 +10,7 @@ import {
   retailerReceiptExtensionForMime,
   RETAILER_RECEIPT_IMAGE_MAX_BYTES,
 } from "@/lib/retailer-receipt-images";
+import { isAdminShippingCatalogPreviewBarrelId } from "@/lib/barrel-outbound-shipping-charge";
 import {
   blobReadWriteNotConfiguredMessage,
   getBlobReadWriteToken,
@@ -38,9 +39,10 @@ export async function adminUploadOutboundShippingCompanyImageAction(
   const parsedId = barrelIdSchema.safeParse(
     typeof barrelIdRaw === "string" ? barrelIdRaw.trim() : "",
   );
-  if (!parsedId.success) {
-    return { ok: false, message: "Missing container." };
-  }
+  const folder =
+    parsedId.success && !isAdminShippingCatalogPreviewBarrelId(parsedId.data)
+      ? parsedId.data
+      : "catalog";
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -61,7 +63,7 @@ export async function adminUploadOutboundShippingCompanyImageAction(
 
   try {
     const ext = retailerReceiptExtensionForMime(file.type);
-    const pathname = `outbound-shipping-company/${parsedId.data}/${crypto.randomUUID()}.${ext}`;
+    const pathname = `outbound-shipping-company/${folder}/${crypto.randomUUID()}.${ext}`;
     const blob = await put(pathname, file, {
       access: "public",
       token,

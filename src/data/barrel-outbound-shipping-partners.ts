@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -113,6 +113,21 @@ function partnerCatalogKey(partner: Pick<OutboundShippingPartnerRecord, "chargeK
   return `${partner.chargeKind}:${partner.name.trim().toLowerCase()}`;
 }
 
+function partnerBarrelIdFilter(barrelId: string | null) {
+  return barrelId
+    ? eq(barrelOutboundShippingPartners.barrelId, barrelId)
+    : isNull(barrelOutboundShippingPartners.barrelId);
+}
+
+async function maybeSyncPartnerOntoBarrel(
+  barrelId: string | null,
+  chargeKind: BarrelOutboundShippingChargeKind,
+): Promise<void> {
+  if (!barrelId) return;
+  await syncPrimaryPartnerOntoCharge(barrelId, chargeKind);
+  await syncBundleIfHostPartnerChanged(barrelId, chargeKind);
+}
+
 /** Unique companies already saved on any container, newest primary first. */
 export async function listOutboundShippingPartnerCatalog(): Promise<
   OutboundShippingPartnerRecord[]
@@ -181,6 +196,7 @@ export async function listOutboundShippingPartnersByBarrelIds(
         asc(barrelOutboundShippingPartners.createdAt),
       );
     for (const row of rows) {
+      if (!row.barrelId) continue;
       const list = byBarrel.get(row.barrelId) ?? [];
       list.push(mapPartner(row));
       byBarrel.set(row.barrelId, list);
@@ -324,7 +340,7 @@ async function syncPrimaryPartnerOntoCharge(
 }
 
 async function clearPrimaryForKind(
-  barrelId: string,
+  barrelId: string | null,
   chargeKind: BarrelOutboundShippingChargeKind,
 ): Promise<void> {
   const db = getDb();
@@ -333,14 +349,14 @@ async function clearPrimaryForKind(
     .set({ isPrimary: false, updatedAt: new Date().toISOString() })
     .where(
       and(
-        eq(barrelOutboundShippingPartners.barrelId, barrelId),
+        partnerBarrelIdFilter(barrelId),
         eq(barrelOutboundShippingPartners.chargeKind, chargeKind),
       ),
     );
 }
 
 export async function addOutboundShippingPartner(input: {
-  barrelId: string;
+  barrelId: string | null;
   chargeKind: BarrelOutboundShippingChargeKind;
   name: string;
   location: string | null;
@@ -361,7 +377,7 @@ export async function addOutboundShippingPartner(input: {
     .from(barrelOutboundShippingPartners)
     .where(
       and(
-        eq(barrelOutboundShippingPartners.barrelId, input.barrelId),
+        partnerBarrelIdFilter(input.barrelId),
         eq(barrelOutboundShippingPartners.chargeKind, input.chargeKind),
       ),
     );
@@ -370,7 +386,7 @@ export async function addOutboundShippingPartner(input: {
     .from(barrelOutboundShippingPartners)
     .where(
       and(
-        eq(barrelOutboundShippingPartners.barrelId, input.barrelId),
+        partnerBarrelIdFilter(input.barrelId),
         eq(barrelOutboundShippingPartners.chargeKind, input.chargeKind),
         eq(barrelOutboundShippingPartners.name, input.name),
       ),
@@ -414,8 +430,7 @@ export async function addOutboundShippingPartner(input: {
         imageUrl,
       });
     }
-    await syncPrimaryPartnerOntoCharge(input.barrelId, input.chargeKind);
-    await syncBundleIfHostPartnerChanged(input.barrelId, input.chargeKind);
+    await maybeSyncPartnerOntoBarrel(input.barrelId, input.chargeKind);
     return mapPartner(updated);
   }
 
@@ -447,8 +462,7 @@ export async function addOutboundShippingPartner(input: {
       imageUrl,
     });
   }
-  await syncPrimaryPartnerOntoCharge(input.barrelId, input.chargeKind);
-  await syncBundleIfHostPartnerChanged(input.barrelId, input.chargeKind);
+  await maybeSyncPartnerOntoBarrel(input.barrelId, input.chargeKind);
 
   return mapPartner(inserted);
 }
@@ -544,8 +558,7 @@ export async function updateOutboundShippingPartner(input: {
     name: input.name,
     imageUrl,
   });
-  await syncPrimaryPartnerOntoCharge(row.barrelId, kind);
-  await syncBundleIfHostPartnerChanged(row.barrelId, kind);
+  await maybeSyncPartnerOntoBarrel(row.barrelId, kind);
   return { ok: true };
 }
 
@@ -570,8 +583,7 @@ export async function setOutboundShippingPartnerPrimary(
     .update(barrelOutboundShippingPartners)
     .set({ isPrimary: true, updatedAt: new Date().toISOString() })
     .where(eq(barrelOutboundShippingPartners.id, id));
-  await syncPrimaryPartnerOntoCharge(row.barrelId, kind);
-  await syncBundleIfHostPartnerChanged(row.barrelId, kind);
+  await maybeSyncPartnerOntoBarrel(row.barrelId, kind);
   return { ok: true };
 }
 
@@ -602,7 +614,7 @@ export async function deleteOutboundShippingPartner(
       .from(barrelOutboundShippingPartners)
       .where(
         and(
-          eq(barrelOutboundShippingPartners.barrelId, row.barrelId),
+          partnerBarrelIdFilter(row.barrelId),
           eq(barrelOutboundShippingPartners.chargeKind, kind),
         ),
       )
@@ -615,7 +627,7 @@ export async function deleteOutboundShippingPartner(
         .where(eq(barrelOutboundShippingPartners.id, next.id));
     }
   }
-  await syncPrimaryPartnerOntoCharge(row.barrelId, kind);
+  await maybeSyncPartnerOntoBarrel(row.barrelId, kind);
   return { ok: true };
 }
 

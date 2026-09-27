@@ -2068,14 +2068,14 @@ export const userOutboundShippingCartLines = pgTable(
   ],
 );
 
-/** Freight companies, brokers, and couriers saved on a container; one primary per kind. */
+/** Freight companies, brokers, and couriers. `barrel_id` is null for catalog-only rows. */
 export const barrelOutboundShippingPartners = pgTable(
   "barrel_outbound_shipping_partners",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    barrelId: uuid("barrel_id")
-      .notNull()
-      .references(() => barrels.id, { onDelete: "cascade" }),
+    barrelId: uuid("barrel_id").references(() => barrels.id, {
+      onDelete: "cascade",
+    }),
     chargeKind: barrelOutboundShippingChargeKindEnum("charge_kind").notNull(),
     name: text("name").notNull(),
     location: text("location"),

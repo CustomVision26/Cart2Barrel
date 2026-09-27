@@ -59,7 +59,7 @@ export type SetBarrelOutboundCompanyRateKindsInput = z.infer<
 >;
 
 export const addBarrelOutboundShippingPartnerSchema = z.object({
-  barrelId: z.string().uuid("Invalid container."),
+  barrelId: z.string().uuid("Invalid container.").optional(),
   chargeKind: barrelOutboundShippingChargeKindSchema,
   name: z.string().trim().min(1, "Enter a name.").max(160),
   location: z.string().trim().max(160).optional().default(""),

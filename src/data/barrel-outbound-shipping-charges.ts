@@ -36,6 +36,7 @@ import {
   chargeKindUsesCompanyRates,
   companyRateKindsToPrice,
   destinationCourierZoneHints,
+  isAdminShippingCatalogPreviewBarrelId,
   isBarrelOutboundShippingChargeKind,
   isOffPlatformOutboundChargeKind,
   isOffPlatformPaymentMethod,
@@ -1448,6 +1449,9 @@ export async function setOutboundCompanyRateKindsForBarrel(input: {
     .where(eq(barrels.id, input.barrelId))
     .limit(1);
   if (!barrel) {
+    if (isAdminShippingCatalogPreviewBarrelId(input.barrelId)) {
+      return { ok: true };
+    }
     return { ok: false, message: "Container not found." };
   }
   await db

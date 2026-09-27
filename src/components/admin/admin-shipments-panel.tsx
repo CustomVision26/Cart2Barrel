@@ -207,14 +207,16 @@ export function AdminShipmentsPanel({
               Charge intake (preview)
             </h2>
             <p className="text-sm text-muted-foreground">
-              This is the form you will use once customers have containers in the
-              system.
+              No customer containers are ready yet. Save freight, broker, and
+              courier companies here so they are ready to assign when the first
+              container comes in. Publish charges after a customer has a
+              container on Dashboard → Shipping.
             </p>
           </header>
           <AdminShippingChargeIntakeCard
             row={previewRow}
             publishEnabled={false}
-            lockMessage="Preview only — publish unlocks when a customer has a full container on Dashboard → Shipping."
+            lockMessage="Save companies now. Publish unlocks when a customer has a full container on Dashboard → Shipping."
             staffProfilesByClerkUserId={staffProfilesByClerkUserId}
           />
         </section>

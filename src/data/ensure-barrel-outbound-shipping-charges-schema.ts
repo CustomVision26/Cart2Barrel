@@ -265,6 +265,10 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
       ALTER TABLE "barrels"
       ADD COLUMN IF NOT EXISTS "outbound_company_rate_kinds" text
     `);
+    await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ALTER COLUMN "barrel_id" DROP NOT NULL
+    `);
 
     await ensureOutboundShippingCompanyRatesTable();
     await ensureOutboundShippingCompanyRateLinksTable();

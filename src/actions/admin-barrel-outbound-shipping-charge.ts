@@ -22,6 +22,7 @@ import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import {
   BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
+  isAdminShippingCatalogPreviewBarrelId,
   outboundChargeBundleHost,
   outboundChargeBundleLabel,
   parseOutboundChargeBundle,
@@ -88,6 +89,13 @@ export async function saveBarrelOutboundShippingChargeAction(
     .limit(1);
 
   if (!barrel) {
+    if (isAdminShippingCatalogPreviewBarrelId(barrelId)) {
+      return {
+        ok: false,
+        message:
+          "Company details can be saved now. Publish charges when a customer has a container.",
+      };
+    }
     return { ok: false, message: "Container not found." };
   }
 

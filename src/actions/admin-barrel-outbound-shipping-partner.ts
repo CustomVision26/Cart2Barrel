@@ -13,6 +13,7 @@ import {
   updateOutboundShippingPartner,
 } from "@/data/barrel-outbound-shipping-partners";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import { isAdminShippingCatalogPreviewBarrelId } from "@/lib/barrel-outbound-shipping-charge";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 import {
   addBarrelOutboundShippingPartnerSchema,
@@ -56,18 +57,23 @@ export async function addBarrelOutboundShippingPartnerAction(
     };
   }
 
-  const db = getDb();
-  const [barrel] = await db
-    .select({ id: barrels.id })
-    .from(barrels)
-    .where(eq(barrels.id, parsed.data.barrelId))
-    .limit(1);
-  if (!barrel) {
-    return { ok: false, message: "Container not found." };
+  const catalogOnly = isAdminShippingCatalogPreviewBarrelId(
+    parsed.data.barrelId,
+  );
+  if (!catalogOnly) {
+    const db = getDb();
+    const [barrel] = await db
+      .select({ id: barrels.id })
+      .from(barrels)
+      .where(eq(barrels.id, parsed.data.barrelId!))
+      .limit(1);
+    if (!barrel) {
+      return { ok: false, message: "Container not found." };
+    }
   }
 
   await addOutboundShippingPartner({
-    barrelId: parsed.data.barrelId,
+    barrelId: catalogOnly ? null : parsed.data.barrelId!,
     chargeKind: parsed.data.chargeKind,
     name: parsed.data.name,
     location: parsed.data.location.trim() || null,
@@ -83,7 +89,12 @@ export async function addBarrelOutboundShippingPartnerAction(
   });
 
   revalidatePartnerPaths();
-  return { ok: true, message: "Record saved." };
+  return {
+    ok: true,
+    message: catalogOnly
+      ? "Company saved. It will be available when a customer has a container."
+      : "Record saved.",
+  };
 }
 
 export async function updateBarrelOutboundShippingPartnerAction(
@@ -152,6 +163,13 @@ export async function applyCatalogOutboundShippingPartnerAction(
     return {
       ok: false,
       message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  if (isAdminShippingCatalogPreviewBarrelId(parsed.data.barrelId)) {
+    return {
+      ok: false,
+      message: "Pick a customer container before applying this company.",
     };
   }
 
