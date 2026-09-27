@@ -239,6 +239,17 @@ function buildCustomerGroups(
 export async function listAdminShipmentChargePageData(
   clerkUserId?: string,
 ): Promise<AdminShipmentChargePageData> {
+  try {
+    return await loadAdminShipmentChargePageData(clerkUserId);
+  } catch (e) {
+    console.error("[listAdminShipmentChargePageData]", e);
+    return { customerGroups: [] };
+  }
+}
+
+async function loadAdminShipmentChargePageData(
+  clerkUserId?: string,
+): Promise<AdminShipmentChargePageData> {
   await ensureBarrelShippingIntakesSchema();
   await ensureBarrelOutboundShippingChargesSchema();
   await ensureBarrelOutboundShipmentTrackingSchema();

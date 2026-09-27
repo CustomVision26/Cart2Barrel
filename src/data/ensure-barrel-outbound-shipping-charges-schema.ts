@@ -266,7 +266,8 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
 
     schemaReady = true;
     return true;
-  } catch {
+  } catch (e) {
+    console.error("[ensureBarrelOutboundShippingChargesSchema]", e);
     schemaReady = false;
     return false;
   }

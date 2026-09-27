@@ -398,11 +398,17 @@ export function isMissingBarrelOutboundShippingChargesTableError(e: unknown): bo
     msg.includes("barrel_outbound_shipping_charge_lines") ||
     msg.includes("user_outbound_shipping_cart_lines") ||
     msg.includes("barrel_outbound_shipping_partners") ||
-    msg.includes("outbound_shipping_company_rates");
+    msg.includes("outbound_shipping_company_rates") ||
+    msg.includes("outbound_charge_bundle") ||
+    msg.includes("outbound_company_rate_kinds");
   if (!mentions) return false;
   const code = getPgErrorCode(e);
-  if (code === "42P01") return true;
-  return /does not exist|relation\b/i.test(msg);
+  if (code === "42P01" || code === PG_UNDEFINED_COLUMN) return true;
+  return (
+    /does not exist|relation\b|undefined column/i.test(msg) ||
+    isUndefinedColumnError(e, "outbound_charge_bundle") ||
+    isUndefinedColumnError(e, "outbound_company_rate_kinds")
+  );
 }
 
 /** Missing container catalog tables until migration `0028_container_offerings_cart` or `npm run db:push`. */

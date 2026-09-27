@@ -38,12 +38,17 @@ export async function getShipmentTrackingByBarrelIds(
 
   await ensureBarrelOutboundShipmentTrackingSchema();
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(barrelOutboundShipmentTracking)
-    .where(inArray(barrelOutboundShipmentTracking.barrelId, barrelIds));
+  try {
+    const rows = await db
+      .select()
+      .from(barrelOutboundShipmentTracking)
+      .where(inArray(barrelOutboundShipmentTracking.barrelId, barrelIds));
 
-  return new Map(rows.map((r) => [r.barrelId, mapTrackingRow(r)] as const));
+    return new Map(rows.map((r) => [r.barrelId, mapTrackingRow(r)] as const));
+  } catch (e) {
+    console.error("[getShipmentTrackingByBarrelIds]", e);
+    return new Map();
+  }
 }
 
 export async function upsertShipmentTrackingOnFreightPaid(input: {
