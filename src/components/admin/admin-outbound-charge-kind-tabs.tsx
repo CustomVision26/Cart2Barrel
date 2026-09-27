@@ -16,7 +16,10 @@ import {
   updateBarrelOutboundShippingPartnerAction,
 } from "@/actions/admin-barrel-outbound-shipping-partner";
 import { AdminOutboundOffPlatformPaymentReview } from "@/components/admin/admin-outbound-off-platform-payment-review";
+import { adminUploadOutboundShippingCompanyImageAction } from "@/actions/admin-upload-outbound-shipping-company-image";
 import { ChargeLabelWithCompanyPricing } from "@/components/admin/admin-company-pricing-dialog";
+import { AdminProductImagePreview } from "@/components/admin/admin-product-image-preview";
+import { ImageFileInput } from "@/components/ui/image-file-input";
 import { Button } from "@/components/ui/button";
 import {
   Input,
@@ -77,8 +80,10 @@ function PartnerRecordsEditor({
   const [cashappAccount, setCashappAccount] = useState("");
   const [zelleId, setZelleId] = useState("");
   const [zelleAccount, setZelleAccount] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [makePrimary, setMakePrimary] = useState(localCount === 0);
+  const [formOpen, setFormOpen] = useState(false);
   const busy = formDisabled || pending;
   const isFreight = chargeKind === "freight";
   const nameLabel =
@@ -117,7 +122,25 @@ function PartnerRecordsEditor({
     setCashappAccount("");
     setZelleId("");
     setZelleAccount("");
+    setImageUrl("");
     setMakePrimary(nextCount === 0);
+    setFormOpen(false);
+  }
+
+  function openAddForm() {
+    setEditingId(null);
+    setName("");
+    setLocation("");
+    setAddress("");
+    setCountry("");
+    setPhone("");
+    setCashappId("");
+    setCashappAccount("");
+    setZelleId("");
+    setZelleAccount("");
+    setImageUrl("");
+    setMakePrimary(localCount === 0);
+    setFormOpen(true);
   }
 
   function startEdit(record: (typeof records)[number]) {
@@ -131,7 +154,9 @@ function PartnerRecordsEditor({
     setCashappAccount(record.cashappAccount ?? "");
     setZelleId(record.zelleId ?? "");
     setZelleAccount(record.zelleAccount ?? "");
+    setImageUrl(record.imageUrl ?? "");
     setMakePrimary(record.isPrimary);
+    setFormOpen(true);
   }
 
   function saveRecord() {
@@ -146,6 +171,7 @@ function PartnerRecordsEditor({
         cashappAccount,
         zelleId,
         zelleAccount,
+        imageUrl,
         isPrimary: makePrimary || localCount === 0,
       };
       const res =
@@ -166,6 +192,23 @@ function PartnerRecordsEditor({
       toast.success(res.message);
       resetForm(Math.max(records.length, 1));
       router.refresh();
+    });
+  }
+
+  function uploadCompanyImage(files: FileList | null) {
+    const file = files?.[0];
+    if (!file || busy) return;
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("barrelId", row.barrelId);
+      fd.append("file", file);
+      const res = await adminUploadOutboundShippingCompanyImageAction(fd);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setImageUrl(res.imageUrl);
+      toast.success("Company image uploaded. Save the company to keep it.");
     });
   }
 
@@ -201,163 +244,209 @@ function PartnerRecordsEditor({
 
   return (
     <div className="space-y-2">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor={`${row.barrelId}-${chargeKind}-name`}>{nameLabel}</Label>
-          <Input
-            id={`${row.barrelId}-${chargeKind}-name`}
-            value={name}
-            disabled={busy}
-            placeholder={
-              chargeKind === "freight"
-                ? "e.g. Tropical Shipping"
-                : chargeKind === "broker"
-                  ? "e.g. Kingston port customs broker"
-                  : "e.g. Knutsford Express Cargo"
-            }
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-        {!isFreight ?
-          <>
+      {formOpen ?
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor={`${row.barrelId}-${chargeKind}-location`}>
-                Location
+              <Label htmlFor={`${row.barrelId}-${chargeKind}-name`}>
+                {nameLabel}
               </Label>
               <Input
-                id={`${row.barrelId}-${chargeKind}-location`}
-                value={location}
+                id={`${row.barrelId}-${chargeKind}-name`}
+                value={name}
                 disabled={busy}
-                placeholder="e.g. Kingston / Newport West"
-                onChange={(e) => setLocation(e.target.value)}
+                placeholder={
+                  chargeKind === "freight"
+                    ? "e.g. Tropical Shipping"
+                    : chargeKind === "broker"
+                      ? "e.g. Kingston port customs broker"
+                      : "e.g. Knutsford Express Cargo"
+                }
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            {!isFreight ?
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor={`${row.barrelId}-${chargeKind}-location`}>
+                    Location
+                  </Label>
+                  <Input
+                    id={`${row.barrelId}-${chargeKind}-location`}
+                    value={location}
+                    disabled={busy}
+                    placeholder="e.g. Kingston / Newport West"
+                    onChange={(e) => setLocation(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${row.barrelId}-${chargeKind}-country`}>
+                    Country
+                  </Label>
+                  <select
+                    id={`${row.barrelId}-${chargeKind}-country`}
+                    value={country}
+                    disabled={busy}
+                    className={nativeSelectFieldClassName}
+                    onChange={(e) => setCountry(e.target.value)}
+                  >
+                    <option value="">Select country</option>
+                    {SHIPPING_COUNTRIES.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            : null}
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor={`${row.barrelId}-${chargeKind}-address`}>
+                {addressLabel}
+              </Label>
+              <textarea
+                id={`${row.barrelId}-${chargeKind}-address`}
+                rows={3}
+                disabled={busy}
+                className={cn(inputFieldClassName, "min-h-16 py-2 text-sm")}
+                placeholder="Street, city, and postal details"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`${row.barrelId}-${chargeKind}-country`}>
-                Country
+              <Label htmlFor={`${row.barrelId}-${chargeKind}-phone`}>
+                Telephone number
               </Label>
-              <select
-                id={`${row.barrelId}-${chargeKind}-country`}
-                value={country}
+              <Input
+                id={`${row.barrelId}-${chargeKind}-phone`}
+                type="tel"
+                value={phone}
                 disabled={busy}
-                className={nativeSelectFieldClassName}
-                onChange={(e) => setCountry(e.target.value)}
-              >
-                <option value="">Select country</option>
-                {SHIPPING_COUNTRIES.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
+                placeholder="e.g. 876-555-0100"
+                onChange={(e) => setPhone(e.target.value)}
+              />
             </div>
-          </>
-        : null}
-        <div className="space-y-1 sm:col-span-2">
-          <Label htmlFor={`${row.barrelId}-${chargeKind}-address`}>
-            {addressLabel}
-          </Label>
-          <textarea
-            id={`${row.barrelId}-${chargeKind}-address`}
-            rows={3}
-            disabled={busy}
-            className={cn(inputFieldClassName, "min-h-16 py-2 text-sm")}
-            placeholder="Street, city, and postal details"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${row.barrelId}-${chargeKind}-phone`}>
-            Telephone number
-          </Label>
-          <Input
-            id={`${row.barrelId}-${chargeKind}-phone`}
-            type="tel"
-            value={phone}
-            disabled={busy}
-            placeholder="e.g. 876-555-0100"
-            onChange={(e) => setPhone(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${row.barrelId}-${chargeKind}-cashapp`}>
-            Company Cash App ID
-          </Label>
-          <Input
-            id={`${row.barrelId}-${chargeKind}-cashapp`}
-            value={cashappId}
-            disabled={busy}
-            placeholder="$companyhandle"
-            onChange={(e) => setCashappId(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${row.barrelId}-${chargeKind}-cashapp-account`}>
-            Cash App account name
-          </Label>
-          <Input
-            id={`${row.barrelId}-${chargeKind}-cashapp-account`}
-            value={cashappAccount}
-            disabled={busy}
-            placeholder="Name on the Cash App account"
-            onChange={(e) => setCashappAccount(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${row.barrelId}-${chargeKind}-zelle`}>
-            Company Zelle ID
-          </Label>
-          <Input
-            id={`${row.barrelId}-${chargeKind}-zelle`}
-            value={zelleId}
-            disabled={busy}
-            placeholder="email or mobile number for Zelle"
-            onChange={(e) => setZelleId(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${row.barrelId}-${chargeKind}-zelle-account`}>
-            Zelle account name
-          </Label>
-          <Input
-            id={`${row.barrelId}-${chargeKind}-zelle-account`}
-            value={zelleAccount}
-            disabled={busy}
-            placeholder="Name on the Zelle account"
-            onChange={(e) => setZelleAccount(e.target.value)}
-          />
-        </div>
-      </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${row.barrelId}-${chargeKind}-cashapp`}>
+                Company Cash App ID
+              </Label>
+              <Input
+                id={`${row.barrelId}-${chargeKind}-cashapp`}
+                value={cashappId}
+                disabled={busy}
+                placeholder="$companyhandle"
+                onChange={(e) => setCashappId(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${row.barrelId}-${chargeKind}-cashapp-account`}>
+                Cash App account name
+              </Label>
+              <Input
+                id={`${row.barrelId}-${chargeKind}-cashapp-account`}
+                value={cashappAccount}
+                disabled={busy}
+                placeholder="Name on the Cash App account"
+                onChange={(e) => setCashappAccount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${row.barrelId}-${chargeKind}-zelle`}>
+                Company Zelle ID
+              </Label>
+              <Input
+                id={`${row.barrelId}-${chargeKind}-zelle`}
+                value={zelleId}
+                disabled={busy}
+                placeholder="email or mobile number for Zelle"
+                onChange={(e) => setZelleId(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${row.barrelId}-${chargeKind}-zelle-account`}>
+                Zelle account name
+              </Label>
+              <Input
+                id={`${row.barrelId}-${chargeKind}-zelle-account`}
+                value={zelleAccount}
+                disabled={busy}
+                placeholder="Name on the Zelle account"
+                onChange={(e) => setZelleAccount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label>Company image (Ad)</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Customers can open this image with Ad on freight, broker, local
+                courier, or a consolidated company quote.
+              </p>
+              <ImageFileInput
+                id={`${row.barrelId}-${chargeKind}-image`}
+                onFiles={uploadCompanyImage}
+              />
+              {imageUrl ?
+                <div className="space-y-2">
+                  <AdminProductImagePreview
+                    imageUrl={imageUrl}
+                    productLabel={name || "Company image"}
+                    imageClassName="max-h-40"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => setImageUrl("")}
+                  >
+                    Remove image
+                  </Button>
+                </div>
+              : null}
+            </div>
+          </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            className="size-4 accent-primary"
-            checked={records.length === 0 ? true : makePrimary}
-            disabled={busy || localCount === 0}
-            onChange={(e) => setMakePrimary(e.target.checked)}
-          />
-          Set as primary
-        </label>
-        <Button type="button" size="sm" disabled={busy} onClick={saveRecord}>
-          {pending ? "Saving…" : editingId ? saveLabel : addLabel}
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="size-4 accent-primary"
+                checked={records.length === 0 ? true : makePrimary}
+                disabled={busy || localCount === 0}
+                onChange={(e) => setMakePrimary(e.target.checked)}
+              />
+              Set as primary
+            </label>
+            <Button type="button" size="sm" disabled={busy} onClick={saveRecord}>
+              {pending ? "Saving…" : editingId ? saveLabel : addLabel}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => resetForm(records.length)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </>
+      : (
+        <Button
+          type="button"
+          size="sm"
+          disabled={busy}
+          onClick={openAddForm}
+        >
+          {addLabel}
         </Button>
-        {editingId ?
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() => resetForm(records.length)}
-          >
-            Cancel
-          </Button>
-        : null}
-      </div>
+      )}
 
-      {records.length === 0 ?
+      {records.length === 0 && !formOpen ?
+        <p className="text-xs text-muted-foreground">
+          Click {addLabel.toLowerCase()} to enter name, address, and payment IDs.
+        </p>
+      : records.length === 0 ?
         <p className="text-xs text-muted-foreground">
           Added records appear in the table below. Select one as primary for this
           charge.
@@ -378,6 +467,7 @@ function PartnerRecordsEditor({
                 <th className="px-3 py-2 font-medium">
                   {isFreight ? "Company" : "Name"}
                 </th>
+                <th className="px-3 py-2 font-medium">Ad</th>
                 {!isFreight ?
                   <>
                     <th className="px-3 py-2 font-medium">Country</th>
@@ -424,6 +514,18 @@ function PartnerRecordsEditor({
                         <StatusBadge kind="draft">Saved</StatusBadge>
                       : null}
                     </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    {record.imageUrl ?
+                      /* eslint-disable-next-line @next/next/no-img-element -- blob URL thumbnail */
+                      <img
+                        src={record.imageUrl}
+                        alt=""
+                        className="size-10 rounded-md object-cover"
+                      />
+                    : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </td>
                   {!isFreight ?
                     <>
@@ -642,6 +744,11 @@ function AdminChargeKindForm({
                 barrelId={row.barrelId}
                 kindsToToggle={[chargeKind]}
                 enabledKinds={row.companyRateKinds ?? []}
+                linkableContainers={row.rateLinkableContainers ?? []}
+                companyRateLinks={row.companyRateLinks ?? []}
+                containerKind={row.kind}
+                destinationParish={row.destinationParish}
+                destinationCityOrTown={row.destinationCityOrTown}
               />
               <Input
                 id={`${row.barrelId}-${chargeKind}-label`}
@@ -716,6 +823,11 @@ function AdminChargeKindForm({
               barrelId={row.barrelId}
               kindsToToggle={[chargeKind]}
               enabledKinds={row.companyRateKinds ?? []}
+              linkableContainers={row.rateLinkableContainers ?? []}
+              companyRateLinks={row.companyRateLinks ?? []}
+              containerKind={row.kind}
+              destinationParish={row.destinationParish}
+              destinationCityOrTown={row.destinationCityOrTown}
             />
             <Input
               id={`${row.barrelId}-${chargeKind}-label`}
@@ -975,6 +1087,11 @@ function AdminMergedBundleForm({
                 barrelId={row.barrelId}
                 kindsToToggle={bundledKinds}
                 enabledKinds={row.companyRateKinds ?? []}
+                linkableContainers={row.rateLinkableContainers ?? []}
+                companyRateLinks={row.companyRateLinks ?? []}
+                containerKind={row.kind}
+                destinationParish={row.destinationParish}
+                destinationCityOrTown={row.destinationCityOrTown}
               />
               <Input
                 id={`${row.barrelId}-bundle-label`}
@@ -1042,6 +1159,11 @@ function AdminMergedBundleForm({
               barrelId={row.barrelId}
               kindsToToggle={bundledKinds}
               enabledKinds={row.companyRateKinds ?? []}
+              linkableContainers={row.rateLinkableContainers ?? []}
+              companyRateLinks={row.companyRateLinks ?? []}
+              containerKind={row.kind}
+              destinationParish={row.destinationParish}
+              destinationCityOrTown={row.destinationCityOrTown}
             />
             <Input
               id={`${row.barrelId}-bundle-label`}

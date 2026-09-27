@@ -7,14 +7,15 @@ import { ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 
 import { addOutboundShippingChargeToCartAction } from "@/actions/user-outbound-shipping-cart";
+import { OutboundCompanyAdButton } from "@/components/shipping/outbound-company-ad-button";
 import { OutboundOffPlatformPaymentForm } from "@/components/shipping/outbound-off-platform-payment-form";
 import { OutboundPaymentReceiptDialog } from "@/components/shipping/outbound-payment-receipt-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatUsd } from "@/lib/admin-markup";
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
 import {
-  BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
   isOffPlatformOutboundChargeKind,
+  outboundChargeKindDisplayLabel,
   paidOutboundCharges,
   unpaidPublishedCharges,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -122,7 +123,7 @@ function PublishedChargeRow({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const kindLabel = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[charge.chargeKind];
+  const kindLabel = outboundChargeKindDisplayLabel(charge);
   const title = charge.partnerName?.trim() || charge.lines[0]?.label || kindLabel;
   const paid = Boolean(charge.paidAt);
   const offPlatform = isOffPlatformOutboundChargeKind(charge.chargeKind);
@@ -146,9 +147,15 @@ function PublishedChargeRow({
 
   const details = (
     <div className="min-w-0 flex-1">
-      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-        {kindLabel}
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          {kindLabel}
+        </p>
+        <OutboundCompanyAdButton
+          imageUrl={charge.partnerImageUrl}
+          companyName={charge.partnerName ?? title}
+        />
+      </div>
       <p className="text-sm font-medium text-foreground">{title}</p>
       {charge.partnerCountry ?
         <p className="text-xs text-muted-foreground">{charge.partnerCountry}</p>
@@ -173,6 +180,14 @@ function PublishedChargeRow({
             </p>
           ))}
         </div>
+      : null}
+      {charge.linkedContainers && charge.linkedContainers.length > 1 ?
+        <p className="mt-1 text-xs text-muted-foreground">
+          Covers{" "}
+          {charge.linkedContainers.map((item) => item.alias).join(" + ")}{" "}
+          · first at the 1-container rate, extras at the extra rate · one
+          payment marks all paid
+        </p>
       : null}
       <p className="text-sm font-semibold tabular-nums text-foreground">
         {formatUsd(charge.totalCents)}

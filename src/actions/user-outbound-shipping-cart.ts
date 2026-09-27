@@ -1,12 +1,13 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { userOutboundShippingCartLines } from "@/db/schema";
 import { getOutboundShippingChargeForUser } from "@/data/barrel-outbound-shipping-charges";
+import { expandChargeIdsWithCompanyRateLinks } from "@/data/outbound-shipping-company-rate-links";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import {
   addOutboundShippingChargeToCartSchema,
@@ -50,6 +51,20 @@ export async function addOutboundShippingChargeToCartAction(
 
   await ensureBarrelOutboundShippingChargesSchema();
   const db = getDb();
+  const linkedIds = await expandChargeIdsWithCompanyRateLinks({
+    clerkUserId: userId,
+    chargeIds: [chargeId],
+  });
+  if (linkedIds.length > 1) {
+    await db
+      .delete(userOutboundShippingCartLines)
+      .where(
+        and(
+          eq(userOutboundShippingCartLines.clerkUserId, userId),
+          inArray(userOutboundShippingCartLines.chargeId, linkedIds),
+        ),
+      );
+  }
 
   await db
     .insert(userOutboundShippingCartLines)
@@ -78,13 +93,20 @@ export async function removeOutboundShippingChargeFromCartAction(
   }
 
   const { chargeId } = parsed.data;
+  const linkedIds = await expandChargeIdsWithCompanyRateLinks({
+    clerkUserId: userId,
+    chargeIds: [chargeId],
+  });
   const db = getDb();
   await db
     .delete(userOutboundShippingCartLines)
     .where(
       and(
         eq(userOutboundShippingCartLines.clerkUserId, userId),
-        eq(userOutboundShippingCartLines.chargeId, chargeId),
+        inArray(
+          userOutboundShippingCartLines.chargeId,
+          linkedIds.length > 0 ? linkedIds : [chargeId],
+        ),
       ),
     );
 

@@ -6,7 +6,7 @@ import { OutboundShippingCartRemoveButton } from "@/components/dashboard/outboun
 import { formatUsd } from "@/lib/admin-markup";
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
 import {
-  BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
+  outboundChargeKindDisplayLabel,
   sumOutboundChargesCents,
   unpaidPublishedCharges,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -42,8 +42,7 @@ export function OutboundShippingAddedChargesPanel({
         <div className="mt-3 flex flex-1 flex-col gap-3">
           <ul className="space-y-3">
             {added.map((charge) => {
-              const kindLabel =
-                BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[charge.chargeKind];
+              const kindLabel = outboundChargeKindDisplayLabel(charge);
               const title =
                 charge.partnerName?.trim() || charge.lines[0]?.label || kindLabel;
               return (
@@ -57,6 +56,15 @@ export function OutboundShippingAddedChargesPanel({
                         {kindLabel}
                       </p>
                       <p className="text-sm font-medium text-foreground">{title}</p>
+                      {charge.linkedContainers &&
+                      charge.linkedContainers.length > 1 ?
+                        <p className="text-[11px] text-muted-foreground">
+                          Covers{" "}
+                          {charge.linkedContainers
+                            .map((item) => item.alias)
+                            .join(" + ")}
+                        </p>
+                      : null}
                     </div>
                     <OutboundShippingCartRemoveButton chargeId={charge.chargeId} />
                   </div>

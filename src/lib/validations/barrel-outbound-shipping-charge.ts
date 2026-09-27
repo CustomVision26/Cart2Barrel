@@ -70,6 +70,7 @@ export const addBarrelOutboundShippingPartnerSchema = z.object({
   cashappAccount: z.string().trim().max(160).optional().default(""),
   zelleId: z.string().trim().max(80).optional().default(""),
   zelleAccount: z.string().trim().max(160).optional().default(""),
+  imageUrl: z.string().trim().max(2000).optional().default(""),
   isPrimary: z.boolean().optional().default(false),
 });
 
@@ -84,6 +85,7 @@ export const updateBarrelOutboundShippingPartnerSchema = z.object({
   cashappAccount: z.string().trim().max(160).optional().default(""),
   zelleId: z.string().trim().max(80).optional().default(""),
   zelleAccount: z.string().trim().max(160).optional().default(""),
+  imageUrl: z.string().trim().max(2000).optional().default(""),
   isPrimary: z.boolean().optional().default(false),
 });
 
@@ -188,3 +190,17 @@ export type UpdateOutboundShippingCompanyRateInput = z.infer<
 export const deleteOutboundShippingCompanyRateSchema = z.object({
   id: z.string().uuid("Invalid rate."),
 });
+
+export const setOutboundShippingCompanyRateLinksSchema = z.object({
+  sourceBarrelId: z.string().uuid("Invalid container."),
+  companyName: z.string().trim().min(1, "Add a company first.").max(160),
+  kinds: z
+    .array(barrelOutboundShippingChargeKindSchema)
+    .min(1, "Choose a charge type.")
+    .max(3),
+  linkedBarrelIds: z.array(z.string().uuid("Invalid container.")).max(20),
+});
+
+export type SetOutboundShippingCompanyRateLinksInput = z.infer<
+  typeof setOutboundShippingCompanyRateLinksSchema
+>;

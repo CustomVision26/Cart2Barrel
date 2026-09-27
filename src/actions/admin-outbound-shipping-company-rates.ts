@@ -7,12 +7,14 @@ import {
   deleteOutboundShippingCompanyRate,
   updateOutboundShippingCompanyRate,
 } from "@/data/outbound-shipping-company-rates";
+import { setOutboundShippingCompanyRateLinks } from "@/data/outbound-shipping-company-rate-links";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 import {
   addOutboundShippingCompanyRateSchema,
   deleteOutboundShippingCompanyRateSchema,
   parseUsdInputToNonNegativeCents,
+  setOutboundShippingCompanyRateLinksSchema,
   updateOutboundShippingCompanyRateSchema,
 } from "@/lib/validations/barrel-outbound-shipping-charge";
 
@@ -114,4 +116,35 @@ export async function deleteOutboundShippingCompanyRateAction(
   if (!result.ok) return result;
   revalidateRatePaths();
   return { ok: true, message: "Pricing row removed." };
+}
+
+export async function setOutboundShippingCompanyRateLinksAction(
+  raw: unknown,
+): Promise<OutboundShippingCompanyRateActionState> {
+  const admin = await requireAdmin();
+  if (!admin.ok) return admin;
+  const parsed = setOutboundShippingCompanyRateLinksSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid container link.",
+    };
+  }
+  const result = await setOutboundShippingCompanyRateLinks(parsed.data);
+  if (!result.ok) return result;
+  revalidateRatePaths();
+  const count = new Set([
+    parsed.data.sourceBarrelId,
+    ...parsed.data.linkedBarrelIds,
+  ]).size;
+  if (count < 2) {
+    return {
+      ok: true,
+      message: "Containers are billed separately at the 1-container rate.",
+    };
+  }
+  return {
+    ok: true,
+    message: `${count} unpaid containers are linked. The customer pays the 1-container rate once plus the extra-container rate for each additional container. One payment marks all linked containers paid.`,
+  };
 }

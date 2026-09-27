@@ -229,6 +229,10 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
       ADD COLUMN IF NOT EXISTS "zelle_account" text
     `);
     await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ADD COLUMN IF NOT EXISTS "image_url" text
+    `);
+    await db.execute(sql`
       ALTER TABLE "barrel_outbound_shipping_charges"
       ADD COLUMN IF NOT EXISTS "partner_cashapp_account" text
     `);
@@ -263,6 +267,7 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
     `);
 
     await ensureOutboundShippingCompanyRatesTable();
+    await ensureOutboundShippingCompanyRateLinksTable();
 
     schemaReady = true;
     return true;
@@ -302,5 +307,28 @@ export async function ensureOutboundShippingCompanyRatesTable(): Promise<void> {
   await db.execute(sql`
     ALTER TABLE "barrels"
     ADD COLUMN IF NOT EXISTS "outbound_company_rate_kinds" text
+  `);
+}
+
+/** Idempotent even after the parent ensure already ran in this process. */
+export async function ensureOutboundShippingCompanyRateLinksTable(): Promise<void> {
+  const db = getDb();
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "outbound_shipping_company_rate_links" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "clerk_user_id" text NOT NULL,
+      "company_key" text NOT NULL,
+      "charge_kind" "barrel_outbound_shipping_charge_kind" NOT NULL,
+      "barrel_id" uuid NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "outbound_shipping_company_rate_links_unique"
+    ON "outbound_shipping_company_rate_links" ("company_key", "charge_kind", "barrel_id")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "outbound_shipping_company_rate_links_user_idx"
+    ON "outbound_shipping_company_rate_links" ("clerk_user_id")
   `);
 }

@@ -78,6 +78,7 @@ export async function addBarrelOutboundShippingPartnerAction(
     cashappAccount: parsed.data.cashappAccount.trim() || null,
     zelleId: parsed.data.zelleId.trim() || null,
     zelleAccount: parsed.data.zelleAccount.trim() || null,
+    imageUrl: parsed.data.imageUrl.trim() || null,
     isPrimary: parsed.data.isPrimary,
   });
 
@@ -110,6 +111,7 @@ export async function updateBarrelOutboundShippingPartnerAction(
     cashappAccount: parsed.data.cashappAccount.trim() || null,
     zelleId: parsed.data.zelleId.trim() || null,
     zelleAccount: parsed.data.zelleAccount.trim() || null,
+    imageUrl: parsed.data.imageUrl.trim() || null,
     isPrimary: parsed.data.isPrimary,
   });
   if (!result.ok) return result;

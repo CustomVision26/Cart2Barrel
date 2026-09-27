@@ -2086,6 +2086,7 @@ export const barrelOutboundShippingPartners = pgTable(
     cashappAccount: text("cashapp_account"),
     zelleId: text("zelle_id"),
     zelleAccount: text("zelle_account"),
+    imageUrl: text("image_url"),
     isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -2129,6 +2130,37 @@ export const outboundShippingCompanyRates = pgTable(
       t.rowKey,
     ),
     index("outbound_shipping_company_rates_company_idx").on(t.companyKey),
+  ],
+);
+
+/**
+ * Unpaid containers billed together on one company rate card
+ * (first at the 1-container rate, each extra at the extra-container rate).
+ * Paying any member marks every linked unpaid charge for that company and kind.
+ */
+export const outboundShippingCompanyRateLinks = pgTable(
+  "outbound_shipping_company_rate_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    companyKey: text("company_key").notNull(),
+    chargeKind: barrelOutboundShippingChargeKindEnum("charge_kind").notNull(),
+    barrelId: uuid("barrel_id")
+      .notNull()
+      .references(() => barrels.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("outbound_shipping_company_rate_links_unique").on(
+      t.companyKey,
+      t.chargeKind,
+      t.barrelId,
+    ),
+    index("outbound_shipping_company_rate_links_user_idx").on(t.clerkUserId),
   ],
 );
 

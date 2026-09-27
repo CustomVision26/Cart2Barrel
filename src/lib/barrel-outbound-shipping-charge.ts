@@ -209,6 +209,7 @@ export type BarrelOutboundShippingChargeView = {
   partnerCashappAccount: string | null;
   partnerZelleId: string | null;
   partnerZelleAccount: string | null;
+  partnerImageUrl: string | null;
   lines: OutboundShippingChargeLineView[];
   totalCents: number;
   adminNote: string | null;
@@ -226,6 +227,8 @@ export type BarrelOutboundShippingChargeView = {
   chargeBundle: BarrelOutboundShippingChargeKind[];
   /** Kinds billed from the company rate card instead of form amounts. */
   companyRateKinds: BarrelOutboundShippingChargeKind[];
+  /** Other unpaid containers billed with this company rate (includes this barrel). */
+  linkedContainers: { barrelId: string; alias: string }[];
 };
 
 export function isBarrelOutboundShippingChargeKind(
@@ -314,6 +317,20 @@ export function outboundChargeBundleLabel(
     .join(" + ");
 }
 
+/** Kind label on customer surfaces; includes the consolidate list on the host charge. */
+export function outboundChargeKindDisplayLabel(
+  charge: Pick<BarrelOutboundShippingChargeView, "chargeKind" | "chargeBundle">,
+): string {
+  const bundle = charge.chargeBundle ?? [];
+  if (
+    bundle.length >= 2 &&
+    outboundChargeBundleHost(bundle) === charge.chargeKind
+  ) {
+    return outboundChargeBundleLabel(bundle);
+  }
+  return BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[charge.chargeKind];
+}
+
 const BUNDLE_SHORT_NAMES: Record<BarrelOutboundShippingChargeKind, string> = {
   freight: "freight",
   broker: "broker",
@@ -361,11 +378,79 @@ export function isOutboundChargeKindAbsorbed(
   return Boolean(host && bundle.includes(kind) && kind !== host);
 }
 
+export function normalizePlaceName(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\bsaint\b/g, "st")
+    .replace(/\bst\./g, "st")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Parish, city, then any extra location — used to pick a local-courier zone rate. */
+export function destinationCourierZoneHints(input: {
+  parish?: string | null;
+  cityOrTown?: string | null;
+  extra?: string | null;
+}): string[] {
+  const hints: string[] = [];
+  const seen = new Set<string>();
+  const parts = [input.parish, input.cityOrTown, input.extra];
+  if (input.cityOrTown?.includes(",")) {
+    parts.push(...input.cityOrTown.split(","));
+  }
+  for (const part of parts) {
+    const trimmed = part?.trim();
+    if (!trimmed) continue;
+    const key = normalizePlaceName(trimmed);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    hints.push(trimmed);
+  }
+  return hints;
+}
+
+function zoneRowMatchesHint(
+  rowLabel: string,
+  hint: string,
+  mode: "exact" | "contains",
+): boolean {
+  const zone = normalizePlaceName(rowLabel);
+  const dest = normalizePlaceName(hint);
+  if (!zone || !dest) return false;
+  if (mode === "exact") return zone === dest;
+  return zone.includes(dest) || dest.includes(zone);
+}
+
+/** Match a local-courier zone by destination parish/city name. No single-row fallback. */
+export function matchCourierZoneRateRow(
+  rows: readonly OutboundShippingCompanyRateRow[],
+  hints: readonly string[],
+): OutboundShippingCompanyRateRow | null {
+  const cleaned = hints.map((part) => part.trim()).filter(Boolean);
+  return (
+    cleaned
+      .map((hint) =>
+        rows.find((row) => zoneRowMatchesHint(row.rowLabel, hint, "exact")),
+      )
+      .find((row): row is OutboundShippingCompanyRateRow => Boolean(row)) ??
+    cleaned
+      .map((hint) =>
+        rows.find((row) => zoneRowMatchesHint(row.rowLabel, hint, "contains")),
+      )
+      .find((row): row is OutboundShippingCompanyRateRow => Boolean(row)) ??
+    null
+  );
+}
+
 export function resolveCompanyRateLine(input: {
   rates: readonly OutboundShippingCompanyRateRow[];
   companyName: string | null | undefined;
   tableKind: OutboundShippingCompanyRateTableKind;
   rowHint: string | null | undefined;
+  destinationHints?: readonly string[];
   containerCount: number;
 }): OutboundShippingChargeLineView | null {
   const companyKey = outboundShippingCompanyKey(input.companyName ?? "");
@@ -374,20 +459,99 @@ export function resolveCompanyRateLine(input: {
     (row) => row.companyKey === companyKey && row.tableKind === input.tableKind,
   );
   if (rows.length === 0) return null;
-  const hint = (input.rowHint ?? "").trim().toLowerCase();
-  const match =
-    rows.find((row) => row.rowLabel.trim().toLowerCase() === hint) ??
-    rows.find((row) => {
-      const label = row.rowLabel.trim().toLowerCase();
-      return Boolean(hint) && (label.includes(hint) || hint.includes(label));
-    }) ??
-    (rows.length === 1 ? rows[0] : null);
+
+  const hints = [
+    ...(input.destinationHints ?? []),
+    input.rowHint ?? "",
+  ]
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  let match: OutboundShippingCompanyRateRow | undefined;
+  if (input.tableKind === "zone") {
+    match = matchCourierZoneRateRow(rows, hints) ?? undefined;
+  } else {
+    const hint = (input.rowHint ?? "").trim().toLowerCase();
+    match =
+      rows.find((row) => row.rowLabel.trim().toLowerCase() === hint) ??
+      rows.find((row) => {
+        const label = row.rowLabel.trim().toLowerCase();
+        return Boolean(hint) && (label.includes(hint) || hint.includes(label));
+      });
+  }
+  if (!match && input.tableKind !== "zone" && rows.length === 1) {
+    match = rows[0];
+  }
   if (!match) return null;
   return {
     label: match.rowLabel,
-    amountCents:
-      input.containerCount >= 2 ? match.costTwoPlusCents : match.costOneCents,
+    amountCents: companyRateCardAmountCents(
+      match.costOneCents,
+      match.costTwoPlusCents,
+      input.containerCount,
+    ),
   };
+}
+
+/** First linked container uses the 1-container rate; each extra adds the 2+ rate. */
+export function companyRateCardAmountCents(
+  costOneCents: number,
+  costTwoPlusCents: number,
+  containerCount: number,
+): number {
+  const count = Math.max(1, Math.trunc(containerCount));
+  if (count === 1) return Math.max(0, costOneCents);
+  return (
+    Math.max(0, costOneCents) + (count - 1) * Math.max(0, costTwoPlusCents)
+  );
+}
+
+export function companyRateKindsToPrice(input: {
+  chargeKind: BarrelOutboundShippingChargeKind;
+  bundle: readonly BarrelOutboundShippingChargeKind[];
+  companyRateKinds: readonly BarrelOutboundShippingChargeKind[];
+}): BarrelOutboundShippingChargeKind[] {
+  const host = outboundChargeBundleHost(input.bundle);
+  if (host && input.chargeKind === host && input.bundle.length >= 2) {
+    const kinds = input.bundle.filter(
+      (kind) => kind === host || input.companyRateKinds.includes(kind),
+    );
+    return kinds.length > 0 ? kinds : [input.chargeKind];
+  }
+  return [input.chargeKind];
+}
+
+export function resolveCompanyRateLinesForKinds(input: {
+  rates: readonly OutboundShippingCompanyRateRow[];
+  companyName: string | null | undefined;
+  kinds: readonly BarrelOutboundShippingChargeKind[];
+  containerKind: ContainerOfferingKind;
+  destinationHints?: readonly string[];
+  containerCount: number;
+}): OutboundShippingChargeLineView[] {
+  const tableKinds = outboundShippingRateTableKindsForTabs(input.kinds);
+  const lines: OutboundShippingChargeLineView[] = [];
+  const seen = new Set<string>();
+  for (const tableKind of tableKinds) {
+    const line = resolveCompanyRateLine({
+      rates: input.rates,
+      companyName: input.companyName,
+      tableKind,
+      rowHint:
+        tableKind === "container"
+          ? containerTypeRateHint(input.containerKind)
+          : (input.destinationHints?.[0] ?? null),
+      destinationHints:
+        tableKind === "zone" ? input.destinationHints : undefined,
+      containerCount: input.containerCount,
+    });
+    if (!line) continue;
+    const key = `${tableKind}:${line.label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lines.push(line);
+  }
+  return lines;
 }
 
 export function containerTypeRateHint(kind: ContainerOfferingKind): string {
@@ -581,7 +745,24 @@ export type OutboundShippingPartnerRecord = {
   cashappAccount: string | null;
   zelleId: string | null;
   zelleAccount: string | null;
+  imageUrl: string | null;
   isPrimary: boolean;
+};
+
+export type AdminRateLinkableContainer = {
+  barrelId: string;
+  alias: string;
+  slotLabel: string;
+  partnerKeyByKind: Partial<
+    Record<BarrelOutboundShippingChargeKind, string>
+  >;
+  unpaidByKind: Partial<Record<BarrelOutboundShippingChargeKind, boolean>>;
+};
+
+export type AdminCompanyRateLinkGroup = {
+  companyKey: string;
+  chargeKind: BarrelOutboundShippingChargeKind;
+  barrelIds: string[];
 };
 
 export type AdminBarrelOutboundShippingChargeRow = {
@@ -614,6 +795,8 @@ export type AdminBarrelOutboundShippingChargeRow = {
   shipmentTracking: BarrelOutboundShipmentTrackingView | null;
   /** Customer destination address, pre-formatted into tidy display lines. */
   destinationLines: string[];
+  destinationParish: string | null;
+  destinationCityOrTown: string | null;
   /** Staff who last published or edited the shipping charge. */
   updatedByClerkUserId: string | null;
   /** Kinds billed as one quote on this container. */
@@ -622,6 +805,10 @@ export type AdminBarrelOutboundShippingChargeRow = {
   companyRates: OutboundShippingCompanyRateRow[];
   /** Kinds billed from the company rate card on this container. */
   companyRateKinds: BarrelOutboundShippingChargeKind[];
+  /** This customer's containers, for 1 vs 2+ company-rate linking. */
+  rateLinkableContainers: AdminRateLinkableContainer[];
+  /** Saved unpaid-container links for this customer. */
+  companyRateLinks: AdminCompanyRateLinkGroup[];
 };
 
 export function sumChargeLineCents(
@@ -667,10 +854,14 @@ export const ADMIN_SHIPPING_CHARGE_PREVIEW_ROW: AdminBarrelOutboundShippingCharg
     paymentReferenceNumber: null,
     shipmentTracking: null,
     destinationLines: [],
+    destinationParish: null,
+    destinationCityOrTown: null,
     updatedByClerkUserId: null,
     chargeBundle: [],
     companyRates: [],
     companyRateKinds: [],
+    rateLinkableContainers: [],
+    companyRateLinks: [],
   };
 
 export type AdminShipmentCustomerGroup = {

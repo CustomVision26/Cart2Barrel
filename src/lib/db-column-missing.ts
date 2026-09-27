@@ -399,6 +399,7 @@ export function isMissingBarrelOutboundShippingChargesTableError(e: unknown): bo
     msg.includes("user_outbound_shipping_cart_lines") ||
     msg.includes("barrel_outbound_shipping_partners") ||
     msg.includes("outbound_shipping_company_rates") ||
+    msg.includes("outbound_shipping_company_rate_links") ||
     msg.includes("outbound_charge_bundle") ||
     msg.includes("outbound_company_rate_kinds");
   if (!mentions) return false;
