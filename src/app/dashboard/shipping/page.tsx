@@ -8,6 +8,8 @@ import {
 } from "@/data/addresses";
 import { getBarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
 
+export const maxDuration = 60;
+
 export default async function DashboardShippingPage() {
   const { userId } = await auth();
   if (!userId) {
@@ -16,7 +18,10 @@ export default async function DashboardShippingPage() {
 
   const [data, shippingAddress] = await Promise.all([
     getBarrelShippingIntakePageData(userId),
-    getPrimaryShippingAddress(userId),
+    getPrimaryShippingAddress(userId).catch((e) => {
+      console.error("[DashboardShippingPage] address", e);
+      return undefined;
+    }),
   ]);
 
   const shippingAddressComplete = isShippingAddressComplete(shippingAddress);

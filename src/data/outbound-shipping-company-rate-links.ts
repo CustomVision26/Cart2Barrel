@@ -33,7 +33,12 @@ export type CompanyRateLinkGroup = {
 export async function listOutboundShippingCompanyRateLinksForUser(
   clerkUserId: string,
 ): Promise<OutboundShippingCompanyRateLinkRow[]> {
-  await ensureOutboundShippingCompanyRateLinksTable();
+  try {
+    await ensureOutboundShippingCompanyRateLinksTable();
+  } catch (e) {
+    console.error("[listOutboundShippingCompanyRateLinksForUser] ensure", e);
+    return [];
+  }
   const db = getDb();
   try {
     const rows = await db

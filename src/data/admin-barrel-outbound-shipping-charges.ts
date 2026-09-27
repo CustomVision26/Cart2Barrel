@@ -12,6 +12,11 @@ import {
 } from "@/db/schema";
 import { getPrimaryShippingAddressesByClerkUserIds } from "@/data/addresses";
 import {
+  ensureOrderContainerPackagingFeeColumns,
+  orderContainerItemSnapshotColumns,
+  type OrderContainerItemSnapshot,
+} from "@/data/ensure-order-container-packaging-fee-schema";
+import {
   getOutboundShippingChargesByBarrelIds,
   seedDefaultOutboundChargesForUser,
 } from "@/data/barrel-outbound-shipping-charges";
@@ -54,7 +59,10 @@ import {
 import { sumOutboundChargesCents } from "@/lib/barrel-outbound-shipping-charge";
 import { formatBarrelSlotLabel } from "@/lib/barrel-slot-label";
 import { buildContainerAliasMap } from "@/lib/container-slot-alias";
-import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-column-missing";
+import {
+  isMissingBarrelOutboundShippingChargesTableError,
+  isMissingOrderContainerPackagingFeeColumnError,
+} from "@/lib/db-column-missing";
 import { parseContainerOfferingKind } from "@/lib/validations/container-offering";
 
 async function loadAllActiveBarrelRows(clerkUserId?: string) {
@@ -63,7 +71,7 @@ async function loadAllActiveBarrelRows(clerkUserId?: string) {
   return db
     .select({
       barrel: barrels,
-      oci: orderContainerItems,
+      oci: orderContainerItemSnapshotColumns,
       profile: profiles,
       intake: barrelShippingIntakes,
     })
@@ -87,7 +95,7 @@ async function loadAllActiveBarrelRows(clerkUserId?: string) {
 
 type AdminChargeSourceRow = {
   barrel: typeof barrels.$inferSelect;
-  oci: typeof orderContainerItems.$inferSelect | null;
+  oci: OrderContainerItemSnapshot | null;
   profile: typeof profiles.$inferSelect | null;
   intake: typeof barrelShippingIntakes.$inferSelect | null;
 };
@@ -306,15 +314,25 @@ async function loadAdminShipmentChargePageData(
   await ensureBarrelShippingIntakesSchema();
   await ensureBarrelOutboundShippingChargesSchema();
   await ensureBarrelOutboundShipmentTrackingSchema();
+  await ensureOrderContainerPackagingFeeColumns();
 
   let sourceRows: Awaited<ReturnType<typeof loadAllActiveBarrelRows>>;
   try {
     sourceRows = await loadAllActiveBarrelRows(clerkUserId);
   } catch (e) {
-    if (!isMissingBarrelOutboundShippingChargesTableError(e)) {
+    if (
+      !isMissingBarrelOutboundShippingChargesTableError(e) &&
+      !isMissingOrderContainerPackagingFeeColumnError(e)
+    ) {
       throw e;
     }
-    if (!(await ensureBarrelOutboundShippingChargesSchema())) {
+    if (isMissingOrderContainerPackagingFeeColumnError(e)) {
+      await ensureOrderContainerPackagingFeeColumns();
+    }
+    if (
+      isMissingBarrelOutboundShippingChargesTableError(e) &&
+      !(await ensureBarrelOutboundShippingChargesSchema())
+    ) {
       throw e;
     }
     sourceRows = await loadAllActiveBarrelRows(clerkUserId);
@@ -354,9 +372,17 @@ async function loadAdminShipmentChargePageData(
 
   const [imageByOfferingId, trackingByBarrel, addressByUser, chargeMaps] =
     await Promise.all([
-      getPrimaryImageUrlByOfferingIds(offeringIds),
+      getPrimaryImageUrlByOfferingIds(offeringIds).catch((e) => {
+        console.error("[loadAdminShipmentChargePageData] images", e);
+        return new Map<string, string>();
+      }),
       getShipmentTrackingByBarrelIds(barrelIds),
-      getPrimaryShippingAddressesByClerkUserIds(ownerClerkUserIds),
+      getPrimaryShippingAddressesByClerkUserIds(ownerClerkUserIds).catch(
+        (e) => {
+          console.error("[loadAdminShipmentChargePageData] addresses", e);
+          return new Map();
+        },
+      ),
       Promise.all(
         [...chargesByOwner.entries()].map(([uid, ids]) =>
           getOutboundShippingChargesByBarrelIds(uid, ids),
@@ -371,10 +397,20 @@ async function loadAdminShipmentChargePageData(
     }
   }
 
-  await backfillOutboundShippingPartnersFromCharges(barrelIds);
+  try {
+    await backfillOutboundShippingPartnersFromCharges(barrelIds);
+  } catch (e) {
+    console.error("[loadAdminShipmentChargePageData] backfill partners", e);
+  }
   const [partnersByBarrel, partnerCatalog, companyRates] = await Promise.all([
-    listOutboundShippingPartnersByBarrelIds(barrelIds),
-    listOutboundShippingPartnerCatalog(),
+    listOutboundShippingPartnersByBarrelIds(barrelIds).catch((e) => {
+      console.error("[loadAdminShipmentChargePageData] partners", e);
+      return new Map();
+    }),
+    listOutboundShippingPartnerCatalog().catch((e) => {
+      console.error("[loadAdminShipmentChargePageData] partner catalog", e);
+      return [];
+    }),
     listOutboundShippingCompanyRates(),
   ]);
   const linksByUser = new Map<string, AdminCompanyRateLinkGroup[]>();

@@ -23,6 +23,7 @@ import {
 import { getShipmentTrackingByBarrelIds } from "@/data/barrel-outbound-shipment-tracking";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { ensureBarrelOutboundShipmentTrackingSchema } from "@/data/ensure-barrel-outbound-shipment-tracking-schema";
+import { orderContainerItemSnapshotColumns } from "@/data/ensure-order-container-packaging-fee-schema";
 import { generateOutboundShippingPaymentReference } from "@/lib/generate-outbound-shipping-payment-reference";
 import { upsertShipmentTrackingOnFreightPaid } from "@/data/barrel-outbound-shipment-tracking";
 import { ensureBarrelShippingIntakesSchema } from "@/data/ensure-barrel-shipping-intakes-schema";
@@ -206,31 +207,47 @@ async function loadChargeViewsForBarrelIds(
       .map((row) => [row.barrelId, row.id] as const),
   );
   const [companyRates, destinationAddress] = await Promise.all([
-    listOutboundShippingCompanyRates(),
-    getPrimaryShippingAddress(clerkUserId),
+    listOutboundShippingCompanyRates().catch((e) => {
+      console.error("[loadChargeViewsForBarrelIds] company rates", e);
+      return [] as Awaited<ReturnType<typeof listOutboundShippingCompanyRates>>;
+    }),
+    getPrimaryShippingAddress(clerkUserId).catch((e) => {
+      console.error("[loadChargeViewsForBarrelIds] destination address", e);
+      return undefined;
+    }),
   ]);
   const courierZoneHints = destinationCourierZoneHints({
     parish: destinationAddress?.parish,
     cityOrTown: destinationAddress?.cityOrTown,
   });
-  const partnerRows =
-    userActiveBarrels.length > 0
-      ? await db
-          .select({
-            barrelId: barrelOutboundShippingPartners.barrelId,
-            chargeKind: barrelOutboundShippingPartners.chargeKind,
-            name: barrelOutboundShippingPartners.name,
-            imageUrl: barrelOutboundShippingPartners.imageUrl,
-            isPrimary: barrelOutboundShippingPartners.isPrimary,
-          })
-          .from(barrelOutboundShippingPartners)
-          .where(
-            inArray(
-              barrelOutboundShippingPartners.barrelId,
-              userActiveBarrels.map((row) => row.id),
-            ),
-          )
-      : [];
+  let partnerRows: {
+    barrelId: string;
+    chargeKind: string;
+    name: string;
+    imageUrl: string | null;
+    isPrimary: boolean;
+  }[] = [];
+  if (userActiveBarrels.length > 0) {
+    try {
+      partnerRows = await db
+        .select({
+          barrelId: barrelOutboundShippingPartners.barrelId,
+          chargeKind: barrelOutboundShippingPartners.chargeKind,
+          name: barrelOutboundShippingPartners.name,
+          imageUrl: barrelOutboundShippingPartners.imageUrl,
+          isPrimary: barrelOutboundShippingPartners.isPrimary,
+        })
+        .from(barrelOutboundShippingPartners)
+        .where(
+          inArray(
+            barrelOutboundShippingPartners.barrelId,
+            userActiveBarrels.map((row) => row.id),
+          ),
+        );
+    } catch (e) {
+      console.error("[loadChargeViewsForBarrelIds] partner images", e);
+    }
+  }
   const partnerImageByBarrelKind = new Map<string, string>();
   const partnerImageByCompanyKind = new Map<string, string>();
   for (const row of partnerRows) {
@@ -361,13 +378,21 @@ export async function getOutboundShippingChargesByBarrelIds(
   try {
     return await loadChargeViewsForBarrelIds(clerkUserId, barrelIds);
   } catch (e) {
-    if (!isMissingBarrelOutboundShippingChargesTableError(e)) {
-      throw e;
+    if (isMissingBarrelOutboundShippingChargesTableError(e)) {
+      try {
+        if (await ensureBarrelOutboundShippingChargesSchema()) {
+          return await loadChargeViewsForBarrelIds(clerkUserId, barrelIds);
+        }
+      } catch (retryError) {
+        console.error(
+          "[getOutboundShippingChargesByBarrelIds] retry",
+          retryError,
+        );
+      }
+    } else {
+      console.error("[getOutboundShippingChargesByBarrelIds]", e);
     }
-    if (!(await ensureBarrelOutboundShippingChargesSchema())) {
-      throw e;
-    }
-    return await loadChargeViewsForBarrelIds(clerkUserId, barrelIds);
+    return new Map();
   }
 }
 
@@ -381,7 +406,7 @@ export async function listUserOutboundShippingCartLines(
     .select({
       charge: barrelOutboundShippingCharges,
       barrel: barrels,
-      oci: orderContainerItems,
+      oci: orderContainerItemSnapshotColumns,
     })
     .from(userOutboundShippingCartLines)
     .innerJoin(
@@ -448,7 +473,12 @@ export async function listUserOutboundShippingCartLines(
   );
 
   const companyRates = await listOutboundShippingCompanyRates();
-  const destinationAddress = await getPrimaryShippingAddress(clerkUserId);
+  const destinationAddress = await getPrimaryShippingAddress(clerkUserId).catch(
+    (e) => {
+      console.error("[listUserOutboundShippingCartLines] address", e);
+      return undefined;
+    },
+  );
   const courierZoneHints = destinationCourierZoneHints({
     parish: destinationAddress?.parish,
     cityOrTown: destinationAddress?.cityOrTown,

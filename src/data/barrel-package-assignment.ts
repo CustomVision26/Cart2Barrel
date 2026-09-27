@@ -34,6 +34,10 @@ import {
   BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID,
   PRODUCT_TO_BARREL_FULFILLMENT_STATUSES,
 } from "@/lib/barrel-pipeline-fulfillment";
+import {
+  orderContainerItemSnapshotColumns,
+  type OrderContainerItemSnapshot,
+} from "@/data/ensure-order-container-packaging-fee-schema";
 import { backfillOutsidePurchasePaidServiceFeeFulfillment } from "@/data/backfill-outside-purchase-paid-fulfillment";
 import { ensurePaidOutsidePurchaseFulfillmentEnums } from "@/data/ensure-paid-outside-purchase-fulfillment-enum";
 import { ensureInBarrelAwaitingShippingEnumValue } from "@/data/ensure-in-barrel-fulfillment-enum";
@@ -240,7 +244,7 @@ export async function ensurePackagesForAwaitingBarrelOwner(
 
 type BarrelWithOciRow = {
   barrel: typeof barrels.$inferSelect;
-  oci: typeof orderContainerItems.$inferSelect | null;
+  oci: OrderContainerItemSnapshot | null;
 };
 
 function mapBarrelRowsToOptions(
@@ -350,7 +354,7 @@ export async function listUserBarrelOptionsForAssignment(
   const rows = await db
     .select({
       barrel: barrels,
-      oci: orderContainerItems,
+      oci: orderContainerItemSnapshotColumns,
     })
     .from(barrels)
     .leftJoin(
@@ -379,7 +383,10 @@ export async function getBarrelDisplayLabelById(
 ): Promise<string | null> {
   const db = getDb();
   const [row] = await db
-    .select({ barrel: barrels, oci: orderContainerItems })
+    .select({
+      barrel: barrels,
+      oci: orderContainerItemSnapshotColumns,
+    })
     .from(barrels)
     .leftJoin(
       orderContainerItems,

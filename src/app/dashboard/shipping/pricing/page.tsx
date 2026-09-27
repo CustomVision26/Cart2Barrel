@@ -9,6 +9,8 @@ import {
 import { getBarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 
+export const maxDuration = 60;
+
 export default async function DashboardShippingPricingPage() {
   const { userId } = await auth();
   if (!userId) {
@@ -17,7 +19,10 @@ export default async function DashboardShippingPricingPage() {
 
   const [data, shippingAddress] = await Promise.all([
     getBarrelShippingIntakePageData(userId),
-    getPrimaryShippingAddress(userId),
+    getPrimaryShippingAddress(userId).catch((e) => {
+      console.error("[DashboardShippingPricingPage] address", e);
+      return undefined;
+    }),
   ]);
 
   const hasReadyContainers = data.awaiting.length > 0 || data.submitted.length > 0;

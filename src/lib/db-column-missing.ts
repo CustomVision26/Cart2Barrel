@@ -401,7 +401,8 @@ export function isMissingBarrelOutboundShippingChargesTableError(e: unknown): bo
     msg.includes("outbound_shipping_company_rates") ||
     msg.includes("outbound_shipping_company_rate_links") ||
     msg.includes("outbound_charge_bundle") ||
-    msg.includes("outbound_company_rate_kinds");
+    msg.includes("outbound_company_rate_kinds") ||
+    msg.includes("image_url");
   if (!mentions) return false;
   const code = getPgErrorCode(e);
   if (code === "42P01" || code === PG_UNDEFINED_COLUMN) return true;

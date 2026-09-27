@@ -21,6 +21,11 @@ import { OWN_TRANSPORT_COURIER_KEY } from "@/lib/destination-clearance-partners"
 import { parseContainerOfferingKind } from "@/lib/validations/container-offering";
 import { getBarrelContentsByBarrelIds } from "@/data/barrel-contents";
 import {
+  ensureOrderContainerPackagingFeeColumns,
+  orderContainerItemSnapshotColumns,
+  type OrderContainerItemSnapshot,
+} from "@/data/ensure-order-container-packaging-fee-schema";
+import {
   getOutboundShippingChargesByBarrelIds,
   resetBrokerAndCourierPaymentsForBarrel,
   seedDefaultOutboundChargesForUser,
@@ -29,7 +34,10 @@ import { getPrimaryImageUrlByOfferingIds } from "@/data/container-offerings";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { ensureBarrelShippingIntakesSchema } from "@/data/ensure-barrel-shipping-intakes-schema";
 import { ensureBarrelsProvisionedForUser } from "@/data/ensure-paid-order-barrels";
-import { isMissingBarrelShippingIntakesTableError } from "@/lib/db-column-missing";
+import {
+  isMissingBarrelShippingIntakesTableError,
+  isMissingOrderContainerPackagingFeeColumnError,
+} from "@/lib/db-column-missing";
 
 async function loadItemCountsByBarrel(
   barrelIds: string[],
@@ -53,7 +61,7 @@ async function loadItemCountsByBarrel(
 function mapBarrelRows(
   rows: {
     barrel: typeof barrels.$inferSelect;
-    oci: typeof orderContainerItems.$inferSelect | null;
+    oci: OrderContainerItemSnapshot | null;
     intake: typeof barrelShippingIntakes.$inferSelect | null;
   }[],
   countByBarrel: Map<string, number>,
@@ -141,7 +149,7 @@ async function loadBarrelShippingIntakeRows(
 ): Promise<
   {
     barrel: typeof barrels.$inferSelect;
-    oci: typeof orderContainerItems.$inferSelect | null;
+    oci: OrderContainerItemSnapshot | null;
     intake: typeof barrelShippingIntakes.$inferSelect | null;
   }[]
 > {
@@ -149,7 +157,7 @@ async function loadBarrelShippingIntakeRows(
   return db
     .select({
       barrel: barrels,
-      oci: orderContainerItems,
+      oci: orderContainerItemSnapshotColumns,
       intake: barrelShippingIntakes,
     })
     .from(barrels)
@@ -167,8 +175,20 @@ async function loadBarrelShippingIntakeRows(
 export async function getBarrelShippingIntakePageData(
   clerkUserId: string,
 ): Promise<BarrelShippingIntakePageData> {
+  try {
+    return await loadBarrelShippingIntakePageData(clerkUserId);
+  } catch (e) {
+    console.error("[getBarrelShippingIntakePageData]", e);
+    return { awaiting: [], submitted: [] };
+  }
+}
+
+async function loadBarrelShippingIntakePageData(
+  clerkUserId: string,
+): Promise<BarrelShippingIntakePageData> {
   await ensureBarrelsProvisionedForUser(clerkUserId);
   await ensureBarrelShippingIntakesSchema();
+  await ensureOrderContainerPackagingFeeColumns();
   try {
     await seedDefaultOutboundChargesForUser(clerkUserId);
   } catch (e) {
@@ -179,10 +199,19 @@ export async function getBarrelShippingIntakePageData(
   try {
     rows = await loadBarrelShippingIntakeRows(clerkUserId);
   } catch (e) {
-    if (!isMissingBarrelShippingIntakesTableError(e)) {
+    if (
+      !isMissingBarrelShippingIntakesTableError(e) &&
+      !isMissingOrderContainerPackagingFeeColumnError(e)
+    ) {
       throw e;
     }
-    if (!(await ensureBarrelShippingIntakesSchema())) {
+    if (isMissingOrderContainerPackagingFeeColumnError(e)) {
+      await ensureOrderContainerPackagingFeeColumns();
+    }
+    if (
+      isMissingBarrelShippingIntakesTableError(e) &&
+      !(await ensureBarrelShippingIntakesSchema())
+    ) {
       throw e;
     }
     rows = await loadBarrelShippingIntakeRows(clerkUserId);
@@ -198,10 +227,19 @@ export async function getBarrelShippingIntakePageData(
   ];
   const [countByBarrel, chargesByBarrel, imageByOfferingId, contentsByBarrel] =
     await Promise.all([
-      loadItemCountsByBarrel(barrelIds),
+      loadItemCountsByBarrel(barrelIds).catch((e) => {
+        console.error("[getBarrelShippingIntakePageData] item counts", e);
+        return new Map<string, number>();
+      }),
       getOutboundShippingChargesByBarrelIds(clerkUserId, barrelIds),
-      getPrimaryImageUrlByOfferingIds(offeringIds),
-      getBarrelContentsByBarrelIds(clerkUserId, barrelIds),
+      getPrimaryImageUrlByOfferingIds(offeringIds).catch((e) => {
+        console.error("[getBarrelShippingIntakePageData] offering images", e);
+        return new Map<string, string>();
+      }),
+      getBarrelContentsByBarrelIds(clerkUserId, barrelIds).catch((e) => {
+        console.error("[getBarrelShippingIntakePageData] contents", e);
+        return new Map<string, import("@/lib/barrel-contents").BarrelContentItem[]>();
+      }),
     ]);
   return mapBarrelRows(
     rows,

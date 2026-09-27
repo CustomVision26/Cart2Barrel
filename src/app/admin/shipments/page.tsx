@@ -8,6 +8,7 @@ import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -34,7 +35,10 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
           ...group.readyContainers.map((row) => row.updatedByClerkUserId),
           ...group.notReadyContainers.map((row) => row.updatedByClerkUserId),
         ]),
-      )
+      ).catch((e) => {
+        console.error("[AdminShipmentsPage] staff profiles", e);
+        return {};
+      })
     : {};
   const totalContainers = customerGroups.reduce(
     (n, g) => n + g.readyContainers.length + g.notReadyContainers.length,

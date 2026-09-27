@@ -14,6 +14,7 @@ import { getBarrelContentsByBarrelIds } from "@/data/barrel-contents";
 import { getOutboundShippingChargesByBarrelIds } from "@/data/barrel-outbound-shipping-charges";
 import { getShipmentTrackingByBarrelIds } from "@/data/barrel-outbound-shipment-tracking";
 import { getPrimaryImageUrlByOfferingIds } from "@/data/container-offerings";
+import { orderContainerItemSnapshotColumns } from "@/data/ensure-order-container-packaging-fee-schema";
 import { loadHubContactSettings } from "@/data/hub-contact-settings";
 import { loadHubShipFromSettings } from "@/data/hub-ship-from";
 import { getInvoiceCompanyProfile } from "@/lib/invoice/company-profile";
@@ -169,7 +170,7 @@ export async function getCustomsClearancePackPdfPayload(
     .select({
       barrel: barrels,
       intake: barrelShippingIntakes,
-      oci: orderContainerItems,
+      oci: orderContainerItemSnapshotColumns,
       profile: profiles,
     })
     .from(barrels)

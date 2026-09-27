@@ -6,6 +6,7 @@ import {
   containerPackingPerUnitCentsForKind,
   type ContainerPackingRates,
 } from "@/lib/container-packing-fee";
+import { ensureOrderContainerPackagingFeeColumns } from "@/data/ensure-order-container-packaging-fee-schema";
 import { isMissingOrderContainerPackagingFeeColumnError } from "@/lib/db-column-missing";
 
 export type OrderContainerPackingContext = {
@@ -44,6 +45,7 @@ export async function insertOrderContainerItems(
   packing?: OrderContainerPackingContext,
 ): Promise<{ ok: true } | { ok: false; cause: unknown }> {
   if (lines.length === 0) return { ok: true };
+  await ensureOrderContainerPackagingFeeColumns();
   const db = getDb();
   const withPacking = lines.map((l) => ({
     orderId,

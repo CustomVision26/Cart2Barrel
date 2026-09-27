@@ -25,6 +25,7 @@ import {
 } from "@/lib/merchandise-reconciliation";
 import { parseOutsidePurchaseUnitsPerPackFromStaffNote } from "@/lib/outside-purchase-service-quote";
 import { formatBarrelSlotLabel } from "@/lib/barrel-slot-label";
+import { orderContainerItemSnapshotColumns } from "@/data/ensure-order-container-packaging-fee-schema";
 import { parseContainerOfferingKind } from "@/lib/validations/container-offering";
 import type { MerchantServiceTierRow } from "@/lib/admin-markup";
 
@@ -141,7 +142,7 @@ export async function getBarrelContentsRecordForUser(
   const [row] = await db
     .select({
       barrel: barrels,
-      oci: orderContainerItems,
+      oci: orderContainerItemSnapshotColumns,
     })
     .from(barrels)
     .leftJoin(
