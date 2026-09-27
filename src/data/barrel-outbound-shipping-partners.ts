@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import {
   barrelOutboundShippingCharges,
   barrelOutboundShippingPartners,
+  barrels,
 } from "@/db/schema";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-column-missing";
@@ -13,7 +14,11 @@ import type {
   BarrelOutboundShippingChargeKind,
   OutboundShippingPartnerRecord,
 } from "@/lib/barrel-outbound-shipping-charge";
-import { isBarrelOutboundShippingChargeKind } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  isBarrelOutboundShippingChargeKind,
+  outboundChargeBundleHost,
+  parseOutboundChargeBundle,
+} from "@/lib/barrel-outbound-shipping-charge";
 
 function mapPartner(
   row: typeof barrelOutboundShippingPartners.$inferSelect,
@@ -148,6 +153,64 @@ export async function getPrimaryOutboundShippingPartner(
   return first ? mapPartner(first) : null;
 }
 
+export async function copyPrimaryPartnerToChargeKind(input: {
+  barrelId: string;
+  fromKind: BarrelOutboundShippingChargeKind;
+  toKind: BarrelOutboundShippingChargeKind;
+}): Promise<void> {
+  if (input.fromKind === input.toKind) return;
+  const source = await getPrimaryOutboundShippingPartner(
+    input.barrelId,
+    input.fromKind,
+  );
+  if (!source?.name.trim()) return;
+  await addOutboundShippingPartner({
+    barrelId: input.barrelId,
+    chargeKind: input.toKind,
+    name: source.name,
+    location: source.location,
+    address: source.address,
+    country: source.country,
+    phone: source.phone,
+    cashappId: source.cashappId,
+    cashappAccount: source.cashappAccount,
+    zelleId: source.zelleId,
+    zelleAccount: source.zelleAccount,
+    isPrimary: true,
+  });
+}
+
+export async function syncBundlePartnersFromHost(
+  barrelId: string,
+  bundle: readonly BarrelOutboundShippingChargeKind[],
+): Promise<void> {
+  const host = outboundChargeBundleHost(bundle);
+  if (!host) return;
+  for (const kind of bundle) {
+    if (kind === host) continue;
+    await copyPrimaryPartnerToChargeKind({
+      barrelId,
+      fromKind: host,
+      toKind: kind,
+    });
+  }
+}
+
+async function syncBundleIfHostPartnerChanged(
+  barrelId: string,
+  chargeKind: BarrelOutboundShippingChargeKind,
+): Promise<void> {
+  const db = getDb();
+  const [barrel] = await db
+    .select({ outboundChargeBundle: barrels.outboundChargeBundle })
+    .from(barrels)
+    .where(eq(barrels.id, barrelId))
+    .limit(1);
+  const bundle = parseOutboundChargeBundle(barrel?.outboundChargeBundle);
+  if (outboundChargeBundleHost(bundle) !== chargeKind) return;
+  await syncBundlePartnersFromHost(barrelId, bundle);
+}
+
 async function syncPrimaryPartnerOntoCharge(
   barrelId: string,
   chargeKind: BarrelOutboundShippingChargeKind,
@@ -264,6 +327,7 @@ export async function addOutboundShippingPartner(input: {
       throw new Error("Could not update partner record.");
     }
     await syncPrimaryPartnerOntoCharge(input.barrelId, input.chargeKind);
+    await syncBundleIfHostPartnerChanged(input.barrelId, input.chargeKind);
     return mapPartner(updated);
   }
 
@@ -288,6 +352,7 @@ export async function addOutboundShippingPartner(input: {
     throw new Error("Could not add partner record.");
   }
   await syncPrimaryPartnerOntoCharge(input.barrelId, input.chargeKind);
+  await syncBundleIfHostPartnerChanged(input.barrelId, input.chargeKind);
 
   return mapPartner(inserted);
 }
@@ -375,6 +440,7 @@ export async function updateOutboundShippingPartner(input: {
     })
     .where(eq(barrelOutboundShippingPartners.id, input.id));
   await syncPrimaryPartnerOntoCharge(row.barrelId, kind);
+  await syncBundleIfHostPartnerChanged(row.barrelId, kind);
   return { ok: true };
 }
 
@@ -400,6 +466,7 @@ export async function setOutboundShippingPartnerPrimary(
     .set({ isPrimary: true, updatedAt: new Date().toISOString() })
     .where(eq(barrelOutboundShippingPartners.id, id));
   await syncPrimaryPartnerOntoCharge(row.barrelId, kind);
+  await syncBundleIfHostPartnerChanged(row.barrelId, kind);
   return { ok: true };
 }
 

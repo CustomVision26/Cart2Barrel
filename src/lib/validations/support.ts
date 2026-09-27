@@ -29,6 +29,7 @@ export const updateHubContactSettingsSchema = z.object({
   tiktokUrl: optionalUrlField,
   publicIntro: z.string().trim().max(2000),
   businessHours: z.string().trim().max(500),
+  businessAddress: z.string().trim().max(1000),
 });
 
 export type UpdateHubContactSettingsInput = z.infer<

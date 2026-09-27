@@ -9,8 +9,9 @@ export default async function AdminSupportContactPage() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        These details appear on the shopper Contact us screen (email, phone,
-        social links, and intro text).
+        These details appear on the shopper Contact us screen and in the footer
+        on user pages (email, phone, address, hours, social links, and intro
+        text).
       </p>
       <AdminHubContactForm initial={hubContact} />
     </div>

@@ -397,7 +397,8 @@ export function isMissingBarrelOutboundShippingChargesTableError(e: unknown): bo
     msg.includes("barrel_outbound_shipping_charges") ||
     msg.includes("barrel_outbound_shipping_charge_lines") ||
     msg.includes("user_outbound_shipping_cart_lines") ||
-    msg.includes("barrel_outbound_shipping_partners");
+    msg.includes("barrel_outbound_shipping_partners") ||
+    msg.includes("outbound_shipping_company_rates");
   if (!mentions) return false;
   const code = getPgErrorCode(e);
   if (code === "42P01") return true;

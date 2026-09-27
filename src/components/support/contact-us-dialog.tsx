@@ -3,11 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ExternalLink, Mail, MessageCircle, Phone } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { createSupportTicketAction } from "@/actions/support-tickets";
 import type { HubContactPublic } from "@/data/hub-contact-settings";
+import {
+  googleMapsSearchUrl,
+  hubContactHasPublicDetails,
+} from "@/lib/hub-contact-display";
+import {
+  HubContactIcons,
+  hubSocialIcon,
+} from "@/components/support/hub-contact-icons";
 import {
   SupportTicketComposeForm,
   type SupportTicketComposePayload,
@@ -31,8 +39,12 @@ import {
 
 export function ContactUsDialog({
   hubContact,
+  allowTicketSubmit = true,
+  triggerClassName,
 }: {
   hubContact: HubContactPublic;
+  allowTicketSubmit?: boolean;
+  triggerClassName?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -92,7 +104,10 @@ export function ContactUsDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         type="button"
-        className="text-sm font-medium text-foreground hover:text-primary"
+        className={
+          triggerClassName ??
+          "text-sm font-medium text-foreground hover:text-primary"
+        }
       >
         Contact us
       </DialogTrigger>
@@ -100,7 +115,9 @@ export function ContactUsDialog({
         <DialogHeader>
           <DialogTitle>Contact us</DialogTitle>
           <DialogDescription>
-            Reach the hub team or send a message about an issue or complaint.
+            {allowTicketSubmit
+              ? "Reach the hub team or send a message about an issue or complaint."
+              : "Reach the hub team by email, phone, or social. Sign in to send a message and track replies."}
           </DialogDescription>
         </DialogHeader>
 
@@ -116,13 +133,26 @@ export function ContactUsDialog({
               Hub contact
             </p>
             <ul className="space-y-2 text-sm">
+              {hubContact.businessAddress ? (
+                <li>
+                  <a
+                    href={googleMapsSearchUrl(hubContact.businessAddress)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-start gap-2 text-foreground hover:text-primary"
+                  >
+                    <HubContactIcons.MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    <span className="whitespace-pre-line">{hubContact.businessAddress}</span>
+                  </a>
+                </li>
+              ) : null}
               {hubContact.supportEmail ? (
                 <li>
                   <a
                     href={`mailto:${hubContact.supportEmail}`}
                     className="inline-flex items-center gap-2 text-foreground hover:text-primary"
                   >
-                    <Mail className="size-4 shrink-0" aria-hidden />
+                    <HubContactIcons.Mail className="size-4 shrink-0" aria-hidden />
                     {hubContact.supportEmail}
                   </a>
                 </li>
@@ -133,13 +163,16 @@ export function ContactUsDialog({
                     href={`tel:${hubContact.supportPhone.replace(/\s/g, "")}`}
                     className="inline-flex items-center gap-2 text-foreground hover:text-primary"
                   >
-                    <Phone className="size-4 shrink-0" aria-hidden />
+                    <HubContactIcons.Phone className="size-4 shrink-0" aria-hidden />
                     {hubContact.supportPhone}
                   </a>
                 </li>
               ) : null}
               {hubContact.businessHours ? (
-                <li className="text-muted-foreground">{hubContact.businessHours}</li>
+                <li className="inline-flex items-start gap-2 text-muted-foreground">
+                  <HubContactIcons.Clock className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>{hubContact.businessHours}</span>
+                </li>
               ) : null}
               {hubContact.socialLinks.map((link) => (
                 <li key={`${link.label}-${link.url}`}>
@@ -149,15 +182,12 @@ export function ContactUsDialog({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-foreground hover:text-primary"
                   >
-                    <ExternalLink className="size-4 shrink-0" aria-hidden />
+                    {hubSocialIcon(link.label)}
                     {link.label}
                   </a>
                 </li>
               ))}
-              {!hubContact.supportEmail &&
-              !hubContact.supportPhone &&
-              !hubContact.businessHours &&
-              hubContact.socialLinks.length === 0 ? (
+              {!hubContactHasPublicDetails(hubContact) ? (
                 <li className="text-muted-foreground">
                   Contact details will appear here once the hub team adds them.
                 </li>
@@ -165,40 +195,69 @@ export function ContactUsDialog({
             </ul>
           </div>
 
-          <div className="space-y-3 rounded-lg border border-border bg-card p-3">
-            <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <MessageCircle className="size-4" aria-hidden />
-              Send a message
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="support-subject">Subject</Label>
-              <Input
-                id="support-subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Brief summary of your issue"
-                required
-                disabled={submitting}
+          {allowTicketSubmit ? (
+            <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+              <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <MessageCircle className="size-4" aria-hidden />
+                Send a message
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="support-subject">Subject</Label>
+                <Input
+                  id="support-subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Brief summary of your issue"
+                  required
+                  disabled={submitting}
+                />
+              </div>
+              <SupportTicketComposeForm
+                textareaId="support-body"
+                label="Message"
+                placeholder="Describe the issue or complaint you're facing…"
+                submitLabel="Submit message"
+                disabled={submitting || subject.trim().length < 3}
+                body={body}
+                onBodyChange={setBody}
+                onSubmit={handleSubmitMessage}
               />
+              <Link
+                href={DASHBOARD_SUPPORT_ROUTES.inbox}
+                onClick={() => setOpen(false)}
+                className="inline-flex h-8 items-center rounded-lg px-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                View my messages
+              </Link>
             </div>
-            <SupportTicketComposeForm
-              textareaId="support-body"
-              label="Message"
-              placeholder="Describe the issue or complaint you're facing…"
-              submitLabel="Submit message"
-              disabled={submitting || subject.trim().length < 3}
-              body={body}
-              onBodyChange={setBody}
-              onSubmit={handleSubmitMessage}
-            />
-            <Link
-              href={DASHBOARD_SUPPORT_ROUTES.inbox}
-              onClick={() => setOpen(false)}
-              className="inline-flex h-8 items-center rounded-lg px-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              View my messages
-            </Link>
-          </div>
+          ) : (
+            <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+              <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <MessageCircle className="size-4" aria-hidden />
+                Send a message
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Sign in to send a message and track replies. You can still reach
+                the hub with the contact details above.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex h-8 items-center rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/signup"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex h-8 items-center rounded-lg px-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  Sign up
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

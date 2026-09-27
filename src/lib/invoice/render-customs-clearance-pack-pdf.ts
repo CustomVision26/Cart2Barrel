@@ -10,6 +10,7 @@ import { formatUsd } from "@/lib/admin-markup";
 import {
   isOutboundChargeKindAbsorbed,
   outboundChargeBundleHost,
+  outboundChargeBundlePdfHeading,
 } from "@/lib/barrel-outbound-shipping-charge";
 import {
   barrelContentsTotalCents,
@@ -209,6 +210,40 @@ async function drawReceipt(
       .text("A PDF transfer receipt is on file for this vendor.");
     doc.moveDown(0.3);
   }
+}
+
+function uniqueNotes(
+  ...notes: Array<string | null | undefined>
+): string | null {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const note of notes) {
+    const trimmed = note?.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out.length > 0 ? out.join("\n") : null;
+}
+
+function mergeAbsorbedPartnersIntoHost(
+  host: CustomsClearancePackPartner,
+  absorbed: CustomsClearancePackPartner[],
+  heading: string,
+): CustomsClearancePackPartner {
+  if (absorbed.length === 0) return host;
+  const extraLines = absorbed.flatMap((partner) => partner.lines);
+  const extraTotal = absorbed.reduce(
+    (sum, partner) => sum + partner.totalCents,
+    0,
+  );
+  return {
+    ...host,
+    kindLabel: heading,
+    lines: extraLines.length > 0 ? [...host.lines, ...extraLines] : host.lines,
+    totalCents: host.totalCents + extraTotal,
+    notes: uniqueNotes(host.notes, ...absorbed.map((partner) => partner.notes)),
+  };
 }
 
 async function drawPartner(
@@ -613,24 +648,33 @@ export async function renderCustomsClearancePackPdf(
           const showFreightName =
             Boolean(freightName) &&
             freightName?.toLowerCase() !== payload.freight.name.trim().toLowerCase();
-          await drawPartner(doc, payload.freight, [
-            ["Freight company", showFreightName ? (freightName ?? null) : null],
-            ["Drop-off to freight", formatDate(payload.tracking.freightDropOffAt)],
-            ["Estimated arrival", formatDate(payload.tracking.estimatedArrivalAt)],
-            ["Payment reference", payload.tracking.paymentReference],
-          ]);
+          const absorbedOnFreight: CustomsClearancePackPartner[] = [];
           if (
             payload.broker &&
             isOutboundChargeKindAbsorbed("broker", payload.chargeBundle)
           ) {
-            await drawPartner(doc, payload.broker);
+            absorbedOnFreight.push(payload.broker);
           }
           if (
             payload.courier &&
             isOutboundChargeKindAbsorbed("courier", payload.chargeBundle)
           ) {
-            await drawPartner(doc, payload.courier);
+            absorbedOnFreight.push(payload.courier);
           }
+          const freightPartner =
+            absorbedOnFreight.length > 0
+              ? mergeAbsorbedPartnersIntoHost(
+                  payload.freight,
+                  absorbedOnFreight,
+                  outboundChargeBundlePdfHeading(payload.chargeBundle),
+                )
+              : payload.freight;
+          await drawPartner(doc, freightPartner, [
+            ["Freight company", showFreightName ? (freightName ?? null) : null],
+            ["Drop-off to freight", formatDate(payload.tracking.freightDropOffAt)],
+            ["Estimated arrival", formatDate(payload.tracking.estimatedArrivalAt)],
+            ["Payment reference", payload.tracking.paymentReference],
+          ]);
         } else if (
           payload.tracking.freightCompanyName ||
           payload.tracking.freightDropOffAt ||
@@ -656,14 +700,23 @@ export async function renderCustomsClearancePackPdf(
           if (!brokerSharesHost || !payload.freight) {
             beginOwnPage(doc);
           }
-          await drawPartner(doc, payload.broker);
+          const absorbedOnBroker: CustomsClearancePackPartner[] = [];
           if (
             payload.courier &&
             isOutboundChargeKindAbsorbed("courier", payload.chargeBundle) &&
-            outboundChargeBundleHost(payload.chargeBundle) === "broker"
+            brokerSharesHost
           ) {
-            await drawPartner(doc, payload.courier);
+            absorbedOnBroker.push(payload.courier);
           }
+          const brokerPartner =
+            absorbedOnBroker.length > 0
+              ? mergeAbsorbedPartnersIntoHost(
+                  payload.broker,
+                  absorbedOnBroker,
+                  outboundChargeBundlePdfHeading(payload.chargeBundle),
+                )
+              : payload.broker;
+          await drawPartner(doc, brokerPartner);
         }
         if (
           payload.courier &&

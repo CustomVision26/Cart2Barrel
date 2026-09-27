@@ -37,6 +37,7 @@ export async function updateHubContactSettingsAction(
       tiktokUrl: d.tiktokUrl.trim() || null,
       publicIntro: d.publicIntro.trim() || null,
       businessHours: d.businessHours.trim() || null,
+      businessAddress: d.businessAddress.trim() || null,
       updatedByClerkUserId: user.id,
     });
   } catch (e) {
@@ -46,5 +47,7 @@ export async function updateHubContactSettingsAction(
 
   revalidatePath("/admin/support/contact");
   revalidatePath("/dashboard", "layout");
+  revalidatePath("/");
+  revalidatePath("/how-it-works");
   return { ok: true, message: "Hub contact settings saved." };
 }

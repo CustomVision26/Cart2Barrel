@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import type { StripeCheckoutPriceDataLine } from "@/data/cart";
 import { STRIPE_CHECKOUT_LINE_MIN_US_CENTS } from "@/data/cart";
 import { formatUsd } from "@/lib/admin-markup";
@@ -16,6 +16,7 @@ import {
 import {
   addOutboundShippingPartner,
   getPrimaryOutboundShippingPartner,
+  syncBundlePartnersFromHost,
 } from "@/data/barrel-outbound-shipping-partners";
 import { getShipmentTrackingByBarrelIds } from "@/data/barrel-outbound-shipment-tracking";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
@@ -29,16 +30,23 @@ import type {
   OutboundShippingChargeLineView,
 } from "@/lib/barrel-outbound-shipping-charge";
 import {
+  chargeKindUsesCompanyRates,
+  containerTypeRateHint,
   isBarrelOutboundShippingChargeKind,
   isOffPlatformOutboundChargeKind,
   isOffPlatformPaymentMethod,
   isOutboundChargeKindAbsorbed,
   outboundChargeBundleHost,
+  outboundShippingRateTableKindForChargeKind,
   parseOutboundChargeBundle,
+  parseOutboundCompanyRateKinds,
+  resolveCompanyRateLine,
   serializeOutboundChargeBundle,
+  serializeOutboundCompanyRateKinds,
   sumChargeLineCents,
   type BarrelOutboundShippingChargeKind,
 } from "@/lib/barrel-outbound-shipping-charge";
+import { listOutboundShippingCompanyRates } from "@/data/outbound-shipping-company-rates";
 import { formatBarrelSlotLabel } from "@/lib/barrel-slot-label";
 import { buildContainerAliasMap } from "@/lib/container-slot-alias";
 import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-column-missing";
@@ -116,9 +124,16 @@ async function loadChargeViewsForBarrelIds(
   const bundleRows = await db
     .select({
       id: barrels.id,
+      clerkUserId: barrels.clerkUserId,
       outboundChargeBundle: barrels.outboundChargeBundle,
+      outboundCompanyRateKinds: barrels.outboundCompanyRateKinds,
+      kindSnapshot: orderContainerItems.kindSnapshot,
     })
     .from(barrels)
+    .leftJoin(
+      orderContainerItems,
+      eq(barrels.orderContainerItemId, orderContainerItems.id),
+    )
     .where(inArray(barrels.id, barrelIds));
   const bundleByBarrel = new Map(
     bundleRows.map((row) => [
@@ -126,16 +141,67 @@ async function loadChargeViewsForBarrelIds(
       parseOutboundChargeBundle(row.outboundChargeBundle),
     ]),
   );
+  const companyRateKindsByBarrel = new Map(
+    bundleRows.map((row) => [
+      row.id,
+      parseOutboundCompanyRateKinds(row.outboundCompanyRateKinds),
+    ]),
+  );
+  const containerKindByBarrel = new Map(
+    bundleRows.map((row) => [
+      row.id,
+      parseContainerOfferingKind(row.kindSnapshot ?? "barrel"),
+    ]),
+  );
+  const [activeCountRow] = await db
+    .select({ n: count() })
+    .from(barrels)
+    .where(
+      and(
+        eq(barrels.clerkUserId, clerkUserId),
+        notInArray(barrels.status, ["shipped", "delivered"]),
+      ),
+    );
+  const containerCount = Math.max(1, Number(activeCountRow?.n ?? 1));
+  const companyRates = await listOutboundShippingCompanyRates();
 
   const byBarrel = new Map<string, BarrelOutboundShippingChargeView[]>();
   for (const charge of charges) {
-    const lines = linesByCharge.get(charge.id) ?? [];
+    const bundle = bundleByBarrel.get(charge.barrelId) ?? [];
+    const companyRateKinds = companyRateKindsByBarrel.get(charge.barrelId) ?? [];
+    const chargeKind = isBarrelOutboundShippingChargeKind(charge.chargeKind)
+      ? charge.chargeKind
+      : "freight";
+    let lines = linesByCharge.get(charge.id) ?? [];
+    if (
+      !charge.paidAt &&
+      chargeKindUsesCompanyRates(chargeKind, companyRateKinds, bundle)
+    ) {
+      const absorbed = isOutboundChargeKindAbsorbed(chargeKind, bundle);
+      const host = outboundChargeBundleHost(bundle);
+      if (absorbed && host && companyRateKinds.includes(host)) {
+        lines = [];
+      } else {
+        const tableKind = outboundShippingRateTableKindForChargeKind(chargeKind);
+        const line = resolveCompanyRateLine({
+          rates: companyRates,
+          companyName: charge.partnerName,
+          tableKind,
+          rowHint:
+            tableKind === "container"
+              ? containerTypeRateHint(
+                  containerKindByBarrel.get(charge.barrelId) ?? "barrel",
+                )
+              : charge.partnerLocation,
+          containerCount,
+        });
+        lines = line ? [line] : [];
+      }
+    }
     const list = byBarrel.get(charge.barrelId) ?? [];
     list.push({
       chargeId: charge.id,
-      chargeKind: isBarrelOutboundShippingChargeKind(charge.chargeKind)
-        ? charge.chargeKind
-        : "freight",
+      chargeKind,
       partnerName: charge.partnerName,
       partnerLocation: charge.partnerLocation,
       partnerAddress: charge.partnerAddress,
@@ -149,9 +215,7 @@ async function loadChargeViewsForBarrelIds(
       totalCents: sumChargeLineCents(lines),
       adminNote: charge.adminNote,
       inCart:
-        isBarrelOutboundShippingChargeKind(charge.chargeKind) &&
-        charge.chargeKind === "freight" &&
-        inCartIds.has(charge.id),
+        chargeKind === "freight" && inCartIds.has(charge.id),
       paidAt: charge.paidAt,
       paymentReferenceNumber: charge.paymentReferenceNumber,
       paidOrderId: charge.paidOrderId,
@@ -165,7 +229,8 @@ async function loadChargeViewsForBarrelIds(
       offPlatformSubmittedAt: charge.offPlatformSubmittedAt,
       shipmentTracking: trackingByBarrel.get(charge.barrelId) ?? null,
       updatedByClerkUserId: charge.recordedByClerkUserId,
-      chargeBundle: bundleByBarrel.get(charge.barrelId) ?? [],
+      chargeBundle: bundle,
+      companyRateKinds,
     });
     byBarrel.set(charge.barrelId, list);
   }
@@ -265,6 +330,18 @@ export async function listUserOutboundShippingCartLines(
     })),
   );
 
+  const companyRates = await listOutboundShippingCompanyRates();
+  const [activeCountRow] = await db
+    .select({ n: count() })
+    .from(barrels)
+    .where(
+      and(
+        eq(barrels.clerkUserId, clerkUserId),
+        notInArray(barrels.status, ["shipped", "delivered"]),
+      ),
+    );
+  const containerCount = Math.max(1, Number(activeCountRow?.n ?? 1));
+
   return cartRows
     .filter(
       (r) =>
@@ -284,16 +361,35 @@ export async function listUserOutboundShippingCartLines(
           unitOrdinal: r.barrel.unitOrdinal,
         })
       : `Container ${r.barrel.id.slice(0, 8)}…`;
-    const lines = linesByCharge.get(r.charge.id) ?? [];
+    const storedLines = linesByCharge.get(r.charge.id) ?? [];
     const bundle = parseOutboundChargeBundle(r.barrel.outboundChargeBundle);
-    const extraLines = (siblingsByBarrel.get(r.barrel.id) ?? [])
-      .filter(
-        (other) =>
-          isBarrelOutboundShippingChargeKind(other.chargeKind) &&
-          isOutboundChargeKindAbsorbed(other.chargeKind, bundle),
-      )
-      .flatMap((other) => linesByCharge.get(other.id) ?? []);
-    const mergedLines = [...lines, ...extraLines];
+    const companyRateKinds = parseOutboundCompanyRateKinds(
+      r.barrel.outboundCompanyRateKinds,
+    );
+    const usesCompanyRates =
+      !r.charge.paidAt &&
+      chargeKindUsesCompanyRates("freight", companyRateKinds, bundle);
+    let mergedLines = storedLines;
+    if (usesCompanyRates) {
+      const line = resolveCompanyRateLine({
+        rates: companyRates,
+        companyName: r.charge.partnerName,
+        tableKind: "container",
+        rowHint: containerTypeRateHint(kind),
+        containerCount,
+      });
+      mergedLines = line ? [line] : [];
+    } else {
+      const extraLines = (siblingsByBarrel.get(r.barrel.id) ?? [])
+        .filter(
+          (other) =>
+            isBarrelOutboundShippingChargeKind(other.chargeKind) &&
+            isOutboundChargeKindAbsorbed(other.chargeKind, bundle) &&
+            !companyRateKinds.includes(other.chargeKind),
+        )
+        .flatMap((other) => linesByCharge.get(other.id) ?? []);
+      mergedLines = [...storedLines, ...extraLines];
+    }
 
     return {
       chargeId: r.charge.id,
@@ -879,24 +975,170 @@ async function copyFreightChargeTemplateToBarrel(input: {
   );
 
   const partnerName = (partner?.name ?? source.partnerName)?.trim();
-  if (!partnerName) {
+  if (partnerName) {
+    await addOutboundShippingPartner({
+      barrelId: input.destBarrelId,
+      chargeKind: "freight",
+      name: partnerName,
+      location: null,
+      address: partner?.address ?? source.partnerAddress,
+      country: null,
+      phone: partner?.phone ?? source.partnerPhone,
+      cashappId: partner?.cashappId ?? source.partnerCashappId,
+      cashappAccount: partner?.cashappAccount ?? source.partnerCashappAccount,
+      zelleId: partner?.zelleId ?? source.partnerZelleId,
+      zelleAccount: partner?.zelleAccount ?? source.partnerZelleAccount,
+      isPrimary: true,
+    });
+  }
+
+  const [sourceBarrel] = await db
+    .select({
+      outboundChargeBundle: barrels.outboundChargeBundle,
+      outboundCompanyRateKinds: barrels.outboundCompanyRateKinds,
+    })
+    .from(barrels)
+    .where(eq(barrels.id, source.barrelId))
+    .limit(1);
+  const bundle = parseOutboundChargeBundle(sourceBarrel?.outboundChargeBundle);
+  const companyRateKinds = parseOutboundCompanyRateKinds(
+    sourceBarrel?.outboundCompanyRateKinds,
+  );
+  if (companyRateKinds.length > 0) {
+    await db
+      .update(barrels)
+      .set({
+        outboundCompanyRateKinds:
+          serializeOutboundCompanyRateKinds(companyRateKinds),
+      })
+      .where(eq(barrels.id, input.destBarrelId));
+  }
+  if (bundle.length < 2) {
     return;
   }
 
-  await addOutboundShippingPartner({
-    barrelId: input.destBarrelId,
-    chargeKind: "freight",
-    name: partnerName,
-    location: null,
-    address: partner?.address ?? source.partnerAddress,
-    country: null,
-    phone: partner?.phone ?? source.partnerPhone,
-    cashappId: partner?.cashappId ?? source.partnerCashappId,
-    cashappAccount: partner?.cashappAccount ?? source.partnerCashappAccount,
-    zelleId: partner?.zelleId ?? source.partnerZelleId,
-    zelleAccount: partner?.zelleAccount ?? source.partnerZelleAccount,
-    isPrimary: true,
+  await db
+    .update(barrels)
+    .set({ outboundChargeBundle: serializeOutboundChargeBundle(bundle) })
+    .where(eq(barrels.id, input.destBarrelId));
+
+  await copyBundledChargesToBarrel({
+    sourceBarrelId: source.barrelId,
+    destBarrelId: input.destBarrelId,
+    destClerkUserId: input.destClerkUserId,
+    bundle,
   });
+}
+
+async function copyBundledChargesToBarrel(input: {
+  sourceBarrelId: string;
+  destBarrelId: string;
+  destClerkUserId: string;
+  bundle: BarrelOutboundShippingChargeKind[];
+}): Promise<void> {
+  const db = getDb();
+  const host = outboundChargeBundleHost(input.bundle) ?? "freight";
+  const hostPartner =
+    (await getPrimaryOutboundShippingPartner(input.destBarrelId, host)) ??
+    (await getPrimaryOutboundShippingPartner(input.sourceBarrelId, host));
+
+  for (const kind of input.bundle) {
+    const [existing] = await db
+      .select({ id: barrelOutboundShippingCharges.id })
+      .from(barrelOutboundShippingCharges)
+      .where(
+        and(
+          eq(barrelOutboundShippingCharges.barrelId, input.destBarrelId),
+          eq(barrelOutboundShippingCharges.chargeKind, kind),
+        ),
+      )
+      .limit(1);
+
+    if (!existing) {
+      const [sourceCharge] = await db
+        .select()
+        .from(barrelOutboundShippingCharges)
+        .where(
+          and(
+            eq(barrelOutboundShippingCharges.barrelId, input.sourceBarrelId),
+            eq(barrelOutboundShippingCharges.chargeKind, kind),
+          ),
+        )
+        .limit(1);
+      if (sourceCharge) {
+        const lineRows = await db
+          .select({
+            label: barrelOutboundShippingChargeLines.label,
+            amountCents: barrelOutboundShippingChargeLines.amountCents,
+            sortIndex: barrelOutboundShippingChargeLines.sortIndex,
+          })
+          .from(barrelOutboundShippingChargeLines)
+          .where(eq(barrelOutboundShippingChargeLines.chargeId, sourceCharge.id))
+          .orderBy(asc(barrelOutboundShippingChargeLines.sortIndex));
+        const lines = lineRows.filter((line) => line.amountCents > 0);
+        if (lines.length > 0) {
+          const [inserted] = await db
+            .insert(barrelOutboundShippingCharges)
+            .values({
+              barrelId: input.destBarrelId,
+              clerkUserId: input.destClerkUserId,
+              chargeKind: kind,
+              partnerName: hostPartner?.name ?? sourceCharge.partnerName,
+              partnerLocation:
+                kind === "freight" ? null : (hostPartner?.location ?? null),
+              partnerAddress: hostPartner?.address ?? sourceCharge.partnerAddress,
+              partnerCountry:
+                kind === "freight" ? null : (hostPartner?.country ?? null),
+              partnerPhone: hostPartner?.phone ?? sourceCharge.partnerPhone,
+              partnerCashappId:
+                hostPartner?.cashappId ?? sourceCharge.partnerCashappId,
+              partnerCashappAccount:
+                hostPartner?.cashappAccount ??
+                sourceCharge.partnerCashappAccount,
+              partnerZelleId: hostPartner?.zelleId ?? sourceCharge.partnerZelleId,
+              partnerZelleAccount:
+                hostPartner?.zelleAccount ?? sourceCharge.partnerZelleAccount,
+              adminNote: sourceCharge.adminNote,
+              recordedByClerkUserId: sourceCharge.recordedByClerkUserId,
+            })
+            .onConflictDoNothing({
+              target: [
+                barrelOutboundShippingCharges.barrelId,
+                barrelOutboundShippingCharges.chargeKind,
+              ],
+            })
+            .returning({ id: barrelOutboundShippingCharges.id });
+          if (inserted?.id) {
+            await db.insert(barrelOutboundShippingChargeLines).values(
+              lines.map((line) => ({
+                chargeId: inserted.id,
+                label: line.label,
+                amountCents: line.amountCents,
+                sortIndex: line.sortIndex,
+              })),
+            );
+          }
+        }
+      }
+    }
+
+    if (hostPartner?.name.trim() && kind !== host) {
+      await addOutboundShippingPartner({
+        barrelId: input.destBarrelId,
+        chargeKind: kind,
+        name: hostPartner.name,
+        location: hostPartner.location,
+        address: hostPartner.address,
+        country: hostPartner.country,
+        phone: hostPartner.phone,
+        cashappId: hostPartner.cashappId,
+        cashappAccount: hostPartner.cashappAccount,
+        zelleId: hostPartner.zelleId,
+        zelleAccount: hostPartner.zelleAccount,
+        isPrimary: true,
+      });
+    }
+  }
 }
 
 export async function setOutboundChargeBundleForBarrel(input: {
@@ -921,6 +1163,56 @@ export async function setOutboundChargeBundleForBarrel(input: {
   await db
     .update(barrels)
     .set({ outboundChargeBundle: serialized })
+    .where(eq(barrels.id, input.barrelId));
+
+  const bundle = parseOutboundChargeBundle(serialized);
+  if (bundle.length >= 2) {
+    await syncBundlePartnersFromHost(input.barrelId, bundle);
+    const siblings = await db
+      .select({ id: barrels.id })
+      .from(barrels)
+      .where(
+        and(
+          eq(barrels.clerkUserId, barrel.clerkUserId),
+          notInArray(barrels.status, ["shipped", "delivered"]),
+        ),
+      );
+    for (const sibling of siblings) {
+      if (sibling.id === input.barrelId) continue;
+      await db
+        .update(barrels)
+        .set({ outboundChargeBundle: serialized })
+        .where(eq(barrels.id, sibling.id));
+      await copyBundledChargesToBarrel({
+        sourceBarrelId: input.barrelId,
+        destBarrelId: sibling.id,
+        destClerkUserId: barrel.clerkUserId,
+        bundle,
+      });
+    }
+  }
+  return { ok: true };
+}
+
+export async function setOutboundCompanyRateKindsForBarrel(input: {
+  barrelId: string;
+  kinds: BarrelOutboundShippingChargeKind[];
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureBarrelOutboundShippingChargesSchema();
+  const db = getDb();
+  const [barrel] = await db
+    .select({ id: barrels.id })
+    .from(barrels)
+    .where(eq(barrels.id, input.barrelId))
+    .limit(1);
+  if (!barrel) {
+    return { ok: false, message: "Container not found." };
+  }
+  await db
+    .update(barrels)
+    .set({
+      outboundCompanyRateKinds: serializeOutboundCompanyRateKinds(input.kinds),
+    })
     .where(eq(barrels.id, input.barrelId));
   return { ok: true };
 }

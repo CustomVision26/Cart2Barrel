@@ -9,13 +9,22 @@ const ContactUsDialog = dynamic(
     import("@/components/support/contact-us-dialog").then(
       (mod) => mod.ContactUsDialog,
     ),
-  { ssr: false },
 );
 
 export function ContactUsDialogLazy({
   hubContact,
+  allowTicketSubmit = true,
+  triggerClassName,
 }: {
   hubContact: HubContactPublic;
+  allowTicketSubmit?: boolean;
+  triggerClassName?: string;
 }) {
-  return <ContactUsDialog hubContact={hubContact} />;
+  return (
+    <ContactUsDialog
+      hubContact={hubContact}
+      allowTicketSubmit={allowTicketSubmit}
+      triggerClassName={triggerClassName}
+    />
+  );
 }

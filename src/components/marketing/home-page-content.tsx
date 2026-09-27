@@ -5,6 +5,7 @@ import { HomePageHeader } from "@/components/marketing/home-page-header";
 import { HomeHubStockSection } from "@/components/marketing/home-hub-stock-section";
 import { HomeSpotlightCarouselFallback } from "@/components/marketing/home-spotlight-carousel-fallback";
 import { HomeSpotlightSection } from "@/components/marketing/home-spotlight-section";
+import { SiteContactFooter } from "@/components/marketing/site-contact-footer";
 import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
 
 type Props = {
@@ -33,6 +34,9 @@ export function HomePageContent({ userId }: Props) {
           <HomeSpotlightSection isSignedIn={isSignedIn} />
         </Suspense>
       </main>
+      <Suspense fallback={null}>
+        <SiteContactFooter />
+      </Suspense>
     </div>
   );
 }

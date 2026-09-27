@@ -7,6 +7,7 @@ import {
   DashboardNavWithBadges,
 } from "@/app/dashboard/_components/dashboard-layout-chrome";
 import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
+import { SiteContactFooter } from "@/components/marketing/site-contact-footer";
 import { getClerkSessionGate } from "@/lib/clerk-session";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,9 @@ export default async function DashboardLayout({
           {children}
         </div>
       </div>
+      <Suspense fallback={null}>
+        <SiteContactFooter />
+      </Suspense>
     </div>
   );
 }

@@ -58,6 +58,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Category catalogs use compact cards (two per row on larger screens) with Previous / Next when there are more than six products. Open Retailers and pick a store tab to show that retailer's listings.",
         "Guests see Sign in / Sign up; signed-in users see Dashboard. Sign up collects first name, last name, email, password, and confirm password on a glass card over Home. Back to home, clicking outside the card, or Escape returns to Home. On the email verification step, Back to sign up returns to the filled sign-up form. If the code is missing, use Resend code and check junk. iCloud often never receives Clerk development mail; for local testing use an address like you+clerk_test@gmail.com and code 424242.",
         "Get an estimate (next to the hero badge) opens the AI-assisted item request at /dashboard/items/requested-items/ai-assisted-request. Sign in is required if you are not already signed in.",
+        "The page footer lists published hub contact details (address, email, phone, hours, and social links) when the hub team has filled them in.",
         "In-hub products can be added to cart from Home; US delivery uses a saved United States address. Multiple in-hub SKUs to the same address ship as one warehouse package with a single Shippo rate.",
         "After skip or complete onboarding, Home works normally.",
       ],
@@ -109,8 +110,9 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Public guide explaining the full Amani Cart2Barrel journey from quote to delivery.",
       location: "Marketing header → How it works, or visit /how-it-works.",
       bullets: [
-        "Overview tab: services, journey, and typical costs. User guide tab: full customer documentation.",
+        "Overview tab: services, journey, typical costs, and seasonal special-feature offers. User guide tab: full customer documentation.",
         "Pricing overview shows published service & handling, container catalog prices, and barrel/bin packing rates.",
+        "When a suitcase special is in season, a company courier traveler carries extra bags to Jamaica on a published travel date with limited slots.",
         "Packing fees follow barrel and bin counts (1 vs 2+ of each type)—not a fee per quoted product line.",
         "Destination-country charges are not included in the US outbound quote.",
         "No sign-in required.",
@@ -127,13 +129,13 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "How it works is Amani Cart2Barrel's public explainer. Overview describes how US retailer shopping, hub processing, barrel consolidation, and international delivery fit together. User guide is the same customer documentation signed-in shoppers open from Documentation in the dashboard header.",
+        "How it works is Amani Cart2Barrel's public explainer. Overview describes how US retailer shopping, hub processing, barrel consolidation, international delivery, and seasonal special-feature suitcase offers fit together. User guide is the same customer documentation signed-in shoppers open from Documentation in the dashboard header.",
         "Anyone can read both tabs without signing in. Overview includes a Pricing overview of current published rates; your signed-in dashboard shows exact totals at checkout.",
       ],
       walkthrough: [
         "Open How it works from the marketing header or go to /how-it-works (Overview tab by default).",
         "Review Pricing overview: in-app and outside-purchase service & handling charts, container catalog prices, and barrel/bin packing fees (exactly 1 vs 2+ of each type).",
-        "Read services, the illustrated journey (request → quote → payment → warehouse receipt → barrel packing → delivery), and the four cost phases: product plus service & handling, container/barrel cost, US outbound freight, and destination-country charges.",
+        "Read services, the illustrated journey (request → quote → payment → warehouse receipt → barrel packing → delivery), the four cost phases, and Seasonal special-feature offers (timed suitcase specials via a company courier traveler when in season).",
         "Destination charges (duties, inland delivery, port or warehouse storage, local handling) are billed on arrival by customs or the local carrier. They are not included in the US outbound quote.",
         "Switch to the User guide tab (or /how-it-works?tab=user-guide) for quick references and full articles on every customer page.",
       ],
@@ -494,11 +496,11 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     category: "Support",
     quickReference: {
       summary: "Reach the hub team or open a support ticket from the dashboard.",
-      location: "Dashboard top bar → Contact us.",
+      location: "Home and How it works headers, or Dashboard top bar → Contact us.",
       bullets: [
-        "Shows hub email, phone, and social links.",
-        "Compose a subject and message to create a ticket.",
-        "Images optional; routes to Messages on success.",
+        "Shows hub address, email, phone, hours, and social links when configured.",
+        "Guests can view contact details; sign in to send a tracked message.",
+        "The same details appear in the site footer on user pages.",
       ],
       requirements: ["Signed-in account.", "Clear subject and message."],
       dos: [
@@ -532,6 +534,47 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Do not send payment card numbers or passwords in support messages.",
         "Do not open multiple tickets for the same issue—it slows resolution.",
+      ],
+    },
+  },
+  {
+    id: "site-contact-footer",
+    title: "Site contact footer",
+    category: "Support",
+    quickReference: {
+      summary:
+        "Formal company contact strip at the bottom of shopper pages.",
+      location: "Bottom of Home, How it works, and Dashboard pages.",
+      bullets: [
+        "Shows only details the hub team has published: address, email, phone, WhatsApp, hours, and social links.",
+        "Each channel uses a matching icon; address opens a map search.",
+        "Empty fields are omitted. Brand and copyright always appear.",
+      ],
+      requirements: ["None—public on shopper pages."],
+      dos: [
+        "Use the footer to call, email, or message the hub without opening Contact us.",
+        "Prefer Contact us when you need a tracked support ticket.",
+      ],
+      donts: [
+        "Don't treat unpublished channels as missing from the company—staff may not have filled them in yet.",
+      ],
+    },
+    article: {
+      overview: [
+        "The site contact footer repeats Amani Cart2Barrel's published hub details at the bottom of Home, How it works, and the dashboard. It is the same information as Contact us, presented formally with icons for every filled channel.",
+      ],
+      walkthrough: [
+        "Scroll to the bottom of Home, How it works, or any dashboard page.",
+        "Use the Contact column for address, email, phone, WhatsApp, and business hours when those fields are filled.",
+        "Use the Connect icons for Instagram, Facebook, X, and TikTok when those URLs are published.",
+      ],
+      requirements: ["None—this footer is public on shopper pages."],
+      dos: [
+        "Use listed phone, email, or WhatsApp for quick questions.",
+        "Open Contact us when you want a ticket that stays in Messages.",
+      ],
+      donts: [
+        "Do not assume a missing icon means the company has no presence there—only published fields appear.",
       ],
     },
   },

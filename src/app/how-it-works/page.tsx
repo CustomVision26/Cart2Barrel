@@ -1,8 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { HowItWorksPageMain } from "@/components/marketing/how-it-works-page-main";
+import { MarketingContactUs } from "@/components/marketing/marketing-contact-us";
+import { SiteContactFooter } from "@/components/marketing/site-contact-footer";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { Button } from "@/components/ui/button";
 import { listActiveContainerOfferingsWithImages } from "@/data/container-offerings";
@@ -78,6 +81,7 @@ export default async function HowItWorksPage({
                 >
                   How it works
                 </span>
+                <MarketingContactUs signedIn />
                 <Button
                   variant="ghost"
                   size="lg"
@@ -95,6 +99,7 @@ export default async function HowItWorksPage({
                 >
                   How it works
                 </span>
+                <MarketingContactUs signedIn={false} />
                 <Button
                   variant="ghost"
                   size="lg"
@@ -120,6 +125,9 @@ export default async function HowItWorksPage({
         containerCatalogChartRows={containerCatalogChartRows}
         containerPackingChartRows={containerPackingChartRows}
       />
+      <Suspense fallback={null}>
+        <SiteContactFooter />
+      </Suspense>
     </div>
   );
 }

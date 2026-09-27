@@ -2,6 +2,7 @@
 
 import {
   Globe2,
+  Luggage,
   PackageSearch,
   Radar,
   Ship,
@@ -55,6 +56,12 @@ const SERVICES: Service[] = [
       "When your barrel is full, we quote freight from the United States to your saved delivery address—Jamaica, the Caribbean, and other destinations we serve.",
     icon: Globe2,
   },
+  {
+    title: "Seasonal special-feature offers",
+    description:
+      "When a suitcase special is in season, a company courier traveler can carry extra bags to Jamaica on a published travel date—faster than waiting for a full barrel, with limited slots and a hard end date.",
+    icon: Luggage,
+  },
 ];
 
 export function HowItWorksServices() {
@@ -68,7 +75,9 @@ export function HowItWorksServices() {
           Amani Cart2Barrel is a consolidation service: we buy or receive your US
           store orders, pack them into a shared barrel or bin, and arrange
           international shipping to your custom destination—with clear status at
-          every step.
+          every step. When a special-feature suitcase offer is in season, you can
+          also send a bag with a company courier traveler instead of waiting for
+          a full container.
         </p>
       </RevealOnScroll>
 

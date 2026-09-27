@@ -20,6 +20,7 @@ import {
   listOutboundShippingPartnersByBarrelIds,
   mergePartnersWithCatalog,
 } from "@/data/barrel-outbound-shipping-partners";
+import { listOutboundShippingCompanyRates } from "@/data/outbound-shipping-company-rates";
 import { getShipmentTrackingByBarrelIds } from "@/data/barrel-outbound-shipment-tracking";
 import { getPrimaryImageUrlByOfferingIds } from "@/data/container-offerings";
 import { formatShippingDestinationLines } from "@/lib/shipping-address-format";
@@ -32,9 +33,10 @@ import type {
   AdminShipmentChargePageData,
   AdminShipmentCustomerGroup,
   BarrelOutboundShippingChargeView,
+  OutboundShippingCompanyRateRow,
   OutboundShippingPartnerRecord,
 } from "@/lib/barrel-outbound-shipping-charge";
-import { parseOutboundChargeBundle } from "@/lib/barrel-outbound-shipping-charge";
+import { parseOutboundChargeBundle, parseOutboundCompanyRateKinds } from "@/lib/barrel-outbound-shipping-charge";
 import { sumOutboundChargesCents } from "@/lib/barrel-outbound-shipping-charge";
 import { formatBarrelSlotLabel } from "@/lib/barrel-slot-label";
 import { buildContainerAliasMap } from "@/lib/container-slot-alias";
@@ -85,6 +87,7 @@ function mapSingleAdminRow(
   chargesByBarrel: Map<string, BarrelOutboundShippingChargeView[]>,
   partnersByBarrel: Map<string, OutboundShippingPartnerRecord[]>,
   partnerCatalog: OutboundShippingPartnerRecord[],
+  companyRates: OutboundShippingCompanyRateRow[],
 ): AdminBarrelOutboundShippingChargeRow {
   const kind = parseContainerOfferingKind(r.oci?.kindSnapshot ?? "barrel");
   const alias =
@@ -147,6 +150,10 @@ function mapSingleAdminRow(
       charges.find((c) => c.updatedByClerkUserId)?.updatedByClerkUserId ??
       null,
     chargeBundle: parseOutboundChargeBundle(r.barrel.outboundChargeBundle),
+    companyRates,
+    companyRateKinds: parseOutboundCompanyRateKinds(
+      r.barrel.outboundCompanyRateKinds,
+    ),
   };
 }
 
@@ -158,6 +165,7 @@ function buildCustomerGroups(
   chargesByBarrel: Map<string, BarrelOutboundShippingChargeView[]>,
   partnersByBarrel: Map<string, OutboundShippingPartnerRecord[]>,
   partnerCatalog: OutboundShippingPartnerRecord[],
+  companyRates: OutboundShippingCompanyRateRow[],
 ): AdminShipmentCustomerGroup[] {
   const byUser = new Map<string, AdminChargeSourceRow[]>();
   for (const row of sourceRows) {
@@ -189,6 +197,7 @@ function buildCustomerGroups(
         chargesByBarrel,
         partnersByBarrel,
         partnerCatalog,
+        companyRates,
       ),
     );
 
@@ -304,9 +313,10 @@ export async function listAdminShipmentChargePageData(
   }
 
   await backfillOutboundShippingPartnersFromCharges(barrelIds);
-  const [partnersByBarrel, partnerCatalog] = await Promise.all([
+  const [partnersByBarrel, partnerCatalog, companyRates] = await Promise.all([
     listOutboundShippingPartnersByBarrelIds(barrelIds),
     listOutboundShippingPartnerCatalog(),
+    listOutboundShippingCompanyRates(),
   ]);
 
   const customerGroups = buildCustomerGroups(
@@ -317,6 +327,7 @@ export async function listAdminShipmentChargePageData(
     chargesByBarrel,
     partnersByBarrel,
     partnerCatalog,
+    companyRates,
   );
 
   return { customerGroups };

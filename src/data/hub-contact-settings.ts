@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { eq } from "drizzle-orm";
 
+import { ensureHubContactSettingsSchema } from "@/data/ensure-hub-contact-schema";
 import { getDb } from "@/db";
 import {
   hubContactSettings,
@@ -22,6 +23,7 @@ export type HubContactPublic = {
   tiktokUrl: string | null;
   publicIntro: string | null;
   businessHours: string | null;
+  businessAddress: string | null;
   socialLinks: HubSocialLink[];
 };
 
@@ -35,6 +37,7 @@ export const EMPTY_HUB_CONTACT: HubContactPublic = {
   tiktokUrl: null,
   publicIntro: null,
   businessHours: null,
+  businessAddress: null,
   socialLinks: [],
 };
 
@@ -79,11 +82,15 @@ function mapHubRow(row: HubContactSetting | undefined): HubContactPublic {
     tiktokUrl: optionalUrl(row.tiktokUrl),
     publicIntro: row.publicIntro?.trim() || null,
     businessHours: row.businessHours?.trim() || null,
+    businessAddress: row.businessAddress?.trim() || null,
     socialLinks: buildSocialLinks(row),
   };
 }
 
+export { googleMapsSearchUrl, hubContactHasPublicDetails } from "@/lib/hub-contact-display";
+
 export const loadHubContactSettings = cache(async (): Promise<HubContactPublic> => {
+  await ensureHubContactSettingsSchema();
   const db = getDb();
   const [row] = await db
     .select()
@@ -103,8 +110,10 @@ export async function upsertHubContactSettings(params: {
   tiktokUrl: string | null;
   publicIntro: string | null;
   businessHours: string | null;
+  businessAddress: string | null;
   updatedByClerkUserId: string;
 }): Promise<void> {
+  await ensureHubContactSettingsSchema();
   const db = getDb();
   const [existing] = await db
     .select({ k: hubContactSettings.singletonKey })
@@ -122,6 +131,7 @@ export async function upsertHubContactSettings(params: {
     tiktokUrl: params.tiktokUrl,
     publicIntro: params.publicIntro,
     businessHours: params.businessHours,
+    businessAddress: params.businessAddress,
     updatedByClerkUserId: params.updatedByClerkUserId,
     updatedAt: new Date().toISOString(),
   };

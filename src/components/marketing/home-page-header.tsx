@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { BrandLogoLink } from "@/components/brand/brand-logo-link";
 import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
+import { MarketingContactUs } from "@/components/marketing/marketing-contact-us";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { Button } from "@/components/ui/button";
 
@@ -25,7 +26,7 @@ export function HomePageHeader({ userId }: HomePageHeaderProps) {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
         <BrandLogoLink priority />
         <nav className="flex items-center gap-2 sm:gap-3">
-          {userId ?
+          {userId ? (
             <>
               <Button
                 variant="ghost"
@@ -35,6 +36,7 @@ export function HomePageHeader({ userId }: HomePageHeaderProps) {
               >
                 How it works
               </Button>
+              <MarketingContactUs signedIn />
               <Button
                 variant="ghost"
                 size="lg"
@@ -48,7 +50,8 @@ export function HomePageHeader({ userId }: HomePageHeaderProps) {
               </Suspense>
               <UserHeaderControls />
             </>
-          : <>
+          ) : (
+            <>
               <Button
                 variant="ghost"
                 size="lg"
@@ -57,6 +60,7 @@ export function HomePageHeader({ userId }: HomePageHeaderProps) {
               >
                 How it works
               </Button>
+              <MarketingContactUs signedIn={false} />
               <Button
                 variant="ghost"
                 size="lg"
@@ -73,7 +77,7 @@ export function HomePageHeader({ userId }: HomePageHeaderProps) {
                 Sign up
               </Button>
             </>
-          }
+          )}
         </nav>
       </div>
     </header>

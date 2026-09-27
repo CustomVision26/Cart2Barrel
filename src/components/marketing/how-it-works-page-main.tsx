@@ -10,6 +10,7 @@ import {
 import { HowItWorksCustomerCosts } from "@/components/marketing/how-it-works-customer-costs";
 import { HowItWorksJourney } from "@/components/marketing/how-it-works-journey";
 import { HowItWorksServices } from "@/components/marketing/how-it-works-services";
+import { HowItWorksSpecialFeatures } from "@/components/marketing/how-it-works-special-features";
 import { HowItWorksSubTabNav } from "@/components/marketing/how-it-works-sub-tab-nav";
 import { RevealOnScroll } from "@/components/marketing/reveal-on-scroll";
 import { ServiceHandlingFeeChart } from "@/components/marketing/service-handling-fee-chart";
@@ -67,7 +68,7 @@ export function HowItWorksPageMain({
         <p className="max-w-3xl text-base leading-relaxed text-muted-foreground md:text-lg">
           {isUserGuide ?
             "Formal reference for every customer page, header control, and account feature. Each topic includes a quick reference for scanning and a full article for deeper reading—no sign-in required."
-          : "Amani Cart2Barrel helps you shop US retailers, consolidate packages at our hub, and ship everything in a barrel or bin to your address. This page explains our services, the step-by-step process, and typical costs—so you know what to expect before you sign up."}
+          : "Amani Cart2Barrel helps you shop US retailers, consolidate packages at our hub, and ship everything in a barrel or bin to your address. When a special-feature suitcase offer is in season, you can also send a bag with a company courier traveler. This page explains our services, seasonal specials, the step-by-step process, and typical costs—so you know what to expect before you sign up."}
         </p>
       </RevealOnScroll>
 
@@ -113,6 +114,7 @@ export function HowItWorksPageMain({
               <HowItWorksServices />
               <HowItWorksJourney />
               <HowItWorksCustomerCosts />
+              <HowItWorksSpecialFeatures />
             </div>
           </div>
 

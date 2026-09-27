@@ -40,7 +40,7 @@ export type SaveBarrelOutboundShippingChargeInput = z.infer<
   typeof saveBarrelOutboundShippingChargeSchema
 >;
 
-export const setBarrelOutboundChargeBundleSchema = z.object({
+export const setBarrelOutboundCompanyRateKindsSchema = z.object({
   barrelId: z.string().uuid("Invalid container."),
   kinds: z.array(barrelOutboundShippingChargeKindSchema).max(3),
 });
@@ -123,3 +123,59 @@ export function parseUsdInputToCents(raw: string): number {
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.round(n * 100);
 }
+
+export function parseUsdInputToNonNegativeCents(raw: string): number | null {
+  const t = raw.trim().replace(/^\$/, "").replace(/,/g, "");
+  if (!t) return null;
+  const n = Number.parseFloat(t);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100);
+}
+
+const usdAmountAllowZeroSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter an amount.")
+  .refine((v) => parseUsdInputToNonNegativeCents(v) != null, {
+    message: "Amount must be zero or greater.",
+  });
+
+export const outboundShippingCompanyRateTableKindSchema = z.enum([
+  "container",
+  "zone",
+]);
+
+export const addOutboundShippingCompanyRateSchema = z.object({
+  companyName: z.string().trim().min(1, "Add a company first.").max(160),
+  tableKind: outboundShippingCompanyRateTableKindSchema,
+  rowLabel: z
+    .string()
+    .trim()
+    .min(1, "Enter a row label.")
+    .max(120, "Label is too long."),
+  costOneUsd: usdAmountAllowZeroSchema,
+  costTwoPlusUsd: usdAmountAllowZeroSchema,
+});
+
+export type AddOutboundShippingCompanyRateInput = z.infer<
+  typeof addOutboundShippingCompanyRateSchema
+>;
+
+export const updateOutboundShippingCompanyRateSchema = z.object({
+  id: z.string().uuid("Invalid rate."),
+  rowLabel: z
+    .string()
+    .trim()
+    .min(1, "Enter a row label.")
+    .max(120, "Label is too long."),
+  costOneUsd: usdAmountAllowZeroSchema,
+  costTwoPlusUsd: usdAmountAllowZeroSchema,
+});
+
+export type UpdateOutboundShippingCompanyRateInput = z.infer<
+  typeof updateOutboundShippingCompanyRateSchema
+>;
+
+export const deleteOutboundShippingCompanyRateSchema = z.object({
+  id: z.string().uuid("Invalid rate."),
+});

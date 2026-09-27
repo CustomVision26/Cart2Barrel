@@ -1,7 +1,10 @@
 import type { BarrelStatus } from "@/lib/barrel-container-types";
 import type { BarrelOutboundShipmentTrackingView } from "@/lib/barrel-shipment-tracking";
 import type { BarrelShippingDeliveryMethod } from "@/lib/validations/barrel-shipping-intake";
-import type { ContainerOfferingKind } from "@/lib/validations/container-offering";
+import {
+  containerOfferingKindLabel,
+  type ContainerOfferingKind,
+} from "@/lib/validations/container-offering";
 
 export { ADMIN_OUTBOUND_SHIPPING_CHARGE_LABELS as DEFAULT_OUTBOUND_SHIPPING_CHARGE_LABELS } from "@/lib/outbound-shipping-expected-charges";
 
@@ -13,6 +16,72 @@ export const BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS = [
 
 export type BarrelOutboundShippingChargeKind =
   (typeof BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS)[number];
+
+export const OUTBOUND_SHIPPING_COMPANY_RATE_TABLE_KINDS = [
+  "container",
+  "zone",
+] as const;
+
+export type OutboundShippingCompanyRateTableKind =
+  (typeof OUTBOUND_SHIPPING_COMPANY_RATE_TABLE_KINDS)[number];
+
+export function isOutboundShippingCompanyRateTableKind(
+  value: string | null | undefined,
+): value is OutboundShippingCompanyRateTableKind {
+  return value === "container" || value === "zone";
+}
+
+export function outboundShippingCompanyKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+export function outboundShippingRateRowKey(label: string): string {
+  return label.trim().toLowerCase();
+}
+
+export function outboundShippingRateTableKindForChargeKind(
+  kind: BarrelOutboundShippingChargeKind,
+): OutboundShippingCompanyRateTableKind {
+  return kind === "courier" ? "zone" : "container";
+}
+
+export function outboundShippingRateTableKindsForTabs(
+  kinds: readonly BarrelOutboundShippingChargeKind[],
+): OutboundShippingCompanyRateTableKind[] {
+  const tables: OutboundShippingCompanyRateTableKind[] = [];
+  if (kinds.some((kind) => kind === "freight" || kind === "broker")) {
+    tables.push("container");
+  }
+  if (kinds.some((kind) => kind === "courier")) {
+    tables.push("zone");
+  }
+  return tables;
+}
+
+export type OutboundShippingCompanyRateRow = {
+  id: string;
+  companyName: string;
+  companyKey: string;
+  tableKind: OutboundShippingCompanyRateTableKind;
+  rowLabel: string;
+  costOneCents: number;
+  costTwoPlusCents: number;
+  sortIndex: number;
+};
+
+export function primaryPartnerNameForKind(
+  partners: readonly OutboundShippingPartnerRecord[],
+  barrelId: string,
+  chargeKind: BarrelOutboundShippingChargeKind,
+): string | null {
+  const local = partners.filter(
+    (partner) =>
+      partner.chargeKind === chargeKind && partner.barrelId === barrelId,
+  );
+  const primary = local.find((partner) => partner.isPrimary) ?? local[0];
+  const name = primary?.name.trim();
+  return name ? name : null;
+}
 
 export const BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS: Record<
   BarrelOutboundShippingChargeKind,
@@ -155,6 +224,8 @@ export type BarrelOutboundShippingChargeView = {
   updatedByClerkUserId?: string | null;
   /** Kinds billed together on this container (empty when tabs stay separate). */
   chargeBundle: BarrelOutboundShippingChargeKind[];
+  /** Kinds billed from the company rate card instead of form amounts. */
+  companyRateKinds: BarrelOutboundShippingChargeKind[];
 };
 
 export function isBarrelOutboundShippingChargeKind(
@@ -178,6 +249,42 @@ export function parseOutboundChargeBundle(
     found.has(kind),
   );
   return kinds.length >= 2 ? [...kinds] : [];
+}
+
+export function parseOutboundCompanyRateKinds(
+  raw: string | null | undefined,
+): BarrelOutboundShippingChargeKind[] {
+  const found = new Set(
+    (raw ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(isBarrelOutboundShippingChargeKind),
+  );
+  return BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) => found.has(kind));
+}
+
+export function serializeOutboundCompanyRateKinds(
+  kinds: readonly BarrelOutboundShippingChargeKind[],
+): string | null {
+  const found = new Set(kinds.filter(isBarrelOutboundShippingChargeKind));
+  const unique = BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) =>
+    found.has(kind),
+  );
+  return unique.length > 0 ? unique.join(",") : null;
+}
+
+export function chargeKindUsesCompanyRates(
+  kind: BarrelOutboundShippingChargeKind,
+  companyRateKinds: readonly BarrelOutboundShippingChargeKind[],
+  bundle: readonly BarrelOutboundShippingChargeKind[] = [],
+): boolean {
+  if (companyRateKinds.includes(kind)) return true;
+  const host = outboundChargeBundleHost(bundle);
+  return Boolean(
+    host &&
+      companyRateKinds.includes(host) &&
+      bundle.includes(kind),
+  );
 }
 
 export function serializeOutboundChargeBundle(
@@ -207,12 +314,84 @@ export function outboundChargeBundleLabel(
     .join(" + ");
 }
 
+const BUNDLE_SHORT_NAMES: Record<BarrelOutboundShippingChargeKind, string> = {
+  freight: "freight",
+  broker: "broker",
+  courier: "local courier",
+};
+
+function joinBundleNames(bundle: readonly BarrelOutboundShippingChargeKind[]): string {
+  const parts = bundle.map((kind) => BUNDLE_SHORT_NAMES[kind]);
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+  if (parts.length === 3) {
+    return `${parts[0]}, ${parts[1]}, and ${parts[2]}`;
+  }
+  return parts.join(", ");
+}
+
+/** Title for the merged admin form when freight and broker share one company. */
+export function outboundChargeBundleSameCompanyTitle(
+  bundle: readonly BarrelOutboundShippingChargeKind[],
+): string {
+  if (bundle.length < 2) return outboundChargeBundleLabel(bundle);
+  const joined = joinBundleNames(bundle);
+  return `${joined.charAt(0).toUpperCase()}${joined.slice(1)} — same company information`;
+}
+
+export function outboundChargeBundlePdfHeading(
+  bundle: readonly BarrelOutboundShippingChargeKind[],
+): string {
+  if (bundle.length < 2) {
+    return BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[bundle[0] ?? "freight"];
+  }
+  return bundle
+    .map((kind) =>
+      kind === "freight" ? "Freight" : kind === "broker" ? "Broker" : "Local courier",
+    )
+    .join(" + ");
+}
+
 export function isOutboundChargeKindAbsorbed(
   kind: BarrelOutboundShippingChargeKind,
   bundle: readonly BarrelOutboundShippingChargeKind[],
 ): boolean {
   const host = outboundChargeBundleHost(bundle);
   return Boolean(host && bundle.includes(kind) && kind !== host);
+}
+
+export function resolveCompanyRateLine(input: {
+  rates: readonly OutboundShippingCompanyRateRow[];
+  companyName: string | null | undefined;
+  tableKind: OutboundShippingCompanyRateTableKind;
+  rowHint: string | null | undefined;
+  containerCount: number;
+}): OutboundShippingChargeLineView | null {
+  const companyKey = outboundShippingCompanyKey(input.companyName ?? "");
+  if (!companyKey) return null;
+  const rows = input.rates.filter(
+    (row) => row.companyKey === companyKey && row.tableKind === input.tableKind,
+  );
+  if (rows.length === 0) return null;
+  const hint = (input.rowHint ?? "").trim().toLowerCase();
+  const match =
+    rows.find((row) => row.rowLabel.trim().toLowerCase() === hint) ??
+    rows.find((row) => {
+      const label = row.rowLabel.trim().toLowerCase();
+      return Boolean(hint) && (label.includes(hint) || hint.includes(label));
+    }) ??
+    (rows.length === 1 ? rows[0] : null);
+  if (!match) return null;
+  return {
+    label: match.rowLabel,
+    amountCents:
+      input.containerCount >= 2 ? match.costTwoPlusCents : match.costOneCents,
+  };
+}
+
+export function containerTypeRateHint(kind: ContainerOfferingKind): string {
+  return containerOfferingKindLabel(kind);
 }
 
 export function applyOutboundChargeBundleForCustomer(
@@ -223,19 +402,25 @@ export function applyOutboundChargeBundleForCustomer(
   if (!host) {
     return charges;
   }
-  const extras = charges.filter((charge) =>
-    isOutboundChargeKindAbsorbed(charge.chargeKind, bundle),
+  const companyRateKinds = charges[0]?.companyRateKinds ?? [];
+  const hostUsesCompanyRates = chargeKindUsesCompanyRates(
+    host,
+    companyRateKinds,
+    bundle,
   );
+  const extras = charges.filter((charge) => {
+    if (!isOutboundChargeKindAbsorbed(charge.chargeKind, bundle)) return false;
+    if (hostUsesCompanyRates) return false;
+    if (companyRateKinds.includes(charge.chargeKind)) return false;
+    return true;
+  });
   const extraLines = extras.flatMap((charge) =>
-    charge.lines.map((line) => {
-      const kindLabel = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[charge.chargeKind];
-      const partner = charge.partnerName?.trim();
-      const detail = partner || line.label;
-      return {
-        label: `${kindLabel} — ${detail}`,
-        amountCents: line.amountCents,
-      };
-    }),
+    charge.lines.map((line) => ({
+      label:
+        line.label.trim() ||
+        BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_DEFAULT_LABELS[charge.chargeKind],
+      amountCents: line.amountCents,
+    })),
   );
   return charges
     .filter((charge) => !isOutboundChargeKindAbsorbed(charge.chargeKind, bundle))
@@ -433,6 +618,10 @@ export type AdminBarrelOutboundShippingChargeRow = {
   updatedByClerkUserId: string | null;
   /** Kinds billed as one quote on this container. */
   chargeBundle: BarrelOutboundShippingChargeKind[];
+  /** Company rate cards shared across this customer's containers. */
+  companyRates: OutboundShippingCompanyRateRow[];
+  /** Kinds billed from the company rate card on this container. */
+  companyRateKinds: BarrelOutboundShippingChargeKind[];
 };
 
 export function sumChargeLineCents(
@@ -480,6 +669,8 @@ export const ADMIN_SHIPPING_CHARGE_PREVIEW_ROW: AdminBarrelOutboundShippingCharg
     destinationLines: [],
     updatedByClerkUserId: null,
     chargeBundle: [],
+    companyRates: [],
+    companyRateKinds: [],
   };
 
 export type AdminShipmentCustomerGroup = {

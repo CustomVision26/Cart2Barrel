@@ -9,19 +9,29 @@ import {
   barrelOutboundShippingCharges,
   barrels,
 } from "@/db/schema";
-import { getPrimaryOutboundShippingPartner } from "@/data/barrel-outbound-shipping-partners";
+import {
+  getPrimaryOutboundShippingPartner,
+  syncBundlePartnersFromHost,
+} from "@/data/barrel-outbound-shipping-partners";
 import {
   approveOutboundOffPlatformPayment,
   setOutboundChargeBundleForBarrel,
+  setOutboundCompanyRateKindsForBarrel,
 } from "@/data/barrel-outbound-shipping-charges";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
-import { BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
+  outboundChargeBundleHost,
+  outboundChargeBundleLabel,
+  parseOutboundChargeBundle,
+} from "@/lib/barrel-outbound-shipping-charge";
 import {
   approveOutboundOffPlatformPaymentSchema,
   parseUsdInputToCents,
   saveBarrelOutboundShippingChargeSchema,
   setBarrelOutboundChargeBundleSchema,
+  setBarrelOutboundCompanyRateKindsSchema,
 } from "@/lib/validations/barrel-outbound-shipping-charge";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
@@ -69,7 +79,10 @@ export async function saveBarrelOutboundShippingChargeAction(
   const db = getDb();
 
   const [barrel] = await db
-    .select({ clerkUserId: barrels.clerkUserId })
+    .select({
+      clerkUserId: barrels.clerkUserId,
+      outboundChargeBundle: barrels.outboundChargeBundle,
+    })
     .from(barrels)
     .where(eq(barrels.id, barrelId))
     .limit(1);
@@ -98,9 +111,13 @@ export async function saveBarrelOutboundShippingChargeAction(
     };
   }
 
+  const bundle = parseOutboundChargeBundle(barrel.outboundChargeBundle);
+  const host = outboundChargeBundleHost(bundle);
+  const partnerKind =
+    host && bundle.includes(chargeKind) ? host : chargeKind;
   const primaryPartner = await getPrimaryOutboundShippingPartner(
     barrelId,
-    chargeKind,
+    partnerKind,
   );
   const partnerNameValue =
     primaryPartner?.name.trim() || partnerName.trim() || null;
@@ -178,12 +195,22 @@ export async function saveBarrelOutboundShippingChargeAction(
     })),
   );
 
+  if (host === chargeKind) {
+    await syncBundlePartnersFromHost(barrelId, bundle);
+  }
+
   revalidatePath("/admin/shipments");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
 
   const kindLabel = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[chargeKind];
+  if (host && bundle.includes(chargeKind) && chargeKind === host) {
+    return {
+      ok: true,
+      message: `${outboundChargeBundleLabel(bundle)} published as one company quote. The customer can add it to their cart on Shipping.`,
+    };
+  }
   const customerAction =
     chargeKind === "freight"
       ? "The customer can add it to their cart on Shipping."
@@ -249,6 +276,38 @@ export async function setBarrelOutboundChargeBundleAction(
   }
   return {
     ok: true,
-    message: `Consolidated ${kinds.join(", ")} into one customer charge.`,
+    message: `Consolidated ${outboundChargeBundleLabel(kinds)} as one company quote. Other containers for this customer reuse the same merger.`,
+  };
+}
+
+export async function setBarrelOutboundCompanyRateKindsAction(
+  raw: unknown,
+): Promise<SaveBarrelOutboundShippingChargeState> {
+  const cu = await safeCurrentUser();
+  if (!cu.ok || !cu.user || !isClerkAdmin(cu.user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+  const parsed = setBarrelOutboundCompanyRateKindsSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid rate card setting.",
+    };
+  }
+  const result = await setOutboundCompanyRateKindsForBarrel(parsed.data);
+  if (!result.ok) return result;
+  revalidatePath("/admin/shipments");
+  revalidatePath("/dashboard/shipping");
+  revalidatePath("/dashboard/shipping/pricing");
+  revalidatePath("/dashboard/cart");
+  if (parsed.data.kinds.length === 0) {
+    return {
+      ok: true,
+      message: "Customer is billed from the amounts on this form again.",
+    };
+  }
+  return {
+    ok: true,
+    message: "Customer is billed from this company's rate card.",
   };
 }

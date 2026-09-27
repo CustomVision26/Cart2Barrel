@@ -137,8 +137,16 @@ const CUSTOMER_EXTRA_SURFACES: UiSurfaceDefinition[] = [
     title: "Contact us (header dialog)",
     category: "Support",
     route: "/dashboard",
-    location: "Dashboard top bar → Contact us.",
+    location: "Home, How it works, and Dashboard headers → Contact us; also the page footer.",
     kind: "header",
+  },
+  {
+    id: "site-contact-footer",
+    title: "Site contact footer",
+    category: "Support",
+    route: "/",
+    location: "Bottom of Home, How it works, and Dashboard pages.",
+    kind: "public",
   },
   {
     id: "support-messages-history",

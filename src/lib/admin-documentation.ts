@@ -659,12 +659,12 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Hub contact settings and customer support ticket inbox.",
       location: "Sidebar → Support.",
       bullets: [
-        "Contact: edit public hub email, phone, social links.",
+        "Contact: edit public hub email, phone, address, hours, and social links.",
         "Inbox: tickets grouped by customer.",
         "Ticket thread: reply as staff; customer sees in Messages.",
       ],
       requirements: ["Admin access."],
-      dos: ["Keep contact info current.", "Reply in existing threads."],
+      dos: ["Keep contact info current so the shopper footer stays accurate.", "Reply in existing threads."],
       donts: ["Don't post internal notes visible to customers.", "Don't share payment data in replies."],
     },
     article: {
@@ -672,7 +672,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Admin Support configures how customers reach the hub and lets staff respond to tickets created via Contact us or order issues. Replies sync to the customer Messages inbox and notifications bell.",
       ],
       walkthrough: [
-        "Contact tab: edit hub contact details shown in the customer Contact us dialog.",
+        "Contact tab: edit hub contact details shown in the customer Contact us dialog and the shopper footer (including business address).",
         "Inbox tab: browse open and closed tickets grouped by customer.",
         "Open a ticket thread to read history and send staff replies (images optional).",
         "Customer receives notification when staff responds.",

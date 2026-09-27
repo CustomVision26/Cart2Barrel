@@ -16,6 +16,7 @@ import {
   updateBarrelOutboundShippingPartnerAction,
 } from "@/actions/admin-barrel-outbound-shipping-partner";
 import { AdminOutboundOffPlatformPaymentReview } from "@/components/admin/admin-outbound-off-platform-payment-review";
+import { ChargeLabelWithCompanyPricing } from "@/components/admin/admin-company-pricing-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Input,
@@ -35,10 +36,15 @@ import {
   FREIGHT_SHIPPER_CHARGE_LABEL,
   FREIGHT_TRANSPORTATION_FEE_LABEL,
   chargeViewForKind,
+  chargeKindUsesCompanyRates,
   isOffPlatformOutboundChargeKind,
   isOffPlatformPaymentPendingReview,
   outboundChargeBundleHost,
   outboundChargeBundleLabel,
+  outboundChargeBundleSameCompanyTitle,
+  outboundShippingRateTableKindForChargeKind,
+  outboundShippingRateTableKindsForTabs,
+  primaryPartnerNameForKind,
   splitFreightChargeLines,
   type BarrelOutboundShippingChargeKind,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -524,6 +530,12 @@ function AdminChargeKindForm({
     ? isOffPlatformPaymentPendingReview(existing)
     : false;
   const formDisabled = isPaid || pendingReview || pending || !publishEnabled;
+  const useRateCard = chargeKindUsesCompanyRates(
+    chargeKind,
+    row.companyRateKinds ?? [],
+    row.chargeBundle,
+  );
+  const amountsLocked = formDisabled || useRateCard;
   const kindLabel = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[chargeKind];
   const freightTotalCents =
     parseUsdInputToCents(amountUsd) + parseUsdInputToCents(transportAmountUsd);
@@ -615,13 +627,26 @@ function AdminChargeKindForm({
         <div className="space-y-2">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
             <div className="space-y-1">
-              <Label htmlFor={`${row.barrelId}-${chargeKind}-label`}>
-                Shipper charge
-              </Label>
+              <ChargeLabelWithCompanyPricing
+                htmlFor={`${row.barrelId}-${chargeKind}-label`}
+                label="Shipper charge"
+                companyName={primaryPartnerNameForKind(
+                  row.partners,
+                  row.barrelId,
+                  chargeKind,
+                )}
+                tableKinds={[
+                  outboundShippingRateTableKindForChargeKind(chargeKind),
+                ]}
+                rates={row.companyRates ?? []}
+                barrelId={row.barrelId}
+                kindsToToggle={[chargeKind]}
+                enabledKinds={row.companyRateKinds ?? []}
+              />
               <Input
                 id={`${row.barrelId}-${chargeKind}-label`}
                 value={label}
-                disabled={formDisabled}
+                disabled={amountsLocked}
                 onChange={(e) => setLabel(e.target.value)}
               />
             </div>
@@ -633,7 +658,7 @@ function AdminChargeKindForm({
                 id={`${row.barrelId}-${chargeKind}-amount`}
                 inputMode="decimal"
                 value={amountUsd}
-                disabled={formDisabled}
+                disabled={amountsLocked}
                 placeholder="0.00"
                 onChange={(e) => setAmountUsd(e.target.value)}
               />
@@ -661,7 +686,7 @@ function AdminChargeKindForm({
                 id={`${row.barrelId}-${chargeKind}-transport-amount`}
                 inputMode="decimal"
                 value={transportAmountUsd}
-                disabled={formDisabled}
+                disabled={amountsLocked}
                 placeholder="0.00"
                 onChange={(e) => setTransportAmountUsd(e.target.value)}
               />
@@ -676,13 +701,26 @@ function AdminChargeKindForm({
       : (
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
           <div className="space-y-1">
-            <Label htmlFor={`${row.barrelId}-${chargeKind}-label`}>
-              Charge label
-            </Label>
+            <ChargeLabelWithCompanyPricing
+              htmlFor={`${row.barrelId}-${chargeKind}-label`}
+              label="Charge label"
+              companyName={primaryPartnerNameForKind(
+                row.partners,
+                row.barrelId,
+                chargeKind,
+              )}
+              tableKinds={[
+                outboundShippingRateTableKindForChargeKind(chargeKind),
+              ]}
+              rates={row.companyRates ?? []}
+              barrelId={row.barrelId}
+              kindsToToggle={[chargeKind]}
+              enabledKinds={row.companyRateKinds ?? []}
+            />
             <Input
               id={`${row.barrelId}-${chargeKind}-label`}
               value={label}
-              disabled={formDisabled}
+              disabled={amountsLocked}
               onChange={(e) => setLabel(e.target.value)}
             />
           </div>
@@ -694,7 +732,7 @@ function AdminChargeKindForm({
               id={`${row.barrelId}-${chargeKind}-amount`}
               inputMode="decimal"
               value={amountUsd}
-              disabled={formDisabled}
+              disabled={amountsLocked}
               placeholder="0.00"
               onChange={(e) => setAmountUsd(e.target.value)}
             />
@@ -718,6 +756,378 @@ function AdminChargeKindForm({
 
       <Button type="button" disabled={formDisabled} onClick={save}>
         {pending ? "Publishing…" : existing ? "Update & publish" : "Publish"}
+      </Button>
+    </div>
+  );
+}
+
+function AdminMergedBundleForm({
+  row,
+  bundledKinds,
+  publishEnabled,
+  lockMessage,
+}: {
+  row: AdminBarrelOutboundShippingChargeRow;
+  bundledKinds: BarrelOutboundShippingChargeKind[];
+  publishEnabled: boolean;
+  lockMessage?: string;
+}) {
+  const router = useRouter();
+  const host = outboundChargeBundleHost(bundledKinds) ?? bundledKinds[0] ?? "freight";
+  const absorbed = bundledKinds.filter((kind) => kind !== host);
+  const hostCharge = chargeViewForKind(row.charges, host);
+  const freightLines = splitFreightChargeLines(hostCharge?.lines);
+  const [pending, startTransition] = useTransition();
+  const [label, setLabel] = useState(
+    host === "freight"
+      ? (freightLines.shipper?.label ?? FREIGHT_SHIPPER_CHARGE_LABEL)
+      : (hostCharge?.lines[0]?.label ??
+        BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_DEFAULT_LABELS[host]),
+  );
+  const [amountUsd, setAmountUsd] = useState(
+    centsToUsdInput(
+      host === "freight"
+        ? (freightLines.shipper?.amountCents ?? 0)
+        : (hostCharge?.totalCents ?? 0),
+    ),
+  );
+  const [transportAmountUsd, setTransportAmountUsd] = useState(
+    centsToUsdInput(freightLines.transportation?.amountCents ?? 0),
+  );
+  const [adminNote, setAdminNote] = useState(hostCharge?.adminNote ?? "");
+  const [extraLabels, setExtraLabels] = useState<
+    Partial<Record<BarrelOutboundShippingChargeKind, string>>
+  >(() =>
+    Object.fromEntries(
+      absorbed.map((kind) => {
+        const extra = chargeViewForKind(row.charges, kind);
+        return [
+          kind,
+          extra?.lines[0]?.label ??
+            BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_DEFAULT_LABELS[kind],
+        ];
+      }),
+    ),
+  );
+  const [extraAmounts, setExtraAmounts] = useState<
+    Partial<Record<BarrelOutboundShippingChargeKind, string>>
+  >(() =>
+    Object.fromEntries(
+      absorbed.map((kind) => {
+        const extra = chargeViewForKind(row.charges, kind);
+        return [kind, centsToUsdInput(extra?.totalCents ?? 0)];
+      }),
+    ),
+  );
+
+  const anyPaid = bundledKinds.some(
+    (kind) => chargeViewForKind(row.charges, kind)?.paidAt != null,
+  );
+  const pendingReview = bundledKinds.some((kind) => {
+    const charge = chargeViewForKind(row.charges, kind);
+    return charge ? isOffPlatformPaymentPendingReview(charge) : false;
+  });
+  const formDisabled = anyPaid || pendingReview || pending || !publishEnabled;
+  const useRateCard = bundledKinds.every((kind) =>
+    (row.companyRateKinds ?? []).includes(kind),
+  );
+  const amountsLocked = formDisabled || useRateCard;
+  const hostTotalCents =
+    host === "freight"
+      ? parseUsdInputToCents(amountUsd) + parseUsdInputToCents(transportAmountUsd)
+      : parseUsdInputToCents(amountUsd);
+  const extraTotalCents = absorbed.reduce(
+    (sum, kind) => sum + parseUsdInputToCents(extraAmounts[kind] ?? ""),
+    0,
+  );
+  const combinedTotalCents = hostTotalCents + extraTotalCents;
+  const title = outboundChargeBundleSameCompanyTitle(bundledKinds);
+
+  function save() {
+    startTransition(async () => {
+      const hostLines =
+        host === "freight"
+          ? [
+              {
+                label: label.trim() || FREIGHT_SHIPPER_CHARGE_LABEL,
+                amountUsd,
+              },
+              ...(parseUsdInputToCents(transportAmountUsd) > 0
+                ? [
+                    {
+                      label: FREIGHT_TRANSPORTATION_FEE_LABEL,
+                      amountUsd: transportAmountUsd,
+                    },
+                  ]
+                : []),
+            ]
+          : [{ label, amountUsd }];
+      const hostRes = await saveBarrelOutboundShippingChargeAction({
+        barrelId: row.barrelId,
+        chargeKind: host,
+        partnerName: "",
+        partnerLocation: "",
+        partnerAddress: "",
+        partnerCountry: "",
+        adminNote,
+        lines: hostLines,
+      });
+      if (!hostRes.ok) {
+        toast.error(hostRes.message);
+        return;
+      }
+      for (const kind of absorbed) {
+        const extraAmount = extraAmounts[kind] ?? "";
+        if (parseUsdInputToCents(extraAmount) <= 0) continue;
+        const extraRes = await saveBarrelOutboundShippingChargeAction({
+          barrelId: row.barrelId,
+          chargeKind: kind,
+          partnerName: "",
+          partnerLocation: "",
+          partnerAddress: "",
+          partnerCountry: "",
+          adminNote: "",
+          lines: [
+            {
+              label:
+                extraLabels[kind]?.trim() ||
+                BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_DEFAULT_LABELS[kind],
+              amountUsd: extraAmount,
+            },
+          ],
+        });
+        if (!extraRes.ok) {
+          toast.error(extraRes.message);
+          return;
+        }
+      }
+      toast.success(hostRes.message);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Company, address, and payment IDs are shared. Publish freight and
+          broker amounts on this one quote — not a separate broker company.
+        </p>
+      </div>
+      {lockMessage ?
+        <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-foreground">
+          {lockMessage}
+        </p>
+      : null}
+      {bundledKinds.map((kind) => {
+        const charge = chargeViewForKind(row.charges, kind);
+        if (
+          !charge ||
+          !(charge.offPlatformSubmittedAt || charge.offPlatformReceiptUrl)
+        ) {
+          return null;
+        }
+        return (
+          <AdminOutboundOffPlatformPaymentReview
+            key={charge.chargeId}
+            charge={charge}
+            customerName={row.customerName}
+            customerEmail={row.customerEmail}
+          />
+        );
+      })}
+      {anyPaid && hostCharge && !hostCharge.offPlatformSubmittedAt ?
+        <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-foreground">
+          Paid{" "}
+          {new Date(hostCharge.paidAt!).toLocaleDateString(undefined, {
+            dateStyle: "medium",
+          })}
+          . This combined quote is locked.
+        </p>
+      : hostCharge && !hostCharge.offPlatformSubmittedAt ?
+        <p className="text-xs text-muted-foreground">
+          Published {formatUsd(hostCharge.totalCents + extraTotalCents)} —
+          editing updates the customer cart item.
+        </p>
+      : null}
+
+      <PartnerRecordsEditor
+        row={row}
+        chargeKind={host}
+        formDisabled={anyPaid}
+      />
+
+      {host === "freight" ?
+        <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
+            <div className="space-y-1">
+              <ChargeLabelWithCompanyPricing
+                htmlFor={`${row.barrelId}-bundle-label`}
+                label="Shipper charge"
+                companyName={primaryPartnerNameForKind(
+                  row.partners,
+                  row.barrelId,
+                  host,
+                )}
+                tableKinds={outboundShippingRateTableKindsForTabs(bundledKinds)}
+                rates={row.companyRates ?? []}
+                barrelId={row.barrelId}
+                kindsToToggle={bundledKinds}
+                enabledKinds={row.companyRateKinds ?? []}
+              />
+              <Input
+                id={`${row.barrelId}-bundle-label`}
+                value={label}
+                disabled={amountsLocked}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${row.barrelId}-bundle-amount`}>
+                Amount (USD)
+              </Label>
+              <Input
+                id={`${row.barrelId}-bundle-amount`}
+                inputMode="decimal"
+                value={amountUsd}
+                disabled={amountsLocked}
+                placeholder="0.00"
+                onChange={(e) => setAmountUsd(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
+            <div className="space-y-1">
+              <Label htmlFor={`${row.barrelId}-bundle-transport-amount`}>
+                Transportation fee
+              </Label>
+              <p
+                className={cn(
+                  inputFieldClassName,
+                  "flex h-8 items-center py-1 text-sm",
+                )}
+              >
+                {FREIGHT_TRANSPORTATION_FEE_LABEL}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${row.barrelId}-bundle-transport-amount`}>
+                Amount (USD)
+              </Label>
+              <Input
+                id={`${row.barrelId}-bundle-transport-amount`}
+                inputMode="decimal"
+                value={transportAmountUsd}
+                disabled={amountsLocked}
+                placeholder="0.00"
+                onChange={(e) => setTransportAmountUsd(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      : (
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
+          <div className="space-y-1">
+            <ChargeLabelWithCompanyPricing
+              htmlFor={`${row.barrelId}-bundle-label`}
+              label="Charge label"
+              companyName={primaryPartnerNameForKind(
+                row.partners,
+                row.barrelId,
+                host,
+              )}
+              tableKinds={outboundShippingRateTableKindsForTabs(bundledKinds)}
+              rates={row.companyRates ?? []}
+              barrelId={row.barrelId}
+              kindsToToggle={bundledKinds}
+              enabledKinds={row.companyRateKinds ?? []}
+            />
+            <Input
+              id={`${row.barrelId}-bundle-label`}
+              value={label}
+              disabled={amountsLocked}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`${row.barrelId}-bundle-amount`}>Amount (USD)</Label>
+            <Input
+              id={`${row.barrelId}-bundle-amount`}
+              inputMode="decimal"
+              value={amountUsd}
+              disabled={amountsLocked}
+              placeholder="0.00"
+              onChange={(e) => setAmountUsd(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
+      {absorbed.map((kind) => (
+        <div
+          key={kind}
+          className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]"
+        >
+          <div className="space-y-1">
+            <Label htmlFor={`${row.barrelId}-bundle-${kind}-label`}>
+              {BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind]} amount
+            </Label>
+            <Input
+              id={`${row.barrelId}-bundle-${kind}-label`}
+              value={extraLabels[kind] ?? ""}
+              disabled={amountsLocked}
+              onChange={(e) =>
+                setExtraLabels((current) => ({
+                  ...current,
+                  [kind]: e.target.value,
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`${row.barrelId}-bundle-${kind}-amount`}>
+              Amount (USD)
+            </Label>
+            <Input
+              id={`${row.barrelId}-bundle-${kind}-amount`}
+              inputMode="decimal"
+              value={extraAmounts[kind] ?? ""}
+              disabled={amountsLocked}
+              placeholder="0.00"
+              onChange={(e) =>
+                setExtraAmounts((current) => ({
+                  ...current,
+                  [kind]: e.target.value,
+                }))
+              }
+            />
+          </div>
+        </div>
+      ))}
+
+      {combinedTotalCents > 0 ?
+        <p className="text-xs font-medium tabular-nums text-muted-foreground">
+          Combined total {formatUsd(combinedTotalCents)}
+        </p>
+      : null}
+
+      <div className="space-y-1">
+        <Label htmlFor={`${row.barrelId}-bundle-note`}>
+          Note to customer (optional)
+        </Label>
+        <textarea
+          id={`${row.barrelId}-bundle-note`}
+          rows={3}
+          disabled={formDisabled}
+          className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm"
+          value={adminNote}
+          onChange={(e) => setAdminNote(e.target.value)}
+        />
+      </div>
+
+      <Button type="button" disabled={formDisabled} onClick={save}>
+        {pending ? "Publishing…" : hostCharge ? "Update & publish" : "Publish"}
       </Button>
     </div>
   );
@@ -819,17 +1229,22 @@ export function AdminOutboundChargeKindTabs({
         })}
       </div>
       {activeGroup ?
-        <div className="space-y-6">
-          {activeGroup.kinds.map((kind) => (
-            <AdminChargeKindForm
-              key={`${row.barrelId}-${kind}-${chargeViewForKind(row.charges, kind)?.chargeId ?? "new"}`}
-              row={row}
-              chargeKind={kind}
-              publishEnabled={publishEnabled}
-              lockMessage={lockMessage}
-            />
-          ))}
-        </div>
+        activeGroup.kinds.length > 1 ?
+          <AdminMergedBundleForm
+            row={row}
+            bundledKinds={activeGroup.kinds}
+            publishEnabled={publishEnabled}
+            lockMessage={lockMessage}
+          />
+        : (
+          <AdminChargeKindForm
+            key={`${row.barrelId}-${activeGroup.kinds[0]}-${chargeViewForKind(row.charges, activeGroup.kinds[0]!)?.chargeId ?? "new"}`}
+            row={row}
+            chargeKind={activeGroup.kinds[0]!}
+            publishEnabled={publishEnabled}
+            lockMessage={lockMessage}
+          />
+        )
       : null}
     </div>
   );
@@ -882,9 +1297,9 @@ function AdminChargeBundleControls({
         Consolidate sub-tab charges
       </p>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        Select two or all three. The customer sees one quote for those kinds —
-        freight + broker share the freight Add to cart card, and the extra
-        broker option is hidden.
+        Select two or all three. Freight and broker share one company form and
+        one clearance PDF section. New containers for this customer reuse the
+        same merger.
       </p>
       <div className="flex flex-wrap gap-3">
         {BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.map((kind) => (

@@ -19,6 +19,9 @@ export function AdminHubContactForm({ initial }: { initial: HubContactPublic }) 
   const [whatsappNumber, setWhatsappNumber] = useState(initial.whatsappNumber ?? "");
   const [publicIntro, setPublicIntro] = useState(initial.publicIntro ?? "");
   const [businessHours, setBusinessHours] = useState(initial.businessHours ?? "");
+  const [businessAddress, setBusinessAddress] = useState(
+    initial.businessAddress ?? "",
+  );
   const [instagramUrl, setInstagramUrl] = useState(initial.instagramUrl ?? "");
   const [facebookUrl, setFacebookUrl] = useState(initial.facebookUrl ?? "");
   const [xUrl, setXUrl] = useState(initial.xUrl ?? "");
@@ -33,6 +36,7 @@ export function AdminHubContactForm({ initial }: { initial: HubContactPublic }) 
         whatsappNumber,
         publicIntro,
         businessHours,
+        businessAddress,
         instagramUrl,
         facebookUrl,
         xUrl,
@@ -100,13 +104,28 @@ export function AdminHubContactForm({ initial }: { initial: HubContactPublic }) 
             placeholder="Mon–Fri 9am–5pm AST"
           />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="hub-address">Business address</Label>
+          <textarea
+            id="hub-address"
+            rows={3}
+            value={businessAddress}
+            onChange={(e) => setBusinessAddress(e.target.value)}
+            placeholder="Street, city, state, and postal code shown to shoppers."
+            className={cn(inputFieldClassName, "min-h-[5rem] py-2 text-sm")}
+          />
+          <p className="text-xs text-muted-foreground">
+            Shown on Contact us and in the shopper footer when filled.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-3 rounded-xl border border-border bg-card p-4">
         <div>
           <h2 className="text-sm font-medium text-foreground">Social links</h2>
           <p className="text-xs text-muted-foreground">
-            Full URLs for each channel shown on Contact us.
+            Full URLs for each channel shown on Contact us and in the shopper
+            footer.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">

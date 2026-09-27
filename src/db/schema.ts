@@ -1522,6 +1522,7 @@ export const hubContactSettings = pgTable("hub_contact_settings", {
   tiktokUrl: text("tiktok_url"),
   publicIntro: text("public_intro"),
   businessHours: text("business_hours"),
+  businessAddress: text("business_address"),
   updatedByClerkUserId: text("updated_by_clerk_user_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .defaultNow()
@@ -1794,6 +1795,11 @@ export const barrels = pgTable(
      * Empty/null means each Freight / Broker / Local courier tab stays separate.
      */
     outboundChargeBundle: text("outbound_charge_bundle"),
+    /**
+     * Comma-separated outbound charge kinds billed from the company rate card
+     * instead of the per-container shipper / broker / courier amount fields.
+     */
+    outboundCompanyRateKinds: text("outbound_company_rate_kinds"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -2093,6 +2099,36 @@ export const barrelOutboundShippingPartners = pgTable(
       t.barrelId,
       t.chargeKind,
     ),
+  ],
+);
+
+/** Per-company outbound rate card: container-type (freight/broker) or zone (courier). */
+export const outboundShippingCompanyRates = pgTable(
+  "outbound_shipping_company_rates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyName: text("company_name").notNull(),
+    companyKey: text("company_key").notNull(),
+    tableKind: text("table_kind").notNull(),
+    rowLabel: text("row_label").notNull(),
+    rowKey: text("row_key").notNull(),
+    costOneCents: integer("cost_one_cents").notNull(),
+    costTwoPlusCents: integer("cost_two_plus_cents").notNull(),
+    sortIndex: integer("sort_index").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("outbound_shipping_company_rates_company_table_row_idx").on(
+      t.companyKey,
+      t.tableKind,
+      t.rowKey,
+    ),
+    index("outbound_shipping_company_rates_company_idx").on(t.companyKey),
   ],
 );
 
@@ -3306,6 +3342,11 @@ export type BarrelOutboundShippingPartner =
   typeof barrelOutboundShippingPartners.$inferSelect;
 export type NewBarrelOutboundShippingPartner =
   typeof barrelOutboundShippingPartners.$inferInsert;
+
+export type OutboundShippingCompanyRate =
+  typeof outboundShippingCompanyRates.$inferSelect;
+export type NewOutboundShippingCompanyRate =
+  typeof outboundShippingCompanyRates.$inferInsert;
 
 export type BarrelOutboundShipmentTracking =
   typeof barrelOutboundShipmentTracking.$inferSelect;
