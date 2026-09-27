@@ -40,13 +40,22 @@ export type SaveBarrelOutboundShippingChargeInput = z.infer<
   typeof saveBarrelOutboundShippingChargeSchema
 >;
 
-export const setBarrelOutboundCompanyRateKindsSchema = z.object({
+export const setBarrelOutboundChargeBundleSchema = z.object({
   barrelId: z.string().uuid("Invalid container."),
   kinds: z.array(barrelOutboundShippingChargeKindSchema).max(3),
 });
 
 export type SetBarrelOutboundChargeBundleInput = z.infer<
   typeof setBarrelOutboundChargeBundleSchema
+>;
+
+export const setBarrelOutboundCompanyRateKindsSchema = z.object({
+  barrelId: z.string().uuid("Invalid container."),
+  kinds: z.array(barrelOutboundShippingChargeKindSchema).max(3),
+});
+
+export type SetBarrelOutboundCompanyRateKindsInput = z.infer<
+  typeof setBarrelOutboundCompanyRateKindsSchema
 >;
 
 export const addBarrelOutboundShippingPartnerSchema = z.object({
