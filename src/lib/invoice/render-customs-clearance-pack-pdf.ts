@@ -8,6 +8,10 @@ import type PDFKit from "pdfkit";
 
 import { formatUsd } from "@/lib/admin-markup";
 import {
+  isOutboundChargeKindAbsorbed,
+  outboundChargeBundleHost,
+} from "@/lib/barrel-outbound-shipping-charge";
+import {
   barrelContentsTotalCents,
   barrelContentUnitPriceCents,
   type BarrelContentItem,
@@ -615,6 +619,18 @@ export async function renderCustomsClearancePackPdf(
             ["Estimated arrival", formatDate(payload.tracking.estimatedArrivalAt)],
             ["Payment reference", payload.tracking.paymentReference],
           ]);
+          if (
+            payload.broker &&
+            isOutboundChargeKindAbsorbed("broker", payload.chargeBundle)
+          ) {
+            await drawPartner(doc, payload.broker);
+          }
+          if (
+            payload.courier &&
+            isOutboundChargeKindAbsorbed("courier", payload.chargeBundle)
+          ) {
+            await drawPartner(doc, payload.courier);
+          }
         } else if (
           payload.tracking.freightCompanyName ||
           payload.tracking.freightDropOffAt ||
@@ -631,11 +647,28 @@ export async function renderCustomsClearancePackPdf(
           ]);
         }
 
-        if (payload.broker) {
-          beginOwnPage(doc);
+        if (
+          payload.broker &&
+          !isOutboundChargeKindAbsorbed("broker", payload.chargeBundle)
+        ) {
+          const brokerSharesHost =
+            outboundChargeBundleHost(payload.chargeBundle) === "broker";
+          if (!brokerSharesHost || !payload.freight) {
+            beginOwnPage(doc);
+          }
           await drawPartner(doc, payload.broker);
+          if (
+            payload.courier &&
+            isOutboundChargeKindAbsorbed("courier", payload.chargeBundle) &&
+            outboundChargeBundleHost(payload.chargeBundle) === "broker"
+          ) {
+            await drawPartner(doc, payload.courier);
+          }
         }
-        if (payload.courier) {
+        if (
+          payload.courier &&
+          !isOutboundChargeKindAbsorbed("courier", payload.chargeBundle)
+        ) {
           beginOwnPage(doc);
           await drawPartner(doc, payload.courier);
         }

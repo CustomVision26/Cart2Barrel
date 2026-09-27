@@ -36,6 +36,7 @@ import {
   type BarrelShippingIntakeContainerRow,
 } from "@/lib/barrel-shipping-intake";
 import { unpaidPublishedChargesForDestination } from "@/lib/barrel-outbound-shipping-charge";
+import { isOutboundChargeKindAbsorbed } from "@/lib/barrel-outbound-shipping-charge";
 import {
   findDestinationBroker,
   findDestinationCourier,
@@ -79,10 +80,22 @@ export function BarrelShippingIntakeForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [choice, setChoice] = useState<DestinationClearanceChoiceValue>(EMPTY_CHOICE);
+  const [choice, setChoice] = useState<DestinationClearanceChoiceValue>(() => {
+    const bundle = container.outboundCharges[0]?.chargeBundle ?? [];
+    const brokerAbsorbed = isOutboundChargeKindAbsorbed("broker", bundle);
+    const courierAbsorbed = isOutboundChargeKindAbsorbed("courier", bundle);
+    if (!brokerAbsorbed && !courierAbsorbed) return EMPTY_CHOICE;
+    return {
+      deliveryMethod: brokerAbsorbed ? "broker_delivery" : null,
+      brokerKey: brokerAbsorbed ? PUBLISHED_BROKER_KEY : null,
+      courierKey: courierAbsorbed ? PUBLISHED_COURIER_KEY : null,
+    };
+  });
   const destinationCountry = shippingAddress?.country?.trim() || null;
+  const chargeBundle = container.outboundCharges[0]?.chargeBundle ?? [];
   const choiceComplete =
-    Boolean(destinationCountry) && isDestinationClearanceChoiceComplete(choice);
+    Boolean(destinationCountry) &&
+    isDestinationClearanceChoiceComplete(choice, chargeBundle);
   const broker = findDestinationBroker(choice.brokerKey, destinationCountry);
   const courier = findDestinationCourier(choice.courierKey, destinationCountry);
   const publishedBrokerName = unpaidPublishedChargesForDestination(
@@ -110,20 +123,24 @@ export function BarrelShippingIntakeForm({
       toast.error("Choose how you will clear customs.");
       return;
     }
-    if (!choice.courierKey) {
-      toast.error("Choose a local courier or provide your own transportation.");
-      return;
-    }
-    if (deliveryMethod === "broker_delivery" && !choice.brokerKey) {
-      toast.error("Choose a selected broker for this destination country.");
+    if (!isDestinationClearanceChoiceComplete(choice, chargeBundle)) {
+      toast.error("Choose destination clearance and local transportation.");
       return;
     }
     startTransition(async () => {
       const res = await submitBarrelShippingIntakeAction({
         barrelId: container.barrelId,
         deliveryMethod,
-        brokerKey: choice.brokerKey,
-        courierKey: choice.courierKey,
+        brokerKey:
+          choice.brokerKey ??
+          (isOutboundChargeKindAbsorbed("broker", chargeBundle)
+            ? PUBLISHED_BROKER_KEY
+            : null),
+        courierKey:
+          choice.courierKey ??
+          (isOutboundChargeKindAbsorbed("courier", chargeBundle)
+            ? PUBLISHED_COURIER_KEY
+            : null),
       });
 
       if (res.ok) {

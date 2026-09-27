@@ -21,6 +21,7 @@ import type { InvoiceCompanyProfile } from "@/lib/invoice/company-profile";
 import {
   BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
   OFF_PLATFORM_PAYMENT_METHOD_LABELS,
+  parseOutboundChargeBundle,
   type BarrelOutboundShippingChargeKind,
   type BarrelOutboundShippingChargeView,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -212,13 +213,19 @@ export async function getCustomsClearancePackPdfPayload(
   const freight = charges.find((charge) => charge.chargeKind === "freight");
   const brokerCharge = charges.find((charge) => charge.chargeKind === "broker");
   const courierCharge = charges.find((charge) => charge.chargeKind === "courier");
+  const chargeBundle = parseOutboundChargeBundle(
+    row.barrel.outboundChargeBundle,
+  );
   const destinationCountry = address?.country?.trim() || null;
-  const usesBroker = row.intake?.deliveryMethod === "broker_delivery";
+  const usesBroker =
+    row.intake?.deliveryMethod === "broker_delivery" ||
+    chargeBundle.includes("broker");
   const courierKey = row.intake?.selectedCourierKey?.trim() || null;
   const usesCourier =
-    Boolean(courierKey) &&
-    courierKey !== OWN_TRANSPORT_COURIER_KEY &&
-    courierKey !== "self-arrange-local";
+    chargeBundle.includes("courier") ||
+    (Boolean(courierKey) &&
+      courierKey !== OWN_TRANSPORT_COURIER_KEY &&
+      courierKey !== "self-arrange-local");
 
   const receiverName =
     address?.recipientName?.trim() ||
@@ -278,6 +285,7 @@ export async function getCustomsClearancePackPdfPayload(
           findDestinationCourier(courierKey, destinationCountry),
         )
       : null,
+    chargeBundle,
     tracking: {
       freightCompanyName:
         tracking?.freightCompanyName?.trim() ||

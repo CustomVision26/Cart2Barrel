@@ -1789,6 +1789,11 @@ export const barrels = pgTable(
     ),
     /** 1-based index within the purchased quantity for that `order_container_items` row. */
     unitOrdinal: integer("unit_ordinal").notNull().default(1),
+    /**
+     * Comma-separated outbound charge kinds billed as one quote (e.g. "freight,broker").
+     * Empty/null means each Freight / Broker / Local courier tab stays separate.
+     */
+    outboundChargeBundle: text("outbound_charge_bundle"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),

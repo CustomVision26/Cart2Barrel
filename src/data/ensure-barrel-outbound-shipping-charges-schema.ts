@@ -253,6 +253,11 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
       ADD COLUMN IF NOT EXISTS "off_platform_submitted_at" timestamp with time zone
     `);
 
+    await db.execute(sql`
+      ALTER TABLE "barrels"
+      ADD COLUMN IF NOT EXISTS "outbound_charge_bundle" text
+    `);
+
     schemaReady = true;
     return true;
   } catch {

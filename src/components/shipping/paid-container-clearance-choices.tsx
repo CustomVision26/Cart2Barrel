@@ -29,7 +29,7 @@ export function PaidContainerClearanceChoices({
 
   function persist(next: DestinationClearanceChoiceValue) {
     setChoice(next);
-    if (!isDestinationClearanceChoiceComplete(next) || !next.deliveryMethod) {
+    if (!isDestinationClearanceChoiceComplete(next, row.outboundCharges[0]?.chargeBundle ?? []) || !next.deliveryMethod) {
       return;
     }
     startTransition(async () => {

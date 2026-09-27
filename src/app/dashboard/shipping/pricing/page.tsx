@@ -34,9 +34,8 @@ export default async function DashboardShippingPricingPage() {
           Shipping pricing
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Itemized freight, customs, and pickup charges for containers ready to ship.
-          Add published quotes to your cart and pay before we release your barrel to
-          the courier.
+          Itemized freight, customs, and pickup charges for each container.
+          Add published quotes to your cart and pay before we release your barrel.
         </p>
       </header>
 
@@ -45,6 +44,7 @@ export default async function DashboardShippingPricingPage() {
         destinationCountry={
           isShippingAddressComplete(shippingAddress) ? destinationCountry : null
         }
+        shippingAddress={shippingAddress}
       />
     </div>
   );

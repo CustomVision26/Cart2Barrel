@@ -40,6 +40,15 @@ export type SaveBarrelOutboundShippingChargeInput = z.infer<
   typeof saveBarrelOutboundShippingChargeSchema
 >;
 
+export const setBarrelOutboundChargeBundleSchema = z.object({
+  barrelId: z.string().uuid("Invalid container."),
+  kinds: z.array(barrelOutboundShippingChargeKindSchema).max(3),
+});
+
+export type SetBarrelOutboundChargeBundleInput = z.infer<
+  typeof setBarrelOutboundChargeBundleSchema
+>;
+
 export const addBarrelOutboundShippingPartnerSchema = z.object({
   barrelId: z.string().uuid("Invalid container."),
   chargeKind: barrelOutboundShippingChargeKindSchema,

@@ -37,6 +37,7 @@ export type CustomsClearancePackPdfPayload = {
   freight: CustomsClearancePackPartner | null;
   broker: CustomsClearancePackPartner | null;
   courier: CustomsClearancePackPartner | null;
+  chargeBundle: import("@/lib/barrel-outbound-shipping-charge").BarrelOutboundShippingChargeKind[];
   tracking: {
     freightCompanyName: string | null;
     freightDropOffAt: string | null;

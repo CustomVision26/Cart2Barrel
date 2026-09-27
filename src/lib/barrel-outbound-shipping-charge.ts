@@ -153,6 +153,8 @@ export type BarrelOutboundShippingChargeView = {
   offPlatformSubmittedAt: string | null;
   shipmentTracking: BarrelOutboundShipmentTrackingView | null;
   updatedByClerkUserId?: string | null;
+  /** Kinds billed together on this container (empty when tabs stay separate). */
+  chargeBundle: BarrelOutboundShippingChargeKind[];
 };
 
 export function isBarrelOutboundShippingChargeKind(
@@ -161,6 +163,93 @@ export function isBarrelOutboundShippingChargeKind(
   return (
     value === "freight" || value === "broker" || value === "courier"
   );
+}
+
+export function parseOutboundChargeBundle(
+  raw: string | null | undefined,
+): BarrelOutboundShippingChargeKind[] {
+  const found = new Set(
+    (raw ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(isBarrelOutboundShippingChargeKind),
+  );
+  const kinds = BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) =>
+    found.has(kind),
+  );
+  return kinds.length >= 2 ? [...kinds] : [];
+}
+
+export function serializeOutboundChargeBundle(
+  kinds: readonly BarrelOutboundShippingChargeKind[],
+): string | null {
+  const found = new Set(kinds.filter(isBarrelOutboundShippingChargeKind));
+  const unique = BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) =>
+    found.has(kind),
+  );
+  return unique.length >= 2 ? unique.join(",") : null;
+}
+
+export function outboundChargeBundleHost(
+  bundle: readonly BarrelOutboundShippingChargeKind[],
+): BarrelOutboundShippingChargeKind | null {
+  if (bundle.length < 2) return null;
+  if (bundle.includes("freight")) return "freight";
+  if (bundle.includes("broker")) return "broker";
+  return "courier";
+}
+
+export function outboundChargeBundleLabel(
+  bundle: readonly BarrelOutboundShippingChargeKind[],
+): string {
+  return bundle
+    .map((kind) => BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind])
+    .join(" + ");
+}
+
+export function isOutboundChargeKindAbsorbed(
+  kind: BarrelOutboundShippingChargeKind,
+  bundle: readonly BarrelOutboundShippingChargeKind[],
+): boolean {
+  const host = outboundChargeBundleHost(bundle);
+  return Boolean(host && bundle.includes(kind) && kind !== host);
+}
+
+export function applyOutboundChargeBundleForCustomer(
+  charges: BarrelOutboundShippingChargeView[],
+): BarrelOutboundShippingChargeView[] {
+  const bundle = charges[0]?.chargeBundle ?? [];
+  const host = outboundChargeBundleHost(bundle);
+  if (!host) {
+    return charges;
+  }
+  const extras = charges.filter((charge) =>
+    isOutboundChargeKindAbsorbed(charge.chargeKind, bundle),
+  );
+  const extraLines = extras.flatMap((charge) =>
+    charge.lines.map((line) => {
+      const kindLabel = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[charge.chargeKind];
+      const partner = charge.partnerName?.trim();
+      const detail = partner || line.label;
+      return {
+        label: `${kindLabel} — ${detail}`,
+        amountCents: line.amountCents,
+      };
+    }),
+  );
+  return charges
+    .filter((charge) => !isOutboundChargeKindAbsorbed(charge.chargeKind, bundle))
+    .map((charge) => {
+      if (charge.chargeKind !== host || extraLines.length === 0) {
+        return charge;
+      }
+      const lines = [...charge.lines, ...extraLines];
+      return {
+        ...charge,
+        lines,
+        totalCents: sumChargeLineCents(lines),
+      };
+    });
 }
 
 export function unpaidPublishedCharges(
@@ -199,9 +288,9 @@ export function unpaidPublishedChargesForIntake(
     selectedCourierKey?: string | null;
   },
 ): BarrelOutboundShippingChargeView[] {
-  return unpaidPublishedCharges(charges).filter((charge) =>
-    chargeMatchesIntakeSelection(charge, intake),
-  );
+  return unpaidPublishedCharges(
+    applyOutboundChargeBundleForCustomer(charges),
+  ).filter((charge) => chargeMatchesIntakeSelection(charge, intake));
 }
 
 /** Hide broker or courier vendor cards the customer opted out of. */
@@ -212,7 +301,8 @@ export function vendorChargesForIntake(
     selectedCourierKey?: string | null;
   },
 ): BarrelOutboundShippingChargeView[] {
-  return charges.filter((charge) => chargeMatchesIntakeSelection(charge, intake));
+  const visible = applyOutboundChargeBundleForCustomer(charges);
+  return visible.filter((charge) => chargeMatchesIntakeSelection(charge, intake));
 }
 
 /** Customer can switch to self-clearance while the broker charge is unpaid. */
@@ -341,6 +431,8 @@ export type AdminBarrelOutboundShippingChargeRow = {
   destinationLines: string[];
   /** Staff who last published or edited the shipping charge. */
   updatedByClerkUserId: string | null;
+  /** Kinds billed as one quote on this container. */
+  chargeBundle: BarrelOutboundShippingChargeKind[];
 };
 
 export function sumChargeLineCents(
@@ -387,6 +479,7 @@ export const ADMIN_SHIPPING_CHARGE_PREVIEW_ROW: AdminBarrelOutboundShippingCharg
     shipmentTracking: null,
     destinationLines: [],
     updatedByClerkUserId: null,
+    chargeBundle: [],
   };
 
 export type AdminShipmentCustomerGroup = {

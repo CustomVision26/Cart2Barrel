@@ -3,7 +3,11 @@
 import { BarrelPublishedOutboundCharges } from "@/components/shipping/barrel-published-outbound-charges";
 import { CustomsClearancePolicyLink } from "@/components/shipping/customs-clearance-policy-link";
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
-import { publishedChargesForDestination } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  applyOutboundChargeBundleForCustomer,
+  isOutboundChargeKindAbsorbed,
+  publishedChargesForDestination,
+} from "@/lib/barrel-outbound-shipping-charge";
 import {
   destinationBrokersForCountry,
   destinationCouriersForCountry,
@@ -103,11 +107,15 @@ export function DestinationClearanceChoices({
   charges = [],
 }: DestinationClearanceChoicesProps) {
   const country = destinationCountry?.trim() || null;
+  const bundle = charges[0]?.chargeBundle ?? [];
+  const brokerAbsorbed = isOutboundChargeKindAbsorbed("broker", bundle);
+  const courierAbsorbed = isOutboundChargeKindAbsorbed("courier", bundle);
+  const visibleCharges = applyOutboundChargeBundleForCustomer(charges);
   const destinationBrokersPublished = country
-    ? publishedChargesForDestination(charges, country, "broker")
+    ? publishedChargesForDestination(visibleCharges, country, "broker")
     : [];
   const destinationCouriersPublished = country
-    ? publishedChargesForDestination(charges, country, "courier")
+    ? publishedChargesForDestination(visibleCharges, country, "courier")
     : [];
   const catalogBrokers = country ? destinationBrokersForCountry(country) : [];
   const catalogCouriers = country ? destinationCouriersForCountry(country) : [];
@@ -159,7 +167,10 @@ export function DestinationClearanceChoices({
             })
           }
         />
-        <ChoiceCard
+        {brokerAbsorbed ?
+          null
+        : (
+          <ChoiceCard
           id={`${namePrefix}-clear-broker`}
           name={`${namePrefix}-clearance`}
           checked={value.deliveryMethod === "broker_delivery"}
@@ -187,9 +198,10 @@ export function DestinationClearanceChoices({
             })
           }
         />
+        )}
       </fieldset>
 
-      {value.deliveryMethod === "broker_delivery" && hasBrokers ?
+      {value.deliveryMethod === "broker_delivery" && hasBrokers && !brokerAbsorbed ?
         <fieldset className="relative z-10 space-y-2.5">
           <legend className="text-sm font-medium tracking-tight text-foreground">
             Customs brokers — {country}
@@ -250,7 +262,7 @@ export function DestinationClearanceChoices({
               ? `After customs clearance, arrange local delivery in ${country} or provide your own transportation.`
               : `After you clear customs, arrange local delivery in ${country} or provide your own transportation.`}
           </p>
-          {destinationCouriersPublished.length > 0 ?
+          {destinationCouriersPublished.length > 0 && !courierAbsorbed ?
             <BarrelPublishedOutboundCharges
               charges={destinationCouriersPublished}
               kinds={["courier"]}
@@ -273,7 +285,7 @@ export function DestinationClearanceChoices({
                 })
               }
             />
-          : catalogCouriers.length > 0 ?
+          : catalogCouriers.length > 0 && !courierAbsorbed ?
             <div className="grid gap-2.5">
               {catalogCouriers.map((courier) => (
                 <ChoiceCard
@@ -313,9 +325,17 @@ export function DestinationClearanceChoices({
 
 export function isDestinationClearanceChoiceComplete(
   value: DestinationClearanceChoiceValue,
+  bundle: BarrelOutboundShippingChargeView["chargeBundle"] = [],
 ): boolean {
-  if (!value.deliveryMethod || !value.courierKey) return false;
-  if (value.deliveryMethod === "broker_delivery" && !value.brokerKey) {
+  if (!value.deliveryMethod) return false;
+  const courierAbsorbed = isOutboundChargeKindAbsorbed("courier", bundle);
+  const brokerAbsorbed = isOutboundChargeKindAbsorbed("broker", bundle);
+  if (!courierAbsorbed && !value.courierKey) return false;
+  if (
+    value.deliveryMethod === "broker_delivery" &&
+    !brokerAbsorbed &&
+    !value.brokerKey
+  ) {
     return false;
   }
   return true;

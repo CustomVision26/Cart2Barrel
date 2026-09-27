@@ -9,13 +9,12 @@ import { barrelShippingIntakes, barrels } from "@/db/schema";
 import { getPrimaryShippingAddress } from "@/data/addresses";
 import { ensureBarrelShippingIntakesSchema } from "@/data/ensure-barrel-shipping-intakes-schema";
 import {
-  getBarrelForShippingIntake,
   cancelShippingIntakeForUser,
+  getBarrelForShippingIntake,
   switchShippingIntakeToOwnTransport,
   switchShippingIntakeToSelfClearance,
   updateShippingIntakeRow,
 } from "@/data/barrel-shipping-intake";
-import { isContainerReadyForShippingIntake } from "@/lib/barrel-shipping-intake";
 import {
   findDestinationBroker,
   findDestinationCourier,
@@ -77,16 +76,10 @@ export async function submitBarrelShippingIntakeAction(
     };
   }
 
-  if (
-    !isContainerReadyForShippingIntake({
-      status: row.barrel.status,
-      capacityPercentage: row.barrel.capacityPercentage,
-    })
-  ) {
+  if (row.barrel.status === "shipped" || row.barrel.status === "delivered") {
     return {
       ok: false,
-      message:
-        "This container is not full yet. Shipping options unlock at 100% load or when marked ready to ship.",
+      message: "This container has already shipped.",
     };
   }
 

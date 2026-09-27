@@ -10,7 +10,10 @@ import {
   profiles,
 } from "@/db/schema";
 import { getPrimaryShippingAddressesByClerkUserIds } from "@/data/addresses";
-import { getOutboundShippingChargesByBarrelIds } from "@/data/barrel-outbound-shipping-charges";
+import {
+  getOutboundShippingChargesByBarrelIds,
+  seedDefaultOutboundChargesForUser,
+} from "@/data/barrel-outbound-shipping-charges";
 import {
   backfillOutboundShippingPartnersFromCharges,
   listOutboundShippingPartnerCatalog,
@@ -31,6 +34,7 @@ import type {
   BarrelOutboundShippingChargeView,
   OutboundShippingPartnerRecord,
 } from "@/lib/barrel-outbound-shipping-charge";
+import { parseOutboundChargeBundle } from "@/lib/barrel-outbound-shipping-charge";
 import { sumOutboundChargesCents } from "@/lib/barrel-outbound-shipping-charge";
 import { formatBarrelSlotLabel } from "@/lib/barrel-slot-label";
 import { buildContainerAliasMap } from "@/lib/container-slot-alias";
@@ -142,6 +146,7 @@ function mapSingleAdminRow(
     updatedByClerkUserId:
       charges.find((c) => c.updatedByClerkUserId)?.updatedByClerkUserId ??
       null,
+    chargeBundle: parseOutboundChargeBundle(r.barrel.outboundChargeBundle),
   };
 }
 
@@ -241,6 +246,21 @@ export async function listAdminShipmentChargePageData(
     }
     sourceRows = await loadAllActiveBarrelRows(clerkUserId);
   }
+
+  const ownerIds = [...new Set(sourceRows.map((r) => r.barrel.clerkUserId))];
+  await Promise.all(
+    ownerIds.map(async (ownerId) => {
+      try {
+        await seedDefaultOutboundChargesForUser(ownerId);
+      } catch (e) {
+        console.error(
+          "[listAdminShipmentChargePageData] seed default freight",
+          ownerId,
+          e,
+        );
+      }
+    }),
+  );
 
   const offeringIds = [
     ...new Set(

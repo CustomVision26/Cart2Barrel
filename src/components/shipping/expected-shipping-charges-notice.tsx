@@ -6,13 +6,14 @@ import { BarrelPublishedOutboundCharges } from "@/components/shipping/barrel-pub
 import { CustomsClearancePolicyLink } from "@/components/shipping/customs-clearance-policy-link";
 import { OutboundShippingAddedChargesPanel } from "@/components/shipping/outbound-shipping-added-charges-panel";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
+import { applyOutboundChargeBundleForCustomer } from "@/lib/barrel-outbound-shipping-charge";
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
 import { EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS } from "@/lib/outbound-shipping-expected-charges";
 
 type ExpectedShippingChargesNoticeProps = {
   destinationCountry?: string | null;
   className?: string;
-  /** When false, the section starts collapsed. */
+  /** When false, the section starts collapsed. Defaults to open for new containers. */
   defaultOpen?: boolean;
   /** Replaces the static customs bullet (customer clearance + courier choice). */
   customsContent?: ReactNode;
@@ -23,7 +24,7 @@ type ExpectedShippingChargesNoticeProps = {
 export function ExpectedShippingChargesNotice({
   destinationCountry,
   className,
-  defaultOpen = false,
+  defaultOpen = true,
   customsContent,
   charges,
 }: ExpectedShippingChargesNoticeProps) {
@@ -33,7 +34,8 @@ export function ExpectedShippingChargesNotice({
   const customsItem = EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS.find(
     (item) => item.id === "customs",
   );
-  const freightCharges = (charges ?? []).filter(
+  const visibleCharges = applyOutboundChargeBundleForCustomer(charges ?? []);
+  const freightCharges = visibleCharges.filter(
     (charge) => charge.chargeKind === "freight",
   );
   const showSummary = charges != null;
@@ -57,8 +59,8 @@ export function ExpectedShippingChargesNotice({
       >
         <div className="space-y-3">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            This container is ready to ship. Freight, customs clearance, and
-            related fees are due before release. Typical charges include:
+            Freight, customs clearance, and related fees are due before we
+            release this container. Typical charges include:
           </p>
           {freightCharges.length > 0 ?
             <BarrelPublishedOutboundCharges
@@ -109,7 +111,7 @@ export function ExpectedShippingChargesNotice({
           </p>
         </div>
         {showSummary ?
-          <OutboundShippingAddedChargesPanel charges={charges} />
+          <OutboundShippingAddedChargesPanel charges={visibleCharges} />
         : null}
       </div>
     </CollapsibleFieldSection>

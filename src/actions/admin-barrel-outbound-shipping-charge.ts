@@ -10,7 +10,10 @@ import {
   barrels,
 } from "@/db/schema";
 import { getPrimaryOutboundShippingPartner } from "@/data/barrel-outbound-shipping-partners";
-import { approveOutboundOffPlatformPayment } from "@/data/barrel-outbound-shipping-charges";
+import {
+  approveOutboundOffPlatformPayment,
+  setOutboundChargeBundleForBarrel,
+} from "@/data/barrel-outbound-shipping-charges";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS } from "@/lib/barrel-outbound-shipping-charge";
@@ -18,6 +21,7 @@ import {
   approveOutboundOffPlatformPaymentSchema,
   parseUsdInputToCents,
   saveBarrelOutboundShippingChargeSchema,
+  setBarrelOutboundChargeBundleSchema,
 } from "@/lib/validations/barrel-outbound-shipping-charge";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
@@ -214,4 +218,37 @@ export async function approveOutboundOffPlatformPaymentAction(
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
   return { ok: true, message: "Payment approved." };
+}
+
+export async function setBarrelOutboundChargeBundleAction(
+  raw: unknown,
+): Promise<SaveBarrelOutboundShippingChargeState> {
+  const cu = await safeCurrentUser();
+  if (!cu.ok || !cu.user || !isClerkAdmin(cu.user)) {
+    return { ok: false, message: "Admin access required." };
+  }
+
+  const parsed = setBarrelOutboundChargeBundleSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid consolidation.",
+    };
+  }
+
+  const result = await setOutboundChargeBundleForBarrel(parsed.data);
+  if (!result.ok) return result;
+
+  revalidatePath("/admin/shipments");
+  revalidatePath("/dashboard/shipping");
+  revalidatePath("/dashboard/shipping/pricing");
+  revalidatePath("/dashboard/cart");
+  const kinds = parsed.data.kinds;
+  if (kinds.length < 2) {
+    return { ok: true, message: "Charges are billed on separate tabs again." };
+  }
+  return {
+    ok: true,
+    message: `Consolidated ${kinds.join(", ")} into one customer charge.`,
+  };
 }

@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { saveBarrelOutboundShippingChargeAction } from "@/actions/admin-barrel-outbound-shipping-charge";
+import {
+  saveBarrelOutboundShippingChargeAction,
+  setBarrelOutboundChargeBundleAction,
+} from "@/actions/admin-barrel-outbound-shipping-charge";
 import {
   addBarrelOutboundShippingPartnerAction,
   applyCatalogOutboundShippingPartnerAction,
@@ -34,6 +37,8 @@ import {
   chargeViewForKind,
   isOffPlatformOutboundChargeKind,
   isOffPlatformPaymentPendingReview,
+  outboundChargeBundleHost,
+  outboundChargeBundleLabel,
   splitFreightChargeLines,
   type BarrelOutboundShippingChargeKind,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -728,44 +733,83 @@ export function AdminOutboundChargeKindTabs({
   lockMessage?: string;
 }) {
   const kinds = useMemo(() => [...BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS], []);
-  const [tab, setTab] = useState<BarrelOutboundShippingChargeKind>(() => {
+  const bundle = row.chargeBundle ?? [];
+  const groups = useMemo(() => {
+    const host = outboundChargeBundleHost(bundle);
+    if (!host) {
+      return kinds.map((kind) => ({
+        id: kind,
+        kinds: [kind],
+        label: BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind],
+      }));
+    }
+    const grouped = kinds.filter((kind) => bundle.includes(kind));
+    const rest = kinds.filter((kind) => !bundle.includes(kind));
+    return [
+      {
+        id: host,
+        kinds: grouped,
+        label: outboundChargeBundleLabel(grouped),
+      },
+      ...rest.map((kind) => ({
+        id: kind,
+        kinds: [kind],
+        label: BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind],
+      })),
+    ];
+  }, [bundle, kinds]);
+  const [tab, setTab] = useState<string>(() => {
     const pendingKind = kinds.find((kind) => {
       const charge = chargeViewForKind(row.charges, kind);
       return charge ? isOffPlatformPaymentPendingReview(charge) : false;
     });
-    return pendingKind ?? "freight";
+    const pendingGroup = groups.find(
+      (group) => pendingKind && group.kinds.includes(pendingKind),
+    );
+    return pendingGroup?.id ?? groups[0]?.id ?? "freight";
   });
+  const activeGroup = groups.find((group) => group.id === tab) ?? groups[0];
 
   return (
     <div className="space-y-3">
+      <AdminChargeBundleControls row={row} />
       <div
         role="tablist"
         aria-label="Outbound charge types"
         className="flex flex-wrap gap-1 border-b border-border"
       >
-        {kinds.map((kind) => {
-          const published = chargeViewForKind(row.charges, kind);
+        {groups.map((group) => {
+          const publishedCents = group.kinds.reduce((sum, kind) => {
+            const published = chargeViewForKind(row.charges, kind);
+            return sum + (published?.totalCents ?? 0);
+          }, 0);
+          const pendingReview = group.kinds.some((kind) => {
+            const published = chargeViewForKind(row.charges, kind);
+            return published
+              ? isOffPlatformPaymentPendingReview(published)
+              : false;
+          });
           return (
             <button
-              key={kind}
+              key={group.id}
               type="button"
               role="tab"
-              aria-selected={tab === kind}
+              aria-selected={tab === group.id}
               className={cn(
                 "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-                tab === kind
+                tab === group.id
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
-              onClick={() => setTab(kind)}
+              onClick={() => setTab(group.id)}
             >
-              {BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind]}
-              {published ?
+              {group.label}
+              {publishedCents > 0 ?
                 <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
-                  {formatUsd(published.totalCents)}
+                  {formatUsd(publishedCents)}
                 </span>
               : null}
-              {published && isOffPlatformPaymentPendingReview(published) ?
+              {pendingReview ?
                 <span className="ml-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
                   Verify
                 </span>
@@ -774,13 +818,115 @@ export function AdminOutboundChargeKindTabs({
           );
         })}
       </div>
-      <AdminChargeKindForm
-        key={`${row.barrelId}-${tab}-${chargeViewForKind(row.charges, tab)?.chargeId ?? "new"}`}
-        row={row}
-        chargeKind={tab}
-        publishEnabled={publishEnabled}
-        lockMessage={lockMessage}
-      />
+      {activeGroup ?
+        <div className="space-y-6">
+          {activeGroup.kinds.map((kind) => (
+            <AdminChargeKindForm
+              key={`${row.barrelId}-${kind}-${chargeViewForKind(row.charges, kind)?.chargeId ?? "new"}`}
+              row={row}
+              chargeKind={kind}
+              publishEnabled={publishEnabled}
+              lockMessage={lockMessage}
+            />
+          ))}
+        </div>
+      : null}
+    </div>
+  );
+}
+
+function AdminChargeBundleControls({
+  row,
+}: {
+  row: AdminBarrelOutboundShippingChargeRow;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const saved = row.chargeBundle ?? [];
+  const [selected, setSelected] = useState<BarrelOutboundShippingChargeKind[]>(
+    saved,
+  );
+
+  useEffect(() => {
+    setSelected(row.chargeBundle ?? []);
+  }, [row.chargeBundle]);
+
+  function toggle(kind: BarrelOutboundShippingChargeKind) {
+    setSelected((current) =>
+      current.includes(kind)
+        ? current.filter((item) => item !== kind)
+        : [...BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((item) =>
+            item === kind || current.includes(item),
+          )],
+    );
+  }
+
+  function apply(kinds: BarrelOutboundShippingChargeKind[]) {
+    startTransition(async () => {
+      const res = await setBarrelOutboundChargeBundleAction({
+        barrelId: row.barrelId,
+        kinds,
+      });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      toast.success(res.message);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2.5">
+      <p className="text-xs font-medium text-foreground">
+        Consolidate sub-tab charges
+      </p>
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        Select two or all three. The customer sees one quote for those kinds —
+        freight + broker share the freight Add to cart card, and the extra
+        broker option is hidden.
+      </p>
+      <div className="flex flex-wrap gap-3">
+        {BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.map((kind) => (
+          <label
+            key={kind}
+            className="inline-flex items-center gap-1.5 text-xs text-foreground"
+          >
+            <input
+              type="checkbox"
+              className="size-3.5 accent-primary"
+              checked={selected.includes(kind)}
+              disabled={pending}
+              onChange={() => toggle(kind)}
+            />
+            {BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind]}
+          </label>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={pending || selected.length < 2}
+          onClick={() => apply(selected)}
+        >
+          {pending ? "Saving…" : "Consolidate selected"}
+        </Button>
+        {saved.length >= 2 ?
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              setSelected([]);
+              apply([]);
+            }}
+          >
+            Separate tabs
+          </Button>
+        : null}
+      </div>
     </div>
   );
 }

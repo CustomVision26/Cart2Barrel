@@ -16,13 +16,14 @@ import type {
   BarrelShippingIntakeContainerRow,
   BarrelShippingIntakeSubmittedRow,
 } from "@/lib/barrel-shipping-intake";
-import { isContainerReadyForShippingIntake } from "@/lib/barrel-shipping-intake";
+import { isContainerVisibleOnShipping } from "@/lib/barrel-shipping-intake";
 import { OWN_TRANSPORT_COURIER_KEY } from "@/lib/destination-clearance-partners";
 import { parseContainerOfferingKind } from "@/lib/validations/container-offering";
 import { getBarrelContentsByBarrelIds } from "@/data/barrel-contents";
 import {
   getOutboundShippingChargesByBarrelIds,
   resetBrokerAndCourierPaymentsForBarrel,
+  seedDefaultOutboundChargesForUser,
 } from "@/data/barrel-outbound-shipping-charges";
 import { getPrimaryImageUrlByOfferingIds } from "@/data/container-offerings";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
@@ -122,7 +123,7 @@ function mapBarrelRows(
       continue;
     }
 
-    if (isContainerReadyForShippingIntake(base)) {
+    if (isContainerVisibleOnShipping(base)) {
       awaiting.push(base);
     }
   }
@@ -168,6 +169,11 @@ export async function getBarrelShippingIntakePageData(
 ): Promise<BarrelShippingIntakePageData> {
   await ensureBarrelsProvisionedForUser(clerkUserId);
   await ensureBarrelShippingIntakesSchema();
+  try {
+    await seedDefaultOutboundChargesForUser(clerkUserId);
+  } catch (e) {
+    console.error("[getBarrelShippingIntakePageData] seed default freight", e);
+  }
 
   let rows: Awaited<ReturnType<typeof loadBarrelShippingIntakeRows>>;
   try {

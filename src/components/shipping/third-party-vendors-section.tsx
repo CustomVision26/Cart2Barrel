@@ -12,6 +12,7 @@ import {
 import { OutboundPaymentReceiptDialog } from "@/components/shipping/outbound-payment-receipt-dialog";
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
 import {
+  applyOutboundChargeBundleForCustomer,
   canDeclineBrokerForIntake,
   canDeclineCourierForIntake,
   vendorChargesForIntake,
@@ -189,7 +190,9 @@ export function ThirdPartyVendorsSection({
   showDivider = true,
   intake,
 }: ThirdPartyVendorsSectionProps) {
-  const visible = intake ? vendorChargesForIntake(charges, intake) : charges;
+  const visible = intake
+    ? vendorChargesForIntake(charges, intake)
+    : applyOutboundChargeBundleForCustomer(charges);
   const { unitedStates, overseas } = partitionThirdPartyVendorCharges(visible);
   const declineBrokerIntakeId =
     intake && canDeclineBrokerForIntake(intake) ? intake.intakeId : undefined;

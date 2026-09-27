@@ -28,10 +28,10 @@ export default async function DashboardShippingPage() {
           Shipment tracking
         </h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          When your containers are full, continue to the{" "}
-          <span className="font-medium text-foreground">Pricing</span> tab for freight,
-          customs, and pickup charges. Tracking updates appear below as your shipment
-          moves.
+          When you add a container, freight, customs clearance, and pickup
+          charges appear below. Continue to the{" "}
+          <span className="font-medium text-foreground">Pricing</span> tab for
+          itemized amounts. Tracking updates appear after freight is paid.
         </p>
       </header>
 

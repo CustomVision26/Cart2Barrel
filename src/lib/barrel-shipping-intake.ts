@@ -41,6 +41,13 @@ export function isContainerReadyForShippingIntake(
   return barrel.capacityPercentage >= 100 || barrel.status === "ready_to_ship";
 }
 
+/** Active containers that should show the outbound charges / clearance UI. */
+export function isContainerVisibleOnShipping(
+  barrel: Pick<BarrelShippingIntakeContainerRow, "status">,
+): boolean {
+  return barrel.status !== "shipped" && barrel.status !== "delivered";
+}
+
 export function canCancelShippingIntake(
   barrel: Pick<BarrelShippingIntakeContainerRow, "status">,
 ): boolean {

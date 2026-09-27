@@ -31,12 +31,12 @@ export function BarrelShippingIntakeSection({
         <section className="space-y-4">
           <header className="space-y-1">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Containers ready to ship
+              Outbound shipping charges
             </h2>
             <p className="text-sm text-muted-foreground">
-              {awaiting.length} container{awaiting.length === 1 ? "" : "s"} at
-              100% load or marked full. Choose destination clearance and a local
-              courier for each one below, then continue to pricing.
+              {awaiting.length} container{awaiting.length === 1 ? "" : "s"} on
+              this account. Add published freight to your cart and choose
+              destination clearance for each one below.
             </p>
           </header>
 
@@ -88,17 +88,17 @@ export function BarrelShippingIntakeSection({
       {awaiting.length === 0 && submitted.length === 0 ?
         <Card className="max-w-2xl border-dashed border-border/80">
           <CardHeader>
-            <CardTitle className="text-base">No containers ready yet</CardTitle>
+            <CardTitle className="text-base">No containers yet</CardTitle>
             <CardDescription>
-              When a container reaches 100% load or is marked full, continue to
-              pricing here. Pack items in{" "}
+              After you buy a container, freight, customs clearance, and pickup
+              options appear here. Shop containers from{" "}
               <Link
                 href="/dashboard/barrels"
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
                 My containers
-              </Link>{" "}
-              and watch load progress on each slot.
+              </Link>
+              .
             </CardDescription>
           </CardHeader>
         </Card>

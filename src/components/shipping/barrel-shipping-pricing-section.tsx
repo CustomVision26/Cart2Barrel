@@ -3,6 +3,7 @@ import { ShoppingCart } from "lucide-react";
 
 import { BarrelOutboundShippingChargeCard } from "@/components/shipping/barrel-outbound-shipping-charge-card";
 import { BarrelOutboundShippingPaidCard } from "@/components/shipping/barrel-outbound-shipping-paid-card";
+import { BarrelShippingIntakeForm } from "@/components/shipping/barrel-shipping-intake-form";
 import { ExpectedShippingChargesNotice } from "@/components/shipping/expected-shipping-charges-notice";
 import {
   Card,
@@ -11,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { BarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
+import type { Address } from "@/db/schema";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import {
   paidOutboundCharges,
@@ -21,6 +23,7 @@ import type { BarrelShippingIntakeSubmittedRow } from "@/lib/barrel-shipping-int
 type BarrelShippingPricingSectionProps = {
   data: BarrelShippingIntakePageData;
   destinationCountry?: string | null;
+  shippingAddress?: Address;
 };
 
 function partitionSubmitted(rows: BarrelShippingIntakeSubmittedRow[]) {
@@ -48,6 +51,7 @@ function partitionSubmitted(rows: BarrelShippingIntakeSubmittedRow[]) {
 export function BarrelShippingPricingSection({
   data,
   destinationCountry,
+  shippingAddress,
 }: BarrelShippingPricingSectionProps) {
   const { awaiting, submitted } = data;
   const { readyToPay, awaitingQuote, paid } = partitionSubmitted(submitted);
@@ -60,10 +64,10 @@ export function BarrelShippingPricingSection({
     return (
       <Card className="max-w-2xl border-dashed border-border/80">
         <CardHeader>
-          <CardTitle className="text-base">No containers ready for pricing</CardTitle>
+          <CardTitle className="text-base">No containers for pricing</CardTitle>
           <CardDescription>
-            When a container reaches 100% load or is marked full, shipping charges
-            appear here. Pack items in{" "}
+            After you buy a container, published freight and clearance options
+            appear here. Shop containers from{" "}
             <Link
               href="/dashboard/barrels"
               className="font-medium text-primary underline-offset-4 hover:underline"
@@ -79,32 +83,31 @@ export function BarrelShippingPricingSection({
 
   if (awaiting.length > 0 && submitted.length === 0) {
     return (
-      <div className="max-w-2xl space-y-4">
-        <ExpectedShippingChargesNotice destinationCountry={destinationCountry} />
-        <Card className="border-border/80">
-          <CardHeader>
-            <CardTitle className="text-base">Submit preferences first</CardTitle>
-            <CardDescription>
-              You have {awaiting.length} full container
-              {awaiting.length === 1 ? "" : "s"} not yet confirmed for pricing.{" "}
-              <Link
-                href={DASHBOARD_SHIPPING_ROUTES.tracking}
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Go to Shipment tracking
-              </Link>{" "}
-              to mark it ready for shipping charges. Pricing amounts appear here
-              after you continue from Shipment tracking.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="flex max-w-6xl flex-col gap-6">
+        {awaiting.map((container) => (
+          <BarrelShippingIntakeForm
+            key={container.barrelId}
+            container={container}
+            shippingAddress={shippingAddress}
+          />
+        ))}
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      <ExpectedShippingChargesNotice destinationCountry={destinationCountry} />
+      {awaiting.length > 0 ?
+        <div className="flex max-w-6xl flex-col gap-6">
+          {awaiting.map((container) => (
+            <BarrelShippingIntakeForm
+              key={container.barrelId}
+              container={container}
+              shippingAddress={shippingAddress}
+            />
+          ))}
+        </div>
+      : <ExpectedShippingChargesNotice destinationCountry={destinationCountry} />}
 
       {readyToPay.length > 0 ?
         <section className="space-y-4">
