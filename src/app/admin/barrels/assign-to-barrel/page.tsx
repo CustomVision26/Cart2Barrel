@@ -11,6 +11,7 @@ import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -34,50 +35,66 @@ export default async function AdminAssignToBarrelPage({ searchParams }: PageProp
   const { clerkUserId: filterClerkUserId } = parseAdminCustomerFilter(
     (await searchParams) ?? {},
   );
-  const allRows = await listAdminBarrelPipelineLines();
-  const rows =
-    filterClerkUserId ?
-      allRows.filter((r) => r.ownerClerkUserId === filterClerkUserId)
-    : allRows;
-  const ownerIds = [...new Set(rows.map((r) => r.ownerClerkUserId))];
-  const entries = await Promise.all(
-    ownerIds.map(async (id) => {
-      const opts = await listBarrelOptionsForOwner(id);
-      return [
-        id,
-        opts.map((o) => ({ ...o, ownerClerkUserId: id })),
-      ] as const;
-    }),
-  );
-  const barrelsByOwner = Object.fromEntries(entries);
-  const ownerProfiles = await loadAdminCustomerProfilesByClerkUserIds(ownerIds);
-  const staffProfilesByClerkUserId = await loadAdminStaffProfilesByClerkUserIds([
-    ...rows.map((r) => r.lastUpdatedByClerkUserId),
-    ...Object.values(barrelsByOwner).flatMap((list) =>
-      list.map((b) => b.lastUpdatedByClerkUserId),
-    ),
-  ]);
 
-  return (
-    <div className="space-y-6">
-      <AdminPageTitleWithHelp
-        title="Assign to barrel"
-        tooltipClassName="w-80"
-        help={
-          <>
-            Assign inbound products to customer containers, reassign when an item
-            does not fit, mark containers full, or remove assignments. Both awaiting
-            and already-assigned products appear below. Shoppers see read-only status
-            on their Product to barrel page; every change is recorded in history.
-          </>
-        }
-      />
-      <AdminBarrelAssignmentsClient
-        rows={rows}
-        barrelsByOwner={barrelsByOwner}
-        ownerProfiles={ownerProfiles}
-        staffProfilesByClerkUserId={staffProfilesByClerkUserId}
-      />
-    </div>
-  );
+  try {
+    const allRows = await listAdminBarrelPipelineLines();
+    const rows =
+      filterClerkUserId ?
+        allRows.filter((r) => r.ownerClerkUserId === filterClerkUserId)
+      : allRows;
+    const ownerIds = [...new Set(rows.map((r) => r.ownerClerkUserId))];
+    const entries = await Promise.all(
+      ownerIds.map(async (id) => {
+        const opts = await listBarrelOptionsForOwner(id);
+        return [
+          id,
+          opts.map((o) => ({ ...o, ownerClerkUserId: id })),
+        ] as const;
+      }),
+    );
+    const barrelsByOwner = Object.fromEntries(entries);
+    const ownerProfiles = await loadAdminCustomerProfilesByClerkUserIds(ownerIds);
+    const staffProfilesByClerkUserId = await loadAdminStaffProfilesByClerkUserIds([
+      ...rows.map((r) => r.lastUpdatedByClerkUserId),
+      ...Object.values(barrelsByOwner).flatMap((list) =>
+        list.map((b) => b.lastUpdatedByClerkUserId),
+      ),
+    ]);
+
+    return (
+      <div className="space-y-6">
+        <AdminPageTitleWithHelp
+          title="Assign to barrel"
+          tooltipClassName="w-80"
+          help={
+            <>
+              Assign inbound products to customer containers, reassign when an item
+              does not fit, mark containers full, or remove assignments. Both awaiting
+              and already-assigned products appear below. Shoppers see read-only status
+              on their Product to barrel page; every change is recorded in history.
+            </>
+          }
+        />
+        <AdminBarrelAssignmentsClient
+          rows={rows}
+          barrelsByOwner={barrelsByOwner}
+          ownerProfiles={ownerProfiles}
+          staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+        />
+      </div>
+    );
+  } catch (error) {
+    console.error("[AdminAssignToBarrelPage]", error);
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Assign to barrel
+        </h1>
+        <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-6 text-sm text-foreground">
+          Could not load barrel assignments. Refresh the page. If this continues,
+          apply pending database schema updates and try again.
+        </p>
+      </div>
+    );
+  }
 }

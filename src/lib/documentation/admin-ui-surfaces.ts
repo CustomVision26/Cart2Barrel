@@ -172,6 +172,10 @@ const ADMIN_SURFACE_OVERRIDES: Partial<
   barrels: {
     title: "Barrels — assign & history",
   },
+  shipments: {
+    title: "Shipments & history",
+    location: "Sidebar → Shipments; history at /admin/shipments-history.",
+  },
   users: {
     title: "Users & admin grants",
   },

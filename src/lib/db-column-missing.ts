@@ -401,16 +401,19 @@ export function isMissingBarrelOutboundShippingChargesTableError(e: unknown): bo
     msg.includes("outbound_shipping_company_rates") ||
     msg.includes("outbound_shipping_company_rate_links") ||
     msg.includes("outbound_shipping_catalog_defaults") ||
+    msg.includes("barrel_outbound_shipping_refund_requests") ||
     msg.includes("outbound_charge_bundle") ||
     msg.includes("outbound_company_rate_kinds") ||
-    msg.includes("image_url");
+    msg.includes("image_url") ||
+    msg.includes("public_pricing_published_at");
   if (!mentions) return false;
   const code = getPgErrorCode(e);
   if (code === "42P01" || code === PG_UNDEFINED_COLUMN) return true;
   return (
     /does not exist|relation\b|undefined column/i.test(msg) ||
     isUndefinedColumnError(e, "outbound_charge_bundle") ||
-    isUndefinedColumnError(e, "outbound_company_rate_kinds")
+    isUndefinedColumnError(e, "outbound_company_rate_kinds") ||
+    isUndefinedColumnError(e, "public_pricing_published_at")
   );
 }
 

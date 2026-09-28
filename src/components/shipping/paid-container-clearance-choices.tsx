@@ -10,6 +10,11 @@ import {
   isDestinationClearanceChoiceComplete,
   type DestinationClearanceChoiceValue,
 } from "@/components/shipping/destination-clearance-choices";
+import { destinationClearancePresentation } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  PUBLISHED_BROKER_KEY,
+  PUBLISHED_COURIER_KEY,
+} from "@/lib/destination-clearance-partners";
 import type { BarrelShippingIntakeSubmittedRow } from "@/lib/barrel-shipping-intake";
 
 export function PaidContainerClearanceChoices({
@@ -21,21 +26,48 @@ export function PaidContainerClearanceChoices({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [choice, setChoice] = useState<DestinationClearanceChoiceValue>({
-    deliveryMethod: row.deliveryMethod,
-    brokerKey: row.selectedBrokerKey,
-    courierKey: row.selectedCourierKey,
+  const [choice, setChoice] = useState<DestinationClearanceChoiceValue>(() => {
+    const presentation = destinationClearancePresentation(
+      row.outboundCharges,
+      destinationCountry,
+    );
+    return {
+      deliveryMethod: presentation.brokerAbsorbed
+        ? "broker_delivery"
+        : row.deliveryMethod,
+      brokerKey: presentation.brokerAbsorbed
+        ? PUBLISHED_BROKER_KEY
+        : row.selectedBrokerKey,
+      courierKey: presentation.courierAbsorbed
+        ? PUBLISHED_COURIER_KEY
+        : row.selectedCourierKey,
+    };
   });
+
+  const presentation = destinationClearancePresentation(
+    row.outboundCharges,
+    destinationCountry,
+  );
 
   function persist(next: DestinationClearanceChoiceValue) {
     setChoice(next);
-    if (!isDestinationClearanceChoiceComplete(next, row.outboundCharges[0]?.chargeBundle ?? []) || !next.deliveryMethod) {
+    if (
+      !isDestinationClearanceChoiceComplete(
+        next,
+        row.outboundCharges,
+        destinationCountry,
+      )
+    ) {
       return;
     }
+    const deliveryMethod =
+      next.deliveryMethod ??
+      (presentation.brokerAbsorbed ? "broker_delivery" : null);
+    if (!deliveryMethod) return;
     startTransition(async () => {
       const res = await updateBarrelShippingIntakeAction({
         intakeId: row.intakeId,
-        deliveryMethod: next.deliveryMethod,
+        deliveryMethod,
         brokerKey: next.brokerKey,
         courierKey: next.courierKey,
       });
@@ -53,14 +85,22 @@ export function PaidContainerClearanceChoices({
     });
   }
 
+  if (!presentation.showBrokerUi && !presentation.showCourierUi) {
+    return null;
+  }
+
   return (
     <div className="space-y-2 border-t border-border/60 pt-3">
       <p className="text-xs font-medium text-foreground">
         Destination customs clearance
       </p>
       <p className="text-[11px] text-muted-foreground">
-        Freight is paid. You can still choose to clear customs yourself or use a
-        selected broker, then arrange local transportation.
+        {presentation.showBrokerUi
+          ? "Freight is paid. You can still choose to clear customs yourself or use a selected broker."
+          : "Freight is paid. Destination customs is included with freight."}
+        {presentation.showCourierUi
+          ? " You can still choose a published courier or provide your own transportation."
+          : ""}
       </p>
       <DestinationClearanceChoices
         destinationCountry={destinationCountry}

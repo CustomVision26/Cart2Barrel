@@ -6,27 +6,36 @@ import { cn } from "@/lib/utils";
 export function customsClearancePackHref(
   barrelId: string,
   disposition: "inline" | "attachment" = "inline",
+  audience: "customer" | "admin" = "customer",
 ): string {
   const params = new URLSearchParams({
     barrelId,
     disposition,
   });
-  return `/api/dashboard/customs-clearance-pack?${params.toString()}`;
+  const base =
+    audience === "admin"
+      ? "/api/admin/customs-clearance-pack"
+      : "/api/dashboard/customs-clearance-pack";
+  return `${base}?${params.toString()}`;
 }
 
 export function CustomsClearancePackActions({
   barrelId,
   published,
   compact = false,
+  audience = "customer",
 }: {
   barrelId: string;
   published: boolean;
   compact?: boolean;
+  audience?: "customer" | "admin";
 }) {
   if (!published) {
     return (
       <p className="text-xs text-muted-foreground">
-        Your customs clearance pack will appear here once our team publishes it.
+        {audience === "admin"
+          ? "The customs clearance pack will appear here once it is published."
+          : "Your customs clearance pack will appear here once our team publishes it."}
       </p>
     );
   }
@@ -36,7 +45,7 @@ export function CustomsClearancePackActions({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <a
-        href={customsClearancePackHref(barrelId, "inline")}
+        href={customsClearancePackHref(barrelId, "inline", audience)}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="View customs clearance pack"
@@ -49,7 +58,7 @@ export function CustomsClearancePackActions({
         {compact ? "View" : "View clearance pack"}
       </a>
       <a
-        href={customsClearancePackHref(barrelId, "attachment")}
+        href={customsClearancePackHref(barrelId, "attachment", audience)}
         aria-label="Download customs clearance pack"
         className={cn(
           buttonVariants({ variant: compact ? "outline" : "default", size }),

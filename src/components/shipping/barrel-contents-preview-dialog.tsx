@@ -29,6 +29,7 @@ type BarrelContentsPreviewDialogProps = {
   containerLabel: string;
   containerAlias?: string;
   items: BarrelContentItem[];
+  contentsApiPath?: string;
 };
 
 export function BarrelContentsPreviewDialog({
@@ -36,6 +37,7 @@ export function BarrelContentsPreviewDialog({
   containerLabel,
   containerAlias,
   items,
+  contentsApiPath = "/api/dashboard/barrel-contents",
 }: BarrelContentsPreviewDialogProps) {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -54,7 +56,7 @@ export function BarrelContentsPreviewDialog({
   function downloadPdf() {
     startDownload(async () => {
       const response = await fetch(
-        `/api/dashboard/barrel-contents?barrelId=${encodeURIComponent(barrelId)}`,
+        `${contentsApiPath}?barrelId=${encodeURIComponent(barrelId)}`,
       );
       if (!response.ok) {
         toast.error("Could not download the contents PDF.");

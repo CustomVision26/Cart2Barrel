@@ -1,9 +1,18 @@
-import { AdminBarrelsLayoutShell } from "@/components/admin/admin-barrels-layout-shell";
+import { Suspense, type ReactNode } from "react";
+
+import { AdminBarrelsTabNav } from "@/components/admin/admin-barrels-tab-nav";
 
 export default function AdminBarrelsLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  return <AdminBarrelsLayoutShell>{children}</AdminBarrelsLayoutShell>;
+  return (
+    <div className="space-y-6">
+      <Suspense fallback={null}>
+        <AdminBarrelsTabNav />
+      </Suspense>
+      {children}
+    </div>
+  );
 }

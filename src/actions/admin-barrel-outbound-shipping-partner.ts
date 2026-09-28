@@ -10,6 +10,7 @@ import {
   applyCatalogPartnerToBarrel,
   deleteOutboundShippingPartner,
   setOutboundShippingPartnerPrimary,
+  setOutboundShippingPartnerPublicPricing,
   updateOutboundShippingPartner,
 } from "@/data/barrel-outbound-shipping-partners";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
@@ -20,6 +21,7 @@ import {
   applyCatalogOutboundShippingPartnerSchema,
   deleteBarrelOutboundShippingPartnerSchema,
   setBarrelOutboundShippingPartnerPrimarySchema,
+  setOutboundShippingPartnerPublicPricingSchema,
   updateBarrelOutboundShippingPartnerSchema,
 } from "@/lib/validations/barrel-outbound-shipping-charge";
 
@@ -31,6 +33,7 @@ function revalidatePartnerPaths() {
   revalidatePath("/admin/shipments");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
+  revalidatePath("/how-it-works");
 }
 
 async function requireAdmin(): Promise<
@@ -209,4 +212,30 @@ export async function deleteBarrelOutboundShippingPartnerAction(
 
   revalidatePartnerPaths();
   return { ok: true, message: "Record removed." };
+}
+
+export async function setOutboundShippingPartnerPublicPricingAction(
+  raw: unknown,
+): Promise<OutboundShippingPartnerActionState> {
+  const admin = await requireAdmin();
+  if (!admin.ok) return admin;
+
+  const parsed = setOutboundShippingPartnerPublicPricingSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  const result = await setOutboundShippingPartnerPublicPricing(parsed.data);
+  if (!result.ok) return result;
+
+  revalidatePartnerPaths();
+  return {
+    ok: true,
+    message: parsed.data.published
+      ? "Company published on How it works → Pricing overview."
+      : "Company removed from How it works pricing.",
+  };
 }

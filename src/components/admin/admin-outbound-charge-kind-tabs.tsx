@@ -13,6 +13,7 @@ import {
   applyCatalogOutboundShippingPartnerAction,
   deleteBarrelOutboundShippingPartnerAction,
   setBarrelOutboundShippingPartnerPrimaryAction,
+  setOutboundShippingPartnerPublicPricingAction,
   updateBarrelOutboundShippingPartnerAction,
 } from "@/actions/admin-barrel-outbound-shipping-partner";
 import { AdminOutboundOffPlatformPaymentReview } from "@/components/admin/admin-outbound-off-platform-payment-review";
@@ -57,6 +58,50 @@ import { cn } from "@/lib/utils";
 
 function centsToUsdInput(cents: number): string {
   return cents > 0 ? (cents / 100).toFixed(2) : "";
+}
+
+const PARTNER_LOCATION_FROM_HINT =
+  "Where this company transports the container from";
+
+function PartnerRecordValue({
+  value,
+  className,
+  emphasize,
+  titleSuffix,
+}: {
+  value: string | null | undefined;
+  className?: string;
+  emphasize?: boolean;
+  titleSuffix?: string;
+}) {
+  const raw = value?.trim() || "";
+  const compact = raw.replace(/\s+/g, " ");
+  const title = compact
+    ? titleSuffix
+      ? `${raw} — ${titleSuffix}`
+      : raw
+    : undefined;
+  return (
+    <td
+      className={cn(
+        "px-3 py-2 text-muted-foreground",
+        emphasize && "bg-primary/10",
+        className,
+      )}
+    >
+      {compact ?
+        <span
+          className={cn(
+            "block max-w-[7.5rem] truncate",
+            emphasize && "font-semibold text-primary",
+          )}
+          title={title}
+        >
+          {compact}
+        </span>
+      : "—"}
+    </td>
+  );
 }
 
 function PartnerRecordsEditor({
@@ -236,6 +281,24 @@ function PartnerRecordsEditor({
     });
   }
 
+  function togglePublicPricing(
+    record: (typeof records)[number],
+    published: boolean,
+  ) {
+    startTransition(async () => {
+      const res = await setOutboundShippingPartnerPublicPricingAction({
+        id: record.id,
+        published,
+      });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      toast.success(res.message);
+      router.refresh();
+    });
+  }
+
   function removeRecord(id: string) {
     startTransition(async () => {
       const res = await deleteBarrelOutboundShippingPartnerAction({ id });
@@ -273,7 +336,7 @@ function PartnerRecordsEditor({
             </div>
             {!isFreight ?
               <>
-                <div className="space-y-1">
+                <div className="space-y-1 rounded-md border border-primary/30 bg-primary/10 p-2">
                   <Label htmlFor={`${row.barrelId}-${chargeKind}-location`}>
                     Location
                   </Label>
@@ -281,9 +344,12 @@ function PartnerRecordsEditor({
                     id={`${row.barrelId}-${chargeKind}-location`}
                     value={location}
                     disabled={busy}
-                    placeholder="e.g. Kingston / Newport West"
+                    placeholder="e.g. Kingston Container Terminal (KCT)"
                     onChange={(e) => setLocation(e.target.value)}
                   />
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    {PARTNER_LOCATION_FROM_HINT}.
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`${row.barrelId}-${chargeKind}-country`}>
@@ -477,7 +543,12 @@ function PartnerRecordsEditor({
                 {!isFreight ?
                   <>
                     <th className="px-3 py-2 font-medium">Country</th>
-                    <th className="px-3 py-2 font-medium">Location</th>
+                    <th
+                      className="bg-primary/10 px-3 py-2 font-medium text-primary"
+                      title={PARTNER_LOCATION_FROM_HINT}
+                    >
+                      Location
+                    </th>
                   </>
                 : null}
                 <th className="px-3 py-2 font-medium">Address</th>
@@ -513,13 +584,18 @@ function PartnerRecordsEditor({
                       onChange={() => setPrimary(record)}
                     />
                   </td>
-                  <td className="px-3 py-2 font-medium text-foreground">
-                    <span className="inline-flex flex-wrap items-center gap-1.5">
-                      {record.name}
+                  <td className="max-w-[9rem] px-3 py-2 font-medium text-foreground">
+                    <span className="inline-flex max-w-full flex-wrap items-center gap-1.5">
+                      <span className="truncate" title={record.name}>
+                        {record.name}
+                      </span>
                       {onThisBarrel && record.isPrimary ?
                         <StatusBadge kind="fullyReceived">Primary</StatusBadge>
                       : !onThisBarrel ?
                         <StatusBadge kind="draft">Saved</StatusBadge>
+                      : null}
+                      {record.publicPricingPublishedAt ?
+                        <StatusBadge kind="quoted">How it works</StatusBadge>
                       : null}
                     </span>
                   </td>
@@ -537,59 +613,67 @@ function PartnerRecordsEditor({
                   </td>
                   {!isFreight ?
                     <>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {record.country || "—"}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {record.location || "—"}
-                      </td>
+                      <PartnerRecordValue value={record.country} />
+                      <PartnerRecordValue
+                        value={record.location}
+                        emphasize
+                        titleSuffix={PARTNER_LOCATION_FROM_HINT}
+                      />
                     </>
                   : null}
-                  <td className="max-w-[16rem] whitespace-pre-wrap px-3 py-2 text-muted-foreground">
-                    {record.address || "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                    {record.phone || "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                    {record.cashappId || "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                    {record.cashappAccount || "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                    {record.zelleId || "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                    {record.zelleAccount || "—"}
-                  </td>
+                  <PartnerRecordValue value={record.address} />
+                  <PartnerRecordValue value={record.phone} />
+                  <PartnerRecordValue value={record.cashappId} />
+                  <PartnerRecordValue value={record.cashappAccount} />
+                  <PartnerRecordValue value={record.zelleId} />
+                  <PartnerRecordValue value={record.zelleAccount} />
                   <td className="px-3 py-2">
-                    {onThisBarrel ?
-                      <div className="flex flex-wrap gap-1.5">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => startEdit(record)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => removeRecord(record.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    : (
-                      <span className="text-xs text-muted-foreground">
-                        Select Primary to use
-                      </span>
-                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={
+                          record.publicPricingPublishedAt ? "outline" : "default"
+                        }
+                        disabled={busy}
+                        onClick={() =>
+                          togglePublicPricing(
+                            record,
+                            !record.publicPricingPublishedAt,
+                          )
+                        }
+                      >
+                        {record.publicPricingPublishedAt
+                          ? "Unpublish from How it works"
+                          : "Publish to How it works"}
+                      </Button>
+                      {onThisBarrel ?
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => startEdit(record)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => removeRecord(record.id)}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      : (
+                        <span className="text-xs text-muted-foreground">
+                          Select Primary to use
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
                 );

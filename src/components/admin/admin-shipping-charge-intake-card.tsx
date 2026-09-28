@@ -5,6 +5,7 @@ import { ChevronDownIcon } from "lucide-react";
 
 import { AdminOutboundChargeKindTabs } from "@/components/admin/admin-outbound-charge-kind-tabs";
 import { AdminOutboundPaymentReceiptDialog } from "@/components/admin/admin-outbound-off-platform-payment-review";
+import { AdminOutboundShippingRefundLineButton } from "@/components/admin/admin-outbound-shipping-refund-line-button";
 import { AdminShipmentCustomsPanel } from "@/components/admin/admin-shipment-customs-panel";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
 import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles";
@@ -98,6 +99,11 @@ export function AdminShippingChargeIntakeCard({
               />
             </p>
           </div>
+          <div className="flex shrink-0 items-center gap-1">
+          <AdminOutboundShippingRefundLineButton
+            barrelId={row.barrelId}
+            charges={row.charges}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -121,6 +127,7 @@ export function AdminShippingChargeIntakeCard({
               aria-hidden
             />
           </Button>
+          </div>
         </article>
 
         {expanded ?

@@ -366,8 +366,24 @@ async function loadChargeViewsForBarrelIds(
       chargeBundle: bundle,
       companyRateKinds,
       linkedContainers,
+      refundRequest: null,
     });
     byBarrel.set(charge.barrelId, list);
+  }
+  if (chargeIds.length > 0) {
+    const { listOutboundShippingRefundRequestsByChargeIds } = await import(
+      "@/data/barrel-outbound-shipping-refunds"
+    );
+    const refunds = await listOutboundShippingRefundRequestsByChargeIds(chargeIds);
+    for (const [barrelId, list] of byBarrel) {
+      byBarrel.set(
+        barrelId,
+        list.map((charge) => ({
+          ...charge,
+          refundRequest: refunds.get(charge.chargeId) ?? null,
+        })),
+      );
+    }
   }
   return byBarrel;
 }

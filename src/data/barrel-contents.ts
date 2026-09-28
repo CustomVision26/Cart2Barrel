@@ -134,6 +134,19 @@ export async function getBarrelContentsByBarrelIds(
   return byBarrel;
 }
 
+export async function getBarrelContentsRecordByBarrelId(
+  barrelId: string,
+): Promise<BarrelContentsRecord | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ clerkUserId: barrels.clerkUserId })
+    .from(barrels)
+    .where(eq(barrels.id, barrelId))
+    .limit(1);
+  if (!row) return null;
+  return getBarrelContentsRecordForUser(row.clerkUserId, barrelId);
+}
+
 export async function getBarrelContentsRecordForUser(
   clerkUserId: string,
   barrelId: string,

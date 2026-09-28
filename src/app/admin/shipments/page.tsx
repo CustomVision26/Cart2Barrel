@@ -1,5 +1,6 @@
 import { AdminPageTitleWithHelp } from "@/components/admin/admin-page-title-with-help";
 import { AdminShipmentsPanel } from "@/components/admin/admin-shipments-panel";
+import { AdminShipmentsTabNav } from "@/components/admin/admin-shipments-tab-nav";
 import { listAdminShipmentChargePageData } from "@/data/admin-barrel-outbound-shipping-charges";
 import { parseAdminCustomerFilter } from "@/lib/admin-customer-filter";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
@@ -68,9 +69,13 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
             for the customer. Freight is added to cart; broker and local courier
             charges are paid with Zelle, Cash App, or at the local office. Expand a
             customer section for nested search and pagination on their containers.
+            Shipping History lists containers already sent in a table; double-click a
+            row or Open for freight, broker, courier, and documents.
           </>
         }
       />
+
+      <AdminShipmentsTabNav activeTab="shipments" />
 
       {!admin ?
         <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">

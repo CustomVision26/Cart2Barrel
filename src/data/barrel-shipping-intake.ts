@@ -488,7 +488,7 @@ export async function updateShippingIntakeRow(
     intakeId: string;
     deliveryMethod: "customs_pickup" | "broker_delivery";
     selectedBrokerKey: string | null;
-    selectedCourierKey: string;
+    selectedCourierKey: string | null;
   },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   await ensureBarrelShippingIntakesSchema();

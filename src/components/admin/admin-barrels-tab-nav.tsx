@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
+import { useAdminCustomerFilterOptional } from "@/components/admin/admin-customer-filter-provider";
 import { cn } from "@/lib/utils";
 
 export type AdminBarrelsTab = "assign" | "history";
@@ -17,7 +17,8 @@ const tabLinkClass = (selected: boolean) =>
   );
 
 export function AdminBarrelsTabNav() {
-  const { hrefWithFilter } = useAdminCustomerFilter();
+  const filter = useAdminCustomerFilterOptional();
+  const hrefWithFilter = filter?.hrefWithFilter ?? ((pathname: string) => pathname);
   const path = usePathname() ?? "";
   const activeTab: AdminBarrelsTab = path.endsWith("/assign-to-barrel-history")
     ? "history"

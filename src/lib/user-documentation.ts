@@ -111,7 +111,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Marketing header → How it works, or visit /how-it-works.",
       bullets: [
         "Overview tab: services, journey, typical costs, and seasonal special-feature offers. User guide tab: full customer documentation.",
-        "Pricing overview shows published service & handling, container catalog prices, and barrel/bin packing rates.",
+        "Pricing overview shows published service & handling, container catalog prices, barrel/bin packing rates, and staff-published freight, broker, and courier companies.",
         "When a suitcase special is in season, a company courier traveler carries extra bags to Jamaica on a published travel date with limited slots.",
         "Packing fees follow barrel and bin counts (1 vs 2+ of each type)—not a fee per quoted product line.",
         "Destination-country charges are not included in the US outbound quote.",
@@ -134,7 +134,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Open How it works from the marketing header or go to /how-it-works (Overview tab by default).",
-        "Review Pricing overview: in-app and outside-purchase service & handling charts, container catalog prices, and barrel/bin packing fees (exactly 1 vs 2+ of each type).",
+        "Review Pricing overview: in-app and outside-purchase service & handling charts, container catalog prices, barrel/bin packing fees (exactly 1 vs 2+ of each type), and third-party vendor companies staff published (freight under In-US vendor; broker and local courier under Overseas third-party vendor). Each company shows contact details, an Ad button when an image is on file, whether it is freight+broker or standalone, and how the 1-container vs extra-container rate table applies.",
         "Read services, the illustrated journey (request → quote → payment → warehouse receipt → barrel packing → delivery), the four cost phases, and Seasonal special-feature offers (timed suitcase specials via a company courier traveler when in season).",
         "Destination charges (duties, inland delivery, port or warehouse storage, local handling) are billed on arrival by customs or the local carrier. They are not included in the US outbound quote.",
         "Switch to the User guide tab (or /how-it-works?tab=user-guide) for quick references and full articles on every customer page.",
@@ -973,15 +973,16 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
   },
   {
     id: "shipping",
-    title: "Shipping — Tracking, pricing & address",
+    title: "Shipping — Tracking, pricing, address & history",
     category: "Orders & shipping",
     quickReference: {
-      summary: "Delivery address, barrel tracking, and outbound freight charges.",
+      summary: "Delivery address, barrel tracking, outbound freight charges, and shipped-container history.",
       location: "Sidebar → Shipping.",
       bullets: [
-        "Tracking: shipment intake and carrier status.",
-        "Pricing: pay the US outbound quote when containers are ready. Destination-country charges on arrival are not included.",
+        "Tracking: shipment intake, destination clearance, and linking unpaid containers to a standalone broker or courier. Pay published charges on Pricing.",
+        "Pricing: one pay card per linked freight, broker, or courier group. Destination clearance choices stay on Tracking.",
         "Address: name, phone, and delivery street on each record; multiple addresses, one primary.",
+        "Shipping History: every container shipped through Amani Cart2Barrel, listed in a table. Double-click a row or Open to see freight, broker, courier, and customs documents. Newest first, with search, sort, and pagination.",
         "/dashboard/settings redirects here.",
       ],
       requirements: [
@@ -992,6 +993,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       dos: [
         "Keep address current before barrels ship.",
         "Pay outbound charges promptly.",
+        "Use Shipping History to reopen documents for containers already sent.",
       ],
       donts: [
         "Don't use gear settings for address—use Address tab.",
@@ -1001,13 +1003,14 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Shipping covers everything after products reach the hub and barrels enter the outbound pipeline: your delivery address, shipment tracking, customs/intake forms, and freight charges when containers are ready to leave.",
+        "Shipping covers everything after products reach the hub and barrels enter the outbound pipeline: your delivery address, shipment tracking, customs/intake forms, freight charges when containers are ready to leave, and a history of containers already shipped.",
         "Account contact and shipping street are saved together on each address under the Address tab. You may keep several addresses and mark one as primary. /dashboard/settings redirects here for account shipping settings.",
       ],
       walkthrough: [
-        "Tracking tab: submit and view barrel shipment intake details and carrier tracking.",
-        "Pricing tab: appears when containers are ready—review and pay the US outbound quote (freight and any customs or pickup fees staff listed). Destination-country charges after arrival are billed locally and are not included in that quote.",
+        "Tracking tab: submit barrel shipment intake, choose broker vs self-clearance, and choose a staff-published courier vs own transportation. When you select a standalone published broker or courier, you can check other unpaid containers to share that company's 1-container and extra-container rates. Containers that share the same freight, freight+broker, freight+courier, or standalone broker/courier links appear as one confirmation. Pay published charges on the Pricing tab, not here. Catalog destination couriers are not listed.",
+        "Pricing tab: pay published freight and any standalone broker or courier charges after you confirm clearance on Tracking. Linked containers share one pay card so the 1-container and extra-container rates are not billed twice. This tab does not show destination clearance radios or unpaid-container linking. If freight is billed with broker, destination self-clearance is not offered on Tracking, but a staff-published courier can still be chosen unless courier is also billed with freight. Destination-country charges after arrival are billed locally and are not included in that quote.",
         "Address tab: add or edit shipping records (name, phone, and street together). Mark one as primary for barrels and invoices.",
+        "Shipping History tab: review every container shipped through Amani Cart2Barrel, newest first, in a table. Double-click a row or Open to see the freight, broker, and courier used, plus customs documents and receipts saved to that container. Search, sort, and paginate the list.",
         "Complete any customs or intake forms when prompted to avoid shipment delays.",
       ],
       requirements: [
@@ -1019,6 +1022,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Keep your address current before barrels ship.",
         "Complete customs or intake forms when prompted.",
         "Pay outbound charges promptly to avoid shipment delays.",
+        "Open Shipping History when you need documents for a container that already left.",
       ],
       donts: [
         "Do not use the Settings gear dialog for address changes—use Shipping → Address.",

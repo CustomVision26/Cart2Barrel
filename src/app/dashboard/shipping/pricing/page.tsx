@@ -49,7 +49,6 @@ export default async function DashboardShippingPricingPage() {
         destinationCountry={
           isShippingAddressComplete(shippingAddress) ? destinationCountry : null
         }
-        shippingAddress={shippingAddress}
       />
     </div>
   );

@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 
 const querySchema = z.object({
   barrelId: z.string().uuid(),
+  disposition: z.enum(["inline", "attachment"]).optional(),
 });
 
 export async function GET(request: Request) {
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
 
   const parsed = querySchema.safeParse({
     barrelId: new URL(request.url).searchParams.get("barrelId")?.trim(),
+    disposition: new URL(request.url).searchParams.get("disposition")?.trim() || undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid container." }, { status: 400 });
@@ -44,11 +46,12 @@ export async function GET(request: Request) {
     );
   }
 
+  const disposition = parsed.data.disposition ?? "inline";
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${payload.filename}"`,
+      "Content-Disposition": `${disposition}; filename="${payload.filename}"`,
       "Cache-Control": "private, no-store",
     },
   });

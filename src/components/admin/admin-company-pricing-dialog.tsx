@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { formatUsd } from "@/lib/admin-markup";
 import { appTableHead, appTableRowHover, appTableScroll } from "@/lib/app-table-surfaces";
 import {
+  containerCanJoinCompanyRateCard,
   destinationCourierZoneHints,
   isAdminShippingCatalogPreviewBarrelId,
   matchCourierZoneRateRow,
@@ -382,12 +383,13 @@ function LinkedContainersPanel({
     kinds,
     savedLinks,
   );
-  const eligible = containers.filter((container) => {
-    const sharesCompany = kinds.some(
-      (kind) => container.partnerKeyByKind[kind] === companyKey,
-    );
-    return sharesCompany;
-  });
+  const eligible = containers.filter((container) =>
+    containerCanJoinCompanyRateCard(
+      container.partnerKeyByKind,
+      kinds,
+      companyKey,
+    ),
+  );
   const sourceUnpaid = kinds.every(
     (kind) =>
       eligible.find((item) => item.barrelId === sourceBarrelId)?.unpaidByKind[
@@ -477,10 +479,12 @@ function LinkedContainersPanel({
         Link unpaid containers
       </h4>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        Same freight, broker, courier, or consolidated company only. Paid
-        containers cannot be merged. The first unpaid container uses the
-        1-container rate; each extra linked unpaid container adds the extra
-        rate. One payment marks every linked container paid.
+        Unpaid containers for this customer can be linked, including barrels
+        that do not have this company yet. Paid containers and barrels that
+        already use a different company for this charge cannot be merged. The
+        first unpaid container uses the 1-container rate; each extra linked
+        unpaid container adds the extra rate. One payment marks every linked
+        container paid.
       </p>
       <ul className="space-y-1.5">
         {eligible.map((container) => {
@@ -671,8 +675,8 @@ export function ChargeLabelWithCompanyPricing({
               These rates belong to this company and are what the customer is
               charged when the rate card is on. Local courier zones are matched
               to the destination parish on the shipping address. Link unpaid
-              containers that share this freight, broker, courier, or
-              consolidated company: the first uses the 1-container rate and each
+              containers for this customer — including barrels that do not have
+              this company yet. The first uses the 1-container rate and each
               extra adds the extra-container rate.
             </DialogDescription>
           </DialogHeader>

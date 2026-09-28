@@ -7,20 +7,28 @@ import { CustomsClearanceDocumentsPanel } from "@/components/shipping/customs-cl
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { BarrelContentsPreviewDialog } from "@/components/shipping/barrel-contents-preview-dialog";
 import { PaidContainerClearanceChoices } from "@/components/shipping/paid-container-clearance-choices";
+import { OutboundShippingRefundButton } from "@/components/shipping/outbound-shipping-refund-dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { paidOutboundCharges } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  outboundShippingRefundPath,
+  paidOutboundCharges,
+} from "@/lib/barrel-outbound-shipping-charge";
 import { formatUsd } from "@/lib/admin-markup";
 import {
   BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS,
   hasCustomsClearanceInfo,
   type BarrelOutboundShipmentTrackingView,
 } from "@/lib/barrel-shipment-tracking";
-import type { BarrelShippingIntakeSubmittedRow } from "@/lib/barrel-shipping-intake";
-import { containerFullnessLabel } from "@/lib/barrel-shipping-intake";
+import {
+  containerFullnessLabel,
+  type BarrelShippingIntakeSubmittedRow,
+} from "@/lib/barrel-shipping-intake";
+import { linkedShippingGroupLabel } from "@/lib/shipping-container-groups";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 
 type BarrelOutboundShippingPaidCardProps = {
   row: BarrelShippingIntakeSubmittedRow;
+  members?: { alias: string }[];
   destinationCountry?: string | null;
 };
 
@@ -33,14 +41,24 @@ function currentStageLabel(
 
 export function BarrelOutboundShippingPaidCard({
   row,
+  members,
   destinationCountry,
 }: BarrelOutboundShippingPaidCardProps) {
+  const group = members && members.length > 0 ? members : [row];
+  const groupLabel = linkedShippingGroupLabel(group);
   const paid = paidOutboundCharges(row.outboundCharges);
   const charge = paid[0] ?? null;
   if (!charge?.paidAt) {
     return null;
   }
   const paidTotal = paid.reduce((s, c) => s + c.totalCents, 0);
+  const amaniCharges = paid.filter(
+    (item) => outboundShippingRefundPath(item) === "amani",
+  );
+  const amaniHost =
+    amaniCharges.find((item) => item.chargeKind === "freight") ??
+    amaniCharges[0] ??
+    null;
 
   const tracking = charge.shipmentTracking;
   const customsFormUrl = tracking?.customsDeclarationFormUrl?.trim() || null;
@@ -71,6 +89,12 @@ export function BarrelOutboundShippingPaidCard({
                   containerAlias={row.alias}
                   items={row.contents}
                 />
+                {amaniHost ?
+                  <OutboundShippingRefundButton
+                    charge={amaniHost}
+                    relatedCharges={amaniCharges}
+                  />
+                : null}
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2Icon className="size-3" aria-hidden />
                   Paid
@@ -78,7 +102,7 @@ export function BarrelOutboundShippingPaidCard({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              {row.alias} · {containerOfferingKindLabel(row.kind)} ·{" "}
+              {groupLabel} · {containerOfferingKindLabel(row.kind)} ·{" "}
               {containerFullnessLabel(row)}
             </p>
             <p className="text-xs font-medium tabular-nums text-muted-foreground">

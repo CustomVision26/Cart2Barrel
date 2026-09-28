@@ -15,6 +15,8 @@ import { buildContainerCatalogChartRows, buildContainerPackingFeeChartRows } fro
 import { DEFAULT_CONTAINER_PACKING_RATES } from "@/lib/container-packing-fee";
 import { buildServiceHandlingFeeChartRows } from "@/lib/service-handling-fee-chart";
 import { parseHowItWorksTab } from "@/lib/how-it-works-routes";
+import { listPublicOutboundCompanyPricing } from "@/data/public-outbound-company-pricing";
+import type { PublicOutboundCompanyPricingCard } from "@/lib/public-outbound-company-pricing";
 
 export default async function HowItWorksPage({
   searchParams,
@@ -36,6 +38,7 @@ export default async function HowItWorksPage({
   let containerPackingChartRows = buildContainerPackingFeeChartRows(
     DEFAULT_CONTAINER_PACKING_RATES,
   );
+  let thirdPartyVendorPricing: PublicOutboundCompanyPricingCard[] = [];
 
   if (activeTab === "overview") {
     try {
@@ -64,6 +67,12 @@ export default async function HowItWorksPage({
       containerPackingChartRows = buildContainerPackingFeeChartRows(
         DEFAULT_CONTAINER_PACKING_RATES,
       );
+    }
+
+    try {
+      thirdPartyVendorPricing = await listPublicOutboundCompanyPricing();
+    } catch {
+      thirdPartyVendorPricing = [];
     }
   }
 
@@ -124,6 +133,7 @@ export default async function HowItWorksPage({
         outsidePurchaseServiceFeeChartRows={outsidePurchaseServiceFeeChartRows}
         containerCatalogChartRows={containerCatalogChartRows}
         containerPackingChartRows={containerPackingChartRows}
+        thirdPartyVendorPricing={thirdPartyVendorPricing}
       />
       <Suspense fallback={null}>
         <SiteContactFooter />

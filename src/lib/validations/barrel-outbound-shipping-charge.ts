@@ -102,6 +102,15 @@ export const deleteBarrelOutboundShippingPartnerSchema = z.object({
   id: z.string().uuid("Invalid record."),
 });
 
+export const setOutboundShippingPartnerPublicPricingSchema = z.object({
+  id: z.string().uuid("Invalid record."),
+  published: z.boolean(),
+});
+
+export type SetOutboundShippingPartnerPublicPricingInput = z.infer<
+  typeof setOutboundShippingPartnerPublicPricingSchema
+>;
+
 export const addOutboundShippingChargeToCartSchema = z.object({
   chargeId: z.string().uuid("Invalid charge."),
 });
@@ -203,4 +212,30 @@ export const setOutboundShippingCompanyRateLinksSchema = z.object({
 
 export type SetOutboundShippingCompanyRateLinksInput = z.infer<
   typeof setOutboundShippingCompanyRateLinksSchema
+>;
+
+export const setCustomerOutboundChargeLinksSchema = z.object({
+  sourceBarrelId: z.string().uuid("Invalid container."),
+  kind: z.enum(["broker", "courier"]),
+  linkedBarrelIds: z.array(z.string().uuid("Invalid container.")).max(20),
+});
+
+export type SetCustomerOutboundChargeLinksInput = z.infer<
+  typeof setCustomerOutboundChargeLinksSchema
+>;
+
+export const requestOutboundShippingRefundSchema = z.object({
+  chargeId: z.string().uuid("Invalid charge."),
+});
+
+export type RequestOutboundShippingRefundInput = z.infer<
+  typeof requestOutboundShippingRefundSchema
+>;
+
+export const fulfillOutboundShippingRefundsForBarrelSchema = z.object({
+  barrelId: z.string().uuid("Invalid container."),
+});
+
+export type FulfillOutboundShippingRefundsForBarrelInput = z.infer<
+  typeof fulfillOutboundShippingRefundsForBarrelSchema
 >;

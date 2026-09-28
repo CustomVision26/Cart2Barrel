@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/card";
 import type { BarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
 import type { Address } from "@/db/schema";
+import { linkableContainersFromChargeRows } from "@/lib/barrel-outbound-shipping-charge";
+import { groupShippingContainersByRateLinks } from "@/lib/shipping-container-groups";
 
 type BarrelShippingIntakeSectionProps = {
   data: BarrelShippingIntakePageData;
@@ -21,45 +23,62 @@ type BarrelShippingIntakeSectionProps = {
 export function BarrelShippingIntakeSection({
   data,
   shippingAddress,
-  shippingAddressComplete,
+  shippingAddressComplete: _shippingAddressComplete,
 }: BarrelShippingIntakeSectionProps) {
   const { awaiting, submitted } = data;
+  const unpaidContainers = linkableContainersFromChargeRows([
+    ...awaiting,
+    ...submitted,
+  ]);
+  const groups = groupShippingContainersByRateLinks(awaiting, submitted);
+  const intakeGroups = groups.filter((group) => group.awaiting.length > 0);
+  const submittedGroups = groups.filter(
+    (group) => group.awaiting.length === 0 && group.submitted.length > 0,
+  );
 
   return (
     <div className="space-y-8">
-      {awaiting.length > 0 ?
+      {intakeGroups.length > 0 ?
         <section className="space-y-4">
           <header className="space-y-1">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Outbound shipping charges
             </h2>
             <p className="text-sm text-muted-foreground">
-              {awaiting.length} container{awaiting.length === 1 ? "" : "s"} on
-              this account. Add published freight to your cart and choose
-              destination clearance for each one below.
+              {intakeGroups.length} group
+              {intakeGroups.length === 1 ? "" : "s"} on this account. Linked
+              freight, broker, or courier charges share one confirmation below.
             </p>
           </header>
 
           <div className="flex max-w-6xl flex-col gap-6">
-            {awaiting.map((container) => (
-              <BarrelShippingIntakeForm
-                key={container.barrelId}
-                container={container}
-                shippingAddress={shippingAddress}
-              />
-            ))}
+            {intakeGroups.map((group) => {
+              const host =
+                group.awaiting.find(
+                  (row) => row.barrelId === group.chargeHost.barrelId,
+                ) ?? group.awaiting[0];
+              return (
+                <BarrelShippingIntakeForm
+                  key={group.barrelIds.join(":")}
+                  container={host}
+                  shippingAddress={shippingAddress}
+                  unpaidContainers={unpaidContainers}
+                  groupMembers={group.members}
+                />
+              );
+            })}
           </div>
         </section>
       : null}
 
-      {submitted.length > 0 ?
+      {submittedGroups.length > 0 ?
         <section className="space-y-4">
           <header className="space-y-1">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Ready for pricing
             </h2>
             <p className="text-sm text-muted-foreground">
-              We received your confirmation. View freight, customs, and pickup
+              We received your confirmation. Pay freight, customs, and pickup
               charges on the{" "}
               <Link
                 href={DASHBOARD_SHIPPING_ROUTES.pricing}
@@ -67,20 +86,26 @@ export function BarrelShippingIntakeSection({
               >
                 Pricing
               </Link>{" "}
-              tab and add them to your cart when ready. After freight is paid,
-              shipment tracking and customs updates appear here.
+              tab. After freight is paid, shipment tracking and customs updates
+              appear here.
             </p>
           </header>
 
           <ul className="flex max-w-6xl flex-col gap-6">
-            {submitted.map((row) => (
-              <li key={row.intakeId}>
-                <BarrelShippingIntakeSubmittedCard
-                  row={row}
-                  shippingAddress={shippingAddress}
-                />
-              </li>
-            ))}
+            {submittedGroups.map((group) => {
+              const host = group.submitted.find(
+                (row) => row.barrelId === group.chargeHost.barrelId,
+              ) ?? group.submitted[0];
+              return (
+                <li key={group.barrelIds.join(":")}>
+                  <BarrelShippingIntakeSubmittedCard
+                    row={host}
+                    members={group.submitted}
+                    shippingAddress={shippingAddress}
+                  />
+                </li>
+              );
+            })}
           </ul>
         </section>
       : null}

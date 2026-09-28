@@ -2,15 +2,16 @@
 
 import { BarrelPublishedOutboundCharges } from "@/components/shipping/barrel-published-outbound-charges";
 import { CustomsClearancePolicyLink } from "@/components/shipping/customs-clearance-policy-link";
-import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
-import {
-  applyOutboundChargeBundleForCustomer,
-  isOutboundChargeKindAbsorbed,
-  publishedChargesForDestination,
+import { UnpaidContainerLinkPanel } from "@/components/shipping/unpaid-container-link-panel";
+import type {
+  AdminRateLinkableContainer,
+  BarrelOutboundShippingChargeView,
 } from "@/lib/barrel-outbound-shipping-charge";
+import { destinationClearancePresentation } from "@/lib/barrel-outbound-shipping-charge";
 import {
   destinationBrokersForCountry,
-  destinationCouriersForCountry,
+  isAllowedCustomerCourierKey,
+  isOwnTransportCourierKey,
   OWN_TRANSPORT_COURIER_KEY,
   PUBLISHED_BROKER_KEY,
   PUBLISHED_COURIER_KEY,
@@ -31,6 +32,9 @@ type DestinationClearanceChoicesProps = {
   onChange: (next: DestinationClearanceChoiceValue) => void;
   disabled?: boolean;
   charges?: BarrelOutboundShippingChargeView[];
+  /** Intake-only: unpaid barrels the customer can attach to a standalone broker/courier. */
+  sourceBarrelId?: string;
+  unpaidContainers?: AdminRateLinkableContainer[];
 };
 
 function ChoiceCard({
@@ -105,28 +109,28 @@ export function DestinationClearanceChoices({
   onChange,
   disabled,
   charges = [],
+  sourceBarrelId,
+  unpaidContainers = [],
 }: DestinationClearanceChoicesProps) {
   const country = destinationCountry?.trim() || null;
-  const bundle = charges[0]?.chargeBundle ?? [];
-  const brokerAbsorbed = isOutboundChargeKindAbsorbed("broker", bundle);
-  const courierAbsorbed = isOutboundChargeKindAbsorbed("courier", bundle);
-  const visibleCharges = applyOutboundChargeBundleForCustomer(charges);
-  const destinationBrokersPublished = country
-    ? publishedChargesForDestination(visibleCharges, country, "broker")
-    : [];
-  const destinationCouriersPublished = country
-    ? publishedChargesForDestination(visibleCharges, country, "courier")
-    : [];
+  const presentation = destinationClearancePresentation(charges, country);
+  const {
+    showBrokerUi,
+    showSelfClearance,
+    showCourierUi,
+    publishedBrokers,
+    publishedCouriers,
+    brokerAbsorbed,
+  } = presentation;
   const catalogBrokers = country ? destinationBrokersForCountry(country) : [];
-  const catalogCouriers = country ? destinationCouriersForCountry(country) : [];
-  const hasBrokers =
-    destinationBrokersPublished.length > 0 || catalogBrokers.length > 0;
-  const publishedBrokerInCart = destinationBrokersPublished.some(
-    (charge) => charge.inCart,
-  );
-  const publishedCourierInCart = destinationCouriersPublished.some(
-    (charge) => charge.inCart,
-  );
+  const hasBrokers = publishedBrokers.length > 0 || catalogBrokers.length > 0;
+  const publishedBrokerInCart = publishedBrokers.some((charge) => charge.inCart);
+  const publishedBrokerName = publishedBrokers[0]?.partnerName?.trim() || "";
+  const publishedCourierName = publishedCouriers[0]?.partnerName?.trim() || "";
+  const publishedBrokerLinkedIds =
+    publishedBrokers[0]?.linkedContainers?.map((item) => item.barrelId) ?? [];
+  const publishedCourierLinkedIds =
+    publishedCouriers[0]?.linkedContainers?.map((item) => item.barrelId) ?? [];
 
   if (!country) {
     return (
@@ -137,71 +141,80 @@ export function DestinationClearanceChoices({
     );
   }
 
+  if (!showBrokerUi && !showCourierUi) {
+    return (
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        Destination customs and local transportation for{" "}
+        <span className="font-medium text-foreground">{country}</span> are
+        included with freight.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <p className="text-sm leading-relaxed text-muted-foreground">
-        Select how this container will be cleared at destination customs in{" "}
-        <span className="font-medium text-foreground">{country}</span>.{" "}
-        <CustomsClearancePolicyLink country={country} />
-      </p>
+      {showBrokerUi ?
+        <>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Select how this container will be cleared at destination customs in{" "}
+            <span className="font-medium text-foreground">{country}</span>.{" "}
+            <CustomsClearancePolicyLink country={country} />
+          </p>
 
-      <fieldset className="relative z-10 space-y-2.5">
-        <legend className="sr-only">Destination customs clearance</legend>
-        <ChoiceCard
-          id={`${namePrefix}-clear-self`}
-          name={`${namePrefix}-clearance`}
-          checked={value.deliveryMethod === "customs_pickup"}
-          disabled={disabled}
-          title="I'll clear this barrel at destination customs myself"
-          description="You (or someone you appoint) will handle destination customs in person and collect the container when it is released."
-          onSelect={() =>
-            onChange({
-              deliveryMethod: "customs_pickup",
-              brokerKey: null,
-              courierKey:
-                value.courierKey === OWN_TRANSPORT_COURIER_KEY
-                  ? OWN_TRANSPORT_COURIER_KEY
-                  : destinationCouriersPublished.length > 0 || publishedCourierInCart
-                    ? PUBLISHED_COURIER_KEY
-                    : null,
-            })
-          }
-        />
-        {brokerAbsorbed ?
-          null
-        : (
-          <ChoiceCard
-          id={`${namePrefix}-clear-broker`}
-          name={`${namePrefix}-clearance`}
-          checked={value.deliveryMethod === "broker_delivery"}
-          disabled={disabled || !hasBrokers}
-          title="Use a selected broker for this destination country"
-          description={
-            hasBrokers
-              ? `Choose one of the licensed brokers Amani selected for ${country}. The broker clears the container for you.`
-              : `No licensed brokers are listed for ${country}. Choose self-clearance or contact support.`
-          }
-          onSelect={() =>
-            onChange({
-              deliveryMethod: "broker_delivery",
-              brokerKey:
-                destinationBrokersPublished.length > 0 || publishedBrokerInCart
-                  ? PUBLISHED_BROKER_KEY
-                  : value.brokerKey,
-              courierKey:
-                value.courierKey === OWN_TRANSPORT_COURIER_KEY
-                  ? OWN_TRANSPORT_COURIER_KEY
-                  : destinationCouriersPublished.length > 0 ||
-                      publishedCourierInCart
-                    ? PUBLISHED_COURIER_KEY
-                    : value.courierKey,
-            })
-          }
-        />
-        )}
-      </fieldset>
+          <fieldset className="relative z-10 space-y-2.5">
+            <legend className="sr-only">Destination customs clearance</legend>
+            {showSelfClearance ?
+              <ChoiceCard
+                id={`${namePrefix}-clear-self`}
+                name={`${namePrefix}-clearance`}
+                checked={value.deliveryMethod === "customs_pickup"}
+                disabled={disabled}
+                title="I'll clear this barrel at destination customs myself"
+                description="You (or someone you appoint) will handle destination customs in person and collect the container when it is released."
+                onSelect={() =>
+                  onChange({
+                    deliveryMethod: "customs_pickup",
+                    brokerKey: null,
+                    courierKey: value.courierKey,
+                  })
+                }
+              />
+            : null}
+            <ChoiceCard
+              id={`${namePrefix}-clear-broker`}
+              name={`${namePrefix}-clearance`}
+              checked={value.deliveryMethod === "broker_delivery"}
+              disabled={disabled || !hasBrokers}
+              title="Use a selected broker for this destination country"
+              description={
+                hasBrokers
+                  ? `Choose one of the licensed brokers Amani selected for ${country}. The broker clears the container for you.`
+                  : `No licensed brokers are listed for ${country}. Choose self-clearance or contact support.`
+              }
+              onSelect={() =>
+                onChange({
+                  deliveryMethod: "broker_delivery",
+                  brokerKey:
+                    publishedBrokers.length > 0 || publishedBrokerInCart
+                      ? PUBLISHED_BROKER_KEY
+                      : value.brokerKey,
+                  courierKey: value.courierKey,
+                })
+              }
+            />
+          </fieldset>
+        </>
+      : brokerAbsorbed ?
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Destination customs clearance in{" "}
+          <span className="font-medium text-foreground">{country}</span> is
+          included with freight. <CustomsClearancePolicyLink country={country} />
+        </p>
+      : null}
 
-      {value.deliveryMethod === "broker_delivery" && hasBrokers && !brokerAbsorbed ?
+      {showBrokerUi &&
+      value.deliveryMethod === "broker_delivery" &&
+      hasBrokers ?
         <fieldset className="relative z-10 space-y-2.5">
           <legend className="text-sm font-medium tracking-tight text-foreground">
             Customs brokers — {country}
@@ -209,30 +222,44 @@ export function DestinationClearanceChoices({
           <p className="text-xs leading-relaxed text-muted-foreground">
             Only licensed brokers for {country} are shown.
           </p>
-          {destinationBrokersPublished.length > 0 ?
-            <BarrelPublishedOutboundCharges
-              charges={destinationBrokersPublished}
-              kinds={["broker"]}
-              showHeading={false}
-              includePaid
-              selection={{
-                name: `${namePrefix}-broker`,
-                selected: value.brokerKey === PUBLISHED_BROKER_KEY,
-                disabled,
-                onSelect: () =>
+          {publishedBrokers.length > 0 ?
+            <>
+              <BarrelPublishedOutboundCharges
+                charges={publishedBrokers}
+                kinds={["broker"]}
+                showHeading={false}
+                includePaid
+                selection={{
+                  name: `${namePrefix}-broker`,
+                  selected: value.brokerKey === PUBLISHED_BROKER_KEY,
+                  disabled,
+                  onSelect: () =>
+                    onChange({
+                      ...value,
+                      brokerKey: PUBLISHED_BROKER_KEY,
+                    }),
+                }}
+                onAdded={() =>
                   onChange({
                     ...value,
+                    deliveryMethod: "broker_delivery",
                     brokerKey: PUBLISHED_BROKER_KEY,
-                  }),
-              }}
-              onAdded={() =>
-                onChange({
-                  ...value,
-                  deliveryMethod: "broker_delivery",
-                  brokerKey: PUBLISHED_BROKER_KEY,
-                })
-              }
-            />
+                  })
+                }
+              />
+              {sourceBarrelId &&
+              value.brokerKey === PUBLISHED_BROKER_KEY &&
+              publishedBrokerName ?
+                <UnpaidContainerLinkPanel
+                  sourceBarrelId={sourceBarrelId}
+                  companyName={publishedBrokerName}
+                  kind="broker"
+                  containers={unpaidContainers}
+                  linkedBarrelIds={publishedBrokerLinkedIds}
+                  disabled={disabled}
+                />
+              : null}
+            </>
           : (
             <div className="grid gap-2.5">
               {catalogBrokers.map((broker) => (
@@ -252,64 +279,22 @@ export function DestinationClearanceChoices({
         </fieldset>
       : null}
 
-      {value.deliveryMethod ?
+      {showCourierUi ?
         <fieldset className="relative z-10 space-y-2.5">
           <legend className="text-sm font-medium tracking-tight text-foreground">
             Local transportation — {country}
           </legend>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            {value.deliveryMethod === "broker_delivery"
-              ? `After customs clearance, arrange local delivery in ${country} or provide your own transportation.`
-              : `After you clear customs, arrange local delivery in ${country} or provide your own transportation.`}
+            After customs clearance, choose whether to use the courier company
+            published for this container, or provide your own transportation.
           </p>
-          {destinationCouriersPublished.length > 0 && !courierAbsorbed ?
-            <BarrelPublishedOutboundCharges
-              charges={destinationCouriersPublished}
-              kinds={["courier"]}
-              showHeading={false}
-              includePaid
-              selection={{
-                name: `${namePrefix}-courier`,
-                selected: value.courierKey === PUBLISHED_COURIER_KEY,
-                disabled,
-                onSelect: () =>
-                  onChange({
-                    ...value,
-                    courierKey: PUBLISHED_COURIER_KEY,
-                  }),
-              }}
-              onAdded={() =>
-                onChange({
-                  ...value,
-                  courierKey: PUBLISHED_COURIER_KEY,
-                })
-              }
-            />
-          : catalogCouriers.length > 0 && !courierAbsorbed ?
-            <div className="grid gap-2.5">
-              {catalogCouriers.map((courier) => (
-                <ChoiceCard
-                  key={courier.key}
-                  id={`${namePrefix}-courier-${courier.key}`}
-                  name={`${namePrefix}-courier`}
-                  checked={value.courierKey === courier.key}
-                  disabled={disabled}
-                  title={courier.name}
-                  description={`${courier.location} — ${courier.summary}`}
-                  onSelect={() =>
-                    onChange({ ...value, courierKey: courier.key })
-                  }
-                />
-              ))}
-            </div>
-          : null}
           <ChoiceCard
-            id={`${namePrefix}-courier-own-transport`}
+            id={`${namePrefix}-courier-own`}
             name={`${namePrefix}-courier`}
-            checked={value.courierKey === OWN_TRANSPORT_COURIER_KEY}
+            checked={isOwnTransportCourierKey(value.courierKey)}
             disabled={disabled}
-            title="Customer will provide their own transportation"
-            description={`Collect the container in person or arrange a private driver after customs release in ${country}.`}
+            title="I'll provide my own transportation"
+            description="You will collect the container or hire your own driver after customs release. A local courier is not required."
             onSelect={() =>
               onChange({
                 ...value,
@@ -317,6 +302,49 @@ export function DestinationClearanceChoices({
               })
             }
           />
+          {publishedCouriers.length > 0 ?
+            <>
+              <BarrelPublishedOutboundCharges
+                charges={publishedCouriers}
+                kinds={["courier"]}
+                showHeading={false}
+                includePaid
+                selection={{
+                  name: `${namePrefix}-courier`,
+                  selected: value.courierKey === PUBLISHED_COURIER_KEY,
+                  disabled,
+                  onSelect: () =>
+                    onChange({
+                      ...value,
+                      courierKey: PUBLISHED_COURIER_KEY,
+                    }),
+                }}
+                onAdded={() =>
+                  onChange({
+                    ...value,
+                    courierKey: PUBLISHED_COURIER_KEY,
+                  })
+                }
+              />
+              {sourceBarrelId &&
+              value.courierKey === PUBLISHED_COURIER_KEY &&
+              publishedCourierName ?
+                <UnpaidContainerLinkPanel
+                  sourceBarrelId={sourceBarrelId}
+                  companyName={publishedCourierName}
+                  kind="courier"
+                  containers={unpaidContainers}
+                  linkedBarrelIds={publishedCourierLinkedIds}
+                  disabled={disabled}
+                />
+              : null}
+            </>
+          : (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              A courier company appears here when staff publishes one for this
+              container. You can still choose your own transportation now.
+            </p>
+          )}
         </fieldset>
       : null}
     </div>
@@ -325,16 +353,23 @@ export function DestinationClearanceChoices({
 
 export function isDestinationClearanceChoiceComplete(
   value: DestinationClearanceChoiceValue,
-  bundle: BarrelOutboundShippingChargeView["chargeBundle"] = [],
+  charges: readonly BarrelOutboundShippingChargeView[] = [],
+  destinationCountry?: string | null,
 ): boolean {
-  if (!value.deliveryMethod) return false;
-  const courierAbsorbed = isOutboundChargeKindAbsorbed("courier", bundle);
-  const brokerAbsorbed = isOutboundChargeKindAbsorbed("broker", bundle);
-  if (!courierAbsorbed && !value.courierKey) return false;
+  const presentation = destinationClearancePresentation(
+    charges,
+    destinationCountry,
+  );
+  if (presentation.showBrokerUi) {
+    if (!value.deliveryMethod) return false;
+    if (value.deliveryMethod === "broker_delivery" && !value.brokerKey) {
+      return false;
+    }
+  }
   if (
-    value.deliveryMethod === "broker_delivery" &&
-    !brokerAbsorbed &&
-    !value.brokerKey
+    presentation.showCourierUi &&
+    presentation.publishedCouriers.length > 0 &&
+    !isAllowedCustomerCourierKey(value.courierKey)
   ) {
     return false;
   }

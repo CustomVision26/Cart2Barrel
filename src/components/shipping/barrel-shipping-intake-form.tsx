@@ -34,9 +34,15 @@ import {
   barrelShippingDeliveryMethodLabel,
   containerFullnessLabel,
   type BarrelShippingIntakeContainerRow,
+  type BarrelShippingIntakeSubmittedRow,
 } from "@/lib/barrel-shipping-intake";
-import { unpaidPublishedChargesForDestination } from "@/lib/barrel-outbound-shipping-charge";
-import { isOutboundChargeKindAbsorbed } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  destinationClearancePresentation,
+  isOutboundChargeKindAbsorbed,
+  type AdminRateLinkableContainer,
+  unpaidPublishedChargesForDestination,
+} from "@/lib/barrel-outbound-shipping-charge";
+import { linkedShippingGroupLabel } from "@/lib/shipping-container-groups";
 import {
   findDestinationBroker,
   findDestinationCourier,
@@ -48,12 +54,10 @@ import { containerOfferingKindLabel } from "@/lib/validations/container-offering
 type BarrelShippingIntakeFormProps = {
   container: BarrelShippingIntakeContainerRow;
   shippingAddress: Address | undefined;
-};
-
-const EMPTY_CHOICE: DestinationClearanceChoiceValue = {
-  deliveryMethod: null,
-  brokerKey: null,
-  courierKey: null,
+  unpaidContainers?: AdminRateLinkableContainer[];
+  groupMembers?: Array<
+    BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow
+  >;
 };
 
 function SummaryRow({
@@ -76,26 +80,40 @@ function SummaryRow({
 export function BarrelShippingIntakeForm({
   container,
   shippingAddress,
+  unpaidContainers = [],
+  groupMembers,
 }: BarrelShippingIntakeFormProps) {
+  const members =
+    groupMembers && groupMembers.length > 0 ? groupMembers : [container];
+  const groupLabel = linkedShippingGroupLabel(members);
+  const itemCount = members.reduce((sum, row) => sum + row.itemCount, 0);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [choice, setChoice] = useState<DestinationClearanceChoiceValue>(() => {
-    const bundle = container.outboundCharges[0]?.chargeBundle ?? [];
-    const brokerAbsorbed = isOutboundChargeKindAbsorbed("broker", bundle);
-    const courierAbsorbed = isOutboundChargeKindAbsorbed("courier", bundle);
-    if (!brokerAbsorbed && !courierAbsorbed) return EMPTY_CHOICE;
+    const presentation = destinationClearancePresentation(
+      container.outboundCharges,
+      shippingAddress?.country?.trim() || null,
+    );
     return {
-      deliveryMethod: brokerAbsorbed ? "broker_delivery" : null,
-      brokerKey: brokerAbsorbed ? PUBLISHED_BROKER_KEY : null,
-      courierKey: courierAbsorbed ? PUBLISHED_COURIER_KEY : null,
+      deliveryMethod: presentation.brokerAbsorbed ? "broker_delivery" : null,
+      brokerKey: presentation.brokerAbsorbed ? PUBLISHED_BROKER_KEY : null,
+      courierKey: presentation.courierAbsorbed ? PUBLISHED_COURIER_KEY : null,
     };
   });
   const destinationCountry = shippingAddress?.country?.trim() || null;
   const chargeBundle = container.outboundCharges[0]?.chargeBundle ?? [];
+  const clearance = destinationClearancePresentation(
+    container.outboundCharges,
+    destinationCountry,
+  );
   const choiceComplete =
     Boolean(destinationCountry) &&
-    isDestinationClearanceChoiceComplete(choice, chargeBundle);
+    isDestinationClearanceChoiceComplete(
+      choice,
+      container.outboundCharges,
+      destinationCountry,
+    );
   const broker = findDestinationBroker(choice.brokerKey, destinationCountry);
   const courier = findDestinationCourier(choice.courierKey, destinationCountry);
   const publishedBrokerName = unpaidPublishedChargesForDestination(
@@ -118,18 +136,23 @@ export function BarrelShippingIntakeForm({
       : courier?.name;
 
   function submit() {
-    const deliveryMethod = choice.deliveryMethod;
+    const deliveryMethod =
+      choice.deliveryMethod ??
+      (clearance.brokerAbsorbed ? "broker_delivery" : null);
     if (!deliveryMethod) {
       toast.error("Choose how you will clear customs.");
       return;
     }
-    if (!isDestinationClearanceChoiceComplete(choice, chargeBundle)) {
+    if (!isDestinationClearanceChoiceComplete(choice, container.outboundCharges, destinationCountry)) {
       toast.error("Choose destination clearance and local transportation.");
       return;
     }
     startTransition(async () => {
       const res = await submitBarrelShippingIntakeAction({
         barrelId: container.barrelId,
+        alsoConfirmBarrelIds: members
+          .map((row) => row.barrelId)
+          .filter((id) => id !== container.barrelId),
         deliveryMethod,
         brokerKey:
           choice.brokerKey ??
@@ -159,11 +182,18 @@ export function BarrelShippingIntakeForm({
     <Card className="border-border/80 shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg">
-          {container.alias} — {container.slotLabel}
+          {groupLabel} — {container.slotLabel}
         </CardTitle>
         <CardDescription>
           {containerOfferingKindLabel(container.kind)} ·{" "}
-          {container.itemCount} item{container.itemCount === 1 ? "" : "s"} ·{" "}
+          {itemCount} item{itemCount === 1 ? "" : "s"}
+          {members.length > 1 ?
+            <>
+              {" · "}
+              {members.length} linked containers
+            </>
+          : null}{" "}
+          ·{" "}
           <span className="font-medium text-amber-600 dark:text-amber-400">
             {containerFullnessLabel(container)}
           </span>
@@ -182,14 +212,16 @@ export function BarrelShippingIntakeForm({
               onChange={setChoice}
               disabled={pending}
               charges={container.outboundCharges}
+              sourceBarrelId={container.barrelId}
+              unpaidContainers={unpaidContainers}
             />
           }
         />
 
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Select destination customs clearance and local transportation for{" "}
+          Review destination clearance for{" "}
           {destinationCountry ?? "your destination"}, then continue to pricing
-          to review published freight and related charges.
+          to add published freight and related charges.
         </p>
       </CardContent>
       <CardFooter className="border-t border-border/60 pt-6">
@@ -210,28 +242,32 @@ export function BarrelShippingIntakeForm({
             </DialogTitle>
             <DialogDescription className="text-sm leading-relaxed">
               Please review the selections for{" "}
-              <span className="font-medium text-foreground">
-                {container.alias}
-              </span>
-              . Confirming will save these preferences and open shipping pricing.
+              <span className="font-medium text-foreground">{groupLabel}</span>
+              . Confirming will save these preferences
+              {members.length > 1 ? " for every linked container" : ""} and open
+              shipping pricing.
             </DialogDescription>
           </DialogHeader>
 
           <dl className="divide-y divide-border/70 overflow-hidden rounded-lg border border-border/80 bg-muted/40">
-            <SummaryRow label="Container">
-              <p className="font-medium text-foreground">{container.alias}</p>
-              {container.containerName ?
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  {container.containerName}
-                </p>
-              : null}
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {container.slotLabel}
-                {" · "}
-                {containerOfferingKindLabel(container.kind)}
-                {" · "}
-                {containerFullnessLabel(container)}
-              </p>
+            <SummaryRow label={members.length > 1 ? "Containers" : "Container"}>
+              {members.map((row) => (
+                <div key={row.barrelId} className={members[0] === row ? undefined : "mt-2"}>
+                  <p className="font-medium text-foreground">{row.alias}</p>
+                  {row.containerName ?
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      {row.containerName}
+                    </p>
+                  : null}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {row.slotLabel}
+                    {" · "}
+                    {containerOfferingKindLabel(row.kind)}
+                    {" · "}
+                    {containerFullnessLabel(row)}
+                  </p>
+                </div>
+              ))}
             </SummaryRow>
             {destinationCountry ?
               <SummaryRow label="Destination">{destinationCountry}</SummaryRow>

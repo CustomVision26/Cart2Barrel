@@ -13,18 +13,23 @@ import {
   containerFullnessLabel,
   type BarrelShippingIntakeSubmittedRow,
 } from "@/lib/barrel-shipping-intake";
+import { linkedShippingGroupLabel } from "@/lib/shipping-container-groups";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
 
 type BarrelOutboundShippingChargeCardProps = {
   row: BarrelShippingIntakeSubmittedRow;
+  members?: { alias: string }[];
   destinationCountry?: string | null;
 };
 
 export function BarrelOutboundShippingChargeCard({
   row,
+  members,
   destinationCountry,
 }: BarrelOutboundShippingChargeCardProps) {
+  const group = members && members.length > 0 ? members : [row];
+  const groupLabel = linkedShippingGroupLabel(group);
   const unpaid = unpaidPublishedChargesForIntake(row.outboundCharges, row);
   if (unpaid.length === 0) return null;
   const inCart = unpaid.some((c) => c.inCart);
@@ -50,11 +55,12 @@ export function BarrelOutboundShippingChargeCard({
               {row.containerName}
             </h3>
             <p className="text-xs text-muted-foreground">
-              {row.alias} · {containerOfferingKindLabel(row.kind)} ·{" "}
+              {groupLabel} · {containerOfferingKindLabel(row.kind)} ·{" "}
               {containerFullnessLabel(row)}
             </p>
             <p className="text-xs font-medium tabular-nums text-muted-foreground">
               Total due {formatUsd(total)}
+              {group.length > 1 ? " · one payment covers all linked containers" : ""}
             </p>
           </div>
           <BarrelContentsPreviewDialog

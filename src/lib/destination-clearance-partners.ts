@@ -173,16 +173,29 @@ export function findDestinationBroker(
   return list.find((p) => p.key === trimmed) ?? null;
 }
 
+export function isOwnTransportCourierKey(
+  key: string | null | undefined,
+): boolean {
+  const trimmed = key?.trim();
+  return trimmed === OWN_TRANSPORT_COURIER_KEY || trimmed === "self-arrange-local";
+}
+
+/** Staff-published courier or customer own-transport — never destination catalog couriers. */
+export function isAllowedCustomerCourierKey(
+  key: string | null | undefined,
+): boolean {
+  const trimmed = key?.trim();
+  if (!trimmed) return false;
+  return trimmed === PUBLISHED_COURIER_KEY || isOwnTransportCourierKey(trimmed);
+}
+
 export function findDestinationCourier(
   key: string | null | undefined,
   country?: string | null,
 ): DestinationPartner | null {
   const trimmed = key?.trim();
   if (!trimmed) return null;
-  if (
-    trimmed === OWN_TRANSPORT_COURIER_KEY ||
-    trimmed === "self-arrange-local"
-  ) {
+  if (isOwnTransportCourierKey(trimmed)) {
     return OWN_TRANSPORT_PARTNER;
   }
   if (trimmed === PUBLISHED_COURIER_KEY) return PUBLISHED_COURIER_PARTNER;

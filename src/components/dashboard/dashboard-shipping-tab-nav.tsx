@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import { cn } from "@/lib/utils";
 
-export type DashboardShippingTab = "tracking" | "pricing" | "address";
+export type DashboardShippingTab = "tracking" | "pricing" | "address" | "history";
 
 const tabLinkClass = (selected: boolean) =>
   cn(
@@ -34,6 +34,9 @@ export function DashboardShippingTabNav({
     : path === DASHBOARD_SHIPPING_ROUTES.pricing ||
         path.startsWith(`${DASHBOARD_SHIPPING_ROUTES.pricing}/`)
       ? "pricing"
+    : path === DASHBOARD_SHIPPING_ROUTES.history ||
+        path.startsWith(`${DASHBOARD_SHIPPING_ROUTES.history}/`)
+      ? "history"
       : "tracking";
 
   return (
@@ -76,6 +79,14 @@ export function DashboardShippingTabNav({
         className={tabLinkClass(activeTab === "address")}
       >
         Profile &amp; address
+      </Link>
+      <Link
+        href={DASHBOARD_SHIPPING_ROUTES.history}
+        role="tab"
+        aria-selected={activeTab === "history"}
+        className={tabLinkClass(activeTab === "history")}
+      >
+        Shipping History
       </Link>
     </div>
   );

@@ -12,6 +12,7 @@ import { HowItWorksJourney } from "@/components/marketing/how-it-works-journey";
 import { HowItWorksServices } from "@/components/marketing/how-it-works-services";
 import { HowItWorksSpecialFeatures } from "@/components/marketing/how-it-works-special-features";
 import { HowItWorksSubTabNav } from "@/components/marketing/how-it-works-sub-tab-nav";
+import { HowItWorksThirdPartyVendorPricing } from "@/components/marketing/how-it-works-third-party-vendor-pricing";
 import { RevealOnScroll } from "@/components/marketing/reveal-on-scroll";
 import { ServiceHandlingFeeChart } from "@/components/marketing/service-handling-fee-chart";
 import { UserDocumentationBrowser } from "@/components/documentation/user-documentation-browser";
@@ -21,6 +22,7 @@ import type {
   ContainerPackingFeeChartRow,
 } from "@/lib/container-packing-fee-chart";
 import type { HowItWorksTab } from "@/lib/how-it-works-routes";
+import type { PublicOutboundCompanyPricingCard } from "@/lib/public-outbound-company-pricing";
 import type { ServiceHandlingFeeChartRow } from "@/lib/service-handling-fee-chart";
 
 type HowItWorksPageMainProps = {
@@ -30,6 +32,7 @@ type HowItWorksPageMainProps = {
   outsidePurchaseServiceFeeChartRows: ServiceHandlingFeeChartRow[];
   containerCatalogChartRows: ContainerCatalogChartRow[];
   containerPackingChartRows: ContainerPackingFeeChartRow[];
+  thirdPartyVendorPricing: PublicOutboundCompanyPricingCard[];
 };
 
 export function HowItWorksPageMain({
@@ -39,6 +42,7 @@ export function HowItWorksPageMain({
   outsidePurchaseServiceFeeChartRows,
   containerCatalogChartRows,
   containerPackingChartRows,
+  thirdPartyVendorPricing,
 }: HowItWorksPageMainProps) {
   const isUserGuide = activeTab === "user-guide";
 
@@ -105,6 +109,9 @@ export function HowItWorksPageMain({
                     />
                     <ContainerCatalogChart rows={containerCatalogChartRows} />
                     <ContainerPackingFeeChart rows={containerPackingChartRows} />
+                    <HowItWorksThirdPartyVendorPricing
+                      companies={thirdPartyVendorPricing}
+                    />
                   </div>
                 </div>
               </RevealOnScroll>

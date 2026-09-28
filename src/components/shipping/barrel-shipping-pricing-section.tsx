@@ -3,7 +3,6 @@ import { ShoppingCart } from "lucide-react";
 
 import { BarrelOutboundShippingChargeCard } from "@/components/shipping/barrel-outbound-shipping-charge-card";
 import { BarrelOutboundShippingPaidCard } from "@/components/shipping/barrel-outbound-shipping-paid-card";
-import { BarrelShippingIntakeForm } from "@/components/shipping/barrel-shipping-intake-form";
 import { ExpectedShippingChargesNotice } from "@/components/shipping/expected-shipping-charges-notice";
 import {
   Card,
@@ -12,18 +11,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { BarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
-import type { Address } from "@/db/schema";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import {
   paidOutboundCharges,
   unpaidPublishedChargesForIntake,
 } from "@/lib/barrel-outbound-shipping-charge";
+import { groupShippingContainersByRateLinks } from "@/lib/shipping-container-groups";
 import type { BarrelShippingIntakeSubmittedRow } from "@/lib/barrel-shipping-intake";
 
 type BarrelShippingPricingSectionProps = {
   data: BarrelShippingIntakePageData;
   destinationCountry?: string | null;
-  shippingAddress?: Address;
 };
 
 function partitionSubmitted(rows: BarrelShippingIntakeSubmittedRow[]) {
@@ -48,13 +46,57 @@ function partitionSubmitted(rows: BarrelShippingIntakeSubmittedRow[]) {
   return { readyToPay, awaitingQuote, paid };
 }
 
+function TrackingClearancePrompt() {
+  return (
+    <Card className="max-w-2xl border-border/80">
+      <CardHeader>
+        <CardTitle className="text-base">
+          Confirm destination clearance first
+        </CardTitle>
+        <CardDescription>
+          Choose broker or self-clearance and local transportation on{" "}
+          <Link
+            href={DASHBOARD_SHIPPING_ROUTES.tracking}
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Shipment tracking
+          </Link>
+          . Linked unpaid containers share one confirmation there. Return here
+          to pay published charges.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  );
+}
+
 export function BarrelShippingPricingSection({
   data,
   destinationCountry,
-  shippingAddress,
 }: BarrelShippingPricingSectionProps) {
   const { awaiting, submitted } = data;
-  const { readyToPay, awaitingQuote, paid } = partitionSubmitted(submitted);
+  const groups = groupShippingContainersByRateLinks(awaiting, submitted);
+  const awaitingOnlyGroups = groups.filter(
+    (group) => group.awaiting.length > 0 && group.submitted.length === 0,
+  );
+  const payGroups = groups.filter((group) => group.submitted.length > 0);
+  const submittedHostIds = new Set(
+    payGroups.map((group) => {
+      const host =
+        group.submitted.find((row) => row.barrelId === group.chargeHost.barrelId) ??
+        group.submitted[0];
+      return host.intakeId;
+    }),
+  );
+  const submittedHosts = submitted.filter((row) => submittedHostIds.has(row.intakeId));
+  const { readyToPay, awaitingQuote, paid } = partitionSubmitted(submittedHosts);
+  const readyGroupByIntake = new Map(
+    payGroups.map((group) => {
+      const host =
+        group.submitted.find((row) => row.barrelId === group.chargeHost.barrelId) ??
+        group.submitted[0];
+      return [host.intakeId, group.members] as const;
+    }),
+  );
   const inCartCount = readyToPay.filter((row) =>
     unpaidPublishedChargesForIntake(row.outboundCharges, row).some((c) => c.inCart),
   ).length;
@@ -81,33 +123,17 @@ export function BarrelShippingPricingSection({
     );
   }
 
-  if (awaiting.length > 0 && submitted.length === 0) {
-    return (
-      <div className="flex max-w-6xl flex-col gap-6">
-        {awaiting.map((container) => (
-          <BarrelShippingIntakeForm
-            key={container.barrelId}
-            container={container}
-            shippingAddress={shippingAddress}
-          />
-        ))}
-      </div>
-    );
+  if (awaitingOnlyGroups.length > 0 && payGroups.length === 0) {
+    return <TrackingClearancePrompt />;
   }
 
   return (
     <div className="space-y-8">
-      {awaiting.length > 0 ?
-        <div className="flex max-w-6xl flex-col gap-6">
-          {awaiting.map((container) => (
-            <BarrelShippingIntakeForm
-              key={container.barrelId}
-              container={container}
-              shippingAddress={shippingAddress}
-            />
-          ))}
-        </div>
-      : <ExpectedShippingChargesNotice destinationCountry={destinationCountry} />}
+      {awaitingOnlyGroups.length > 0 ?
+        <TrackingClearancePrompt />
+      : payGroups.length === 0 ?
+        <ExpectedShippingChargesNotice destinationCountry={destinationCountry} />
+      : null}
 
       {readyToPay.length > 0 ?
         <section className="space-y-4">
@@ -116,8 +142,9 @@ export function BarrelShippingPricingSection({
               Pay shipping charges
             </h2>
             <p className="text-sm text-muted-foreground">
-              {readyToPay.length} container{readyToPay.length === 1 ? "" : "s"} with
-              published charges. Add each to your cart, then checkout when ready.
+              {readyToPay.length} published charge
+              {readyToPay.length === 1 ? "" : "s"}. Linked containers share one
+              payment. Add freight to your cart, then checkout when ready.
             </p>
           </header>
 
@@ -125,7 +152,7 @@ export function BarrelShippingPricingSection({
             <div className="flex max-w-2xl flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm">
               <span className="inline-flex items-center gap-2 font-medium text-primary">
                 <ShoppingCart className="size-4" aria-hidden />
-                {inCartCount} of {readyToPay.length} container
+                {inCartCount} of {readyToPay.length} charge
                 {readyToPay.length === 1 ? "" : "s"} in your cart
               </span>
               <Link
@@ -141,6 +168,7 @@ export function BarrelShippingPricingSection({
               <li key={row.intakeId}>
                 <BarrelOutboundShippingChargeCard
                   row={row}
+                  members={readyGroupByIntake.get(row.intakeId)}
                   destinationCountry={destinationCountry}
                 />
               </li>
@@ -167,7 +195,7 @@ export function BarrelShippingPricingSection({
                 className="rounded-lg border border-dashed border-border/80 bg-secondary px-4 py-3 text-sm"
               >
                 <p className="font-medium text-foreground">
-                  {row.alias} — {row.slotLabel}
+                  {linkedGroupLabel(row, readyGroupByIntake)}
                 </p>
                 <p className="mt-1 text-muted-foreground">
                   Charges are being prepared. You will see freight, customs, and
@@ -186,8 +214,8 @@ export function BarrelShippingPricingSection({
               Paid containers
             </h2>
             <p className="text-sm text-muted-foreground">
-              {paid.length} container{paid.length === 1 ? "" : "s"} paid. Track the
-              shipment status and download your customs clearance form below.
+              {paid.length} payment{paid.length === 1 ? "" : "s"} received. Track
+              the shipment status and download your customs clearance form below.
             </p>
           </header>
           <ul className="flex max-w-6xl flex-col gap-4">
@@ -195,6 +223,7 @@ export function BarrelShippingPricingSection({
               <li key={row.intakeId}>
                 <BarrelOutboundShippingPaidCard
                   row={row}
+                  members={readyGroupByIntake.get(row.intakeId)}
                   destinationCountry={destinationCountry}
                 />
               </li>
@@ -220,4 +249,13 @@ export function BarrelShippingPricingSection({
       : null}
     </div>
   );
+}
+
+function linkedGroupLabel(
+  row: BarrelShippingIntakeSubmittedRow,
+  byIntake: Map<string, { alias: string }[]>,
+) {
+  const members = byIntake.get(row.intakeId);
+  if (!members || members.length === 0) return `${row.alias} — ${row.slotLabel}`;
+  return members.map((item) => item.alias).join(" + ");
 }

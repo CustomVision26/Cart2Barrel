@@ -12,6 +12,7 @@ export type BarrelShippingDeliveryMethod = z.infer<
 export const submitBarrelShippingIntakeSchema = z
   .object({
     barrelId: z.string().uuid(),
+    alsoConfirmBarrelIds: z.array(z.string().uuid()).max(19).optional(),
     deliveryMethod: barrelShippingDeliveryMethodSchema,
     brokerKey: z.string().trim().min(1).nullable().optional(),
     courierKey: z.string().trim().min(1).nullable().optional(),
@@ -24,13 +25,6 @@ export const submitBarrelShippingIntakeSchema = z
         message: "Choose a selected broker for this destination country.",
       });
     }
-    if (!value.courierKey?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["courierKey"],
-        message: "Choose a local courier or provide your own transportation.",
-      });
-    }
   });
 
 export type SubmitBarrelShippingIntakeInput = z.infer<
@@ -39,6 +33,7 @@ export type SubmitBarrelShippingIntakeInput = z.infer<
 
 export const cancelBarrelShippingIntakeSchema = z.object({
   intakeId: z.string().uuid(),
+  alsoIntakeIds: z.array(z.string().uuid()).max(19).optional(),
 });
 
 export type CancelBarrelShippingIntakeInput = z.infer<
@@ -58,13 +53,6 @@ export const updateBarrelShippingIntakeSchema = z
         code: z.ZodIssueCode.custom,
         path: ["brokerKey"],
         message: "Choose a selected broker for this destination country.",
-      });
-    }
-    if (!value.courierKey?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["courierKey"],
-        message: "Choose a local courier or provide your own transportation.",
       });
     }
   });

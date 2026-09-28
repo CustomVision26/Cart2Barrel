@@ -477,34 +477,44 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
   },
   {
     id: "shipments",
-    title: "Shipments",
+    title: "Shipments & history",
     category: "Fulfillment",
     quickReference: {
-      summary: "Outbound barrel freight, customs charges, and shipment tracking.",
-      location: "Sidebar → Shipments.",
+      summary: "Outbound barrel freight, customs charges, shipment tracking, and shipped-container history.",
+      location: "Sidebar → Shipments; history at /admin/shipments-history.",
       bullets: [
         "Create and manage outbound shipment charges.",
+        "Publish a company to How it works → Pricing overview from the company record.",
         "Customs and freight billing to customer cart.",
         "Carrier tracking for international delivery.",
+        "Shipping History: every container shipped through Amani Cart2Barrel, listed in a table with freight, broker, courier, receipts, and customs documents. Double-click a row or Open for the full record. Newest first, with search, sort, pagination, and the header customer filter.",
       ],
       requirements: ["Admin access.", "Containers ready to ship."],
-      dos: ["Bill outbound charges before releasing shipment.", "Enter accurate customs data."],
+      dos: [
+        "Bill outbound charges before releasing shipment.",
+        "Enter accurate customs data.",
+        "Use Shipping History to reopen documents for containers already sent.",
+      ],
       donts: ["Don't ship without paid outbound charges when required.", "Don't guess customs values."],
     },
     article: {
       overview: [
         "Shipments handles the last mile of Amani Cart2Barrel operations—outbound barrel freight, customs-related charges, and carrier tracking once containers leave the hub toward the customer's country.",
+        "Shipping History is the archive of containers already sent: a table of freight, broker, and courier records plus receipts and customs documents, newest first. Double-click a row or Open for the full record.",
       ],
       walkthrough: [
         "Open Shipments from the Fulfillment sidebar.",
         "Review containers ready for outbound processing.",
         "Create or update shipment charges so customers can pay via their cart Pricing tab.",
+        "On a freight, broker, or courier company record, use Publish to How it works to show that company under Pricing overview (contact details, Ad image, and the 1-container vs extra-container rate table).",
         "Record carrier tracking and customs intake details as required.",
+        "Open the Shipping History tab for containers that already left. Search, sort, and paginate the table; use the header customer filter to scope one shopper. Double-click a row or Open to see freight, broker, courier, receipts, and customs documents.",
       ],
       requirements: ["Admin access.", "Packed containers and customer delivery address on file."],
       dos: [
         "Verify customer paid outbound charges before handoff to carrier.",
         "Keep tracking numbers synchronized with customer Shipping views.",
+        "Open Shipping History when you need documents for a container that already left.",
       ],
       donts: [
         "Do not release barrels with unpaid required freight charges unless explicitly approved.",

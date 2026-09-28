@@ -8,7 +8,10 @@ import {
   barrelOutboundShippingPartners,
   barrels,
 } from "@/db/schema";
-import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
+import {
+  ensureBarrelOutboundShippingChargesSchema,
+  ensureOutboundPartnerPublicPricingColumn,
+} from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-column-missing";
 import type {
   BarrelOutboundShippingChargeKind,
@@ -40,6 +43,7 @@ function mapPartner(
     zelleAccount: row.zelleAccount,
     imageUrl: row.imageUrl,
     isPrimary: row.isPrimary,
+    publicPricingPublishedAt: row.publicPricingPublishedAt ?? null,
   };
 }
 
@@ -141,6 +145,7 @@ export async function listOutboundShippingPartnerCatalog(): Promise<
   OutboundShippingPartnerRecord[]
 > {
   await ensureBarrelOutboundShippingChargesSchema();
+  await ensureOutboundPartnerPublicPricingColumn();
   const db = getDb();
   try {
     const rows = await db
@@ -193,6 +198,7 @@ export async function listOutboundShippingPartnersByBarrelIds(
   if (barrelIds.length === 0) return byBarrel;
 
   await ensureBarrelOutboundShippingChargesSchema();
+  await ensureOutboundPartnerPublicPricingColumn();
   const db = getDb();
   try {
     const rows = await db
@@ -689,5 +695,39 @@ export async function backfillOutboundShippingPartnersFromCharges(
     if (!isMissingBarrelOutboundShippingChargesTableError(e)) {
       throw e;
     }
+  }
+}
+
+export async function setOutboundShippingPartnerPublicPricing(input: {
+  id: string;
+  published: boolean;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureBarrelOutboundShippingChargesSchema();
+  await ensureOutboundPartnerPublicPricingColumn();
+  const db = getDb();
+  try {
+    const [row] = await db
+      .select({ id: barrelOutboundShippingPartners.id })
+      .from(barrelOutboundShippingPartners)
+      .where(eq(barrelOutboundShippingPartners.id, input.id))
+      .limit(1);
+    if (!row) {
+      return { ok: false, message: "Company record not found." };
+    }
+    await db
+      .update(barrelOutboundShippingPartners)
+      .set({
+        publicPricingPublishedAt: input.published
+          ? new Date().toISOString()
+          : null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(barrelOutboundShippingPartners.id, input.id));
+    return { ok: true };
+  } catch (e) {
+    if (isMissingBarrelOutboundShippingChargesTableError(e)) {
+      return { ok: false, message: "Could not update public pricing yet." };
+    }
+    throw e;
   }
 }

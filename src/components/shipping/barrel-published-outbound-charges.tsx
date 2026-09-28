@@ -10,12 +10,14 @@ import { addOutboundShippingChargeToCartAction } from "@/actions/user-outbound-s
 import { OutboundCompanyAdButton } from "@/components/shipping/outbound-company-ad-button";
 import { OutboundOffPlatformPaymentForm } from "@/components/shipping/outbound-off-platform-payment-form";
 import { OutboundPaymentReceiptDialog } from "@/components/shipping/outbound-payment-receipt-dialog";
+import { OutboundShippingRefundButton } from "@/components/shipping/outbound-shipping-refund-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatUsd } from "@/lib/admin-markup";
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
 import {
   isOffPlatformOutboundChargeKind,
   outboundChargeKindDisplayLabel,
+  outboundShippingRefundPath,
   paidOutboundCharges,
   unpaidPublishedCharges,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -161,7 +163,12 @@ function PublishedChargeRow({
         <p className="text-xs text-muted-foreground">{charge.partnerCountry}</p>
       : null}
       {charge.partnerLocation ?
-        <p className="text-xs text-muted-foreground">{charge.partnerLocation}</p>
+        <p
+          className="text-xs font-semibold text-primary"
+          title="Where this company transports the container from"
+        >
+          {charge.partnerLocation}
+        </p>
       : null}
       {charge.partnerAddress ?
         <p className="text-xs whitespace-pre-wrap text-muted-foreground">
@@ -203,6 +210,8 @@ function PublishedChargeRow({
   );
 
   const paidOrderId = charge.paidOrderId?.trim() || null;
+  const companyRefund =
+    paid && outboundShippingRefundPath(charge) === "company_contact";
   const action =
     paid ?
       <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -224,6 +233,7 @@ function PublishedChargeRow({
             triggerSize="xs"
           />
         )}
+        {companyRefund ? <OutboundShippingRefundButton charge={charge} /> : null}
       </div>
     : showCartAction ?
       charge.inCart ?

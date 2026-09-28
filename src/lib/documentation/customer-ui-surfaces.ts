@@ -226,7 +226,7 @@ const CUSTOMER_SURFACE_OVERRIDES: Partial<
     title: "Barrels — Shop, assign & history",
   },
   shipping: {
-    title: "Shipping — Tracking, pricing & address",
+    title: "Shipping — Tracking, pricing, address & history",
   },
   "support-messages": {
     title: "Messages (support inbox)",

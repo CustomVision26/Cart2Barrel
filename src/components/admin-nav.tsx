@@ -56,6 +56,15 @@ function isOrdersPath(path: string): boolean {
   );
 }
 
+function isShipmentsPath(path: string): boolean {
+  return (
+    path === "/admin/shipments" ||
+    path.startsWith("/admin/shipments/") ||
+    path === "/admin/shipments-history" ||
+    path.startsWith("/admin/shipments-history/")
+  );
+}
+
 function matchPathForDocId(docId: string, href: string): (path: string) => boolean {
   switch (docId) {
     case "overview":
@@ -75,8 +84,7 @@ function matchPathForDocId(docId: string, href: string): (path: string) => boole
       return (path) =>
         path === "/admin/barrels" || path.startsWith("/admin/barrels/");
     case "shipments":
-      return (path) =>
-        path === "/admin/shipments" || path.startsWith("/admin/shipments/");
+      return isShipmentsPath;
     case "spotlight":
       return (path) =>
         path === "/admin/spotlight-products" ||

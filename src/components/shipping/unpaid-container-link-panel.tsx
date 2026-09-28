@@ -1,0 +1,139 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+
+import { setCustomerOutboundChargeLinksAction } from "@/actions/user-outbound-shipping-charge-links";
+import {
+  containerCanJoinCompanyRateCard,
+  outboundShippingCompanyKey,
+  type AdminRateLinkableContainer,
+} from "@/lib/barrel-outbound-shipping-charge";
+import { cn } from "@/lib/utils";
+
+type UnpaidContainerLinkPanelProps = {
+  sourceBarrelId: string;
+  companyName: string;
+  kind: "broker" | "courier";
+  containers: AdminRateLinkableContainer[];
+  linkedBarrelIds: string[];
+  disabled?: boolean;
+};
+
+function kindLabel(kind: "broker" | "courier"): string {
+  return kind === "broker" ? "broker" : "local courier";
+}
+
+export function UnpaidContainerLinkPanel({
+  sourceBarrelId,
+  companyName,
+  kind,
+  containers,
+  linkedBarrelIds,
+  disabled,
+}: UnpaidContainerLinkPanelProps) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const companyKey = outboundShippingCompanyKey(companyName);
+  const eligible = containers.filter(
+    (container) =>
+      container.unpaidByKind[kind] !== false &&
+      containerCanJoinCompanyRateCard(
+        container.partnerKeyByKind,
+        [kind],
+        companyKey,
+      ),
+  );
+
+  const [selected, setSelected] = useState<string[]>(() => {
+    const next = linkedBarrelIds.filter((id) =>
+      eligible.some((item) => item.barrelId === id),
+    );
+    if (!next.includes(sourceBarrelId)) next.unshift(sourceBarrelId);
+    return [...new Set(next)];
+  });
+
+  useEffect(() => {
+    const next = linkedBarrelIds.filter((id) =>
+      eligible.some((item) => item.barrelId === id),
+    );
+    if (!next.includes(sourceBarrelId)) next.unshift(sourceBarrelId);
+    setSelected([...new Set(next)]);
+  }, [sourceBarrelId, linkedBarrelIds.join("|")]);
+
+  if (!companyKey || eligible.length < 2) return null;
+
+  function save(nextIds: string[]) {
+    const previous = selected;
+    startTransition(async () => {
+      const res = await setCustomerOutboundChargeLinksAction({
+        sourceBarrelId,
+        kind,
+        linkedBarrelIds: nextIds,
+      });
+      if (!res.ok) {
+        setSelected(previous);
+        toast.error(res.message);
+        return;
+      }
+      toast.success(res.message);
+      router.refresh();
+    });
+  }
+
+  function toggle(barrelId: string) {
+    if (barrelId === sourceBarrelId || pending || disabled) return;
+    const next = selected.includes(barrelId)
+      ? selected.filter((id) => id !== barrelId)
+      : [...selected, barrelId];
+    setSelected(next);
+    save(next);
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-3">
+      <p className="text-sm font-medium text-foreground">
+        Link unpaid containers to this {kindLabel(kind)}
+      </p>
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        Check other unpaid containers on this account to share this company
+        rate. The first uses the 1-container rate; each extra adds the
+        extra-container rate. One payment covers every linked container.
+      </p>
+      <ul className="space-y-1.5">
+        {eligible.map((container) => {
+          const isSource = container.barrelId === sourceBarrelId;
+          const checked = selected.includes(container.barrelId);
+          return (
+            <li key={container.barrelId}>
+              <label
+                className={cn(
+                  "flex items-start gap-2 rounded-md px-1.5 py-1 text-sm",
+                  (pending || disabled) && "opacity-70",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-3.5 accent-primary"
+                  checked={checked}
+                  disabled={isSource || pending || disabled}
+                  onChange={() => toggle(container.barrelId)}
+                />
+                <span>
+                  <span className="font-medium text-foreground">
+                    {container.alias}
+                  </span>
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {container.slotLabel}
+                    {isSource ? " · this container" : null}
+                  </span>
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}

@@ -30,11 +30,13 @@ export function CustomsClearanceDocumentsPanel({
   published,
   customsFormUrl,
   containerName,
+  audience = "customer",
 }: {
   barrelId: string;
   published: boolean;
   customsFormUrl?: string | null;
   containerName?: string;
+  audience?: "customer" | "admin";
 }) {
   const formUrl = customsFormUrl?.trim() || null;
 
@@ -58,6 +60,7 @@ export function CustomsClearanceDocumentsPanel({
                 barrelId={barrelId}
                 published
                 compact
+                audience={audience}
               />
             : <p className="text-xs text-muted-foreground">Awaiting publication</p>
           }

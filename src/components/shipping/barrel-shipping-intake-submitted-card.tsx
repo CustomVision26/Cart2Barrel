@@ -1,20 +1,15 @@
 "use client";
 
 import { ChevronDownIcon, MapPinIcon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { cancelBarrelShippingIntakeAction } from "@/actions/barrel-shipping-intake";
 import { BarrelContentsPreviewDialog } from "@/components/shipping/barrel-contents-preview-dialog";
-import { OutboundShippingAddedChargesPanel } from "@/components/shipping/outbound-shipping-added-charges-panel";
 import { BarrelShipmentTrackingTimeline } from "@/components/shipping/barrel-shipment-tracking-timeline";
 import { CustomsClearanceDocumentsPanel } from "@/components/shipping/customs-clearance-documents-panel";
-import {
-  OverseasVendorPreferenceSummary,
-  ThirdPartyVendorsDivider,
-  ThirdPartyVendorsSection,
-} from "@/components/shipping/third-party-vendors-section";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -32,6 +27,8 @@ import {
   paidOutboundCharges,
   unpaidPublishedChargesForIntake,
 } from "@/lib/barrel-outbound-shipping-charge";
+import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
+import { linkedShippingGroupLabel } from "@/lib/shipping-container-groups";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
 import { formatShippingDestinationLines } from "@/lib/shipping-address-format";
@@ -46,13 +43,17 @@ function currentStageLabel(
 
 type BarrelShippingIntakeSubmittedCardProps = {
   row: BarrelShippingIntakeSubmittedRow;
+  members?: BarrelShippingIntakeSubmittedRow[];
   shippingAddress?: Address | null;
 };
 
 export function BarrelShippingIntakeSubmittedCard({
   row,
+  members,
   shippingAddress,
 }: BarrelShippingIntakeSubmittedCardProps) {
+  const group = members && members.length > 0 ? members : [row];
+  const groupLabel = linkedShippingGroupLabel(group);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [expanded, setExpanded] = useState(false);
@@ -61,7 +62,6 @@ export function BarrelShippingIntakeSubmittedCard({
   const trackingCharge = paid[0] ?? row.outboundCharges[0] ?? null;
   const destinationLines =
     shippingAddress ? formatShippingDestinationLines(shippingAddress) : [];
-  const destinationCountry = shippingAddress?.country?.trim() || null;
 
   const freightPaid = row.outboundCharges.some(
     (charge) => charge.chargeKind === "freight" && Boolean(charge.paidAt),
@@ -72,6 +72,9 @@ export function BarrelShippingIntakeSubmittedCard({
     startTransition(async () => {
       const res = await cancelBarrelShippingIntakeAction({
         intakeId: row.intakeId,
+        alsoIntakeIds: group
+          .map((item) => item.intakeId)
+          .filter((id) => id !== row.intakeId),
       });
       if (res.ok) {
         toast.success(res.message);
@@ -99,7 +102,7 @@ export function BarrelShippingIntakeSubmittedCard({
                   {row.containerName}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  {row.alias} · {containerOfferingKindLabel(row.kind)} ·{" "}
+                  {groupLabel} · {containerOfferingKindLabel(row.kind)} ·{" "}
                   {containerFullnessLabel(row)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -135,30 +138,6 @@ export function BarrelShippingIntakeSubmittedCard({
                 </div>
               </div>
             : null}
-
-            <ThirdPartyVendorsDivider />
-            <div
-              className={
-                unpaid.length > 0
-                  ? "grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(14rem,0.85fr)]"
-                  : undefined
-              }
-            >
-              <ThirdPartyVendorsSection
-                charges={row.outboundCharges}
-                showDivider={false}
-                intake={row}
-                overseasSummary={
-                  <OverseasVendorPreferenceSummary
-                    row={row}
-                    destinationCountry={destinationCountry}
-                  />
-                }
-              />
-              {unpaid.length > 0 ?
-                <OutboundShippingAddedChargesPanel charges={unpaid} />
-              : null}
-            </div>
 
             {paid.length > 0 ?
               <div className="space-y-2">
@@ -218,8 +197,14 @@ export function BarrelShippingIntakeSubmittedCard({
               </div>
             : unpaid.length > 0 ?
               <p className="text-xs text-muted-foreground">
-                Add freight to your cart above. Pay broker and local courier
-                charges with Zelle, Cash App, or at the local office.
+                Pay freight, broker, and local courier charges on the{" "}
+                <Link
+                  href={DASHBOARD_SHIPPING_ROUTES.pricing}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Pricing
+                </Link>{" "}
+                tab.
               </p>
             : null}
           </div>

@@ -59,6 +59,35 @@ export type {
   UserBarrelOptionRow,
 } from "@/lib/barrel-container-types";
 
+/** Assignment UIs do not need shipping-only barrel columns that may be unmigrated. */
+const barrelAssignmentColumns = {
+  id: barrels.id,
+  clerkUserId: barrels.clerkUserId,
+  status: barrels.status,
+  capacityPercentage: barrels.capacityPercentage,
+  progressImageUrl: barrels.progressImageUrl,
+  orderContainerItemId: barrels.orderContainerItemId,
+  unitOrdinal: barrels.unitOrdinal,
+  createdAt: barrels.createdAt,
+} as const;
+
+const pipelineOrderColumns = {
+  id: orders.id,
+  clerkUserId: orders.clerkUserId,
+} as const;
+
+const pipelineRequestColumns = {
+  id: itemRequests.id,
+  productUrl: itemRequests.productUrl,
+  productName: itemRequests.productName,
+  productImageUrl: itemRequests.productImageUrl,
+} as const;
+
+const pipelinePackageColumns = {
+  id: packages.id,
+  createdAt: packages.createdAt,
+} as const;
+
 async function loadLatestAssignmentAtByPackage(
   packageIds: string[],
 ): Promise<Map<string, string>> {
@@ -243,7 +272,16 @@ export async function ensurePackagesForAwaitingBarrelOwner(
 }
 
 type BarrelWithOciRow = {
-  barrel: typeof barrels.$inferSelect;
+  barrel: {
+    id: string;
+    clerkUserId: string;
+    status: UserBarrelOptionRow["status"];
+    capacityPercentage: number;
+    progressImageUrl: string | null;
+    orderContainerItemId: string | null;
+    unitOrdinal: number;
+    createdAt: string;
+  };
   oci: OrderContainerItemSnapshot | null;
 };
 
@@ -348,12 +386,19 @@ async function loadProgressSnapshotsByBarrel(
 export async function listUserBarrelOptionsForAssignment(
   clerkUserId: string,
 ): Promise<UserBarrelOptionRow[]> {
-  await ensureBarrelsProvisionedForUser(clerkUserId);
+  try {
+    await ensureBarrelsProvisionedForUser(clerkUserId);
+  } catch (e) {
+    console.error(
+      "[listUserBarrelOptionsForAssignment] barrel provision skipped",
+      e,
+    );
+  }
   const db = getDb();
 
   const rows = await db
     .select({
-      barrel: barrels,
+      barrel: barrelAssignmentColumns,
       oci: orderContainerItemSnapshotColumns,
     })
     .from(barrels)
@@ -384,7 +429,7 @@ export async function getBarrelDisplayLabelById(
   const db = getDb();
   const [row] = await db
     .select({
-      barrel: barrels,
+      barrel: barrelAssignmentColumns,
       oci: orderContainerItemSnapshotColumns,
     })
     .from(barrels)
@@ -524,9 +569,9 @@ export async function listProductToBarrelLinesForUser(
       db
         .select({
           orderItem: orderItemSelect,
-          order: orders,
-          request: itemRequests,
-          pkg: packages,
+          order: pipelineOrderColumns,
+          request: pipelineRequestColumns,
+          pkg: pipelinePackageColumns,
         })
         .from(orderItems)
         .innerJoin(orders, eq(orderItems.orderId, orders.id))
@@ -637,9 +682,9 @@ export async function listAdminBarrelPipelineLines(): Promise<
       db
         .select({
           orderItem: orderItemSelect,
-          order: orders,
-          request: itemRequests,
-          pkg: packages,
+          order: pipelineOrderColumns,
+          request: pipelineRequestColumns,
+          pkg: pipelinePackageColumns,
           biBarrelId: barrelItems.barrelId,
         })
         .from(orderItems)

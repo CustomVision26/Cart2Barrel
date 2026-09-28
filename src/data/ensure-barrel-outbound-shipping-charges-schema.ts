@@ -233,6 +233,10 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
       ADD COLUMN IF NOT EXISTS "image_url" text
     `);
     await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ADD COLUMN IF NOT EXISTS "public_pricing_published_at" timestamp with time zone
+    `);
+    await db.execute(sql`
       ALTER TABLE "barrel_outbound_shipping_charges"
       ADD COLUMN IF NOT EXISTS "partner_cashapp_account" text
     `);
@@ -273,6 +277,7 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
     await ensureOutboundShippingCompanyRatesTable();
     await ensureOutboundShippingCompanyRateLinksTable();
     await ensureOutboundShippingCatalogDefaultsTable();
+    await ensureOutboundShippingRefundRequestsTable();
 
     schemaReady = true;
     return true;
@@ -281,6 +286,18 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
     schemaReady = false;
     return false;
   }
+}
+
+let publicPricingColumnReady = false;
+
+export async function ensureOutboundPartnerPublicPricingColumn(): Promise<void> {
+  if (publicPricingColumnReady) return;
+  const db = getDb();
+  await db.execute(sql`
+    ALTER TABLE "barrel_outbound_shipping_partners"
+    ADD COLUMN IF NOT EXISTS "public_pricing_published_at" timestamp with time zone
+  `);
+  publicPricingColumnReady = true;
 }
 
 /** Idempotent even after the parent ensure already ran in this process. */
@@ -347,5 +364,63 @@ export async function ensureOutboundShippingCatalogDefaultsTable(): Promise<void
       "company_rate_kinds" text,
       "updated_at" timestamp with time zone DEFAULT now() NOT NULL
     )
+  `);
+}
+
+export async function ensureOutboundShippingRefundRequestsTable(): Promise<void> {
+  const db = getDb();
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "barrel_outbound_shipping_refund_requests" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "charge_id" uuid NOT NULL,
+      "barrel_id" uuid NOT NULL,
+      "clerk_user_id" text NOT NULL,
+      "charge_kind" "barrel_outbound_shipping_charge_kind" NOT NULL,
+      "refund_path" text NOT NULL,
+      "status" text DEFAULT 'pending' NOT NULL,
+      "amount_cents" integer NOT NULL,
+      "stripe_refund_id" text,
+      "support_ticket_id" uuid,
+      "completed_at" timestamp with time zone,
+      "completed_by_clerk_user_id" text,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "barrel_outbound_shipping_refund_requests_charge_uidx"
+    ON "barrel_outbound_shipping_refund_requests" ("charge_id")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "barrel_outbound_shipping_refund_requests_barrel_idx"
+    ON "barrel_outbound_shipping_refund_requests" ("barrel_id")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "barrel_outbound_shipping_refund_requests_clerk_idx"
+    ON "barrel_outbound_shipping_refund_requests" ("clerk_user_id")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "barrel_outbound_shipping_refund_requests_status_idx"
+    ON "barrel_outbound_shipping_refund_requests" ("status")
+  `);
+  await db.execute(sql`
+    DO $$ BEGIN
+      ALTER TABLE "barrel_outbound_shipping_refund_requests"
+        ADD CONSTRAINT "barrel_outbound_shipping_refund_requests_charge_id_fk"
+        FOREIGN KEY ("charge_id") REFERENCES "public"."barrel_outbound_shipping_charges"("id")
+        ON DELETE cascade ON UPDATE no action;
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$
+  `);
+  await db.execute(sql`
+    DO $$ BEGIN
+      ALTER TABLE "barrel_outbound_shipping_refund_requests"
+        ADD CONSTRAINT "barrel_outbound_shipping_refund_requests_barrel_id_fk"
+        FOREIGN KEY ("barrel_id") REFERENCES "public"."barrels"("id")
+        ON DELETE cascade ON UPDATE no action;
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$
   `);
 }

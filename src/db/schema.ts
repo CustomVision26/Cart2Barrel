@@ -2044,6 +2044,52 @@ export const barrelOutboundShippingChargeLines = pgTable(
   ],
 );
 
+/** Customer or staff refund for a paid outbound freight / broker / courier charge. */
+export const barrelOutboundShippingRefundRequests = pgTable(
+  "barrel_outbound_shipping_refund_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    chargeId: uuid("charge_id")
+      .notNull()
+      .references(() => barrelOutboundShippingCharges.id, { onDelete: "cascade" }),
+    barrelId: uuid("barrel_id")
+      .notNull()
+      .references(() => barrels.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    chargeKind: barrelOutboundShippingChargeKindEnum("charge_kind").notNull(),
+    /** company_contact | amani */
+    refundPath: text("refund_path").notNull(),
+    /** pending | completed */
+    status: text("status").notNull().default("pending"),
+    amountCents: integer("amount_cents").notNull(),
+    stripeRefundId: text("stripe_refund_id"),
+    supportTicketId: uuid("support_ticket_id").references(() => supportTickets.id, {
+      onDelete: "set null",
+    }),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    completedByClerkUserId: text("completed_by_clerk_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("barrel_outbound_shipping_refund_requests_charge_uidx").on(
+      t.chargeId,
+    ),
+    index("barrel_outbound_shipping_refund_requests_barrel_idx").on(t.barrelId),
+    index("barrel_outbound_shipping_refund_requests_clerk_idx").on(t.clerkUserId),
+    index("barrel_outbound_shipping_refund_requests_status_idx").on(t.status),
+  ],
+);
+
 /** Staging cart for outbound container shipping charges (separate from merchandise / container SKU cart). */
 export const userOutboundShippingCartLines = pgTable(
   "user_outbound_shipping_cart_lines",
@@ -2088,6 +2134,10 @@ export const barrelOutboundShippingPartners = pgTable(
     zelleAccount: text("zelle_account"),
     imageUrl: text("image_url"),
     isPrimary: boolean("is_primary").notNull().default(false),
+    publicPricingPublishedAt: timestamp("public_pricing_published_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -3156,6 +3206,7 @@ export const barrelOutboundShippingChargesRelations = relations(
       references: [profiles.clerkUserId],
     }),
     lines: many(barrelOutboundShippingChargeLines),
+    refundRequests: many(barrelOutboundShippingRefundRequests),
     shipmentTracking: one(barrelOutboundShipmentTracking, {
       fields: [barrelOutboundShippingCharges.id],
       references: [barrelOutboundShipmentTracking.chargeId],
@@ -3163,6 +3214,24 @@ export const barrelOutboundShippingChargesRelations = relations(
     paidOrder: one(orders, {
       fields: [barrelOutboundShippingCharges.paidOrderId],
       references: [orders.id],
+    }),
+  }),
+);
+
+export const barrelOutboundShippingRefundRequestsRelations = relations(
+  barrelOutboundShippingRefundRequests,
+  ({ one }) => ({
+    charge: one(barrelOutboundShippingCharges, {
+      fields: [barrelOutboundShippingRefundRequests.chargeId],
+      references: [barrelOutboundShippingCharges.id],
+    }),
+    barrel: one(barrels, {
+      fields: [barrelOutboundShippingRefundRequests.barrelId],
+      references: [barrels.id],
+    }),
+    profile: one(profiles, {
+      fields: [barrelOutboundShippingRefundRequests.clerkUserId],
+      references: [profiles.clerkUserId],
     }),
   }),
 );
@@ -3377,6 +3446,11 @@ export type BarrelOutboundShippingChargeLine =
   typeof barrelOutboundShippingChargeLines.$inferSelect;
 export type NewBarrelOutboundShippingChargeLine =
   typeof barrelOutboundShippingChargeLines.$inferInsert;
+
+export type BarrelOutboundShippingRefundRequest =
+  typeof barrelOutboundShippingRefundRequests.$inferSelect;
+export type NewBarrelOutboundShippingRefundRequest =
+  typeof barrelOutboundShippingRefundRequests.$inferInsert;
 
 export type UserOutboundShippingCartLine =
   typeof userOutboundShippingCartLines.$inferSelect;

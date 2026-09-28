@@ -1,5 +1,6 @@
 import type { BarrelStatus } from "@/lib/barrel-container-types";
 import type { BarrelOutboundShipmentTrackingView } from "@/lib/barrel-shipment-tracking";
+import { isOwnTransportCourierKey } from "@/lib/destination-clearance-partners";
 import type { BarrelShippingDeliveryMethod } from "@/lib/validations/barrel-shipping-intake";
 import {
   containerOfferingKindLabel,
@@ -169,6 +170,153 @@ export function isOffPlatformOutboundChargeKind(
   return kind === "broker" || kind === "courier";
 }
 
+export const OUTBOUND_SHIPPING_REFUND_PATHS = [
+  "company_contact",
+  "amani",
+] as const;
+
+export type OutboundShippingRefundPath =
+  (typeof OUTBOUND_SHIPPING_REFUND_PATHS)[number];
+
+export const OUTBOUND_SHIPPING_REFUND_STATUSES = ["pending", "completed"] as const;
+
+export type OutboundShippingRefundStatus =
+  (typeof OUTBOUND_SHIPPING_REFUND_STATUSES)[number];
+
+export type OutboundShippingRefundRequestView = {
+  id: string;
+  status: OutboundShippingRefundStatus;
+  refundPath: OutboundShippingRefundPath;
+};
+
+export function isOutboundShippingRefundPath(
+  value: string | null | undefined,
+): value is OutboundShippingRefundPath {
+  return value === "company_contact" || value === "amani";
+}
+
+export function isOutboundShippingRefundStatus(
+  value: string | null | undefined,
+): value is OutboundShippingRefundStatus {
+  return value === "pending" || value === "completed";
+}
+
+export function isOutboundChargeConsolidatedWithFreight(
+  charge: Pick<BarrelOutboundShippingChargeView, "chargeKind" | "chargeBundle">,
+): boolean {
+  return (
+    charge.chargeBundle.includes("freight") &&
+    charge.chargeBundle.includes(charge.chargeKind) &&
+    charge.chargeBundle.length >= 2
+  );
+}
+
+export function partnerAcceptsZelleOrCashapp(
+  charge: Pick<
+    BarrelOutboundShippingChargeView,
+    | "offPlatformPaymentMethod"
+    | "partnerZelleId"
+    | "partnerZelleAccount"
+    | "partnerCashappId"
+    | "partnerCashappAccount"
+  >,
+): boolean {
+  if (
+    charge.offPlatformPaymentMethod === "zelle" ||
+    charge.offPlatformPaymentMethod === "cashapp"
+  ) {
+    return true;
+  }
+  return Boolean(
+    charge.partnerZelleId?.trim() ||
+      charge.partnerZelleAccount?.trim() ||
+      charge.partnerCashappId?.trim() ||
+      charge.partnerCashappAccount?.trim(),
+  );
+}
+
+/** Who issues the refund: the Zelle/Cash App company, or Amani Cart2Barrel (Stripe freight). */
+export function outboundShippingRefundPath(
+  charge: Pick<
+    BarrelOutboundShippingChargeView,
+    | "paidAt"
+    | "chargeKind"
+    | "chargeBundle"
+    | "offPlatformPaymentMethod"
+    | "partnerZelleId"
+    | "partnerZelleAccount"
+    | "partnerCashappId"
+    | "partnerCashappAccount"
+  >,
+): OutboundShippingRefundPath | null {
+  if (!charge.paidAt) return null;
+  if (
+    charge.chargeKind === "freight" ||
+    isOutboundChargeConsolidatedWithFreight(charge)
+  ) {
+    return "amani";
+  }
+  if (
+    isOffPlatformOutboundChargeKind(charge.chargeKind) &&
+    partnerAcceptsZelleOrCashapp(charge)
+  ) {
+    return "company_contact";
+  }
+  return null;
+}
+
+export function courierChargeBlocksOwnTransport(
+  charges: Pick<
+    BarrelOutboundShippingChargeView,
+    "chargeKind" | "paidAt" | "refundRequest"
+  >[],
+): boolean {
+  return charges.some(
+    (charge) =>
+      charge.chargeKind === "courier" &&
+      Boolean(charge.paidAt) &&
+      charge.refundRequest?.status !== "completed",
+  );
+}
+
+export function outboundPartnerContactLines(
+  charge: Pick<
+    BarrelOutboundShippingChargeView,
+    | "partnerName"
+    | "partnerLocation"
+    | "partnerAddress"
+    | "partnerCountry"
+    | "partnerPhone"
+    | "partnerZelleId"
+    | "partnerZelleAccount"
+    | "partnerCashappId"
+    | "partnerCashappAccount"
+  >,
+): string[] {
+  const lines: string[] = [];
+  const name = charge.partnerName?.trim();
+  if (name) lines.push(name);
+  const location = charge.partnerLocation?.trim();
+  if (location) lines.push(location);
+  const address = charge.partnerAddress?.trim();
+  if (address) lines.push(address);
+  const country = charge.partnerCountry?.trim();
+  if (country) lines.push(country);
+  const phone = charge.partnerPhone?.trim();
+  if (phone) lines.push(`Tel ${phone}`);
+  const zelle = [charge.partnerZelleId, charge.partnerZelleAccount]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(" · ");
+  if (zelle) lines.push(`Zelle ${zelle}`);
+  const cashapp = [charge.partnerCashappId, charge.partnerCashappAccount]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(" · ");
+  if (cashapp) lines.push(`Cash App ${cashapp}`);
+  return lines;
+}
+
 export function isOffPlatformPaymentPendingReview(
   charge: Pick<
     BarrelOutboundShippingChargeView,
@@ -229,6 +377,7 @@ export type BarrelOutboundShippingChargeView = {
   companyRateKinds: BarrelOutboundShippingChargeKind[];
   /** Other unpaid containers billed with this company rate (includes this barrel). */
   linkedContainers: { barrelId: string; alias: string }[];
+  refundRequest: OutboundShippingRefundRequestView | null;
 };
 
 export function isBarrelOutboundShippingChargeKind(
@@ -607,11 +756,6 @@ export function unpaidPublishedCharges(
   return charges.filter((c) => !c.paidAt && c.totalCents > 0);
 }
 
-function isOwnTransportCourierKey(key: string | null | undefined): boolean {
-  const trimmed = key?.trim();
-  return trimmed === "own-transport" || trimmed === "self-arrange-local";
-}
-
 function chargeMatchesIntakeSelection(
   charge: Pick<BarrelOutboundShippingChargeView, "chargeKind">,
   intake: {
@@ -720,6 +864,33 @@ export function publishedChargesForDestination(
   });
 }
 
+/** Customer destination UI: hide absorbed kinds; couriers are admin-published only. */
+export function destinationClearancePresentation(
+  charges: readonly BarrelOutboundShippingChargeView[],
+  destinationCountry?: string | null,
+) {
+  const bundle = charges[0]?.chargeBundle ?? [];
+  const brokerAbsorbed = isOutboundChargeKindAbsorbed("broker", bundle);
+  const courierAbsorbed = isOutboundChargeKindAbsorbed("courier", bundle);
+  const visible = applyOutboundChargeBundleForCustomer([...charges]);
+  const publishedBrokers = destinationCountry
+    ? publishedChargesForDestination(visible, destinationCountry, "broker")
+    : [];
+  const publishedCouriers = destinationCountry
+    ? publishedChargesForDestination(visible, destinationCountry, "courier")
+    : [];
+  return {
+    bundle,
+    brokerAbsorbed,
+    courierAbsorbed,
+    showBrokerUi: !brokerAbsorbed,
+    showSelfClearance: !brokerAbsorbed,
+    showCourierUi: !courierAbsorbed,
+    publishedBrokers,
+    publishedCouriers,
+  };
+}
+
 export function paidOutboundCharges(
   charges: BarrelOutboundShippingChargeView[],
 ): BarrelOutboundShippingChargeView[] {
@@ -745,8 +916,9 @@ export type OutboundShippingPartnerRecord = {
   cashappAccount: string | null;
   zelleId: string | null;
   zelleAccount: string | null;
-  imageUrl: string | null;
-  isPrimary: boolean;
+    imageUrl: string | null;
+    isPrimary: boolean;
+    publicPricingPublishedAt: string | null;
 };
 
 export type AdminRateLinkableContainer = {
@@ -758,6 +930,48 @@ export type AdminRateLinkableContainer = {
   >;
   unpaidByKind: Partial<Record<BarrelOutboundShippingChargeKind, boolean>>;
 };
+
+/** Same company, or no company assigned yet for these kinds. */
+export function containerCanJoinCompanyRateCard(
+  partnerKeyByKind: Partial<Record<BarrelOutboundShippingChargeKind, string>>,
+  kinds: readonly BarrelOutboundShippingChargeKind[],
+  companyKey: string,
+): boolean {
+  return kinds.every((kind) => {
+    const assigned = partnerKeyByKind[kind];
+    return !assigned || assigned === companyKey;
+  });
+}
+
+export function linkableContainersFromChargeRows(
+  rows: readonly {
+    barrelId: string;
+    alias: string;
+    slotLabel: string;
+    outboundCharges: readonly Pick<
+      BarrelOutboundShippingChargeView,
+      "chargeKind" | "partnerName" | "paidAt"
+    >[];
+  }[],
+): AdminRateLinkableContainer[] {
+  return rows.map((row) => {
+    const partnerKeyByKind: AdminRateLinkableContainer["partnerKeyByKind"] =
+      {};
+    const unpaidByKind: AdminRateLinkableContainer["unpaidByKind"] = {};
+    for (const charge of row.outboundCharges) {
+      const key = outboundShippingCompanyKey(charge.partnerName ?? "");
+      if (key) partnerKeyByKind[charge.chargeKind] = key;
+      unpaidByKind[charge.chargeKind] = !charge.paidAt;
+    }
+    return {
+      barrelId: row.barrelId,
+      alias: row.alias,
+      slotLabel: row.slotLabel,
+      partnerKeyByKind,
+      unpaidByKind,
+    };
+  });
+}
 
 export type AdminCompanyRateLinkGroup = {
   companyKey: string;

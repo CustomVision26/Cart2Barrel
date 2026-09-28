@@ -3,6 +3,7 @@ export const DASHBOARD_SHIPPING_ROUTES = {
   pricing: "/dashboard/shipping/pricing",
   /** Profile contact + shipping label (legacy `/address` redirects here). */
   address: "/dashboard/shipping/profile",
+  history: "/dashboard/shipping/history",
 } as const;
 
 export type DashboardShippingRoute =

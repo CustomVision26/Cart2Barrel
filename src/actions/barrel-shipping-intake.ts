@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
-import { barrelShippingIntakes, barrels } from "@/db/schema";
+import { barrelShippingIntakes } from "@/db/schema";
 import { getPrimaryShippingAddress } from "@/data/addresses";
 import { ensureBarrelShippingIntakesSchema } from "@/data/ensure-barrel-shipping-intakes-schema";
 import {
@@ -17,8 +17,16 @@ import {
 } from "@/data/barrel-shipping-intake";
 import {
   findDestinationBroker,
-  findDestinationCourier,
+  isAllowedCustomerCourierKey,
+  isOwnTransportCourierKey,
+  OWN_TRANSPORT_COURIER_KEY,
+  PUBLISHED_BROKER_KEY,
+  PUBLISHED_COURIER_KEY,
 } from "@/lib/destination-clearance-partners";
+import {
+  destinationClearancePresentation,
+} from "@/lib/barrel-outbound-shipping-charge";
+import { getOutboundShippingChargesByBarrelIds } from "@/data/barrel-outbound-shipping-charges";
 import {
   cancelBarrelShippingIntakeSchema,
   submitBarrelShippingIntakeSchema,
@@ -34,6 +42,80 @@ export type SubmitBarrelShippingIntakeState =
 export type CancelBarrelShippingIntakeState =
   | { ok: true; message: string }
   | { ok: false; message: string };
+
+async function resolveClearanceForBarrel(
+  clerkUserId: string,
+  barrelId: string,
+  destinationCountry: string | null,
+  input: {
+    deliveryMethod: "customs_pickup" | "broker_delivery";
+    brokerKey: string | null;
+    courierKey: string | null;
+  },
+): Promise<
+  | {
+      ok: true;
+      deliveryMethod: "customs_pickup" | "broker_delivery";
+      selectedBrokerKey: string | null;
+      selectedCourierKey: string | null;
+    }
+  | { ok: false; message: string }
+> {
+  const byBarrel = await getOutboundShippingChargesByBarrelIds(clerkUserId, [
+    barrelId,
+  ]);
+  const presentation = destinationClearancePresentation(
+    byBarrel.get(barrelId) ?? [],
+    destinationCountry,
+  );
+
+  let deliveryMethod = input.deliveryMethod;
+  let selectedBrokerKey: string | null = null;
+  let selectedCourierKey: string | null = null;
+
+  if (presentation.brokerAbsorbed) {
+    deliveryMethod = "broker_delivery";
+    selectedBrokerKey = PUBLISHED_BROKER_KEY;
+  } else if (deliveryMethod === "broker_delivery") {
+    const broker = findDestinationBroker(input.brokerKey, destinationCountry);
+    if (!broker) {
+      return {
+        ok: false,
+        message: "Choose a selected broker for your destination country.",
+      };
+    }
+    selectedBrokerKey = broker.key;
+  }
+
+  if (presentation.courierAbsorbed) {
+    selectedCourierKey = PUBLISHED_COURIER_KEY;
+  } else if (
+    !presentation.courierAbsorbed &&
+    presentation.publishedCouriers.length > 0
+  ) {
+    if (!isAllowedCustomerCourierKey(input.courierKey)) {
+      return {
+        ok: false,
+        message:
+          "Choose whether to use the published courier or your own transportation.",
+      };
+    }
+    selectedCourierKey = isOwnTransportCourierKey(input.courierKey)
+      ? OWN_TRANSPORT_COURIER_KEY
+      : PUBLISHED_COURIER_KEY;
+  } else {
+    selectedCourierKey = isOwnTransportCourierKey(input.courierKey)
+      ? OWN_TRANSPORT_COURIER_KEY
+      : null;
+  }
+
+  return {
+    ok: true,
+    deliveryMethod,
+    selectedBrokerKey,
+    selectedCourierKey,
+  };
+}
 
 export async function submitBarrelShippingIntakeAction(
   raw: unknown,
@@ -62,26 +144,10 @@ export async function submitBarrelShippingIntakeAction(
 
   const courierKey = parsed.data.courierKey?.trim() || null;
   const brokerKey = parsed.data.brokerKey?.trim() || null;
-  const { barrelId, deliveryMethod } = parsed.data;
-
-  const row = await getBarrelForShippingIntake(userId, barrelId);
-  if (!row) {
-    return { ok: false, message: "Container not found." };
-  }
-
-  if (row.intake) {
-    return {
-      ok: false,
-      message: "This container was already confirmed for shipping charges.",
-    };
-  }
-
-  if (row.barrel.status === "shipped" || row.barrel.status === "delivered") {
-    return {
-      ok: false,
-      message: "This container has already shipped.",
-    };
-  }
+  const { barrelId, deliveryMethod: requestedDeliveryMethod } = parsed.data;
+  const barrelIds = [
+    ...new Set([barrelId, ...(parsed.data.alsoConfirmBarrelIds ?? [])]),
+  ];
 
   const shippingAddress = await getPrimaryShippingAddress(userId);
   const destinationCountry = shippingAddress?.country?.trim() || null;
@@ -92,26 +158,60 @@ export async function submitBarrelShippingIntakeAction(
     };
   }
 
-  const courier = findDestinationCourier(courierKey, destinationCountry);
-  if (!courier) {
-    return {
-      ok: false,
-      message:
-        "Choose a local courier for your destination, or provide your own transportation.",
-    };
-  }
-  const selectedCourierKey = courier.key;
+  const toInsert: {
+    barrelId: string;
+    deliveryMethod: "customs_pickup" | "broker_delivery";
+    selectedBrokerKey: string | null;
+    selectedCourierKey: string | null;
+  }[] = [];
 
-  let selectedBrokerKey: string | null = null;
-  if (deliveryMethod === "broker_delivery") {
-    const broker = findDestinationBroker(brokerKey, destinationCountry);
-    if (!broker) {
+  for (const id of barrelIds) {
+    const row = await getBarrelForShippingIntake(userId, id);
+    if (!row) {
+      return { ok: false, message: "Container not found." };
+    }
+    if (row.intake) {
+      if (id === barrelId) {
+        return {
+          ok: false,
+          message: "This container was already confirmed for shipping charges.",
+        };
+      }
+      continue;
+    }
+    if (row.barrel.status === "shipped" || row.barrel.status === "delivered") {
       return {
         ok: false,
-        message: "Choose a selected broker for your destination country.",
+        message: "This container has already shipped.",
       };
     }
-    selectedBrokerKey = broker.key;
+
+    const resolved = await resolveClearanceForBarrel(
+      userId,
+      id,
+      destinationCountry,
+      {
+        deliveryMethod: requestedDeliveryMethod,
+        brokerKey,
+        courierKey,
+      },
+    );
+    if (!resolved.ok) {
+      return resolved;
+    }
+    toInsert.push({
+      barrelId: id,
+      deliveryMethod: resolved.deliveryMethod,
+      selectedBrokerKey: resolved.selectedBrokerKey,
+      selectedCourierKey: resolved.selectedCourierKey,
+    });
+  }
+
+  if (toInsert.length === 0) {
+    return {
+      ok: false,
+      message: "These containers were already confirmed for shipping charges.",
+    };
   }
 
   await ensureBarrelShippingIntakesSchema();
@@ -119,27 +219,32 @@ export async function submitBarrelShippingIntakeAction(
   const now = new Date().toISOString();
   const db = getDb();
 
-  await db.insert(barrelShippingIntakes).values({
-    barrelId,
-    clerkUserId: userId,
-    deliveryMethod,
-    deliveryAddressId: shippingAddress?.id ?? null,
-    contactPhone: shippingAddress?.recipientPhone?.trim() || null,
-    specialInstructions: null,
-    selectedBrokerKey,
-    selectedCourierKey,
-    createdAt: now,
-    updatedAt: now,
-  });
+  await db.insert(barrelShippingIntakes).values(
+    toInsert.map((item) => ({
+      barrelId: item.barrelId,
+      clerkUserId: userId,
+      deliveryMethod: item.deliveryMethod,
+      deliveryAddressId: shippingAddress?.id ?? null,
+      contactPhone: shippingAddress?.recipientPhone?.trim() || null,
+      specialInstructions: null,
+      selectedBrokerKey: item.selectedBrokerKey,
+      selectedCourierKey: item.selectedCourierKey,
+      createdAt: now,
+      updatedAt: now,
+    })),
+  );
 
   revalidatePath("/dashboard/shipping");
   revalidatePath("/admin/shipments");
   revalidatePath("/dashboard/shipping/pricing");
 
+  const count = toInsert.length;
   return {
     ok: true,
     message:
-      "Clearance and courier preferences saved. Open the Pricing tab when staff publish your quote.",
+      count > 1
+        ? `Clearance and courier preferences saved for ${count} containers. Open the Pricing tab when staff publish your quote.`
+        : "Clearance and courier preferences saved. Open the Pricing tab when staff publish your quote.",
   };
 }
 
@@ -156,8 +261,13 @@ export async function cancelBarrelShippingIntakeAction(
     return { ok: false, message: "Invalid request." };
   }
 
-  const result = await cancelShippingIntakeForUser(userId, parsed.data.intakeId);
-  if (!result.ok) return result;
+  const intakeIds = [
+    ...new Set([parsed.data.intakeId, ...(parsed.data.alsoIntakeIds ?? [])]),
+  ];
+  for (const intakeId of intakeIds) {
+    const result = await cancelShippingIntakeForUser(userId, intakeId);
+    if (!result.ok && intakeId === parsed.data.intakeId) return result;
+  }
 
   revalidatePath("/dashboard/shipping");
   revalidatePath("/admin/shipments");
@@ -166,7 +276,9 @@ export async function cancelBarrelShippingIntakeAction(
   return {
     ok: true,
     message:
-      "Confirmation cancelled. Freight payment stays on this container. Submit broker and local courier receipts again after you reconfirm.",
+      intakeIds.length > 1
+        ? "Confirmation cancelled for the linked containers. Freight payment stays. Submit broker and local courier receipts again after you reconfirm."
+        : "Confirmation cancelled. Freight payment stays on this container. Submit broker and local courier receipts again after you reconfirm.",
   };
 }
 
@@ -248,36 +360,47 @@ export async function updateBarrelShippingIntakeAction(
 
   const courierKey = parsed.data.courierKey?.trim() || null;
   const brokerKey = parsed.data.brokerKey?.trim() || null;
-  const { intakeId, deliveryMethod } = parsed.data;
+  const { intakeId, deliveryMethod: requestedDeliveryMethod } = parsed.data;
 
   const shippingAddress = await getPrimaryShippingAddress(userId);
   const destinationCountry = shippingAddress?.country?.trim() || null;
-  const courier = findDestinationCourier(courierKey, destinationCountry);
-  if (!courier) {
-    return {
-      ok: false,
-      message:
-        "Choose a local courier for your destination, or provide your own transportation.",
-    };
+
+  const [intakeRow] = await getDb()
+    .select({
+      barrelId: barrelShippingIntakes.barrelId,
+    })
+    .from(barrelShippingIntakes)
+    .where(
+      and(
+        eq(barrelShippingIntakes.id, intakeId),
+        eq(barrelShippingIntakes.clerkUserId, userId),
+      )!,
+    )
+    .limit(1);
+  const barrelId = intakeRow?.barrelId;
+  if (!barrelId) {
+    return { ok: false, message: "Submitted preferences not found." };
   }
 
-  let selectedBrokerKey: string | null = null;
-  if (deliveryMethod === "broker_delivery") {
-    const broker = findDestinationBroker(brokerKey, destinationCountry);
-    if (!broker) {
-      return {
-        ok: false,
-        message: "Choose a selected broker for your destination country.",
-      };
-    }
-    selectedBrokerKey = broker.key;
+  const resolved = await resolveClearanceForBarrel(
+    userId,
+    barrelId,
+    destinationCountry,
+    {
+      deliveryMethod: requestedDeliveryMethod,
+      brokerKey,
+      courierKey,
+    },
+  );
+  if (!resolved.ok) {
+    return resolved;
   }
 
   const result = await updateShippingIntakeRow(userId, {
     intakeId,
-    deliveryMethod,
-    selectedBrokerKey,
-    selectedCourierKey: courier.key,
+    deliveryMethod: resolved.deliveryMethod,
+    selectedBrokerKey: resolved.selectedBrokerKey,
+    selectedCourierKey: resolved.selectedCourierKey,
   });
   if (!result.ok) return result;
 
