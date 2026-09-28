@@ -74,11 +74,11 @@ export function primaryPartnerNameForKind(
   barrelId: string,
   chargeKind: BarrelOutboundShippingChargeKind,
 ): string | null {
-  const local = partners.filter(
-    (partner) =>
-      partner.chargeKind === chargeKind && partner.barrelId === barrelId,
-  );
-  const primary = local.find((partner) => partner.isPrimary) ?? local[0];
+  const ofKind = partners.filter((partner) => partner.chargeKind === chargeKind);
+  const local = ofKind.filter((partner) => partner.barrelId === barrelId);
+  const catalog = ofKind.filter((partner) => partner.barrelId == null);
+  const pool = local.length > 0 ? local : catalog;
+  const primary = pool.find((partner) => partner.isPrimary) ?? pool[0];
   const name = primary?.name.trim();
   return name ? name : null;
 }

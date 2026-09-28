@@ -183,3 +183,67 @@ export async function deleteOutboundShippingCompanyRate(
   }
   return { ok: true };
 }
+
+/** Kingdom Kleanerz local courier zones from the parish rate card (USD). */
+const KINGDOM_KLEANERZ_COURIER_ZONES: {
+  rowLabel: string;
+  costOneCents: number;
+  costTwoPlusCents: number;
+}[] = [
+  { rowLabel: "St. Catherine", costOneCents: 8092, costTwoPlusCents: 1603 },
+  { rowLabel: "St. Andrew", costOneCents: 11538, costTwoPlusCents: 1923 },
+  { rowLabel: "Kingston", costOneCents: 10023, costTwoPlusCents: 2024 },
+  { rowLabel: "Clarendon", costOneCents: 15103, costTwoPlusCents: 2244 },
+  { rowLabel: "Mandeville", costOneCents: 19231, costTwoPlusCents: 2564 },
+  { rowLabel: "Manchester", costOneCents: 19231, costTwoPlusCents: 2564 },
+  { rowLabel: "St. Thomas", costOneCents: 19231, costTwoPlusCents: 2564 },
+  { rowLabel: "St. Ann", costOneCents: 21154, costTwoPlusCents: 2564 },
+  { rowLabel: "St. Mary", costOneCents: 24359, costTwoPlusCents: 2885 },
+  { rowLabel: "Portland", costOneCents: 26923, costTwoPlusCents: 3205 },
+  { rowLabel: "St. Elizabeth", costOneCents: 28846, costTwoPlusCents: 3205 },
+  { rowLabel: "Westmoreland", costOneCents: 30769, costTwoPlusCents: 3205 },
+  { rowLabel: "St. James", costOneCents: 32051, costTwoPlusCents: 3205 },
+  { rowLabel: "Hanover", costOneCents: 35256, costTwoPlusCents: 3205 },
+  { rowLabel: "Trelawny", costOneCents: 22046, costTwoPlusCents: 3205 },
+];
+
+export async function seedKingdomKleanerzCourierZones(): Promise<void> {
+  if (!(await readyRatesTable())) return;
+  const db = getDb();
+  const companyName = "Kingdom Kleanerz";
+  const companyKey = outboundShippingCompanyKey(companyName);
+  try {
+    for (const [sortIndex, zone] of KINGDOM_KLEANERZ_COURIER_ZONES.entries()) {
+      const rowKey = outboundShippingRateRowKey(zone.rowLabel);
+      await db
+        .insert(outboundShippingCompanyRates)
+        .values({
+          companyName,
+          companyKey,
+          tableKind: "zone",
+          rowLabel: zone.rowLabel,
+          rowKey,
+          costOneCents: zone.costOneCents,
+          costTwoPlusCents: zone.costTwoPlusCents,
+          sortIndex,
+        })
+        .onConflictDoUpdate({
+          target: [
+            outboundShippingCompanyRates.companyKey,
+            outboundShippingCompanyRates.tableKind,
+            outboundShippingCompanyRates.rowKey,
+          ],
+          set: {
+            companyName,
+            rowLabel: zone.rowLabel,
+            costOneCents: zone.costOneCents,
+            costTwoPlusCents: zone.costTwoPlusCents,
+            sortIndex,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+    }
+  } catch (e) {
+    console.error("[seedKingdomKleanerzCourierZones]", e);
+  }
+}

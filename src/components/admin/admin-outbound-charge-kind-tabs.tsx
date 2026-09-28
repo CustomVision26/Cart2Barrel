@@ -491,7 +491,9 @@ function PartnerRecordsEditor({
             </thead>
             <tbody className="divide-y divide-border">
               {records.map((record) => {
-                const onThisBarrel = record.barrelId === row.barrelId;
+                const onThisBarrel = catalogPreview
+                  ? record.barrelId == null
+                  : record.barrelId === row.barrelId;
                 return (
                 <tr
                   key={record.id}

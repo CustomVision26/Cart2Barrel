@@ -25,6 +25,7 @@ import { formatUsd } from "@/lib/admin-markup";
 import { appTableHead, appTableRowHover, appTableScroll } from "@/lib/app-table-surfaces";
 import {
   destinationCourierZoneHints,
+  isAdminShippingCatalogPreviewBarrelId,
   matchCourierZoneRateRow,
   outboundShippingCompanyKey,
   resolveCompanyRateLinesForKinds,
@@ -588,6 +589,7 @@ export function ChargeLabelWithCompanyPricing({
   const [pending, startTransition] = useTransition();
   const checked = kindsToToggle.every((kind) => enabledKinds.includes(kind));
   const [open, setOpen] = useState(false);
+  const catalogPreview = isAdminShippingCatalogPreviewBarrelId(barrelId);
   const companyKey = companyName ? outboundShippingCompanyKey(companyName) : "";
   const companyRates = useMemo(
     () => (rates ?? []).filter((row) => row.companyKey === companyKey),
@@ -622,32 +624,38 @@ export function ChargeLabelWithCompanyPricing({
     <>
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor={htmlFor}>{label}</Label>
-        <input
-          type="checkbox"
-          className="size-3.5 accent-primary"
-          checked={checked}
+        {catalogPreview ? null : (
+          <input
+            type="checkbox"
+            className="size-3.5 accent-primary"
+            checked={checked}
+            disabled={pending}
+            aria-label="Bill customer from company rate card"
+            onChange={(e) => toggleRateCard(e.target.checked)}
+          />
+        )}
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 px-2.5 text-xs"
           disabled={pending}
-          aria-label="Bill customer from company rate card"
-          onChange={(e) => toggleRateCard(e.target.checked)}
-        />
-        {checked ?
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 px-2.5 text-xs"
-            onClick={() => {
-              if (!companyName) {
-                toast.error("Add a company first.");
-                return;
-              }
-              setOpen(true);
-            }}
-          >
-            Charge
-          </Button>
-        : null}
+          onClick={() => {
+            if (!companyName) {
+              toast.error("Add a company first.");
+              return;
+            }
+            setOpen(true);
+          }}
+        >
+          Charge
+        </Button>
       </div>
-      {checked ?
+      {catalogPreview && companyName ?
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Set this company&apos;s rates now. They apply to every customer
+          container that uses this company.
+        </p>
+      : checked ?
         <p className="text-[11px] leading-snug text-muted-foreground">
           Form amounts below are not billed. The customer pays this company&apos;s
           rate card.
@@ -669,7 +677,7 @@ export function ChargeLabelWithCompanyPricing({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
-            {companyName && companyKey ?
+            {companyName && companyKey && !catalogPreview ?
               <LinkedContainersPanel
                 companyName={companyName}
                 companyKey={companyKey}

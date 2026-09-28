@@ -26,7 +26,7 @@ import {
   listOutboundShippingPartnersByBarrelIds,
   mergePartnersWithCatalog,
 } from "@/data/barrel-outbound-shipping-partners";
-import { listOutboundShippingCompanyRates } from "@/data/outbound-shipping-company-rates";
+import { listOutboundShippingCompanyRates, seedKingdomKleanerzCourierZones } from "@/data/outbound-shipping-company-rates";
 import {
   groupCompanyRateLinks,
   listOutboundShippingCompanyRateLinksForUser,
@@ -304,6 +304,7 @@ export async function listAdminShipmentChargePageData(
     return await loadAdminShipmentChargePageData(clerkUserId);
   } catch (e) {
     console.error("[listAdminShipmentChargePageData]", e);
+    await seedKingdomKleanerzCourierZones().catch(() => undefined);
     const [catalogPartners, companyRates] = await Promise.all([
       listOutboundShippingPartnerCatalog().catch(() => []),
       listOutboundShippingCompanyRates().catch(() => []),
@@ -405,6 +406,11 @@ async function loadAdminShipmentChargePageData(
     await backfillOutboundShippingPartnersFromCharges(barrelIds);
   } catch (e) {
     console.error("[loadAdminShipmentChargePageData] backfill partners", e);
+  }
+  try {
+    await seedKingdomKleanerzCourierZones();
+  } catch (e) {
+    console.error("[loadAdminShipmentChargePageData] seed courier zones", e);
   }
   const [partnersByBarrel, partnerCatalog, companyRates] = await Promise.all([
     listOutboundShippingPartnersByBarrelIds(barrelIds).catch((e) => {
