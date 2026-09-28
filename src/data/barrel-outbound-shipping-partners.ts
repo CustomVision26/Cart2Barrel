@@ -123,7 +123,15 @@ async function maybeSyncPartnerOntoBarrel(
   barrelId: string | null,
   chargeKind: BarrelOutboundShippingChargeKind,
 ): Promise<void> {
-  if (!barrelId) return;
+  if (!barrelId) {
+    const { getOutboundShippingCatalogDefaults } = await import(
+      "@/data/outbound-shipping-catalog-defaults"
+    );
+    const defaults = await getOutboundShippingCatalogDefaults();
+    if (outboundChargeBundleHost(defaults.chargeBundle) !== chargeKind) return;
+    await syncBundlePartnersFromHost(null, defaults.chargeBundle);
+    return;
+  }
   await syncPrimaryPartnerOntoCharge(barrelId, chargeKind);
   await syncBundleIfHostPartnerChanged(barrelId, chargeKind);
 }
@@ -210,7 +218,7 @@ export async function listOutboundShippingPartnersByBarrelIds(
 }
 
 export async function getPrimaryOutboundShippingPartner(
-  barrelId: string,
+  barrelId: string | null,
   chargeKind: BarrelOutboundShippingChargeKind,
 ): Promise<OutboundShippingPartnerRecord | null> {
   await ensureBarrelOutboundShippingChargesSchema();
@@ -220,7 +228,7 @@ export async function getPrimaryOutboundShippingPartner(
     .from(barrelOutboundShippingPartners)
     .where(
       and(
-        eq(barrelOutboundShippingPartners.barrelId, barrelId),
+        partnerBarrelIdFilter(barrelId),
         eq(barrelOutboundShippingPartners.chargeKind, chargeKind),
         eq(barrelOutboundShippingPartners.isPrimary, true),
       ),
@@ -233,7 +241,7 @@ export async function getPrimaryOutboundShippingPartner(
     .from(barrelOutboundShippingPartners)
     .where(
       and(
-        eq(barrelOutboundShippingPartners.barrelId, barrelId),
+        partnerBarrelIdFilter(barrelId),
         eq(barrelOutboundShippingPartners.chargeKind, chargeKind),
       ),
     )
@@ -243,7 +251,7 @@ export async function getPrimaryOutboundShippingPartner(
 }
 
 export async function copyPrimaryPartnerToChargeKind(input: {
-  barrelId: string;
+  barrelId: string | null;
   fromKind: BarrelOutboundShippingChargeKind;
   toKind: BarrelOutboundShippingChargeKind;
 }): Promise<void> {
@@ -271,7 +279,7 @@ export async function copyPrimaryPartnerToChargeKind(input: {
 }
 
 export async function syncBundlePartnersFromHost(
-  barrelId: string,
+  barrelId: string | null,
   bundle: readonly BarrelOutboundShippingChargeKind[],
 ): Promise<void> {
   const host = outboundChargeBundleHost(bundle);

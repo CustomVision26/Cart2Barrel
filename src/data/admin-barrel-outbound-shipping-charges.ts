@@ -27,6 +27,7 @@ import {
   mergePartnersWithCatalog,
 } from "@/data/barrel-outbound-shipping-partners";
 import { listOutboundShippingCompanyRates, seedKingdomKleanerzCourierZones } from "@/data/outbound-shipping-company-rates";
+import { getOutboundShippingCatalogDefaults } from "@/data/outbound-shipping-catalog-defaults";
 import {
   groupCompanyRateLinks,
   listOutboundShippingCompanyRateLinksForUser,
@@ -305,11 +306,21 @@ export async function listAdminShipmentChargePageData(
   } catch (e) {
     console.error("[listAdminShipmentChargePageData]", e);
     await seedKingdomKleanerzCourierZones().catch(() => undefined);
-    const [catalogPartners, companyRates] = await Promise.all([
+    const [catalogPartners, companyRates, catalogDefaults] = await Promise.all([
       listOutboundShippingPartnerCatalog().catch(() => []),
       listOutboundShippingCompanyRates().catch(() => []),
+      getOutboundShippingCatalogDefaults().catch(() => ({
+        chargeBundle: [],
+        companyRateKinds: [],
+      })),
     ]);
-    return { customerGroups: [], catalogPartners, companyRates };
+    return {
+      customerGroups: [],
+      catalogPartners,
+      companyRates,
+      catalogChargeBundle: catalogDefaults.chargeBundle,
+      catalogCompanyRateKinds: catalogDefaults.companyRateKinds,
+    };
   }
 }
 
@@ -412,7 +423,8 @@ async function loadAdminShipmentChargePageData(
   } catch (e) {
     console.error("[loadAdminShipmentChargePageData] seed courier zones", e);
   }
-  const [partnersByBarrel, partnerCatalog, companyRates] = await Promise.all([
+  const [partnersByBarrel, partnerCatalog, companyRates, catalogDefaults] =
+    await Promise.all([
     listOutboundShippingPartnersByBarrelIds(barrelIds).catch((e) => {
       console.error("[loadAdminShipmentChargePageData] partners", e);
       return new Map();
@@ -424,6 +436,10 @@ async function loadAdminShipmentChargePageData(
     listOutboundShippingCompanyRates().catch((e) => {
       console.error("[loadAdminShipmentChargePageData] company rates", e);
       return [];
+    }),
+    getOutboundShippingCatalogDefaults().catch((e) => {
+      console.error("[loadAdminShipmentChargePageData] catalog defaults", e);
+      return { chargeBundle: [], companyRateKinds: [] };
     }),
   ]);
   const linksByUser = new Map<string, AdminCompanyRateLinkGroup[]>();
@@ -450,7 +466,13 @@ async function loadAdminShipmentChargePageData(
     linksByUser,
   );
 
-  return { customerGroups, catalogPartners: partnerCatalog, companyRates };
+  return {
+    customerGroups,
+    catalogPartners: partnerCatalog,
+    companyRates,
+    catalogChargeBundle: catalogDefaults.chargeBundle,
+    catalogCompanyRateKinds: catalogDefaults.companyRateKinds,
+  };
 }
 
 export async function listAdminBarrelOutboundShippingChargeRows(): Promise<

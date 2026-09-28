@@ -25,9 +25,15 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
   const pageData =
     admin ?
       await listAdminShipmentChargePageData(filterClerkUserId)
-    : { customerGroups: [], catalogPartners: [], companyRates: [] };
+    : { customerGroups: [], catalogPartners: [], companyRates: [], catalogChargeBundle: [], catalogCompanyRateKinds: [] };
 
-  const { customerGroups, catalogPartners, companyRates } = pageData;
+  const {
+    customerGroups,
+    catalogPartners,
+    companyRates,
+    catalogChargeBundle,
+    catalogCompanyRateKinds,
+  } = pageData;
   const staffProfilesByClerkUserId =
     admin ?
       await loadAdminStaffProfilesByClerkUserIds(
@@ -78,6 +84,8 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
             ...ADMIN_SHIPPING_CHARGE_PREVIEW_ROW,
             partners: catalogPartners,
             companyRates,
+            chargeBundle: catalogChargeBundle,
+            companyRateKinds: catalogCompanyRateKinds,
           }}
           staffProfilesByClerkUserId={staffProfilesByClerkUserId}
         />

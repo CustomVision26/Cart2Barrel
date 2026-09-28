@@ -272,6 +272,7 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
 
     await ensureOutboundShippingCompanyRatesTable();
     await ensureOutboundShippingCompanyRateLinksTable();
+    await ensureOutboundShippingCatalogDefaultsTable();
 
     schemaReady = true;
     return true;
@@ -334,5 +335,17 @@ export async function ensureOutboundShippingCompanyRateLinksTable(): Promise<voi
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "outbound_shipping_company_rate_links_user_idx"
     ON "outbound_shipping_company_rate_links" ("clerk_user_id")
+  `);
+}
+
+export async function ensureOutboundShippingCatalogDefaultsTable(): Promise<void> {
+  const db = getDb();
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "outbound_shipping_catalog_defaults" (
+      "singleton_key" text PRIMARY KEY DEFAULT 'default' NOT NULL,
+      "charge_bundle" text,
+      "company_rate_kinds" text,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
   `);
 }

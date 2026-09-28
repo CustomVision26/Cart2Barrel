@@ -1071,6 +1071,56 @@ export async function seedDefaultOutboundChargesForUser(
     return;
   }
 
+  const { getOutboundShippingCatalogDefaults } = await import(
+    "@/data/outbound-shipping-catalog-defaults"
+  );
+  const catalogDefaults = await getOutboundShippingCatalogDefaults().catch(
+    () => ({ chargeBundle: [] as BarrelOutboundShippingChargeKind[], companyRateKinds: [] }),
+  );
+  if (catalogDefaults.chargeBundle.length >= 2) {
+    const serialized = serializeOutboundChargeBundle(catalogDefaults.chargeBundle);
+    const unset = await db
+      .select({
+        id: barrels.id,
+        outboundChargeBundle: barrels.outboundChargeBundle,
+      })
+      .from(barrels)
+      .where(
+        and(
+          eq(barrels.clerkUserId, clerkUserId),
+          notInArray(barrels.status, ["shipped", "delivered"]),
+        ),
+      );
+    for (const row of unset) {
+      if (parseOutboundChargeBundle(row.outboundChargeBundle).length >= 2) {
+        continue;
+      }
+      await db
+        .update(barrels)
+        .set({ outboundChargeBundle: serialized })
+        .where(eq(barrels.id, row.id));
+      for (const kind of catalogDefaults.chargeBundle) {
+        const source = await getPrimaryOutboundShippingPartner(null, kind);
+        if (!source?.name.trim()) continue;
+        await addOutboundShippingPartner({
+          barrelId: row.id,
+          chargeKind: kind,
+          name: source.name,
+          location: source.location,
+          address: source.address,
+          country: source.country,
+          phone: source.phone,
+          cashappId: source.cashappId,
+          cashappAccount: source.cashappAccount,
+          zelleId: source.zelleId,
+          zelleAccount: source.zelleAccount,
+          imageUrl: source.imageUrl,
+          isPrimary: true,
+        });
+      }
+    }
+  }
+
   const barrelIds = activeBarrels.map((row) => row.id);
   const existingFreight = await db
     .select({ barrelId: barrelOutboundShippingCharges.barrelId })
@@ -1390,6 +1440,19 @@ export async function setOutboundChargeBundleForBarrel(input: {
   kinds: BarrelOutboundShippingChargeKind[];
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   await ensureBarrelOutboundShippingChargesSchema();
+  if (isAdminShippingCatalogPreviewBarrelId(input.barrelId)) {
+    const { setCatalogChargeBundle } = await import(
+      "@/data/outbound-shipping-catalog-defaults"
+    );
+    await setCatalogChargeBundle(input.kinds);
+    const bundle = parseOutboundChargeBundle(
+      serializeOutboundChargeBundle(input.kinds),
+    );
+    if (bundle.length >= 2) {
+      await syncBundlePartnersFromHost(null, bundle);
+    }
+    return { ok: true };
+  }
   const db = getDb();
   const [barrel] = await db
     .select({
@@ -1451,6 +1514,10 @@ export async function setOutboundCompanyRateKindsForBarrel(input: {
     .limit(1);
   if (!barrel) {
     if (isAdminShippingCatalogPreviewBarrelId(input.barrelId)) {
+      const { setCatalogCompanyRateKinds } = await import(
+        "@/data/outbound-shipping-catalog-defaults"
+      );
+      await setCatalogCompanyRateKinds(input.kinds);
       return { ok: true };
     }
     return { ok: false, message: "Container not found." };

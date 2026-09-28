@@ -892,4 +892,6 @@ export type AdminShipmentChargePageData = {
   customerGroups: AdminShipmentCustomerGroup[];
   catalogPartners: OutboundShippingPartnerRecord[];
   companyRates: OutboundShippingCompanyRateRow[];
+  catalogChargeBundle: BarrelOutboundShippingChargeKind[];
+  catalogCompanyRateKinds: BarrelOutboundShippingChargeKind[];
 };

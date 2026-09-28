@@ -279,12 +279,15 @@ export async function setBarrelOutboundChargeBundleAction(
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
   const kinds = parsed.data.kinds;
+  const catalogOnly = isAdminShippingCatalogPreviewBarrelId(parsed.data.barrelId);
   if (kinds.length < 2) {
     return { ok: true, message: "Charges are billed on separate tabs again." };
   }
   return {
     ok: true,
-    message: `Consolidated ${outboundChargeBundleLabel(kinds)} as one company quote. Other containers for this customer reuse the same merger.`,
+    message: catalogOnly
+      ? `Consolidated ${outboundChargeBundleLabel(kinds)} as one company quote. New customer containers will reuse this merger.`
+      : `Consolidated ${outboundChargeBundleLabel(kinds)} as one company quote. Other containers for this customer reuse the same merger.`,
   };
 }
 

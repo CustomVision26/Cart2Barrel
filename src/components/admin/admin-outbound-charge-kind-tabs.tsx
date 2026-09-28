@@ -1387,6 +1387,7 @@ function AdminChargeBundleControls({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const catalogPreview = isAdminShippingCatalogPreview(row);
   const saved = row.chargeBundle ?? [];
   const [selected, setSelected] = useState<BarrelOutboundShippingChargeKind[]>(
     saved,
@@ -1428,8 +1429,10 @@ function AdminChargeBundleControls({
       </p>
       <p className="text-[11px] leading-snug text-muted-foreground">
         Select two or all three. Freight and broker share one company form and
-        one clearance PDF section. New containers for this customer reuse the
-        same merger.
+        one clearance PDF section.
+        {catalogPreview
+          ? " This merger is saved for all future customer containers."
+          : " New containers for this customer reuse the same merger."}
       </p>
       <div className="flex flex-wrap gap-3">
         {BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.map((kind) => (

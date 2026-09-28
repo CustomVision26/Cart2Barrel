@@ -2133,6 +2133,19 @@ export const outboundShippingCompanyRates = pgTable(
   ],
 );
 
+/** Default freight/broker/courier merger when no customer container exists yet. */
+export const outboundShippingCatalogDefaults = pgTable(
+  "outbound_shipping_catalog_defaults",
+  {
+    singletonKey: text("singleton_key").primaryKey().default("default"),
+    chargeBundle: text("charge_bundle"),
+    companyRateKinds: text("company_rate_kinds"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+);
+
 /**
  * Unpaid containers billed together on one company rate card
  * (first at the 1-container rate, each extra at the extra-container rate).
@@ -3379,6 +3392,9 @@ export type OutboundShippingCompanyRate =
   typeof outboundShippingCompanyRates.$inferSelect;
 export type NewOutboundShippingCompanyRate =
   typeof outboundShippingCompanyRates.$inferInsert;
+
+export type OutboundShippingCatalogDefault =
+  typeof outboundShippingCatalogDefaults.$inferSelect;
 
 export type BarrelOutboundShipmentTracking =
   typeof barrelOutboundShipmentTracking.$inferSelect;
