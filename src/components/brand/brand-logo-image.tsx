@@ -1,6 +1,5 @@
 import Image from "next/image";
 
-import { BRAND_LOGO_ALT, getBrandLogoSrc } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 type BrandLogoImageProps = {
@@ -24,8 +23,8 @@ export function BrandLogoImage({
       )}
     >
       <Image
-        src={getBrandLogoSrc()}
-        alt={isHeader ? BRAND_LOGO_ALT : ""}
+        src="/amani-cart2barrel-logo.png"
+        alt={isHeader ? "Amani Cart2Barrel logo" : ""}
         width={isHeader ? 220 : 672}
         height={isHeader ? 64 : 672}
         priority={priority}

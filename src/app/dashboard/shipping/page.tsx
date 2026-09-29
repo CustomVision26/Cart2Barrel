@@ -36,7 +36,8 @@ export default async function DashboardShippingPage() {
           When you add a container, freight, customs clearance, and pickup
           charges appear below. Continue to the{" "}
           <span className="font-medium text-foreground">Pricing</span> tab for
-          itemized amounts. Tracking updates appear after freight is paid.
+          itemized amounts. After freight is paid, this tab shows the
+          container&apos;s current shipment stage.
         </p>
       </header>
 

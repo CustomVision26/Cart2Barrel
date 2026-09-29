@@ -347,6 +347,7 @@ export function canSwitchOffPlatformPaymentToTransfer(
 
 export type BarrelOutboundShippingChargeView = {
   chargeId: string;
+  barrelId?: string;
   chargeKind: BarrelOutboundShippingChargeKind;
   partnerName: string | null;
   partnerLocation: string | null;
@@ -379,6 +380,25 @@ export type BarrelOutboundShippingChargeView = {
   linkedContainers: { barrelId: string; alias: string }[];
   refundRequest: OutboundShippingRefundRequestView | null;
 };
+
+/** Card that shows Add to cart / pay for a linked group; others only reference it. */
+export function jointChargePayHost(
+  linked: readonly { barrelId: string; alias: string }[] | null | undefined,
+  preferBarrelIds?: readonly string[] | null,
+): { barrelId: string; alias: string } | null {
+  if (!linked || linked.length < 2) return null;
+  const prefer = new Set(
+    (preferBarrelIds ?? []).filter((id) => id.trim().length > 0),
+  );
+  const preferred =
+    prefer.size > 0 ? linked.filter((item) => prefer.has(item.barrelId)) : [];
+  const pool = preferred.length > 0 ? preferred : linked;
+  return (
+    [...pool].sort((a, b) =>
+      a.alias.localeCompare(b.alias, undefined, { numeric: true }),
+    )[0] ?? null
+  );
+}
 
 export function isBarrelOutboundShippingChargeKind(
   value: string | null | undefined,
@@ -525,6 +545,18 @@ export function isOutboundChargeKindAbsorbed(
 ): boolean {
   const host = outboundChargeBundleHost(bundle);
   return Boolean(host && bundle.includes(kind) && kind !== host);
+}
+
+/** Freight links also cover absorbed broker/courier so the bundled rate table applies. */
+export function customerCompanyLinkKinds(input: {
+  kind: BarrelOutboundShippingChargeKind;
+  bundle: readonly BarrelOutboundShippingChargeKind[];
+}): BarrelOutboundShippingChargeKind[] {
+  if (input.kind !== "freight") return [input.kind];
+  const extra = input.bundle.filter((kind) =>
+    isOutboundChargeKindAbsorbed(kind, input.bundle),
+  );
+  return ["freight", ...extra];
 }
 
 export function normalizePlaceName(value: string): string {

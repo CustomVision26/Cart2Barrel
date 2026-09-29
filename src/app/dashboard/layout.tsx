@@ -48,15 +48,14 @@ export default async function DashboardLayout({
             </Suspense>
           : <DashboardNavFallback variant="mobile" />}
 
-          <Suspense fallback={null}>
+          <Suspense fallback={<div className="mb-6 h-0" />}>
             <SpecialFeaturePromoBanner className="mb-6" />
           </Suspense>
 
-          {/* Page content streams independently of header/nav/badge queries */}
           {children}
         </div>
       </div>
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="h-0" />}>
         <SiteContactFooter />
       </Suspense>
     </div>

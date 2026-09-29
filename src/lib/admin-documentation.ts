@@ -483,7 +483,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Outbound barrel freight, customs charges, shipment tracking, and shipped-container history.",
       location: "Sidebar → Shipments; history at /admin/shipments-history.",
       bullets: [
-        "Create and manage outbound shipment charges.",
+        "Create and manage outbound shipment charges and 1-container vs extra-container rate tables. Customers link unpaid containers on Dashboard → Shipping.",
         "Publish a company to How it works → Pricing overview from the company record.",
         "Customs and freight billing to customer cart.",
         "Carrier tracking for international delivery.",
@@ -504,8 +504,8 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Open Shipments from the Fulfillment sidebar.",
-        "Review containers ready for outbound processing.",
-        "Create or update shipment charges so customers can pay via their cart Pricing tab.",
+        "Review containers. Paid freight moves that container out of Ready for shipping into the current shipment stage (the same record the customer sees on Dashboard → Shipping).",
+        "Create or update shipment charges and the 1-container vs extra-container rate tables so customers can pay via Dashboard → Shipping. Customers link unpaid containers there; do not link containers from the company Charge dialog.",
         "On a freight, broker, or courier company record, use Publish to How it works to show that company under Pricing overview (contact details, Ad image, and the 1-container vs extra-container rate table).",
         "Record carrier tracking and customs intake details as required.",
         "Open the Shipping History tab for containers that already left. Search, sort, and paginate the table; use the header customer filter to scope one shopper. Double-click a row or Open to see freight, broker, courier, receipts, and customs documents.",

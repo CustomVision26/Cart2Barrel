@@ -15,14 +15,16 @@ import { cn } from "@/lib/utils";
 type UnpaidContainerLinkPanelProps = {
   sourceBarrelId: string;
   companyName: string;
-  kind: "broker" | "courier";
+  kind: "freight" | "broker" | "courier";
   containers: AdminRateLinkableContainer[];
   linkedBarrelIds: string[];
   disabled?: boolean;
 };
 
-function kindLabel(kind: "broker" | "courier"): string {
-  return kind === "broker" ? "broker" : "local courier";
+function kindLabel(kind: "freight" | "broker" | "courier"): string {
+  if (kind === "freight") return "freight company";
+  if (kind === "broker") return "broker";
+  return "local courier";
 }
 
 export function UnpaidContainerLinkPanel({
@@ -99,7 +101,8 @@ export function UnpaidContainerLinkPanel({
       <p className="text-[11px] leading-snug text-muted-foreground">
         Check other unpaid containers on this account to share this company
         rate. The first uses the 1-container rate; each extra adds the
-        extra-container rate. One payment covers every linked container.
+        extra-container rate. Each container keeps its own card. One payment
+        covers every linked container.
       </p>
       <ul className="space-y-1.5">
         {eligible.map((container) => {

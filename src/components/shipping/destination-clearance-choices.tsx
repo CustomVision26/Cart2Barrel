@@ -35,6 +35,9 @@ type DestinationClearanceChoicesProps = {
   /** Intake-only: unpaid barrels the customer can attach to a standalone broker/courier. */
   sourceBarrelId?: string;
   unpaidContainers?: AdminRateLinkableContainer[];
+  preferPayHostBarrelIds?: readonly string[];
+  /** When set, unpaid-container linking stays enabled even if choices are locked. */
+  linkDisabled?: boolean;
 };
 
 function ChoiceCard({
@@ -111,7 +114,10 @@ export function DestinationClearanceChoices({
   charges = [],
   sourceBarrelId,
   unpaidContainers = [],
+  preferPayHostBarrelIds,
+  linkDisabled,
 }: DestinationClearanceChoicesProps) {
+  const linksLocked = linkDisabled ?? disabled;
   const country = destinationCountry?.trim() || null;
   const presentation = destinationClearancePresentation(charges, country);
   const {
@@ -229,6 +235,7 @@ export function DestinationClearanceChoices({
                 kinds={["broker"]}
                 showHeading={false}
                 includePaid
+                preferPayHostBarrelIds={preferPayHostBarrelIds}
                 selection={{
                   name: `${namePrefix}-broker`,
                   selected: value.brokerKey === PUBLISHED_BROKER_KEY,
@@ -256,7 +263,7 @@ export function DestinationClearanceChoices({
                   kind="broker"
                   containers={unpaidContainers}
                   linkedBarrelIds={publishedBrokerLinkedIds}
-                  disabled={disabled}
+                  disabled={linksLocked}
                 />
               : null}
             </>
@@ -309,6 +316,7 @@ export function DestinationClearanceChoices({
                 kinds={["courier"]}
                 showHeading={false}
                 includePaid
+                preferPayHostBarrelIds={preferPayHostBarrelIds}
                 selection={{
                   name: `${namePrefix}-courier`,
                   selected: value.courierKey === PUBLISHED_COURIER_KEY,
@@ -335,7 +343,7 @@ export function DestinationClearanceChoices({
                   kind="courier"
                   containers={unpaidContainers}
                   linkedBarrelIds={publishedCourierLinkedIds}
-                  disabled={disabled}
+                  disabled={linksLocked}
                 />
               : null}
             </>

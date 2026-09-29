@@ -9,7 +9,7 @@ export default function AdminBarrelsLayout({
 }) {
   return (
     <div className="space-y-6">
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="h-10" />}>
         <AdminBarrelsTabNav />
       </Suspense>
       {children}

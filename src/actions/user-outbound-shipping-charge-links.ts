@@ -6,7 +6,10 @@ import { revalidatePath } from "next/cache";
 import { getBarrelForShippingIntake } from "@/data/barrel-shipping-intake";
 import { getOutboundShippingChargesByBarrelIds } from "@/data/barrel-outbound-shipping-charges";
 import { setOutboundShippingCompanyRateLinks } from "@/data/outbound-shipping-company-rate-links";
-import { isOutboundChargeKindAbsorbed } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  customerCompanyLinkKinds,
+  isOutboundChargeKindAbsorbed,
+} from "@/lib/barrel-outbound-shipping-charge";
 import {
   setCustomerOutboundChargeLinksSchema,
   type SetCustomerOutboundChargeLinksInput,
@@ -70,7 +73,10 @@ export async function setCustomerOutboundChargeLinksAction(
   const result = await setOutboundShippingCompanyRateLinks({
     sourceBarrelId: parsed.data.sourceBarrelId,
     companyName,
-    kinds: [parsed.data.kind],
+    kinds: customerCompanyLinkKinds({
+      kind: parsed.data.kind,
+      bundle,
+    }),
     linkedBarrelIds: parsed.data.linkedBarrelIds,
   });
   if (!result.ok) return result;

@@ -1,4 +1,8 @@
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  isOutboundChargeKindAbsorbed,
+  type BarrelOutboundShippingChargeKind,
+} from "@/lib/barrel-outbound-shipping-charge";
 import type {
   BarrelShippingIntakeContainerRow,
   BarrelShippingIntakeSubmittedRow,
@@ -12,6 +16,15 @@ export type LinkedShippingContainerGroup = {
     BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow
   >;
   chargeHost: BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow;
+};
+
+export type GroupShippingContainersOptions = {
+  /**
+   * Tracking intake: a container unlinked from a standalone broker or courier
+   * gets its own card even if freight still covers the same barrels. Linked
+   * courier (or broker) on the same company keeps those barrels on one card.
+   */
+  splitUnlinkedStandalone?: boolean;
 };
 
 export function isShippingIntakeSubmittedRow(
@@ -45,36 +58,80 @@ function pickChargeHost(
   preferAwaiting: boolean,
 ): BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow {
   const ranked = [...members].sort((a, b) => {
+    if (preferAwaiting) {
+      const aSubmitted = isShippingIntakeSubmittedRow(a) ? 1 : 0;
+      const bSubmitted = isShippingIntakeSubmittedRow(b) ? 1 : 0;
+      if (aSubmitted !== bSubmitted) return aSubmitted - bSubmitted;
+    }
     const scoreDelta =
       chargeLinkScore(b.outboundCharges) - chargeLinkScore(a.outboundCharges);
     if (scoreDelta !== 0) return scoreDelta;
-    if (preferAwaiting) {
-      const aAwaiting = isShippingIntakeSubmittedRow(a) ? 1 : 0;
-      const bAwaiting = isShippingIntakeSubmittedRow(b) ? 1 : 0;
-      if (aAwaiting !== bAwaiting) return aAwaiting - bAwaiting;
-    }
     return a.alias.localeCompare(b.alias);
   });
   return ranked[0] ?? members[0];
 }
 
-function linkedIdsFromCharges(
-  charges: readonly BarrelOutboundShippingChargeView[],
+function linkedIdsFromCharge(
+  selfId: string,
+  charge: Pick<BarrelOutboundShippingChargeView, "linkedContainers">,
 ): string[] {
-  const ids = new Set<string>();
-  for (const charge of charges) {
-    for (const item of charge.linkedContainers ?? []) {
-      if (item.barrelId) ids.add(item.barrelId);
-    }
+  const ids = new Set<string>([selfId]);
+  for (const item of charge.linkedContainers ?? []) {
+    if (item.barrelId) ids.add(item.barrelId);
   }
   return [...ids];
+}
+
+const STANDALONE_KINDS = ["broker", "courier"] as const;
+
+function standaloneKindsOnRow(
+  row: BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow,
+): BarrelOutboundShippingChargeKind[] {
+  const bundle = row.outboundCharges[0]?.chargeBundle ?? [];
+  return STANDALONE_KINDS.filter(
+    (kind) =>
+      row.outboundCharges.some((charge) => charge.chargeKind === kind) &&
+      !isOutboundChargeKindAbsorbed(kind, bundle),
+  );
+}
+
+function chargeKindIsAbsorbedOnRow(
+  row: BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow,
+  kind: BarrelOutboundShippingChargeKind,
+): boolean {
+  const bundle = row.outboundCharges[0]?.chargeBundle ?? [];
+  return isOutboundChargeKindAbsorbed(kind, bundle);
+}
+
+function canUnionLinkedBarrels(
+  a: BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow,
+  b: BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow,
+  chargeKind: BarrelOutboundShippingChargeKind,
+  splitUnlinkedStandalone: boolean,
+): boolean {
+  if (!splitUnlinkedStandalone) return true;
+  const standaloneKinds = new Set([
+    ...standaloneKindsOnRow(a),
+    ...standaloneKindsOnRow(b),
+  ]);
+  if (standaloneKinds.size === 0) return true;
+  if (
+    chargeKind === "freight" ||
+    chargeKindIsAbsorbedOnRow(a, chargeKind) ||
+    chargeKindIsAbsorbedOnRow(b, chargeKind)
+  ) {
+    return false;
+  }
+  return standaloneKinds.has(chargeKind);
 }
 
 /** Group barrels that share freight, freight+broker, freight+courier, or standalone broker/courier rate links. */
 export function groupShippingContainersByRateLinks(
   awaiting: readonly BarrelShippingIntakeContainerRow[],
   submitted: readonly BarrelShippingIntakeSubmittedRow[],
+  options?: GroupShippingContainersOptions,
 ): LinkedShippingContainerGroup[] {
+  const splitUnlinkedStandalone = Boolean(options?.splitUnlinkedStandalone);
   const byId = new Map<
     string,
     BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow
@@ -105,9 +162,23 @@ export function groupShippingContainersByRateLinks(
   }
 
   for (const row of byId.values()) {
-    const linked = linkedIdsFromCharges(row.outboundCharges);
-    for (const id of linked) {
-      union(row.barrelId, id);
+    for (const charge of row.outboundCharges) {
+      for (const id of linkedIdsFromCharge(row.barrelId, charge)) {
+        if (id === row.barrelId) continue;
+        const other = byId.get(id);
+        if (!other) continue;
+        if (
+          !canUnionLinkedBarrels(
+            row,
+            other,
+            charge.chargeKind,
+            splitUnlinkedStandalone,
+          )
+        ) {
+          continue;
+        }
+        union(row.barrelId, id);
+      }
     }
   }
 
@@ -135,10 +206,7 @@ export function groupShippingContainersByRateLinks(
         awaiting: awaitingMembers,
         submitted: submittedMembers,
         members,
-        chargeHost: pickChargeHost(
-          members,
-          awaitingMembers.length > 0 && submittedMembers.length === 0,
-        ),
+        chargeHost: pickChargeHost(members, awaitingMembers.length > 0),
       };
     })
     .sort((a, b) =>

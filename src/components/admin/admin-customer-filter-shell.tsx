@@ -17,9 +17,7 @@ export function AdminCustomerFilterShell({
 }) {
   return (
     <AdminCustomerFilterProvider users={users}>
-      <Suspense fallback={null}>
-        <AdminCustomerFilterBanner />
-      </Suspense>
+      <AdminCustomerFilterBanner />
       {children}
     </AdminCustomerFilterProvider>
   );

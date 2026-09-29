@@ -21,6 +21,7 @@ import {
 import {
   canCancelShippingIntake,
   containerFullnessLabel,
+  shippingIntakeHasPaidOutbound,
   type BarrelShippingIntakeSubmittedRow,
 } from "@/lib/barrel-shipping-intake";
 import {
@@ -56,9 +57,11 @@ export function BarrelShippingIntakeSubmittedCard({
   const groupLabel = linkedShippingGroupLabel(group);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [expanded, setExpanded] = useState(false);
   const unpaid = unpaidPublishedChargesForIntake(row.outboundCharges, row);
   const paid = paidOutboundCharges(row.outboundCharges);
+  const [expanded, setExpanded] = useState(() =>
+    shippingIntakeHasPaidOutbound(row),
+  );
   const trackingCharge = paid[0] ?? row.outboundCharges[0] ?? null;
   const destinationLines =
     shippingAddress ? formatShippingDestinationLines(shippingAddress) : [];

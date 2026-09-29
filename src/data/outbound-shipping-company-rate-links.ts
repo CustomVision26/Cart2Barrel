@@ -213,7 +213,7 @@ export async function expandChargeIdsWithCompanyRateLinks(input: {
   return [...extraIds];
 }
 
-async function applyCompanyRateCardToLinkedBarrels(input: {
+export async function applyCompanyRateCardToLinkedBarrels(input: {
   sourceBarrelId: string;
   clerkUserId: string;
   kinds: BarrelOutboundShippingChargeKind[];
@@ -273,7 +273,10 @@ async function applyCompanyRateCardToLinkedBarrels(input: {
       }
 
       const [existingCharge] = await db
-        .select({ id: barrelOutboundShippingCharges.id })
+        .select({
+          id: barrelOutboundShippingCharges.id,
+          partnerName: barrelOutboundShippingCharges.partnerName,
+        })
         .from(barrelOutboundShippingCharges)
         .where(
           and(
@@ -327,6 +330,25 @@ async function applyCompanyRateCardToLinkedBarrels(input: {
             })),
           );
         }
+      } else if (
+        existingCharge &&
+        partner?.name.trim() &&
+        !existingCharge.partnerName?.trim()
+      ) {
+        await db
+          .update(barrelOutboundShippingCharges)
+          .set({
+            partnerName: partner.name,
+            partnerLocation: partner.location,
+            partnerAddress: partner.address,
+            partnerCountry: partner.country,
+            partnerPhone: partner.phone,
+            partnerCashappId: partner.cashappId,
+            partnerCashappAccount: partner.cashappAccount,
+            partnerZelleId: partner.zelleId,
+            partnerZelleAccount: partner.zelleAccount,
+          })
+          .where(eq(barrelOutboundShippingCharges.id, existingCharge.id));
       }
 
       const [destBarrel] = await db
@@ -494,6 +516,11 @@ export async function setOutboundShippingCompanyRateLinks(input: {
 
   try {
     for (const kind of kinds) {
+      const previousIds = await linkedUnpaidBarrelIdsForCompanyKind({
+        clerkUserId: source.clerkUserId,
+        companyKey,
+        chargeKind: kind,
+      });
       await db
         .delete(outboundShippingCompanyRateLinks)
         .where(
@@ -503,22 +530,23 @@ export async function setOutboundShippingCompanyRateLinks(input: {
             eq(outboundShippingCompanyRateLinks.chargeKind, kind),
           ),
         );
-      if (uniqueLinked.length < 2) continue;
-      await db.insert(outboundShippingCompanyRateLinks).values(
-        uniqueLinked.map((barrelId) => ({
-          clerkUserId: source.clerkUserId,
-          companyKey,
-          chargeKind: kind,
-          barrelId,
-        })),
-      );
-    }
-    if (uniqueLinked.length >= 2) {
+      if (uniqueLinked.length >= 2) {
+        await db.insert(outboundShippingCompanyRateLinks).values(
+          uniqueLinked.map((barrelId) => ({
+            clerkUserId: source.clerkUserId,
+            companyKey,
+            chargeKind: kind,
+            barrelId,
+          })),
+        );
+      }
       await applyCompanyRateCardToLinkedBarrels({
         sourceBarrelId: source.id,
         clerkUserId: source.clerkUserId,
-        kinds,
-        linkedBarrelIds: uniqueLinked,
+        kinds: [kind],
+        linkedBarrelIds: [
+          ...new Set([source.id, ...uniqueLinked, ...previousIds]),
+        ],
       });
     }
   } catch (e) {
@@ -529,6 +557,61 @@ export async function setOutboundShippingCompanyRateLinks(input: {
   }
 
   return { ok: true };
+}
+
+/** Copy a published standalone broker/courier onto freight-linked siblings so each card matches. */
+export async function ensureStandaloneChargesForFreightLinkedBarrels(
+  clerkUserId: string,
+  barrelIds: string[],
+): Promise<void> {
+  if (barrelIds.length < 2) return;
+  await ensureOutboundShippingCompanyRateLinksTable();
+  const db = getDb();
+  const charges = await db
+    .select({
+      barrelId: barrelOutboundShippingCharges.barrelId,
+      chargeKind: barrelOutboundShippingCharges.chargeKind,
+      partnerName: barrelOutboundShippingCharges.partnerName,
+    })
+    .from(barrelOutboundShippingCharges)
+    .where(
+      and(
+        eq(barrelOutboundShippingCharges.clerkUserId, clerkUserId),
+        inArray(barrelOutboundShippingCharges.barrelId, barrelIds),
+      ),
+    );
+
+  const freightGroups = new Map<string, string[]>();
+  for (const row of charges) {
+    if (row.chargeKind !== "freight") continue;
+    const key = outboundShippingCompanyKey(row.partnerName ?? "");
+    if (!key) continue;
+    const list = freightGroups.get(key) ?? [];
+    list.push(row.barrelId);
+    freightGroups.set(key, list);
+  }
+
+  for (const groupIds of freightGroups.values()) {
+    const uniqueIds = [...new Set(groupIds)];
+    if (uniqueIds.length < 2) continue;
+    for (const kind of ["broker", "courier"] as const) {
+      const sourceId = uniqueIds.find((id) =>
+        charges.some(
+          (row) =>
+            row.barrelId === id &&
+            row.chargeKind === kind &&
+            Boolean(row.partnerName?.trim()),
+        ),
+      );
+      if (!sourceId) continue;
+      await applyCompanyRateCardToLinkedBarrels({
+        sourceBarrelId: sourceId,
+        clerkUserId,
+        kinds: [kind],
+        linkedBarrelIds: uniqueIds,
+      });
+    }
+  }
 }
 
 export async function companyKeysByBarrelKind(input: {

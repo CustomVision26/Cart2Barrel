@@ -216,7 +216,7 @@ export type SetOutboundShippingCompanyRateLinksInput = z.infer<
 
 export const setCustomerOutboundChargeLinksSchema = z.object({
   sourceBarrelId: z.string().uuid("Invalid container."),
-  kind: z.enum(["broker", "courier"]),
+  kind: z.enum(["freight", "broker", "courier"]),
   linkedBarrelIds: z.array(z.string().uuid("Invalid container.")).max(20),
 });
 

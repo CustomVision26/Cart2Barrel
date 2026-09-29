@@ -865,9 +865,28 @@ function AdminChargeKindForm({
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
             <div className="space-y-1">
-              <Label htmlFor={`${row.barrelId}-${chargeKind}-transport-amount`}>
-                Transportation fee
-              </Label>
+              <ChargeLabelWithCompanyPricing
+                htmlFor={`${row.barrelId}-${chargeKind}-transport-amount`}
+                label="Transportation fee"
+                showRateCardToggle={false}
+                companyName={primaryPartnerNameForKind(
+                  row.partners,
+                  row.barrelId,
+                  chargeKind,
+                )}
+                tableKinds={[
+                  outboundShippingRateTableKindForChargeKind(chargeKind),
+                ]}
+                rates={row.companyRates ?? []}
+                barrelId={row.barrelId}
+                kindsToToggle={[chargeKind]}
+                enabledKinds={row.companyRateKinds ?? []}
+                linkableContainers={row.rateLinkableContainers ?? []}
+                companyRateLinks={row.companyRateLinks ?? []}
+                containerKind={row.kind}
+                destinationParish={row.destinationParish}
+                destinationCityOrTown={row.destinationCityOrTown}
+              />
               <p
                 className={cn(
                   inputFieldClassName,
@@ -1208,9 +1227,26 @@ function AdminMergedBundleForm({
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
             <div className="space-y-1">
-              <Label htmlFor={`${row.barrelId}-bundle-transport-amount`}>
-                Transportation fee
-              </Label>
+              <ChargeLabelWithCompanyPricing
+                htmlFor={`${row.barrelId}-bundle-transport-amount`}
+                label="Transportation fee"
+                showRateCardToggle={false}
+                companyName={primaryPartnerNameForKind(
+                  row.partners,
+                  row.barrelId,
+                  host,
+                )}
+                tableKinds={outboundShippingRateTableKindsForTabs(bundledKinds)}
+                rates={row.companyRates ?? []}
+                barrelId={row.barrelId}
+                kindsToToggle={bundledKinds}
+                enabledKinds={row.companyRateKinds ?? []}
+                linkableContainers={row.rateLinkableContainers ?? []}
+                companyRateLinks={row.companyRateLinks ?? []}
+                containerKind={row.kind}
+                destinationParish={row.destinationParish}
+                destinationCityOrTown={row.destinationCityOrTown}
+              />
               <p
                 className={cn(
                   inputFieldClassName,

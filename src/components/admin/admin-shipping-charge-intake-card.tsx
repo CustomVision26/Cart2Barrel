@@ -21,6 +21,7 @@ import {
 } from "@/lib/barrel-outbound-shipping-charge";
 import { formatUsd } from "@/lib/admin-markup";
 import { containerFullnessLabel } from "@/lib/barrel-shipping-intake";
+import { BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS } from "@/lib/barrel-shipment-tracking";
 
 type AdminShippingChargeIntakeCardProps = {
   row: AdminBarrelOutboundShippingChargeRow;
@@ -39,17 +40,25 @@ export function AdminShippingChargeIntakeCard({
   const pendingReviewCount = row.charges.filter(
     isOffPlatformPaymentPendingReview,
   ).length;
-  const [expanded, setExpanded] = useState(pendingReviewCount > 0);
-  const [customsOpen, setCustomsOpen] = useState(false);
   const paidCharges = paidOutboundCharges(row.charges);
-  const allPaid = paidCharges.length > 0 && paidCharges.length === row.charges.length;
+  const billableCharges = row.charges.filter((c) => c.totalCents > 0);
+  const allPaid =
+    billableCharges.length > 0 && billableCharges.every((c) => Boolean(c.paidAt));
+  const [expanded, setExpanded] = useState(
+    pendingReviewCount > 0 || paidCharges.length > 0,
+  );
+  const [customsOpen, setCustomsOpen] = useState(paidCharges.length > 0);
   const publishedSummary = row.charges
     .filter((c) => c.totalCents > 0)
-    .map(
-      (c) =>
-        `${BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[c.chargeKind]} ${formatUsd(c.totalCents)}`,
-    )
+    .map((c) => {
+      const label = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[c.chargeKind];
+      if (c.paidAt) return `Paid ${label.toLowerCase()}`;
+      return `${label} ${formatUsd(c.totalCents)}`;
+    })
     .join(" · ");
+  const trackingLabel = row.shipmentTracking
+    ? BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS[row.shipmentTracking.trackingStage]
+    : null;
 
   const statusDetail =
     !row.readyForShipping ?
@@ -77,6 +86,14 @@ export function AdminShippingChargeIntakeCard({
             {allPaid ?
               <p className="text-xs text-emerald-600 dark:text-emerald-400">
                 Paid outbound charges
+                {trackingLabel ? ` · ${trackingLabel}` : ""}
+              </p>
+            : paidCharges.length > 0 ?
+              <p className="text-xs tabular-nums text-muted-foreground">
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  {publishedSummary}
+                </span>
+                {trackingLabel ? ` · ${trackingLabel}` : ""}
               </p>
             : row.charges.some(isOffPlatformPaymentPendingReview) ?
               <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
@@ -99,6 +116,14 @@ export function AdminShippingChargeIntakeCard({
               />
             </p>
           </div>
+          {row.alias ?
+            <p
+              className="shrink-0 self-center rounded-md bg-muted px-2.5 py-1 text-xs font-semibold tabular-nums tracking-tight text-foreground"
+              title={`Container ${row.alias}`}
+            >
+              {row.alias}
+            </p>
+          : null}
           <div className="flex shrink-0 items-center gap-1">
           <AdminOutboundShippingRefundLineButton
             barrelId={row.barrelId}

@@ -13,7 +13,10 @@ import { OutboundPaymentReceiptDialog } from "@/components/shipping/outbound-pay
 import { OutboundShippingRefundButton } from "@/components/shipping/outbound-shipping-refund-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatUsd } from "@/lib/admin-markup";
-import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  jointChargePayHost,
+  type BarrelOutboundShippingChargeView,
+} from "@/lib/barrel-outbound-shipping-charge";
 import {
   isOffPlatformOutboundChargeKind,
   outboundChargeKindDisplayLabel,
@@ -54,6 +57,7 @@ export function BarrelPublishedOutboundCharges({
   selection,
   declineBrokerIntakeId,
   declineCourierIntakeId,
+  preferPayHostBarrelIds,
 }: {
   charges: BarrelOutboundShippingChargeView[];
   kinds?: BarrelOutboundShippingChargeView["chargeKind"][];
@@ -68,6 +72,7 @@ export function BarrelPublishedOutboundCharges({
   };
   declineBrokerIntakeId?: string;
   declineCourierIntakeId?: string;
+  preferPayHostBarrelIds?: readonly string[];
 }) {
   const kindMatch = (charge: BarrelOutboundShippingChargeView) =>
     kinds ? kinds.includes(charge.chargeKind) : true;
@@ -98,6 +103,7 @@ export function BarrelPublishedOutboundCharges({
             selection={selection}
             declineBrokerIntakeId={declineBrokerIntakeId}
             declineCourierIntakeId={declineCourierIntakeId}
+            preferPayHostBarrelIds={preferPayHostBarrelIds}
           />
         ))}
       </ul>
@@ -111,6 +117,7 @@ function PublishedChargeRow({
   selection,
   declineBrokerIntakeId,
   declineCourierIntakeId,
+  preferPayHostBarrelIds,
 }: {
   charge: BarrelOutboundShippingChargeView;
   onAdded?: (charge: BarrelOutboundShippingChargeView) => void;
@@ -122,6 +129,7 @@ function PublishedChargeRow({
   };
   declineBrokerIntakeId?: string;
   declineCourierIntakeId?: string;
+  preferPayHostBarrelIds?: readonly string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -129,8 +137,16 @@ function PublishedChargeRow({
   const title = charge.partnerName?.trim() || charge.lines[0]?.label || kindLabel;
   const paid = Boolean(charge.paidAt);
   const offPlatform = isOffPlatformOutboundChargeKind(charge.chargeKind);
-  const showCartAction = !paid && !offPlatform && !selection;
-  const showPaymentForm = !paid && offPlatform && !selection;
+  const payHost = jointChargePayHost(
+    charge.linkedContainers,
+    preferPayHostBarrelIds,
+  );
+  const isJointPayHost = !payHost || payHost.barrelId === charge.barrelId;
+  const linkedAliases = (charge.linkedContainers ?? [])
+    .map((item) => item.alias)
+    .join(" + ");
+  const showCartAction = !paid && !offPlatform && !selection && isJointPayHost;
+  const showPaymentForm = !paid && offPlatform && !selection && isJointPayHost;
 
   function addToCart() {
     startTransition(async () => {
@@ -189,16 +205,23 @@ function PublishedChargeRow({
         </div>
       : null}
       {charge.linkedContainers && charge.linkedContainers.length > 1 ?
-        <p className="mt-1 text-xs text-muted-foreground">
-          Covers{" "}
-          {charge.linkedContainers.map((item) => item.alias).join(" + ")}{" "}
-          · first at the 1-container rate, extras at the extra rate · one
-          payment marks all paid
+        isJointPayHost ?
+          <p className="mt-1 text-xs text-muted-foreground">
+            Covers {linkedAliases} · first at the 1-container rate, extras at
+            the extra rate · one payment marks all paid
+          </p>
+        : (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Joint charge of {formatUsd(charge.totalCents)} is on {payHost?.alias ?? "the linked container"}.
+            Add to cart from that card — one payment covers {linkedAliases}.
+          </p>
+        )
+      : null}
+      {isJointPayHost ?
+        <p className="text-sm font-semibold tabular-nums text-foreground">
+          {formatUsd(charge.totalCents)}
         </p>
       : null}
-      <p className="text-sm font-semibold tabular-nums text-foreground">
-        {formatUsd(charge.totalCents)}
-      </p>
       {showPaymentForm ?
         <OutboundOffPlatformPaymentForm
           charge={charge}

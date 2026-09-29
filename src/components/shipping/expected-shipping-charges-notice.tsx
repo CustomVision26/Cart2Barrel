@@ -5,9 +5,13 @@ import type { ReactNode } from "react";
 import { BarrelPublishedOutboundCharges } from "@/components/shipping/barrel-published-outbound-charges";
 import { CustomsClearancePolicyLink } from "@/components/shipping/customs-clearance-policy-link";
 import { OutboundShippingAddedChargesPanel } from "@/components/shipping/outbound-shipping-added-charges-panel";
+import { UnpaidContainerLinkPanel } from "@/components/shipping/unpaid-container-link-panel";
 import { CollapsibleFieldSection } from "@/components/ui/collapsible-field-section";
 import { applyOutboundChargeBundleForCustomer } from "@/lib/barrel-outbound-shipping-charge";
-import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
+import type {
+  AdminRateLinkableContainer,
+  BarrelOutboundShippingChargeView,
+} from "@/lib/barrel-outbound-shipping-charge";
 import { EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS } from "@/lib/outbound-shipping-expected-charges";
 
 type ExpectedShippingChargesNoticeProps = {
@@ -19,6 +23,9 @@ type ExpectedShippingChargesNoticeProps = {
   customsContent?: ReactNode;
   /** Published freight / broker / courier charges for this container. */
   charges?: BarrelOutboundShippingChargeView[];
+  sourceBarrelId?: string;
+  unpaidContainers?: AdminRateLinkableContainer[];
+  preferPayHostBarrelIds?: readonly string[];
 };
 
 export function ExpectedShippingChargesNotice({
@@ -27,6 +34,9 @@ export function ExpectedShippingChargesNotice({
   defaultOpen = true,
   customsContent,
   charges,
+  sourceBarrelId,
+  unpaidContainers = [],
+  preferPayHostBarrelIds,
 }: ExpectedShippingChargesNoticeProps) {
   const freightItem = EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS.find(
     (item) => item.id === "freight",
@@ -37,6 +47,10 @@ export function ExpectedShippingChargesNotice({
   const visibleCharges = applyOutboundChargeBundleForCustomer(charges ?? []);
   const freightCharges = visibleCharges.filter(
     (charge) => charge.chargeKind === "freight",
+  );
+  const unpaidFreightName = freightCharges[0]?.partnerName?.trim() ?? "";
+  const freightLinkedIds = (freightCharges[0]?.linkedContainers ?? []).map(
+    (item) => item.barrelId,
   );
   const showSummary = charges != null;
 
@@ -63,12 +77,27 @@ export function ExpectedShippingChargesNotice({
             release this container. Typical charges include:
           </p>
           {freightCharges.length > 0 ?
-            <BarrelPublishedOutboundCharges
-              charges={freightCharges}
-              kinds={["freight"]}
-              showHeading={false}
-              includePaid
-            />
+            <>
+              <BarrelPublishedOutboundCharges
+                charges={freightCharges}
+                kinds={["freight"]}
+                showHeading={false}
+                includePaid
+                preferPayHostBarrelIds={preferPayHostBarrelIds}
+              />
+              {sourceBarrelId &&
+              unpaidFreightName &&
+              !freightCharges[0]?.paidAt ?
+                <UnpaidContainerLinkPanel
+                  sourceBarrelId={sourceBarrelId}
+                  companyName={unpaidFreightName}
+                  kind="freight"
+                  containers={unpaidContainers}
+                  linkedBarrelIds={freightLinkedIds}
+                  disabled={Boolean(freightCharges[0]?.inCart)}
+                />
+              : null}
+            </>
           : freightItem ?
             <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
               <li>

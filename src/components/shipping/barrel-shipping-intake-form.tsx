@@ -4,7 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
-import { submitBarrelShippingIntakeAction } from "@/actions/barrel-shipping-intake";
+import {
+  cancelBarrelShippingIntakeAction,
+  submitBarrelShippingIntakeAction,
+} from "@/actions/barrel-shipping-intake";
 import {
   DestinationClearanceChoices,
   isDestinationClearanceChoiceComplete,
@@ -42,7 +45,10 @@ import {
   type AdminRateLinkableContainer,
   unpaidPublishedChargesForDestination,
 } from "@/lib/barrel-outbound-shipping-charge";
-import { linkedShippingGroupLabel } from "@/lib/shipping-container-groups";
+import {
+  isShippingIntakeSubmittedRow,
+  linkedShippingGroupLabel,
+} from "@/lib/shipping-container-groups";
 import {
   findDestinationBroker,
   findDestinationCourier,
@@ -52,12 +58,15 @@ import {
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 
 type BarrelShippingIntakeFormProps = {
-  container: BarrelShippingIntakeContainerRow;
+  container: BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow;
   shippingAddress: Address | undefined;
   unpaidContainers?: AdminRateLinkableContainer[];
   groupMembers?: Array<
     BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow
   >;
+  preferPayHostBarrelIds?: readonly string[];
+  /** Confirmed unpaid containers — Cancel can reach freight-linked siblings after cards split. */
+  cancelableSubmitted?: BarrelShippingIntakeSubmittedRow[];
 };
 
 function SummaryRow({
@@ -77,20 +86,64 @@ function SummaryRow({
   );
 }
 
+function linkedSubmittedToCancel(
+  container: BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow,
+  members: Array<
+    BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow
+  >,
+  cancelableSubmitted: readonly BarrelShippingIntakeSubmittedRow[],
+): BarrelShippingIntakeSubmittedRow[] {
+  const barrelIds = new Set(members.map((row) => row.barrelId));
+  barrelIds.add(container.barrelId);
+  for (const charge of container.outboundCharges) {
+    for (const item of charge.linkedContainers ?? []) {
+      if (item.barrelId) barrelIds.add(item.barrelId);
+    }
+  }
+  const found: BarrelShippingIntakeSubmittedRow[] = [];
+  const seen = new Set<string>();
+  function add(row: BarrelShippingIntakeSubmittedRow) {
+    if (seen.has(row.intakeId)) return;
+    seen.add(row.intakeId);
+    found.push(row);
+  }
+  for (const row of members) {
+    if (isShippingIntakeSubmittedRow(row)) add(row);
+  }
+  for (const row of cancelableSubmitted) {
+    if (barrelIds.has(row.barrelId)) add(row);
+  }
+  return found;
+}
+
 export function BarrelShippingIntakeForm({
   container,
   shippingAddress,
   unpaidContainers = [],
   groupMembers,
+  preferPayHostBarrelIds,
+  cancelableSubmitted = [],
 }: BarrelShippingIntakeFormProps) {
   const members =
     groupMembers && groupMembers.length > 0 ? groupMembers : [container];
   const groupLabel = linkedShippingGroupLabel(members);
   const itemCount = members.reduce((sum, row) => sum + row.itemCount, 0);
+  const awaitingMembers = members.filter(
+    (row) => !isShippingIntakeSubmittedRow(row),
+  );
+  const hasUnpaidAwaiting = awaitingMembers.length > 0;
+  const alreadyConfirmed = !hasUnpaidAwaiting;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [choice, setChoice] = useState<DestinationClearanceChoiceValue>(() => {
+    if (isShippingIntakeSubmittedRow(container) && !hasUnpaidAwaiting) {
+      return {
+        deliveryMethod: container.deliveryMethod,
+        brokerKey: container.selectedBrokerKey,
+        courierKey: container.selectedCourierKey,
+      };
+    }
     const presentation = destinationClearancePresentation(
       container.outboundCharges,
       shippingAddress?.country?.trim() || null,
@@ -98,7 +151,10 @@ export function BarrelShippingIntakeForm({
     return {
       deliveryMethod: presentation.brokerAbsorbed ? "broker_delivery" : null,
       brokerKey: presentation.brokerAbsorbed ? PUBLISHED_BROKER_KEY : null,
-      courierKey: presentation.courierAbsorbed ? PUBLISHED_COURIER_KEY : null,
+      courierKey:
+        presentation.courierAbsorbed || presentation.publishedCouriers.length > 0
+          ? PUBLISHED_COURIER_KEY
+          : null,
     };
   });
   const destinationCountry = shippingAddress?.country?.trim() || null;
@@ -150,7 +206,7 @@ export function BarrelShippingIntakeForm({
     startTransition(async () => {
       const res = await submitBarrelShippingIntakeAction({
         barrelId: container.barrelId,
-        alsoConfirmBarrelIds: members
+        alsoConfirmBarrelIds: awaitingMembers
           .map((row) => row.barrelId)
           .filter((id) => id !== container.barrelId),
         deliveryMethod,
@@ -174,6 +230,32 @@ export function BarrelShippingIntakeForm({
         return;
       }
 
+      toast.error(res.message);
+    });
+  }
+
+  function cancelSubmit() {
+    const [first, ...rest] = linkedSubmittedToCancel(
+      container,
+      members,
+      cancelableSubmitted,
+    );
+    if (!first) {
+      toast.error(
+        "No confirmation to cancel. Continue to pricing first if this container is still open.",
+      );
+      return;
+    }
+    startTransition(async () => {
+      const res = await cancelBarrelShippingIntakeAction({
+        intakeId: first.intakeId,
+        alsoIntakeIds: rest.map((row) => row.intakeId),
+      });
+      if (res.ok) {
+        toast.success(res.message);
+        router.refresh();
+        return;
+      }
       toast.error(res.message);
     });
   }
@@ -204,16 +286,21 @@ export function BarrelShippingIntakeForm({
           destinationCountry={destinationCountry}
           defaultOpen
           charges={container.outboundCharges}
+          sourceBarrelId={container.barrelId}
+          unpaidContainers={unpaidContainers}
+          preferPayHostBarrelIds={preferPayHostBarrelIds}
           customsContent={
             <DestinationClearanceChoices
               destinationCountry={destinationCountry}
               namePrefix={container.barrelId}
               value={choice}
               onChange={setChoice}
-              disabled={pending}
+              disabled={pending || alreadyConfirmed}
+              linkDisabled={pending}
               charges={container.outboundCharges}
               sourceBarrelId={container.barrelId}
               unpaidContainers={unpaidContainers}
+              preferPayHostBarrelIds={preferPayHostBarrelIds}
             />
           }
         />
@@ -224,11 +311,26 @@ export function BarrelShippingIntakeForm({
           to add published freight and related charges.
         </p>
       </CardContent>
-      <CardFooter className="border-t border-border/60 pt-6">
+      <CardFooter className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-6">
         <Button
           type="button"
-          disabled={pending || !choiceComplete}
-          onClick={() => setConfirmOpen(true)}
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          onClick={cancelSubmit}
+        >
+          {pending ? "Cancelling…" : "Cancel confirmation"}
+        </Button>
+        <Button
+          type="button"
+          disabled={pending || (hasUnpaidAwaiting && !choiceComplete)}
+          onClick={() => {
+            if (hasUnpaidAwaiting) {
+              setConfirmOpen(true);
+              return;
+            }
+            router.push(DASHBOARD_SHIPPING_ROUTES.pricing);
+          }}
         >
           Continue to pricing
         </Button>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Poppins } from "next/font/google";
 
 import { PageLogoWatermark } from "@/components/brand/page-logo-watermark";
@@ -44,7 +45,9 @@ export default function RootLayout({
       >
         <AppProviders>
           <PageLogoWatermark />
-          <SiteTrafficTracker />
+          <Suspense fallback={<div className="h-0" />}>
+            <SiteTrafficTracker />
+          </Suspense>
           <div className="relative z-[1] flex min-h-full flex-1 flex-col">
             {children}
           </div>

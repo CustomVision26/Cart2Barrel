@@ -18,10 +18,8 @@ import {
 } from "@/data/ensure-order-container-packaging-fee-schema";
 import {
   getOutboundShippingChargesByBarrelIds,
-  seedDefaultOutboundChargesForUser,
 } from "@/data/barrel-outbound-shipping-charges";
 import {
-  backfillOutboundShippingPartnersFromCharges,
   listOutboundShippingPartnerCatalog,
   listOutboundShippingPartnersByBarrelIds,
   mergePartnersWithCatalog,
@@ -355,19 +353,6 @@ async function loadAdminShipmentChargePageData(
   }
 
   const ownerIds = [...new Set(sourceRows.map((r) => r.barrel.clerkUserId))];
-  await Promise.all(
-    ownerIds.map(async (ownerId) => {
-      try {
-        await seedDefaultOutboundChargesForUser(ownerId);
-      } catch (e) {
-        console.error(
-          "[listAdminShipmentChargePageData] seed default freight",
-          ownerId,
-          e,
-        );
-      }
-    }),
-  );
 
   const offeringIds = [
     ...new Set(
@@ -413,16 +398,6 @@ async function loadAdminShipmentChargePageData(
     }
   }
 
-  try {
-    await backfillOutboundShippingPartnersFromCharges(barrelIds);
-  } catch (e) {
-    console.error("[loadAdminShipmentChargePageData] backfill partners", e);
-  }
-  try {
-    await seedKingdomKleanerzCourierZones();
-  } catch (e) {
-    console.error("[loadAdminShipmentChargePageData] seed courier zones", e);
-  }
   const [partnersByBarrel, partnerCatalog, companyRates, catalogDefaults] =
     await Promise.all([
     listOutboundShippingPartnersByBarrelIds(barrelIds).catch((e) => {

@@ -9,10 +9,26 @@ import type { AdminStaffProfilesByClerkUserId } from "@/lib/admin-staff-profiles
 import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import type { AdminShipmentCustomerGroup } from "@/lib/barrel-outbound-shipping-charge";
 import type { AdminBarrelOutboundShippingChargeRow } from "@/lib/barrel-outbound-shipping-charge";
+import { paidOutboundCharges } from "@/lib/barrel-outbound-shipping-charge";
+import {
+  BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS,
+  BARREL_OUTBOUND_SHIPMENT_STAGES,
+  type BarrelOutboundShipmentStage,
+} from "@/lib/barrel-shipment-tracking";
 import { cn } from "@/lib/utils";
 
 const NOT_READY_LOCK_MESSAGE =
   "Container is still being packed. Publish charges after it is full and the customer confirms shipping on Dashboard → Shipping.";
+
+function rowHasPaidOutbound(row: AdminBarrelOutboundShippingChargeRow): boolean {
+  return paidOutboundCharges(row.charges).length > 0;
+}
+
+function rowTrackingStage(
+  row: AdminBarrelOutboundShippingChargeRow,
+): BarrelOutboundShipmentStage {
+  return row.shipmentTracking?.trackingStage ?? "awaiting_customs_clearance";
+}
 
 function containerMatchesQuery(
   row: AdminBarrelOutboundShippingChargeRow,
@@ -71,6 +87,21 @@ function CustomerShipmentSection({
   const visible = filtered.slice(0, linePageSize);
   const readyVisible = visible.filter((v) => v.ready);
   const notReadyVisible = visible.filter((v) => !v.ready);
+  const paidReady = readyVisible.filter(({ row }) => rowHasPaidOutbound(row));
+  const unpaidReady = readyVisible.filter(({ row }) => !rowHasPaidOutbound(row));
+  const paidByStage = new Map<
+    BarrelOutboundShipmentStage,
+    typeof paidReady
+  >();
+  for (const item of paidReady) {
+    const stage = rowTrackingStage(item.row);
+    const list = paidByStage.get(stage) ?? [];
+    list.push(item);
+    paidByStage.set(stage, list);
+  }
+  const paidStages = BARREL_OUTBOUND_SHIPMENT_STAGES.filter((stage) =>
+    paidByStage.has(stage),
+  );
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-background">
@@ -131,13 +162,38 @@ function CustomerShipmentSection({
             </p>
           ) : null}
 
-          {readyVisible.length > 0 ? (
+          {paidStages.map((stage) => {
+            const stageRows = paidByStage.get(stage) ?? [];
+            return (
+              <div key={stage} className="space-y-3">
+                <h3 className="text-sm font-medium text-foreground">
+                  {BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS[stage]} ({stageRows.length})
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Freight is paid. This is the same shipment record the customer
+                  sees on Dashboard → Shipping.
+                </p>
+                <div className="grid gap-3">
+                  {stageRows.map(({ row }) => (
+                    <AdminShippingChargeIntakeCard
+                      key={row.barrelId}
+                      row={row}
+                      publishEnabled={false}
+                      staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {unpaidReady.length > 0 ? (
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-foreground">
-                Ready for shipping ({readyVisible.length})
+                Ready for shipping ({unpaidReady.length})
               </h3>
               <div className="grid gap-3">
-                {readyVisible.map(({ row }) => (
+                {unpaidReady.map(({ row }) => (
                   <AdminShippingChargeIntakeCard
                     key={row.barrelId}
                     row={row}

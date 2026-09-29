@@ -1,8 +1,14 @@
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
+import { paidOutboundCharges } from "@/lib/barrel-outbound-shipping-charge";
 import type { BarrelContentItem } from "@/lib/barrel-contents";
 import type { BarrelShippingDeliveryMethod } from "@/lib/validations/barrel-shipping-intake";
 import type { BarrelStatus } from "@/lib/barrel-container-types";
 import type { ContainerOfferingKind } from "@/lib/validations/container-offering";
+import {
+  BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS,
+  BARREL_OUTBOUND_SHIPMENT_STAGES,
+  type BarrelOutboundShipmentStage,
+} from "@/lib/barrel-shipment-tracking";
 
 export type BarrelShippingIntakeContainerRow = {
   barrelId: string;
@@ -94,4 +100,38 @@ export function barrelShippingDeliveryMethodShortLabel(
       return _x;
     }
   }
+}
+
+/** True after at least one outbound charge on this container has been paid. */
+export function shippingIntakeHasPaidOutbound(
+  row: Pick<BarrelShippingIntakeContainerRow, "outboundCharges">,
+): boolean {
+  return paidOutboundCharges(row.outboundCharges).length > 0;
+}
+
+export function shippingIntakeTrackingStage(
+  row: Pick<BarrelShippingIntakeContainerRow, "outboundCharges">,
+): BarrelOutboundShipmentStage {
+  const paid = paidOutboundCharges(row.outboundCharges);
+  const tracking =
+    paid[0]?.shipmentTracking ??
+    row.outboundCharges[0]?.shipmentTracking ??
+    null;
+  return tracking?.trackingStage ?? "awaiting_customs_clearance";
+}
+
+export function shippingIntakeTrackingStageLabel(
+  row: Pick<BarrelShippingIntakeContainerRow, "outboundCharges">,
+): string {
+  return BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS[shippingIntakeTrackingStage(row)];
+}
+
+export function compareShippingIntakeTrackingStage(
+  a: BarrelOutboundShipmentStage,
+  b: BarrelOutboundShipmentStage,
+): number {
+  return (
+    BARREL_OUTBOUND_SHIPMENT_STAGES.indexOf(a) -
+    BARREL_OUTBOUND_SHIPMENT_STAGES.indexOf(b)
+  );
 }

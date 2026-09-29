@@ -330,6 +330,7 @@ async function loadChargeViewsForBarrelIds(
     const list = byBarrel.get(charge.barrelId) ?? [];
     list.push({
       chargeId: charge.id,
+      barrelId: charge.barrelId,
       chargeKind,
       partnerName: charge.partnerName,
       partnerLocation: charge.partnerLocation,

@@ -16,7 +16,6 @@ function ClerkWithTheme({ children }: { children: ReactNode }) {
   const proxyUrl = clerkFrontendApiProxyUrl();
   return (
     <ClerkProvider
-      dynamic
       appearance={clerkBaseAppearance}
       signInUrl={CLERK_SIGN_IN_PATH}
       signUpUrl={CLERK_SIGN_UP_PATH}

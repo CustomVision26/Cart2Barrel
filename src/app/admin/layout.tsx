@@ -1,7 +1,5 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
-import { AdminLayoutFallback } from "@/app/admin/_components/admin-layout-fallback";
 import { AdminLayoutWithData } from "@/app/admin/_components/admin-layout-with-data";
 import { getClerkSessionGate } from "@/lib/clerk-session";
 
@@ -26,8 +24,6 @@ export default async function AdminLayout({
   }
 
   return (
-    <Suspense fallback={<AdminLayoutFallback>{children}</AdminLayoutFallback>}>
-      <AdminLayoutWithData userId={gate.userId}>{children}</AdminLayoutWithData>
-    </Suspense>
+    <AdminLayoutWithData userId={gate.userId}>{children}</AdminLayoutWithData>
   );
 }

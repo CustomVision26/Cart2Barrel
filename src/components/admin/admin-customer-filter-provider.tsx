@@ -4,10 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useState,
   type ReactNode,
 } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import type { AdminProfilePickerRow } from "@/data/customer-pricing-packages";
 import {
@@ -25,6 +27,42 @@ type AdminCustomerFilterContextValue = {
 const AdminCustomerFilterContext =
   createContext<AdminCustomerFilterContextValue | null>(null);
 
+function hrefWithOptionalFilter(
+  targetPath: string,
+  extraParams?: Record<string, string>,
+  clerkUserId?: string,
+): string {
+  const hashIdx = targetPath.indexOf("#");
+  const base = hashIdx >= 0 ? targetPath.slice(0, hashIdx) : targetPath;
+  const hash = hashIdx >= 0 ? targetPath.slice(hashIdx) : "";
+  const qIdx = base.indexOf("?");
+  const pathOnly = qIdx >= 0 ? base.slice(0, qIdx) : base;
+  const params = new URLSearchParams(qIdx >= 0 ? base.slice(qIdx + 1) : "");
+  if (extraParams) {
+    for (const [key, value] of Object.entries(extraParams)) {
+      if (value) params.set(key, value);
+    }
+  }
+  const qs = params.toString();
+  return withAdminCustomerFilter(
+    `${pathOnly}${qs ? `?${qs}` : ""}${hash}`,
+    clerkUserId,
+  );
+}
+
+/**
+ * Page-level client components are SSR'd as part of the page payload, not
+ * nested inside the layout provider. A throw there aborts the Suspense
+ * boundary and Next switches the page to client rendering.
+ */
+const MISSING_FILTER_CONTEXT: AdminCustomerFilterContextValue = {
+  clerkUserId: undefined,
+  selectedUser: undefined,
+  setCustomer: () => {},
+  hrefWithFilter: (targetPath, extraParams) =>
+    hrefWithOptionalFilter(targetPath, extraParams),
+};
+
 export function AdminCustomerFilterProvider({
   users,
   children,
@@ -33,13 +71,20 @@ export function AdminCustomerFilterProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const pathname = usePathname() ?? "/admin";
-  const searchParams = useSearchParams();
+  const [clerkUserId, setClerkUserId] = useState<string | undefined>(undefined);
 
-  const clerkUserId = useMemo(() => {
-    const raw = searchParams?.get(ADMIN_CUSTOMER_FILTER_PARAM)?.trim();
-    return raw && raw.length > 0 ? raw : undefined;
-  }, [searchParams]);
+  useEffect(() => {
+    const read = () => {
+      const raw =
+        new URLSearchParams(window.location.search)
+          .get(ADMIN_CUSTOMER_FILTER_PARAM)
+          ?.trim() || undefined;
+      setClerkUserId((prev) => (prev === raw ? prev : raw));
+    };
+    read();
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
 
   const selectedUser = useMemo(
     () => users.find((u) => u.clerkUserId === clerkUserId),
@@ -48,41 +93,25 @@ export function AdminCustomerFilterProvider({
 
   const setCustomer = useCallback(
     (nextId: string | null) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? "");
-      if (nextId) {
-        params.set(ADMIN_CUSTOMER_FILTER_PARAM, nextId);
+      const next = nextId?.trim() || undefined;
+      setClerkUserId((prev) => (prev === next ? prev : next));
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      if (next) {
+        url.searchParams.set(ADMIN_CUSTOMER_FILTER_PARAM, next);
       } else {
-        params.delete(ADMIN_CUSTOMER_FILTER_PARAM);
+        url.searchParams.delete(ADMIN_CUSTOMER_FILTER_PARAM);
       }
-      params.delete("page");
-      const qs = params.toString();
-      router.push(qs ? `${pathname}?${qs}` : pathname);
+      url.searchParams.delete("page");
+      const qs = url.searchParams.toString();
+      router.push(`${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`);
     },
-    [pathname, router, searchParams],
+    [router],
   );
 
   const hrefWithFilter = useCallback(
-    (targetPath: string, extraParams?: Record<string, string>) => {
-      const hashIdx = targetPath.indexOf("#");
-      const base = hashIdx >= 0 ? targetPath.slice(0, hashIdx) : targetPath;
-      const qIdx = base.indexOf("?");
-      const pathOnly = qIdx >= 0 ? base.slice(0, qIdx) : base;
-      const params = new URLSearchParams(
-        qIdx >= 0 ? base.slice(qIdx + 1) : "",
-      );
-      if (extraParams) {
-        for (const [key, value] of Object.entries(extraParams)) {
-          if (value) {
-            params.set(key, value);
-          }
-        }
-      }
-      if (clerkUserId) {
-        params.set(ADMIN_CUSTOMER_FILTER_PARAM, clerkUserId);
-      }
-      const qs = params.toString();
-      return qs ? `${pathOnly}?${qs}` : pathOnly;
-    },
+    (targetPath: string, extraParams?: Record<string, string>) =>
+      hrefWithOptionalFilter(targetPath, extraParams, clerkUserId),
     [clerkUserId],
   );
 
@@ -104,13 +133,7 @@ export function AdminCustomerFilterProvider({
 }
 
 export function useAdminCustomerFilter(): AdminCustomerFilterContextValue {
-  const ctx = useContext(AdminCustomerFilterContext);
-  if (!ctx) {
-    throw new Error(
-      "useAdminCustomerFilter must be used within AdminCustomerFilterProvider",
-    );
-  }
-  return ctx;
+  return useContext(AdminCustomerFilterContext) ?? MISSING_FILTER_CONTEXT;
 }
 
 /** Safe variant for components that may render outside the provider. */
