@@ -158,6 +158,17 @@ export async function submitBarrelShippingIntakeAction(
     };
   }
 
+  const hostCharges = await getOutboundShippingChargesByBarrelIds(userId, [
+    barrelId,
+  ]);
+  const courierLinkedIds = new Set<string>([barrelId]);
+  const hostCourier = (hostCharges.get(barrelId) ?? []).find(
+    (charge) => charge.chargeKind === "courier",
+  );
+  for (const item of hostCourier?.linkedContainers ?? []) {
+    if (item.barrelId) courierLinkedIds.add(item.barrelId);
+  }
+
   const toInsert: {
     barrelId: string;
     deliveryMethod: "customs_pickup" | "broker_delivery";
@@ -203,7 +214,9 @@ export async function submitBarrelShippingIntakeAction(
       barrelId: id,
       deliveryMethod: resolved.deliveryMethod,
       selectedBrokerKey: resolved.selectedBrokerKey,
-      selectedCourierKey: resolved.selectedCourierKey,
+      selectedCourierKey: courierLinkedIds.has(id)
+        ? resolved.selectedCourierKey
+        : null,
     });
   }
 

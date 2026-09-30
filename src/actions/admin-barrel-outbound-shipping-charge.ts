@@ -252,7 +252,13 @@ export async function approveOutboundOffPlatformPaymentAction(
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
-  return { ok: true, message: "Payment approved." };
+  return {
+    ok: true,
+    message:
+      result.approvedCount > 1
+        ? `Payment approved for ${result.approvedCount} linked containers.`
+        : "Payment approved.",
+  };
 }
 
 export async function setBarrelOutboundChargeBundleAction(

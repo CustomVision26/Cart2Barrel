@@ -11,6 +11,8 @@ import {
   type DestinationClearanceChoiceValue,
 } from "@/components/shipping/destination-clearance-choices";
 import { destinationClearancePresentation } from "@/lib/barrel-outbound-shipping-charge";
+import type { AdminRateLinkableContainer } from "@/lib/barrel-outbound-shipping-charge";
+import { isBeforePickedUpShipmentStage } from "@/lib/barrel-shipment-tracking";
 import {
   PUBLISHED_BROKER_KEY,
   PUBLISHED_COURIER_KEY,
@@ -20,9 +22,11 @@ import type { BarrelShippingIntakeSubmittedRow } from "@/lib/barrel-shipping-int
 export function PaidContainerClearanceChoices({
   row,
   destinationCountry,
+  unpaidContainers = [],
 }: {
   row: BarrelShippingIntakeSubmittedRow;
   destinationCountry?: string | null;
+  unpaidContainers?: AdminRateLinkableContainer[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -48,6 +52,10 @@ export function PaidContainerClearanceChoices({
     row.outboundCharges,
     destinationCountry,
   );
+  const courierPaid = row.outboundCharges.some(
+    (charge) => charge.chargeKind === "courier" && Boolean(charge.paidAt),
+  );
+  const showCourierChoice = presentation.showCourierUi && !courierPaid;
 
   function persist(next: DestinationClearanceChoiceValue) {
     setChoice(next);
@@ -85,7 +93,7 @@ export function PaidContainerClearanceChoices({
     });
   }
 
-  if (!presentation.showBrokerUi && !presentation.showCourierUi) {
+  if (!presentation.showBrokerUi && !showCourierChoice) {
     return null;
   }
 
@@ -98,7 +106,7 @@ export function PaidContainerClearanceChoices({
         {presentation.showBrokerUi
           ? "Freight is paid. You can still choose to clear customs yourself or use a selected broker."
           : "Freight is paid. Destination customs is included with freight."}
-        {presentation.showCourierUi
+        {presentation.showCourierUi && !courierPaid
           ? " You can still choose a published courier or provide your own transportation."
           : ""}
       </p>
@@ -109,6 +117,13 @@ export function PaidContainerClearanceChoices({
         onChange={persist}
         disabled={pending}
         charges={row.outboundCharges}
+        sourceBarrelId={row.barrelId}
+        unpaidContainers={unpaidContainers}
+        hideCourierUi={!showCourierChoice}
+        showThirdPartyAddedStatus={isBeforePickedUpShipmentStage(
+          row.outboundCharges.find((charge) => charge.shipmentTracking)
+            ?.shipmentTracking?.trackingStage,
+        )}
       />
     </div>
   );

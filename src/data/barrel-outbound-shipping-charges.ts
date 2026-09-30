@@ -38,6 +38,7 @@ import {
   destinationCourierZoneHints,
   isAdminShippingCatalogPreviewBarrelId,
   isBarrelOutboundShippingChargeKind,
+  inheritLinkedOffPlatformPayment,
   isOffPlatformOutboundChargeKind,
   isOffPlatformPaymentMethod,
   isOutboundChargeKindAbsorbed,
@@ -49,6 +50,7 @@ import {
   serializeOutboundChargeBundle,
   serializeOutboundCompanyRateKinds,
   sumChargeLineCents,
+  toIsoTimestamp,
   type BarrelOutboundShippingChargeKind,
 } from "@/lib/barrel-outbound-shipping-charge";
 import { listOutboundShippingCompanyRates } from "@/data/outbound-shipping-company-rates";
@@ -351,7 +353,7 @@ async function loadChargeViewsForBarrelIds(
       totalCents: sumChargeLineCents(lines),
       adminNote: charge.adminNote,
       inCart: chargeKind === "freight" && linkedFreightInCart,
-      paidAt: charge.paidAt,
+      paidAt: toIsoTimestamp(charge.paidAt),
       paymentReferenceNumber: charge.paymentReferenceNumber,
       paidOrderId: charge.paidOrderId,
       offPlatformPaymentMethod: isOffPlatformPaymentMethod(
@@ -361,7 +363,7 @@ async function loadChargeViewsForBarrelIds(
         : null,
       offPlatformPayerName: charge.offPlatformPayerName,
       offPlatformReceiptUrl: charge.offPlatformReceiptUrl,
-      offPlatformSubmittedAt: charge.offPlatformSubmittedAt,
+      offPlatformSubmittedAt: toIsoTimestamp(charge.offPlatformSubmittedAt),
       shipmentTracking: trackingByBarrel.get(charge.barrelId) ?? null,
       updatedByClerkUserId: charge.recordedByClerkUserId,
       chargeBundle: bundle,
@@ -386,6 +388,7 @@ async function loadChargeViewsForBarrelIds(
       );
     }
   }
+  inheritLinkedOffPlatformPayment(byBarrel);
   return byBarrel;
 }
 
@@ -1006,7 +1009,9 @@ export async function recordOutboundOffPlatformPayment(input: {
 
 export async function approveOutboundOffPlatformPayment(
   chargeId: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<
+  { ok: true; approvedCount: number } | { ok: false; message: string }
+> {
   await ensureBarrelOutboundShippingChargesSchema();
   const db = getDb();
   const [charge] = await db
@@ -1026,7 +1031,7 @@ export async function approveOutboundOffPlatformPayment(
   if (charge.paidAt) {
     return { ok: false, message: "This charge is already approved as paid." };
   }
-  if (!charge.offPlatformSubmittedAt) {
+  if (!charge.offPlatformSubmittedAt && !charge.offPlatformReceiptUrl) {
     return {
       ok: false,
       message: "The customer has not submitted a payment for this charge yet.",
@@ -1039,11 +1044,20 @@ export async function approveOutboundOffPlatformPayment(
     clerkUserId: charge.clerkUserId,
     chargeIds: [charge.id],
   });
+  let approvedCount = 0;
   for (const id of expandedIds) {
     const [sibling] = await db
       .select({
         id: barrelOutboundShippingCharges.id,
         paidAt: barrelOutboundShippingCharges.paidAt,
+        offPlatformSubmittedAt:
+          barrelOutboundShippingCharges.offPlatformSubmittedAt,
+        offPlatformPaymentMethod:
+          barrelOutboundShippingCharges.offPlatformPaymentMethod,
+        offPlatformPayerName:
+          barrelOutboundShippingCharges.offPlatformPayerName,
+        offPlatformReceiptUrl:
+          barrelOutboundShippingCharges.offPlatformReceiptUrl,
       })
       .from(barrelOutboundShippingCharges)
       .where(eq(barrelOutboundShippingCharges.id, id))
@@ -1057,12 +1071,23 @@ export async function approveOutboundOffPlatformPayment(
           sibling.id === charge.id
             ? paymentReferenceNumber
             : await generateOutboundShippingPaymentReference(),
+        offPlatformPaymentMethod:
+          sibling.offPlatformPaymentMethod ?? charge.offPlatformPaymentMethod,
+        offPlatformPayerName:
+          sibling.offPlatformPayerName ?? charge.offPlatformPayerName,
+        offPlatformReceiptUrl:
+          sibling.offPlatformReceiptUrl ?? charge.offPlatformReceiptUrl,
+        offPlatformSubmittedAt:
+          sibling.offPlatformSubmittedAt ??
+          charge.offPlatformSubmittedAt ??
+          now,
         updatedAt: now,
       })
       .where(eq(barrelOutboundShippingCharges.id, sibling.id));
+    approvedCount += 1;
   }
 
-  return { ok: true };
+  return { ok: true, approvedCount };
 }
 
 /**
@@ -1150,29 +1175,207 @@ export async function seedDefaultOutboundChargesForUser(
     );
   const alreadyHasFreight = new Set(existingFreight.map((row) => row.barrelId));
   const missing = activeBarrels.filter((row) => !alreadyHasFreight.has(row.id));
+  if (missing.length > 0) {
+    const template = await findDefaultFreightChargeTemplate(clerkUserId);
+    if (template) {
+      for (const barrel of missing) {
+        try {
+          await copyFreightChargeTemplateToBarrel({
+            destBarrelId: barrel.id,
+            destClerkUserId: clerkUserId,
+            template,
+          });
+        } catch (e) {
+          console.error(
+            "[seedDefaultOutboundChargesForUser] copy freight",
+            barrel.id,
+            e,
+          );
+        }
+      }
+    }
+  }
+
+  await seedMissingCourierChargesForUser(clerkUserId);
+}
+
+async function seedMissingCourierChargesForUser(
+  clerkUserId: string,
+): Promise<void> {
+  const db = getDb();
+  const activeBarrels = await db
+    .select({
+      id: barrels.id,
+      outboundCompanyRateKinds: barrels.outboundCompanyRateKinds,
+    })
+    .from(barrels)
+    .where(
+      and(
+        eq(barrels.clerkUserId, clerkUserId),
+        notInArray(barrels.status, ["shipped", "delivered"]),
+      ),
+    );
+  if (activeBarrels.length === 0) {
+    return;
+  }
+
+  const barrelIds = activeBarrels.map((row) => row.id);
+  const existingCourier = await db
+    .select({ barrelId: barrelOutboundShippingCharges.barrelId })
+    .from(barrelOutboundShippingCharges)
+    .where(
+      and(
+        inArray(barrelOutboundShippingCharges.barrelId, barrelIds),
+        eq(barrelOutboundShippingCharges.chargeKind, "courier"),
+      ),
+    );
+  const alreadyHasCourier = new Set(existingCourier.map((row) => row.barrelId));
+  const missing = activeBarrels.filter((row) => !alreadyHasCourier.has(row.id));
   if (missing.length === 0) {
     return;
   }
 
-  const template = await findDefaultFreightChargeTemplate(clerkUserId);
+  const template = await findKindChargeTemplate(clerkUserId, "courier");
   if (!template) {
     return;
   }
 
   for (const barrel of missing) {
     try {
-      await copyFreightChargeTemplateToBarrel({
+      await copyCourierChargeTemplateToBarrel({
         destBarrelId: barrel.id,
         destClerkUserId: clerkUserId,
+        destCompanyRateKinds: parseOutboundCompanyRateKinds(
+          barrel.outboundCompanyRateKinds,
+        ),
         template,
       });
     } catch (e) {
       console.error(
-        "[seedDefaultOutboundChargesForUser] copy freight",
+        "[seedDefaultOutboundChargesForUser] copy courier",
         barrel.id,
         e,
       );
     }
+  }
+}
+
+async function findKindChargeTemplate(
+  clerkUserId: string,
+  kind: BarrelOutboundShippingChargeKind,
+): Promise<FreightChargeTemplate | null> {
+  const db = getDb();
+  const own = await db
+    .select()
+    .from(barrelOutboundShippingCharges)
+    .where(
+      and(
+        eq(barrelOutboundShippingCharges.clerkUserId, clerkUserId),
+        eq(barrelOutboundShippingCharges.chargeKind, kind),
+      ),
+    )
+    .orderBy(desc(barrelOutboundShippingCharges.updatedAt))
+    .limit(8);
+  return freightTemplateFromCharges(own);
+}
+
+async function copyCourierChargeTemplateToBarrel(input: {
+  destBarrelId: string;
+  destClerkUserId: string;
+  destCompanyRateKinds: BarrelOutboundShippingChargeKind[];
+  template: FreightChargeTemplate;
+}): Promise<void> {
+  const db = getDb();
+  const source = input.template.charge;
+  const partner =
+    (await getPrimaryOutboundShippingPartner(source.barrelId, "courier")) ??
+    null;
+
+  const [inserted] = await db
+    .insert(barrelOutboundShippingCharges)
+    .values({
+      barrelId: input.destBarrelId,
+      clerkUserId: input.destClerkUserId,
+      chargeKind: "courier",
+      partnerName: partner?.name ?? source.partnerName,
+      partnerLocation: partner?.location ?? source.partnerLocation,
+      partnerAddress: partner?.address ?? source.partnerAddress,
+      partnerCountry: partner?.country ?? source.partnerCountry,
+      partnerPhone: partner?.phone ?? source.partnerPhone,
+      partnerCashappId: partner?.cashappId ?? source.partnerCashappId,
+      partnerCashappAccount:
+        partner?.cashappAccount ?? source.partnerCashappAccount,
+      partnerZelleId: partner?.zelleId ?? source.partnerZelleId,
+      partnerZelleAccount: partner?.zelleAccount ?? source.partnerZelleAccount,
+      adminNote: source.adminNote,
+      recordedByClerkUserId: source.recordedByClerkUserId,
+    })
+    .onConflictDoNothing({
+      target: [
+        barrelOutboundShippingCharges.barrelId,
+        barrelOutboundShippingCharges.chargeKind,
+      ],
+    })
+    .returning({ id: barrelOutboundShippingCharges.id });
+
+  const chargeId = inserted?.id;
+  if (!chargeId) {
+    return;
+  }
+
+  if (input.template.lines.length > 0) {
+    await db.insert(barrelOutboundShippingChargeLines).values(
+      input.template.lines.map((line) => ({
+        chargeId,
+        label: line.label,
+        amountCents: line.amountCents,
+        sortIndex: line.sortIndex,
+      })),
+    );
+  }
+
+  const partnerName = (partner?.name ?? source.partnerName)?.trim();
+  if (partnerName) {
+    await addOutboundShippingPartner({
+      barrelId: input.destBarrelId,
+      chargeKind: "courier",
+      name: partnerName,
+      location: partner?.location ?? source.partnerLocation,
+      address: partner?.address ?? source.partnerAddress,
+      country: partner?.country ?? source.partnerCountry,
+      phone: partner?.phone ?? source.partnerPhone,
+      cashappId: partner?.cashappId ?? source.partnerCashappId,
+      cashappAccount: partner?.cashappAccount ?? source.partnerCashappAccount,
+      zelleId: partner?.zelleId ?? source.partnerZelleId,
+      zelleAccount: partner?.zelleAccount ?? source.partnerZelleAccount,
+      imageUrl: partner?.imageUrl ?? null,
+      isPrimary: true,
+    });
+  }
+
+  const [sourceBarrel] = await db
+    .select({
+      outboundCompanyRateKinds: barrels.outboundCompanyRateKinds,
+    })
+    .from(barrels)
+    .where(eq(barrels.id, source.barrelId))
+    .limit(1);
+  const sourceKinds = parseOutboundCompanyRateKinds(
+    sourceBarrel?.outboundCompanyRateKinds,
+  );
+  if (
+    sourceKinds.includes("courier") &&
+    !input.destCompanyRateKinds.includes("courier")
+  ) {
+    await db
+      .update(barrels)
+      .set({
+        outboundCompanyRateKinds: serializeOutboundCompanyRateKinds([
+          ...input.destCompanyRateKinds,
+          "courier",
+        ]),
+      })
+      .where(eq(barrels.id, input.destBarrelId));
   }
 }
 

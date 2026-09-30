@@ -1,17 +1,18 @@
 "use client";
 
-import { CheckCircle2Icon } from "lucide-react";
-
 import { BarrelShipmentTrackingTimeline } from "@/components/shipping/barrel-shipment-tracking-timeline";
 import { CustomsClearanceDocumentsPanel } from "@/components/shipping/customs-clearance-documents-panel";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { BarrelContentsPreviewDialog } from "@/components/shipping/barrel-contents-preview-dialog";
 import { PaidContainerClearanceChoices } from "@/components/shipping/paid-container-clearance-choices";
+import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
+import { ThirdPartyTransportationStatus } from "@/components/shipping/third-party-transportation-status";
 import { OutboundShippingRefundButton } from "@/components/shipping/outbound-shipping-refund-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   outboundShippingRefundPath,
   paidOutboundCharges,
+  type AdminRateLinkableContainer,
 } from "@/lib/barrel-outbound-shipping-charge";
 import { formatUsd } from "@/lib/admin-markup";
 import {
@@ -30,6 +31,7 @@ type BarrelOutboundShippingPaidCardProps = {
   row: BarrelShippingIntakeSubmittedRow;
   members?: { alias: string }[];
   destinationCountry?: string | null;
+  unpaidContainers?: AdminRateLinkableContainer[];
 };
 
 function currentStageLabel(
@@ -43,6 +45,7 @@ export function BarrelOutboundShippingPaidCard({
   row,
   members,
   destinationCountry,
+  unpaidContainers = [],
 }: BarrelOutboundShippingPaidCardProps) {
   const group = members && members.length > 0 ? members : [row];
   const groupLabel = linkedShippingGroupLabel(group);
@@ -95,10 +98,10 @@ export function BarrelOutboundShippingPaidCard({
                     relatedCharges={amaniCharges}
                   />
                 : null}
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2Icon className="size-3" aria-hidden />
-                  Paid
-                </span>
+                <OutboundChargePaymentStatus
+                  charges={row.outboundCharges}
+                  showCustomer={false}
+                />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -135,9 +138,16 @@ export function BarrelOutboundShippingPaidCard({
           />
         </div>
 
+        <ThirdPartyTransportationStatus
+          selectedCourierKey={row.selectedCourierKey}
+          outboundCharges={row.outboundCharges}
+          trackingStage={tracking?.trackingStage}
+        />
+
         <PaidContainerClearanceChoices
           row={row}
           destinationCountry={destinationCountry}
+          unpaidContainers={unpaidContainers}
         />
 
         <CustomsClearanceDocumentsPanel

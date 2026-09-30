@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { setCustomerOutboundChargeLinksAction } from "@/actions/user-outbound-shipping-charge-links";
 import {
   containerCanJoinCompanyRateCard,
+  containerEligibleForCourierRateLink,
   outboundShippingCompanyKey,
   type AdminRateLinkableContainer,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -19,6 +20,7 @@ type UnpaidContainerLinkPanelProps = {
   containers: AdminRateLinkableContainer[];
   linkedBarrelIds: string[];
   disabled?: boolean;
+  lockMessage?: string;
 };
 
 function kindLabel(kind: "freight" | "broker" | "courier"): string {
@@ -34,19 +36,27 @@ export function UnpaidContainerLinkPanel({
   containers,
   linkedBarrelIds,
   disabled,
+  lockMessage,
 }: UnpaidContainerLinkPanelProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const companyKey = outboundShippingCompanyKey(companyName);
-  const eligible = containers.filter(
-    (container) =>
-      container.unpaidByKind[kind] !== false &&
-      containerCanJoinCompanyRateCard(
+  const eligible = containers.filter((container) => {
+    if (container.unpaidByKind[kind] === false) return false;
+    if (
+      !containerCanJoinCompanyRateCard(
         container.partnerKeyByKind,
         [kind],
         companyKey,
-      ),
-  );
+      )
+    ) {
+      return false;
+    }
+    if (kind === "courier" && container.barrelId !== sourceBarrelId) {
+      return containerEligibleForCourierRateLink(container);
+    }
+    return true;
+  });
 
   const [selected, setSelected] = useState<string[]>(() => {
     const next = linkedBarrelIds.filter((id) =>
@@ -99,11 +109,13 @@ export function UnpaidContainerLinkPanel({
         Link unpaid containers to this {kindLabel(kind)}
       </p>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        Check other unpaid containers on this account to share this company
-        rate. The first uses the 1-container rate; each extra adds the
-        extra-container rate. Each container keeps its own card. One payment
-        covers every linked container.
+        {disabled && lockMessage
+          ? lockMessage
+          : kind === "courier"
+            ? "Only containers that chose their own transportation can be linked here. Containers that already added or paid for this courier are not listed."
+            : "Check other unpaid containers on this account to share this company rate. The first uses the 1-container rate; each extra adds the extra-container rate. Each container keeps its own card. One payment covers every linked container."}
       </p>
+      {disabled && lockMessage ? null : (
       <ul className="space-y-1.5">
         {eligible.map((container) => {
           const isSource = container.barrelId === sourceBarrelId;
@@ -137,6 +149,7 @@ export function UnpaidContainerLinkPanel({
           );
         })}
       </ul>
+      )}
     </div>
   );
 }

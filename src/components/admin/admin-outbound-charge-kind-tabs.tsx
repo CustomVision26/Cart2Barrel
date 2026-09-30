@@ -17,8 +17,9 @@ import {
   updateBarrelOutboundShippingPartnerAction,
 } from "@/actions/admin-barrel-outbound-shipping-partner";
 import { AdminOutboundOffPlatformPaymentReview } from "@/components/admin/admin-outbound-off-platform-payment-review";
-import { adminUploadOutboundShippingCompanyImageAction } from "@/actions/admin-upload-outbound-shipping-company-image";
 import { ChargeLabelWithCompanyPricing } from "@/components/admin/admin-company-pricing-dialog";
+import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
+import { adminUploadOutboundShippingCompanyImageAction } from "@/actions/admin-upload-outbound-shipping-company-image";
 import { AdminProductImagePreview } from "@/components/admin/admin-product-image-preview";
 import { ImageFileInput } from "@/components/ui/image-file-input";
 import { Button } from "@/components/ui/button";
@@ -784,15 +785,24 @@ function AdminChargeKindForm({
           {lockMessage}
         </p>
       : null}
-      {existing &&
-      (existing.offPlatformSubmittedAt || existing.offPlatformReceiptUrl) ?
+      {existing && pendingReview ?
+        null
+      : existing &&
+        (existing.offPlatformSubmittedAt || existing.offPlatformReceiptUrl) ?
         <AdminOutboundOffPlatformPaymentReview
           charge={existing}
           customerName={row.customerName}
           customerEmail={row.customerEmail}
         />
+      : existing ?
+        <OutboundChargePaymentStatus
+          charges={[existing]}
+          audience="admin"
+          customerName={row.customerName}
+          customerEmail={row.customerEmail}
+        />
       : null}
-      {isPaid && existing && !existing.offPlatformSubmittedAt ?
+      {isPaid && existing && !pendingReview ?
         <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-foreground">
           Paid{" "}
           {new Date(existing.paidAt!).toLocaleDateString(undefined, {
@@ -800,7 +810,7 @@ function AdminChargeKindForm({
           })}
           . This {kindLabel.toLowerCase()} is locked.
         </p>
-      : !existing?.offPlatformSubmittedAt && existing ?
+      : existing && !pendingReview ?
         <p className="text-xs text-muted-foreground">
           Published {formatUsd(existing.totalCents)} — editing updates the
           customer{" "}
@@ -814,7 +824,7 @@ function AdminChargeKindForm({
       <PartnerRecordsEditor
         row={row}
         chargeKind={chargeKind}
-        formDisabled={isPaid}
+        formDisabled={isPaid || pendingReview}
       />
 
       {chargeKind === "freight" ?
@@ -1147,6 +1157,7 @@ function AdminMergedBundleForm({
         const charge = chargeViewForKind(row.charges, kind);
         if (
           !charge ||
+          isOffPlatformPaymentPendingReview(charge) ||
           !(charge.offPlatformSubmittedAt || charge.offPlatformReceiptUrl)
         ) {
           return null;
@@ -1160,7 +1171,21 @@ function AdminMergedBundleForm({
           />
         );
       })}
-      {anyPaid && hostCharge && !hostCharge.offPlatformSubmittedAt ?
+      {hostCharge &&
+      !hostCharge.offPlatformSubmittedAt &&
+      !hostCharge.offPlatformReceiptUrl ?
+        <OutboundChargePaymentStatus
+          charges={bundledKinds
+            .map((kind) => chargeViewForKind(row.charges, kind))
+            .filter((charge): charge is NonNullable<typeof charge> =>
+              Boolean(charge),
+            )}
+          audience="admin"
+          customerName={row.customerName}
+          customerEmail={row.customerEmail}
+        />
+      : null}
+      {anyPaid && hostCharge && !pendingReview ?
         <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-foreground">
           Paid{" "}
           {new Date(hostCharge.paidAt!).toLocaleDateString(undefined, {
@@ -1168,7 +1193,7 @@ function AdminMergedBundleForm({
           })}
           . This combined quote is locked.
         </p>
-      : hostCharge && !hostCharge.offPlatformSubmittedAt ?
+      : hostCharge && !pendingReview ?
         <p className="text-xs text-muted-foreground">
           Published {formatUsd(hostCharge.totalCents + extraTotalCents)} —
           editing updates the customer cart item.
@@ -1449,6 +1474,10 @@ export function AdminOutboundChargeKindTabs({
               ? isOffPlatformPaymentPendingReview(published)
               : false;
           });
+          const groupPaid = group.kinds.some((kind) => {
+            const published = chargeViewForKind(row.charges, kind);
+            return Boolean(published?.paidAt);
+          });
           return (
             <button
               key={group.id}
@@ -1469,9 +1498,13 @@ export function AdminOutboundChargeKindTabs({
                   {formatUsd(publishedCents)}
                 </span>
               : null}
-              {pendingReview ?
+              {groupPaid ?
+                <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                  Paid
+                </span>
+              : pendingReview ?
                 <span className="ml-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                  Verify
+                  Submitted
                 </span>
               : null}
             </button>

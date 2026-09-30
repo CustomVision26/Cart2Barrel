@@ -1,14 +1,21 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { toast } from "sonner";
+
+import { cancelBarrelShippingIntakeAction } from "@/actions/barrel-shipping-intake";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { BarrelContentsPreviewDialog } from "@/components/shipping/barrel-contents-preview-dialog";
 import {
   OverseasVendorPreferenceSummary,
   ThirdPartyVendorsSection,
 } from "@/components/shipping/third-party-vendors-section";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { formatUsd } from "@/lib/admin-markup";
 import { unpaidPublishedChargesForIntake } from "@/lib/barrel-outbound-shipping-charge";
+import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import {
   containerFullnessLabel,
   type BarrelShippingIntakeSubmittedRow,
@@ -17,9 +24,14 @@ import { linkedShippingGroupLabel } from "@/lib/shipping-container-groups";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
 
+type ChargeCardMember = {
+  alias: string;
+  intakeId?: string;
+};
+
 type BarrelOutboundShippingChargeCardProps = {
   row: BarrelShippingIntakeSubmittedRow;
-  members?: { alias: string }[];
+  members?: ChargeCardMember[];
   destinationCountry?: string | null;
 };
 
@@ -31,9 +43,39 @@ export function BarrelOutboundShippingChargeCard({
   const group = members && members.length > 0 ? members : [row];
   const groupLabel = linkedShippingGroupLabel(group);
   const unpaid = unpaidPublishedChargesForIntake(row.outboundCharges, row);
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
   if (unpaid.length === 0) return null;
   const inCart = unpaid.some((c) => c.inCart);
   const total = unpaid.reduce((s, c) => s + c.totalCents, 0);
+  const cancelIds = [
+    ...new Set(
+      [row.intakeId, ...group.map((item) => item.intakeId)].filter(
+        (id): id is string => Boolean(id),
+      ),
+    ),
+  ];
+
+  function cancelSubmit() {
+    const [intakeId, ...alsoIntakeIds] = cancelIds;
+    if (!intakeId) {
+      toast.error("No confirmation to cancel.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await cancelBarrelShippingIntakeAction({
+        intakeId,
+        alsoIntakeIds,
+      });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      toast.success(res.message);
+      router.push(DASHBOARD_SHIPPING_ROUTES.tracking);
+      router.refresh();
+    });
+  }
 
   return (
     <Card
@@ -81,6 +123,19 @@ export function BarrelOutboundShippingChargeCard({
           }
         />
       </CardContent>
+      {cancelIds.length > 0 ?
+        <CardFooter className="border-t border-border/60 px-3 py-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={cancelSubmit}
+          >
+            {pending ? "Cancelling…" : "Cancel confirmation"}
+          </Button>
+        </CardFooter>
+      : null}
     </Card>
   );
 }

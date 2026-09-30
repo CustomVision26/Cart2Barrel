@@ -12,6 +12,8 @@ import {
 } from "@/actions/admin-barrel-shipment-tracking";
 import { adminUploadCustomsDeclarationFormAction } from "@/actions/admin-upload-customs-declaration-form";
 import { BarrelShipmentTrackingTimeline } from "@/components/shipping/barrel-shipment-tracking-timeline";
+import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
+import { ThirdPartyTransportationStatus } from "@/components/shipping/third-party-transportation-status";
 import { paidOutboundCharges } from "@/lib/barrel-outbound-shipping-charge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -181,12 +183,30 @@ export function AdminShipmentCustomsPanel({
         </Button>
       </div>
 
-      <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-foreground">
-        Paid
-        {paidCharge.paymentReferenceNumber ?
-          <> · ref <span className="font-mono">{paidCharge.paymentReferenceNumber}</span></>
-        : null}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-foreground">
+        <p>
+          Paid
+          {paidCharge.paymentReferenceNumber ?
+            <> · ref <span className="font-mono">{paidCharge.paymentReferenceNumber}</span></>
+          : null}
+        </p>
+        <OutboundChargePaymentStatus
+          charges={row.charges}
+          audience="admin"
+          customerName={row.customerName}
+          customerEmail={row.customerEmail}
+        />
+      </div>
+
+      <ThirdPartyTransportationStatus
+        selectedCourierKey={row.selectedCourierKey}
+        outboundCharges={row.charges}
+        trackingStage={tracking?.trackingStage}
+        audience="admin"
+        customerName={row.customerName}
+        customerEmail={row.customerEmail}
+        showCustomer
+      />
 
       <BarrelShipmentTrackingTimeline
         tracking={tracking}

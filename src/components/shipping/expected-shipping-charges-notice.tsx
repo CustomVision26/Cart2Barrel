@@ -26,6 +26,8 @@ type ExpectedShippingChargesNoticeProps = {
   sourceBarrelId?: string;
   unpaidContainers?: AdminRateLinkableContainer[];
   preferPayHostBarrelIds?: readonly string[];
+  /** Locks unpaid-container linking (for example while a receipt awaits verification). */
+  linkDisabled?: boolean;
 };
 
 export function ExpectedShippingChargesNotice({
@@ -37,6 +39,7 @@ export function ExpectedShippingChargesNotice({
   sourceBarrelId,
   unpaidContainers = [],
   preferPayHostBarrelIds,
+  linkDisabled = false,
 }: ExpectedShippingChargesNoticeProps) {
   const freightItem = EXPECTED_OUTBOUND_SHIPPING_CHARGE_ITEMS.find(
     (item) => item.id === "freight",
@@ -94,7 +97,12 @@ export function ExpectedShippingChargesNotice({
                   kind="freight"
                   containers={unpaidContainers}
                   linkedBarrelIds={freightLinkedIds}
-                  disabled={Boolean(freightCharges[0]?.inCart)}
+                  disabled={linkDisabled || Boolean(freightCharges[0]?.inCart)}
+                  lockMessage={
+                    linkDisabled
+                      ? "Linked containers are locked while a payment is awaiting verification. Use Cancel confirmation to change them on this card."
+                      : undefined
+                  }
                 />
               : null}
             </>

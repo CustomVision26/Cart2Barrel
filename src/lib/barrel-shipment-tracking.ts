@@ -45,6 +45,14 @@ export function barrelShipmentStageIndex(stage: BarrelOutboundShipmentStage): nu
   return BARREL_OUTBOUND_SHIPMENT_STAGES.indexOf(stage);
 }
 
+/** Ready for shipment and earlier — before the container is picked up. */
+export function isBeforePickedUpShipmentStage(
+  stage: BarrelOutboundShipmentStage | null | undefined,
+): boolean {
+  const current = stage ?? "awaiting_customs_clearance";
+  return barrelShipmentStageIndex(current) < barrelShipmentStageIndex("picked_up");
+}
+
 export function isBarrelShipmentStage(value: string): value is BarrelOutboundShipmentStage {
   return (BARREL_OUTBOUND_SHIPMENT_STAGES as readonly string[]).includes(value);
 }

@@ -9,44 +9,21 @@ import { toast } from "sonner";
 import { addOutboundShippingChargeToCartAction } from "@/actions/user-outbound-shipping-cart";
 import { OutboundCompanyAdButton } from "@/components/shipping/outbound-company-ad-button";
 import { OutboundOffPlatformPaymentForm } from "@/components/shipping/outbound-off-platform-payment-form";
-import { OutboundPaymentReceiptDialog } from "@/components/shipping/outbound-payment-receipt-dialog";
+import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
 import { OutboundShippingRefundButton } from "@/components/shipping/outbound-shipping-refund-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/admin-markup";
 import {
-  jointChargePayHost,
-  type BarrelOutboundShippingChargeView,
-} from "@/lib/barrel-outbound-shipping-charge";
-import {
   isOffPlatformOutboundChargeKind,
+  isOffPlatformPaymentPendingReview,
+  jointChargePayHost,
   outboundChargeKindDisplayLabel,
   outboundShippingRefundPath,
   paidOutboundCharges,
   unpaidPublishedCharges,
+  type BarrelOutboundShippingChargeView,
 } from "@/lib/barrel-outbound-shipping-charge";
 import { cn } from "@/lib/utils";
-
-export function PaidVendorBadge({ className }: { className?: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400",
-        className,
-      )}
-    >
-      Paid
-    </span>
-  );
-}
-
-function freightPaymentInvoiceHref(orderId: string): string {
-  const params = new URLSearchParams({
-    orderId,
-    format: "pdf",
-    disposition: "inline",
-  });
-  return `/api/dashboard/payment-invoice?${params.toString()}`;
-}
 
 export function BarrelPublishedOutboundCharges({
   charges,
@@ -146,7 +123,11 @@ function PublishedChargeRow({
     .map((item) => item.alias)
     .join(" + ");
   const showCartAction = !paid && !offPlatform && !selection && isJointPayHost;
-  const showPaymentForm = !paid && offPlatform && !selection && isJointPayHost;
+  const showPaymentForm =
+    !paid &&
+    offPlatform &&
+    (Boolean(charge.offPlatformSubmittedAt) ||
+      (!selection && isJointPayHost));
 
   function addToCart() {
     startTransition(async () => {
@@ -232,30 +213,17 @@ function PublishedChargeRow({
     </div>
   );
 
-  const paidOrderId = charge.paidOrderId?.trim() || null;
   const companyRefund =
     paid && outboundShippingRefundPath(charge) === "company_contact";
+  const hasPaymentStatus =
+    paid ||
+    Boolean(charge.offPlatformSubmittedAt) ||
+    Boolean(charge.offPlatformReceiptUrl?.trim()) ||
+    Boolean(charge.paidOrderId?.trim());
   const action =
-    paid ?
+    hasPaymentStatus ?
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <PaidVendorBadge />
-        {paidOrderId ?
-          <a
-            href={freightPaymentInvoiceHref(paidOrderId)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "outline", size: "xs" }))}
-          >
-            Receipt
-          </a>
-        : (
-          <OutboundPaymentReceiptDialog
-            charges={[charge]}
-            showCustomer={false}
-            triggerLabel="Receipt"
-            triggerSize="xs"
-          />
-        )}
+        <OutboundChargePaymentStatus charges={[charge]} showCustomer={false} />
         {companyRefund ? <OutboundShippingRefundButton charge={charge} /> : null}
       </div>
     : showCartAction ?
@@ -272,6 +240,16 @@ function PublishedChargeRow({
           {pending ? "Adding…" : "Add to cart"}
         </Button>
       )
+    : charge.linkedContainers &&
+        charge.linkedContainers.length > 0 &&
+        !isOffPlatformPaymentPendingReview(charge) ?
+      <ul className="min-w-[6.5rem] shrink-0 text-right text-xs leading-5">
+        {charge.linkedContainers.map((item) => (
+          <li key={item.barrelId} className="font-medium text-foreground">
+            {item.alias}
+          </li>
+        ))}
+      </ul>
     : null;
 
   return (
@@ -282,7 +260,9 @@ function PublishedChargeRow({
           ? "border-primary/55 bg-primary/10"
           : paid
             ? "border-emerald-500/25 bg-background"
-            : "border-border/80 bg-background",
+            : isOffPlatformPaymentPendingReview(charge)
+              ? "border-amber-500/30 bg-background"
+              : "border-border/80 bg-background",
       )}
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">

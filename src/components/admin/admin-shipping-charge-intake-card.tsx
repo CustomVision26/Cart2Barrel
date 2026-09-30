@@ -4,7 +4,8 @@ import { useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 
 import { AdminOutboundChargeKindTabs } from "@/components/admin/admin-outbound-charge-kind-tabs";
-import { AdminOutboundPaymentReceiptDialog } from "@/components/admin/admin-outbound-off-platform-payment-review";
+import { AdminOutboundOffPlatformPaymentReview } from "@/components/admin/admin-outbound-off-platform-payment-review";
+import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
 import { AdminOutboundShippingRefundLineButton } from "@/components/admin/admin-outbound-shipping-refund-line-button";
 import { AdminShipmentCustomsPanel } from "@/components/admin/admin-shipment-customs-panel";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
@@ -13,9 +14,13 @@ import { ProductRequestThumbnail } from "@/components/product-request-thumbnail"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { AdminBarrelOutboundShippingChargeRow } from "@/lib/barrel-outbound-shipping-charge";
+import type {
+  AdminBarrelOutboundShippingChargeRow,
+  BarrelOutboundShippingChargeView,
+} from "@/lib/barrel-outbound-shipping-charge";
 import {
   BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
+  chargesPendingOffPlatformReview,
   isOffPlatformPaymentPendingReview,
   paidOutboundCharges,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -31,15 +36,32 @@ type AdminShippingChargeIntakeCardProps = {
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
 };
 
+function chargeChipTone(charge: BarrelOutboundShippingChargeView): string {
+  if (charge.paidAt) {
+    return "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300";
+  }
+  if (isOffPlatformPaymentPendingReview(charge)) {
+    return "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200";
+  }
+  return "border-border/70 bg-muted/60 text-foreground";
+}
+
+function chargeChipValue(charge: BarrelOutboundShippingChargeView): string {
+  if (charge.paidAt) return "Paid";
+  if (isOffPlatformPaymentPendingReview(charge)) {
+    return `${formatUsd(charge.totalCents)} submitted`;
+  }
+  return formatUsd(charge.totalCents);
+}
+
 export function AdminShippingChargeIntakeCard({
   row,
   publishEnabled = true,
   lockMessage,
   staffProfilesByClerkUserId = {},
 }: AdminShippingChargeIntakeCardProps) {
-  const pendingReviewCount = row.charges.filter(
-    isOffPlatformPaymentPendingReview,
-  ).length;
+  const pendingReviewCharges = chargesPendingOffPlatformReview(row.charges);
+  const pendingReviewCount = pendingReviewCharges.length;
   const paidCharges = paidOutboundCharges(row.charges);
   const billableCharges = row.charges.filter((c) => c.totalCents > 0);
   const allPaid =
@@ -47,15 +69,9 @@ export function AdminShippingChargeIntakeCard({
   const [expanded, setExpanded] = useState(
     pendingReviewCount > 0 || paidCharges.length > 0,
   );
-  const [customsOpen, setCustomsOpen] = useState(paidCharges.length > 0);
-  const publishedSummary = row.charges
-    .filter((c) => c.totalCents > 0)
-    .map((c) => {
-      const label = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[c.chargeKind];
-      if (c.paidAt) return `Paid ${label.toLowerCase()}`;
-      return `${label} ${formatUsd(c.totalCents)}`;
-    })
-    .join(" · ");
+  const [customsOpen, setCustomsOpen] = useState(
+    paidCharges.length > 0 && pendingReviewCount === 0,
+  );
   const trackingLabel = row.shipmentTracking
     ? BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS[row.shipmentTracking.trackingStage]
     : null;
@@ -69,112 +85,160 @@ export function AdminShippingChargeIntakeCard({
         dateStyle: "medium",
       })}`;
 
+  const headline =
+    pendingReviewCount > 0
+      ? "Payment receipt awaiting verification"
+      : allPaid
+        ? "All outbound charges paid"
+        : paidCharges.length > 0
+          ? trackingLabel
+          : null;
+
   return (
     <Card className="overflow-hidden border-border/80 bg-card shadow-sm">
-      <CardContent className="p-3">
-        <article className="flex items-center gap-3">
-          <ProductRequestThumbnail
-            variant="list"
-            imageUrl={row.containerImageUrl}
-            productLabel={row.containerName}
-            className="rounded-md ring-1 ring-border/40"
-          />
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate text-sm font-semibold text-foreground">
-              {row.containerName}
-            </h3>
-            {allPaid ?
-              <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                Paid outbound charges
-                {trackingLabel ? ` · ${trackingLabel}` : ""}
-              </p>
-            : paidCharges.length > 0 ?
-              <p className="text-xs tabular-nums text-muted-foreground">
-                <span className="text-emerald-600 dark:text-emerald-400">
-                  {publishedSummary}
-                </span>
-                {trackingLabel ? ` · ${trackingLabel}` : ""}
-              </p>
-            : row.charges.some(isOffPlatformPaymentPendingReview) ?
-              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                Payment receipt waiting for verification
-              </p>
-            : publishedSummary ?
-              <p className="text-xs tabular-nums text-muted-foreground">
-                {publishedSummary}
-              </p>
-            : (
-              <p className="text-xs text-muted-foreground">{statusDetail}</p>
-            )}
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              Updated by{" "}
-              <AdminUpdatedByCell
-                clerkUserId={row.updatedByClerkUserId}
-                profilesByClerkUserId={staffProfilesByClerkUserId}
-                primaryClassName="inline text-[10px] font-medium"
-                secondaryClassName="inline text-[9px] text-muted-foreground"
-              />
-            </p>
-          </div>
-          {row.alias ?
-            <p
-              className="shrink-0 self-center rounded-md bg-muted px-2.5 py-1 text-xs font-semibold tabular-nums tracking-tight text-foreground"
-              title={`Container ${row.alias}`}
-            >
-              {row.alias}
-            </p>
-          : null}
-          <div className="flex shrink-0 items-center gap-1">
-          <AdminOutboundShippingRefundLineButton
-            barrelId={row.barrelId}
-            charges={row.charges}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 shrink-0 gap-1 px-2 text-xs"
-            aria-expanded={expanded}
-            onClick={() =>
-              setExpanded((value) => {
-                const next = !value;
-                if (!next) setCustomsOpen(false);
-                return next;
-              })
-            }
-          >
-            {expanded ? "Hide" : "Manage"}
-            <ChevronDownIcon
-              className={cn(
-                "size-3.5 transition-transform",
-                expanded && "rotate-180",
-              )}
-              aria-hidden
+      <CardContent className="p-4">
+        <article>
+          <div className="flex gap-3">
+            <ProductRequestThumbnail
+              variant="list"
+              imageUrl={row.containerImageUrl}
+              productLabel={row.containerName}
+              className="self-start rounded-md ring-1 ring-border/40"
             />
-          </Button>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                <div className="min-w-0 flex-1 basis-56">
+                  <div className="flex items-center gap-2">
+                    <h3
+                      className="min-w-0 truncate text-sm font-semibold leading-snug text-foreground"
+                      title={row.containerName}
+                    >
+                      {row.containerName}
+                    </h3>
+                    {row.alias ?
+                      <p
+                        className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums tracking-tight text-foreground"
+                        title={`Container ${row.alias}`}
+                      >
+                        {row.alias}
+                      </p>
+                    : null}
+                  </div>
+                  {headline ?
+                    <p
+                      className={cn(
+                        "mt-1 text-xs leading-snug",
+                        pendingReviewCount > 0
+                          ? "font-medium text-amber-800 dark:text-amber-300"
+                          : allPaid
+                            ? "font-medium text-emerald-700 dark:text-emerald-400"
+                            : "text-muted-foreground",
+                      )}
+                    >
+                      {headline}
+                    </p>
+                  : (
+                    <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                      {statusDetail}
+                    </p>
+                  )}
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                  <OutboundChargePaymentStatus
+                    charges={row.charges}
+                    audience="admin"
+                    customerName={row.customerName}
+                    customerEmail={row.customerEmail}
+                  />
+                  <AdminOutboundShippingRefundLineButton
+                    barrelId={row.barrelId}
+                    charges={row.charges}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0 gap-1 px-2 text-xs"
+                    aria-expanded={expanded}
+                    onClick={() =>
+                      setExpanded((value) => {
+                        const next = !value;
+                        if (!next) setCustomsOpen(false);
+                        return next;
+                      })
+                    }
+                  >
+                    {expanded ? "Hide" : "Manage"}
+                    <ChevronDownIcon
+                      className={cn(
+                        "size-3.5 transition-transform",
+                        expanded && "rotate-180",
+                      )}
+                      aria-hidden
+                    />
+                  </Button>
+                </div>
+              </div>
+
+              {billableCharges.length > 0 ?
+                <ul className="mt-2.5 flex flex-wrap gap-1.5">
+                  {billableCharges.map((charge) => (
+                    <li
+                      key={charge.chargeId}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] leading-none",
+                        chargeChipTone(charge),
+                      )}
+                    >
+                      <span className="font-medium">
+                        {BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[charge.chargeKind]}
+                      </span>
+                      <span className="tabular-nums opacity-90">
+                        {chargeChipValue(charge)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              : null}
+
+              {trackingLabel && headline !== trackingLabel ?
+                <p className="mt-2 text-xs leading-snug text-muted-foreground">
+                  {trackingLabel}
+                </p>
+              : null}
+              <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+                Updated by{" "}
+                <AdminUpdatedByCell
+                  clerkUserId={row.updatedByClerkUserId}
+                  profilesByClerkUserId={staffProfilesByClerkUserId}
+                  primaryClassName="inline text-[10px] font-medium"
+                  secondaryClassName="inline text-[9px] text-muted-foreground"
+                />
+              </p>
+            </div>
           </div>
         </article>
 
         {expanded ?
-          <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
-            {paidCharges.length > 0 ||
-            row.charges.some((charge) => charge.offPlatformSubmittedAt) ?
+          <div className="mt-4 space-y-3 border-t border-border/60 pt-4">
+            {pendingReviewCharges.map((charge) => (
+              <AdminOutboundOffPlatformPaymentReview
+                key={charge.chargeId}
+                charge={charge}
+                customerName={row.customerName}
+                customerEmail={row.customerEmail}
+              />
+            ))}
+            {paidCharges.length > 0 ?
               <div className="flex flex-wrap items-center gap-2">
-                {paidCharges.length > 0 ?
-                  <Button
-                    type="button"
-                    variant={customsOpen ? "secondary" : "outline"}
-                    size="sm"
-                    onClick={() => setCustomsOpen((open) => !open)}
-                  >
-                    {customsOpen ? "Close" : "Customs clearance"}
-                  </Button>
-                : null}
-                <AdminOutboundPaymentReceiptDialog
-                  charges={row.charges}
-                  customerName={row.customerName}
-                  customerEmail={row.customerEmail}
-                />
+                <Button
+                  type="button"
+                  variant={customsOpen ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setCustomsOpen((open) => !open)}
+                >
+                  {customsOpen ? "Close" : "Customs clearance"}
+                </Button>
               </div>
             : null}
 

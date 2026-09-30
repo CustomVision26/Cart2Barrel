@@ -19,6 +19,7 @@ import {
   compareShippingIntakeTrackingStage,
   shippingIntakeHasPaidOutbound,
   shippingIntakeTrackingStage,
+  toPaidShippingTrackingRow,
 } from "@/lib/barrel-shipping-intake";
 import {
   groupShippingContainersByRateLinks,
@@ -67,9 +68,11 @@ export function BarrelShippingIntakeSection({
     .filter((group) => group.members.length > 0);
   const trackingByStage = new Map<
     BarrelOutboundShipmentStage,
-    typeof submitted
+    ReturnType<typeof toPaidShippingTrackingRow>[]
   >();
-  for (const row of submitted.filter(shippingIntakeHasPaidOutbound)) {
+  for (const row of [...awaiting, ...submitted]
+    .filter(shippingIntakeHasPaidOutbound)
+    .map(toPaidShippingTrackingRow)) {
     const stage = shippingIntakeTrackingStage(row);
     const list = trackingByStage.get(stage) ?? [];
     list.push(row);
@@ -81,6 +84,34 @@ export function BarrelShippingIntakeSection({
 
   return (
     <div className="space-y-8">
+      {trackingStages.map((stage) => {
+        return (
+          <section key={stage} className="space-y-4">
+            <header className="space-y-1">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                {BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS[stage]}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Freight is paid. This heading is the container&apos;s current
+                shipment stage.
+              </p>
+            </header>
+            <ul className="flex max-w-6xl flex-col gap-6">
+              {(trackingByStage.get(stage) ?? []).map((row) => (
+                <li key={row.barrelId}>
+                  <BarrelShippingIntakeSubmittedCard
+                    row={row}
+                    members={[row]}
+                    shippingAddress={shippingAddress}
+                    unpaidContainers={unpaidContainers}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+
       {unpaidGroups.length > 0 ?
         <section className="space-y-4">
           <header className="space-y-1">
@@ -122,34 +153,9 @@ export function BarrelShippingIntakeSection({
         </section>
       : null}
 
-      {trackingStages.map((stage) => {
-        return (
-          <section key={stage} className="space-y-4">
-            <header className="space-y-1">
-              <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                {BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS[stage]}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Freight is paid. This heading is the container&apos;s current
-                shipment stage.
-              </p>
-            </header>
-            <ul className="flex max-w-6xl flex-col gap-6">
-              {(trackingByStage.get(stage) ?? []).map((row) => (
-                <li key={row.barrelId}>
-                  <BarrelShippingIntakeSubmittedCard
-                    row={row}
-                    members={[row]}
-                    shippingAddress={shippingAddress}
-                  />
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
-
-      {unpaidGroups.length === 0 && submitted.length === 0 ?
+      {unpaidGroups.length === 0 &&
+      submitted.length === 0 &&
+      trackingStages.length === 0 ?
         <Card className="max-w-2xl border-dashed border-border/80">
           <CardHeader>
             <CardTitle className="text-base">No containers yet</CardTitle>

@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 
 import { BarrelContentsPreviewDialog } from "@/components/shipping/barrel-contents-preview-dialog";
 import { CustomsClearanceDocumentsPanel } from "@/components/shipping/customs-clearance-documents-panel";
-import { OutboundPaymentReceiptDialog } from "@/components/shipping/outbound-payment-receipt-dialog";
+import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -41,22 +41,6 @@ import {
 } from "@/lib/destination-clearance-partners";
 import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
-
-function freightPaymentInvoiceHref(
-  orderId: string,
-  audience: ShippingHistoryAudience,
-): string {
-  const params = new URLSearchParams({
-    orderId,
-    format: "pdf",
-    disposition: "inline",
-  });
-  const base =
-    audience === "admin"
-      ? "/api/admin/payment-invoice"
-      : "/api/dashboard/payment-invoice";
-  return `${base}?${params.toString()}`;
-}
 
 function formatHistoryDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
@@ -154,25 +138,13 @@ function PartnerBlock({
           : null}
         </p>
       : null}
-      {charge?.paidAt ?
+      {charge ?
         <div className="mt-2">
-          {charge.paidOrderId?.trim() ?
-            <a
-              href={freightPaymentInvoiceHref(charge.paidOrderId.trim(), audience)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants({ variant: "outline", size: "xs" }))}
-            >
-              Receipt
-            </a>
-          : (
-            <OutboundPaymentReceiptDialog
-              charges={[charge]}
-              showCustomer={audience === "admin"}
-              triggerLabel="Receipt"
-              triggerSize="xs"
-            />
-          )}
+          <OutboundChargePaymentStatus
+            charges={[charge]}
+            audience={audience}
+            showCustomer={audience === "admin"}
+          />
         </div>
       : null}
     </div>

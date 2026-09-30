@@ -8,6 +8,7 @@ import { getOutboundShippingChargesByBarrelIds } from "@/data/barrel-outbound-sh
 import { setOutboundShippingCompanyRateLinks } from "@/data/outbound-shipping-company-rate-links";
 import {
   customerCompanyLinkKinds,
+  isOffPlatformPaymentPendingReview,
   isOutboundChargeKindAbsorbed,
 } from "@/lib/barrel-outbound-shipping-charge";
 import {
@@ -48,6 +49,13 @@ export async function setCustomerOutboundChargeLinksAction(
   ]);
   const charges = byBarrel.get(parsed.data.sourceBarrelId) ?? [];
   const bundle = charges[0]?.chargeBundle ?? [];
+  if (charges.some(isOffPlatformPaymentPendingReview)) {
+    return {
+      ok: false,
+      message:
+        "Cancel confirmation to add or remove containers on this card while a payment is awaiting verification. You can still link this container from another card.",
+    };
+  }
   if (isOutboundChargeKindAbsorbed(parsed.data.kind, bundle)) {
     return {
       ok: false,

@@ -16,6 +16,7 @@ import {
   PUBLISHED_BROKER_KEY,
   PUBLISHED_COURIER_KEY,
 } from "@/lib/destination-clearance-partners";
+import { describeThirdPartyTransportation } from "@/lib/barrel-shipping-intake";
 import type { BarrelShippingDeliveryMethod } from "@/lib/validations/barrel-shipping-intake";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,10 @@ type DestinationClearanceChoicesProps = {
   preferPayHostBarrelIds?: readonly string[];
   /** When set, unpaid-container linking stays enabled even if choices are locked. */
   linkDisabled?: boolean;
+  /** Paid pricing card: show Added / Not added next to local transportation. */
+  showThirdPartyAddedStatus?: boolean;
+  /** Hide courier radios after that charge is paid. */
+  hideCourierUi?: boolean;
 };
 
 function ChoiceCard({
@@ -116,6 +121,8 @@ export function DestinationClearanceChoices({
   unpaidContainers = [],
   preferPayHostBarrelIds,
   linkDisabled,
+  showThirdPartyAddedStatus,
+  hideCourierUi,
 }: DestinationClearanceChoicesProps) {
   const linksLocked = linkDisabled ?? disabled;
   const country = destinationCountry?.trim() || null;
@@ -123,11 +130,11 @@ export function DestinationClearanceChoices({
   const {
     showBrokerUi,
     showSelfClearance,
-    showCourierUi,
     publishedBrokers,
     publishedCouriers,
     brokerAbsorbed,
   } = presentation;
+  const showCourierUi = presentation.showCourierUi && !hideCourierUi;
   const catalogBrokers = country ? destinationBrokersForCountry(country) : [];
   const hasBrokers = publishedBrokers.length > 0 || catalogBrokers.length > 0;
   const publishedBrokerInCart = publishedBrokers.some((charge) => charge.inCart);
@@ -137,6 +144,12 @@ export function DestinationClearanceChoices({
     publishedBrokers[0]?.linkedContainers?.map((item) => item.barrelId) ?? [];
   const publishedCourierLinkedIds =
     publishedCouriers[0]?.linkedContainers?.map((item) => item.barrelId) ?? [];
+  const thirdPartyTransportation = showThirdPartyAddedStatus
+    ? describeThirdPartyTransportation({
+        selectedCourierKey: value.courierKey,
+        outboundCharges: charges,
+      })
+    : null;
 
   if (!country) {
     return (
@@ -264,6 +277,11 @@ export function DestinationClearanceChoices({
                   containers={unpaidContainers}
                   linkedBarrelIds={publishedBrokerLinkedIds}
                   disabled={linksLocked}
+                  lockMessage={
+                    linksLocked
+                      ? "Linked containers are locked while a payment is awaiting verification. Use Cancel confirmation to change them on this card."
+                      : undefined
+                  }
                 />
               : null}
             </>
@@ -289,7 +307,25 @@ export function DestinationClearanceChoices({
       {showCourierUi ?
         <fieldset className="relative z-10 space-y-2.5">
           <legend className="text-sm font-medium tracking-tight text-foreground">
-            Local transportation — {country}
+            <span className="flex w-full flex-wrap items-center justify-between gap-2">
+              <span>Local transportation — {country}</span>
+              {thirdPartyTransportation ?
+                <span
+                  className={cn(
+                    "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                    thirdPartyTransportation.kind === "added"
+                      ? thirdPartyTransportation.paid
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : "border-primary/30 bg-primary/10 text-primary"
+                      : "border-border/70 bg-muted/60 text-muted-foreground",
+                  )}
+                >
+                  {thirdPartyTransportation.kind === "added"
+                    ? "Added"
+                    : "Not added"}
+                </span>
+              : null}
+            </span>
           </legend>
           <p className="text-xs leading-relaxed text-muted-foreground">
             After customs clearance, choose whether to use the courier company
@@ -344,6 +380,11 @@ export function DestinationClearanceChoices({
                   containers={unpaidContainers}
                   linkedBarrelIds={publishedCourierLinkedIds}
                   disabled={linksLocked}
+                  lockMessage={
+                    linksLocked
+                      ? "Linked containers are locked while a payment is awaiting verification. Use Cancel confirmation to change them on this card."
+                      : undefined
+                  }
                 />
               : null}
             </>

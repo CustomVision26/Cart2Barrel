@@ -5,11 +5,8 @@ import { CheckCircle2Icon } from "lucide-react";
 
 import { DeclineBrokerButton } from "@/components/shipping/decline-broker-button";
 import { DeclineCourierButton } from "@/components/shipping/decline-courier-button";
-import {
-  BarrelPublishedOutboundCharges,
-  PaidVendorBadge,
-} from "@/components/shipping/barrel-published-outbound-charges";
-import { OutboundPaymentReceiptDialog } from "@/components/shipping/outbound-payment-receipt-dialog";
+import { BarrelPublishedOutboundCharges } from "@/components/shipping/barrel-published-outbound-charges";
+import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
 import type { BarrelOutboundShippingChargeView } from "@/lib/barrel-outbound-shipping-charge";
 import {
   applyOutboundChargeBundleForCustomer,
@@ -151,7 +148,6 @@ function PreferenceCheckRow({
   className?: string;
   charge?: BarrelOutboundShippingChargeView;
 }) {
-  const paid = Boolean(charge?.paidAt);
   return (
     <div className={cn("flex items-start gap-1.5", className)}>
       <CheckCircle2Icon
@@ -160,13 +156,10 @@ function PreferenceCheckRow({
       />
       <span className="flex min-w-0 flex-wrap items-center gap-1.5">
         <span>{children}</span>
-        {paid ? <PaidVendorBadge /> : null}
         {charge ?
-          <OutboundPaymentReceiptDialog
+          <OutboundChargePaymentStatus
             charges={[charge]}
             showCustomer={false}
-            triggerLabel="Receipt"
-            triggerSize="xs"
           />
         : null}
       </span>
@@ -227,6 +220,7 @@ export function ThirdPartyVendorsSection({
           <BarrelPublishedOutboundCharges
             charges={overseas}
             showHeading={false}
+            includePaid
             declineBrokerIntakeId={declineBrokerIntakeId}
             declineCourierIntakeId={declineCourierIntakeId}
           />

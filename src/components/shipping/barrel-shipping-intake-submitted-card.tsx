@@ -10,6 +10,9 @@ import { cancelBarrelShippingIntakeAction } from "@/actions/barrel-shipping-inta
 import { BarrelContentsPreviewDialog } from "@/components/shipping/barrel-contents-preview-dialog";
 import { BarrelShipmentTrackingTimeline } from "@/components/shipping/barrel-shipment-tracking-timeline";
 import { CustomsClearanceDocumentsPanel } from "@/components/shipping/customs-clearance-documents-panel";
+import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
+import { ThirdPartyTransportationStatus } from "@/components/shipping/third-party-transportation-status";
+import { PaidContainerClearanceChoices } from "@/components/shipping/paid-container-clearance-choices";
 import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -21,12 +24,14 @@ import {
 import {
   canCancelShippingIntake,
   containerFullnessLabel,
+  isSyntheticPaidShippingIntakeId,
   shippingIntakeHasPaidOutbound,
   type BarrelShippingIntakeSubmittedRow,
 } from "@/lib/barrel-shipping-intake";
 import {
   paidOutboundCharges,
   unpaidPublishedChargesForIntake,
+  type AdminRateLinkableContainer,
 } from "@/lib/barrel-outbound-shipping-charge";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import { linkedShippingGroupLabel } from "@/lib/shipping-container-groups";
@@ -46,12 +51,14 @@ type BarrelShippingIntakeSubmittedCardProps = {
   row: BarrelShippingIntakeSubmittedRow;
   members?: BarrelShippingIntakeSubmittedRow[];
   shippingAddress?: Address | null;
+  unpaidContainers?: AdminRateLinkableContainer[];
 };
 
 export function BarrelShippingIntakeSubmittedCard({
   row,
   members,
   shippingAddress,
+  unpaidContainers = [],
 }: BarrelShippingIntakeSubmittedCardProps) {
   const group = members && members.length > 0 ? members : [row];
   const groupLabel = linkedShippingGroupLabel(group);
@@ -69,7 +76,8 @@ export function BarrelShippingIntakeSubmittedCard({
   const freightPaid = row.outboundCharges.some(
     (charge) => charge.chargeKind === "freight" && Boolean(charge.paidAt),
   );
-  const canCancel = canCancelShippingIntake(row);
+  const canCancel =
+    canCancelShippingIntake(row) && !isSyntheticPaidShippingIntakeId(row.intakeId);
 
   function cancelSubmit() {
     startTransition(async () => {
@@ -151,24 +159,46 @@ export function BarrelShippingIntakeSubmittedCard({
                       {currentStageLabel(trackingCharge?.shipmentTracking ?? null)}
                     </span>
                   </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 shrink-0 gap-1 px-2 text-xs"
-                    aria-expanded={expanded}
-                    onClick={() => setExpanded((value) => !value)}
-                  >
-                    {expanded ? "Hide details" : "Tracking details"}
-                    <ChevronDownIcon
-                      className={cn(
-                        "size-3.5 transition-transform",
-                        expanded && "rotate-180",
-                      )}
-                      aria-hidden
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <OutboundChargePaymentStatus
+                      charges={row.outboundCharges}
+                      showCustomer={false}
                     />
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 shrink-0 gap-1 px-2 text-xs"
+                      aria-expanded={expanded}
+                      onClick={() => setExpanded((value) => !value)}
+                    >
+                      {expanded ? "Hide details" : "Tracking details"}
+                      <ChevronDownIcon
+                        className={cn(
+                          "size-3.5 transition-transform",
+                          expanded && "rotate-180",
+                        )}
+                        aria-hidden
+                      />
+                    </Button>
+                  </div>
                 </div>
+
+                <ThirdPartyTransportationStatus
+                  selectedCourierKey={row.selectedCourierKey}
+                  outboundCharges={row.outboundCharges}
+                  trackingStage={
+                    trackingCharge?.shipmentTracking?.trackingStage
+                  }
+                />
+
+                {freightPaid && !isSyntheticPaidShippingIntakeId(row.intakeId) ?
+                  <PaidContainerClearanceChoices
+                    row={row}
+                    destinationCountry={shippingAddress?.country}
+                    unpaidContainers={unpaidContainers}
+                  />
+                : null}
 
                 <CustomsClearanceDocumentsPanel
                   barrelId={row.barrelId}
@@ -213,18 +243,34 @@ export function BarrelShippingIntakeSubmittedCard({
           </div>
         </article>
       </CardContent>
-      {canCancel ?
+      {canCancel || unpaid.length > 0 ?
         <CardFooter className="flex flex-col items-start gap-1.5 border-t border-border/60 px-3 py-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={pending}
-            onClick={cancelSubmit}
-          >
-            {pending ? "Cancelling…" : "Cancel confirmation"}
-          </Button>
-          {freightPaid ?
+          <div className="flex flex-wrap items-center gap-2">
+            {canCancel ?
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={cancelSubmit}
+              >
+                {pending ? "Cancelling…" : "Cancel confirmation"}
+              </Button>
+            : null}
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => router.push(DASHBOARD_SHIPPING_ROUTES.pricing)}
+            >
+              Continue to pricing
+            </Button>
+          </div>
+          {unpaid.length > 0 ?
+            <p className="text-[11px] text-muted-foreground">
+              Open Pricing to pay remaining broker or local courier charges and
+              submit your receipt.
+            </p>
+          : freightPaid && canCancel ?
             <p className="text-[11px] text-muted-foreground">
               Freight payment stays on this container. Broker and local courier
               receipts will need to be submitted again after you reconfirm.

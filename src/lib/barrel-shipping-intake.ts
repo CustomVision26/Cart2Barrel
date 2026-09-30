@@ -9,6 +9,10 @@ import {
   BARREL_OUTBOUND_SHIPMENT_STAGES,
   type BarrelOutboundShipmentStage,
 } from "@/lib/barrel-shipment-tracking";
+import {
+  isOwnTransportCourierKey,
+  PUBLISHED_COURIER_KEY,
+} from "@/lib/destination-clearance-partners";
 
 export type BarrelShippingIntakeContainerRow = {
   barrelId: string;
@@ -109,6 +113,34 @@ export function shippingIntakeHasPaidOutbound(
   return paidOutboundCharges(row.outboundCharges).length > 0;
 }
 
+const SYNTHETIC_PAID_INTAKE_PREFIX = "paid-tracking-";
+
+export function isSyntheticPaidShippingIntakeId(intakeId: string): boolean {
+  return intakeId.startsWith(SYNTHETIC_PAID_INTAKE_PREFIX);
+}
+
+/** Tracking card row for a paid container, even when confirmation was cancelled. */
+export function toPaidShippingTrackingRow(
+  row: BarrelShippingIntakeContainerRow | BarrelShippingIntakeSubmittedRow,
+): BarrelShippingIntakeSubmittedRow {
+  if ("intakeId" in row && typeof row.intakeId === "string") {
+    return row;
+  }
+  const paidAt =
+    paidOutboundCharges(row.outboundCharges)[0]?.paidAt ??
+    new Date().toISOString();
+  return {
+    ...row,
+    intakeId: `${SYNTHETIC_PAID_INTAKE_PREFIX}${row.barrelId}`,
+    deliveryMethod: "broker_delivery",
+    selectedBrokerKey: null,
+    selectedCourierKey: null,
+    contactPhone: null,
+    specialInstructions: null,
+    submittedAt: paidAt,
+  };
+}
+
 export function shippingIntakeTrackingStage(
   row: Pick<BarrelShippingIntakeContainerRow, "outboundCharges">,
 ): BarrelOutboundShipmentStage {
@@ -124,6 +156,64 @@ export function shippingIntakeTrackingStageLabel(
   row: Pick<BarrelShippingIntakeContainerRow, "outboundCharges">,
 ): string {
   return BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS[shippingIntakeTrackingStage(row)];
+}
+
+export type ThirdPartyTransportationStatus = {
+  kind: "added" | "own" | "not_added";
+  companyName: string | null;
+  paid: boolean;
+  pendingReview: boolean;
+  summary: string;
+};
+
+export function describeThirdPartyTransportation(input: {
+  selectedCourierKey?: string | null;
+  outboundCharges: readonly Pick<
+    BarrelOutboundShippingChargeView,
+    | "chargeKind"
+    | "partnerName"
+    | "paidAt"
+    | "offPlatformSubmittedAt"
+  >[];
+}): ThirdPartyTransportationStatus {
+  if (isOwnTransportCourierKey(input.selectedCourierKey)) {
+    return {
+      kind: "own",
+      companyName: null,
+      paid: false,
+      pendingReview: false,
+      summary:
+        "Third-party transportation is not added. Customer provides their own transportation.",
+    };
+  }
+  const courier = input.outboundCharges.find(
+    (charge) => charge.chargeKind === "courier",
+  );
+  const paid = Boolean(courier?.paidAt);
+  const optedIn = input.selectedCourierKey === PUBLISHED_COURIER_KEY || paid;
+  if (!optedIn) {
+    return {
+      kind: "not_added",
+      companyName: null,
+      paid: false,
+      pendingReview: false,
+      summary: "Third-party transportation is not added yet.",
+    };
+  }
+  const companyName = courier?.partnerName?.trim() || null;
+  const pendingReview = Boolean(courier?.offPlatformSubmittedAt) && !paid;
+  const name = companyName ?? "local courier";
+  return {
+    kind: "added",
+    companyName,
+    paid,
+    pendingReview,
+    summary: paid
+      ? `Third-party transportation is added: ${name} (paid).`
+      : pendingReview
+        ? `Third-party transportation is added: ${name} (awaiting payment verification).`
+        : `Third-party transportation is added: ${name}.`,
+  };
 }
 
 export function compareShippingIntakeTrackingStage(

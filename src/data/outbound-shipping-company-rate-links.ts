@@ -103,6 +103,48 @@ export function linkedBarrelIdsForCompanyKind(
   );
 }
 
+/** Barrels that share any freight / broker / courier rate-link group with this one. */
+export function linkedBarrelIdsInSameLinkComponent(
+  groups: readonly CompanyRateLinkGroup[],
+  barrelId: string,
+): string[] {
+  const parent = new Map<string, string>();
+
+  function ensure(id: string) {
+    if (!parent.has(id)) parent.set(id, id);
+  }
+
+  function find(id: string): string {
+    ensure(id);
+    let current = parent.get(id) ?? id;
+    while (parent.get(current) !== current) {
+      const next = parent.get(current) ?? current;
+      parent.set(current, parent.get(next) ?? next);
+      current = next;
+    }
+    return current;
+  }
+
+  function union(a: string, b: string) {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent.set(rootB, rootA);
+  }
+
+  for (const group of groups) {
+    if (group.barrelIds.length < 2) continue;
+    const first = group.barrelIds[0];
+    if (!first) continue;
+    for (const id of group.barrelIds.slice(1)) {
+      union(first, id);
+    }
+  }
+
+  if (!parent.has(barrelId)) return [barrelId];
+  const root = find(barrelId);
+  return [...parent.keys()].filter((id) => find(id) === root);
+}
+
 export async function linkedUnpaidBarrelIdsForCompanyKind(input: {
   clerkUserId: string;
   companyKey: string;
@@ -187,27 +229,31 @@ export async function expandChargeIdsWithCompanyRateLinks(input: {
     if (!isBarrelOutboundShippingChargeKind(charge.chargeKind)) continue;
     const companyKey = outboundShippingCompanyKey(charge.partnerName ?? "");
     if (!companyKey) continue;
-    const linkedUnpaid = await linkedUnpaidBarrelIdsForCompanyKind({
+    const barrelIds = await linkedUnpaidBarrelIdsForCompanyKind({
       clerkUserId: input.clerkUserId,
       companyKey,
       chargeKind: charge.chargeKind,
     });
-    if (linkedUnpaid.length < 2) continue;
+    if (barrelIds.length === 0) continue;
     const siblings = await db
       .select({
         id: barrelOutboundShippingCharges.id,
         paidAt: barrelOutboundShippingCharges.paidAt,
+        partnerName: barrelOutboundShippingCharges.partnerName,
       })
       .from(barrelOutboundShippingCharges)
       .where(
         and(
           eq(barrelOutboundShippingCharges.clerkUserId, input.clerkUserId),
           eq(barrelOutboundShippingCharges.chargeKind, charge.chargeKind),
-          inArray(barrelOutboundShippingCharges.barrelId, linkedUnpaid),
+          inArray(barrelOutboundShippingCharges.barrelId, barrelIds),
         ),
       );
     for (const sibling of siblings) {
-      if (!sibling.paidAt) extraIds.add(sibling.id);
+      if (sibling.paidAt) continue;
+      const siblingKey = outboundShippingCompanyKey(sibling.partnerName ?? "");
+      if (siblingKey && siblingKey !== companyKey) continue;
+      extraIds.add(sibling.id);
     }
   }
   return [...extraIds];

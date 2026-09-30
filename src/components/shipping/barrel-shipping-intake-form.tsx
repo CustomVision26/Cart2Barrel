@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   cancelBarrelShippingIntakeAction,
   submitBarrelShippingIntakeAction,
+  updateBarrelShippingIntakeAction,
 } from "@/actions/barrel-shipping-intake";
 import {
   DestinationClearanceChoices,
@@ -41,8 +42,10 @@ import {
 } from "@/lib/barrel-shipping-intake";
 import {
   destinationClearancePresentation,
+  isOffPlatformPaymentPendingReview,
   isOutboundChargeKindAbsorbed,
   type AdminRateLinkableContainer,
+  unpaidFreightReadyForPricingContinue,
   unpaidPublishedChargesForDestination,
 } from "@/lib/barrel-outbound-shipping-charge";
 import {
@@ -151,10 +154,7 @@ export function BarrelShippingIntakeForm({
     return {
       deliveryMethod: presentation.brokerAbsorbed ? "broker_delivery" : null,
       brokerKey: presentation.brokerAbsorbed ? PUBLISHED_BROKER_KEY : null,
-      courierKey:
-        presentation.courierAbsorbed || presentation.publishedCouriers.length > 0
-          ? PUBLISHED_COURIER_KEY
-          : null,
+      courierKey: presentation.courierAbsorbed ? PUBLISHED_COURIER_KEY : null,
     };
   });
   const destinationCountry = shippingAddress?.country?.trim() || null;
@@ -170,6 +170,25 @@ export function BarrelShippingIntakeForm({
       container.outboundCharges,
       destinationCountry,
     );
+  const freightReady = unpaidFreightReadyForPricingContinue(members);
+  const paymentPendingReview = members.some((row) =>
+    row.outboundCharges.some(isOffPlatformPaymentPendingReview),
+  );
+  const courierPaid = members.some((row) =>
+    row.outboundCharges.some(
+      (charge) => charge.chargeKind === "courier" && Boolean(charge.paidAt),
+    ),
+  );
+  const mustChooseLocalTransport =
+    clearance.showCourierUi &&
+    clearance.publishedCouriers.length > 0 &&
+    !courierPaid;
+  const continueDisabled =
+    pending ||
+    (hasUnpaidAwaiting && !choiceComplete) ||
+    (alreadyConfirmed && mustChooseLocalTransport && !choiceComplete) ||
+    !freightReady;
+  const clearanceLocked = pending || paymentPendingReview || courierPaid;
   const broker = findDestinationBroker(choice.brokerKey, destinationCountry);
   const courier = findDestinationCourier(choice.courierKey, destinationCountry);
   const publishedBrokerName = unpaidPublishedChargesForDestination(
@@ -190,6 +209,86 @@ export function BarrelShippingIntakeForm({
     choice.courierKey === PUBLISHED_COURIER_KEY
       ? publishedCourierName || courier?.name
       : courier?.name;
+
+  function resolvedDeliveryMethod(
+    next: DestinationClearanceChoiceValue = choice,
+  ) {
+    return (
+      next.deliveryMethod ??
+      (clearance.brokerAbsorbed ? "broker_delivery" : null)
+    );
+  }
+
+  function persistConfirmedChoice(next: DestinationClearanceChoiceValue) {
+    if (!isShippingIntakeSubmittedRow(container)) return;
+    const deliveryMethod = resolvedDeliveryMethod(next);
+    if (!deliveryMethod) return;
+    if (
+      !isDestinationClearanceChoiceComplete(
+        next,
+        container.outboundCharges,
+        destinationCountry,
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const res = await updateBarrelShippingIntakeAction({
+        intakeId: container.intakeId,
+        deliveryMethod,
+        brokerKey: next.brokerKey,
+        courierKey: next.courierKey,
+      });
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  function updateChoice(next: DestinationClearanceChoiceValue) {
+    setChoice(next);
+    if (alreadyConfirmed) {
+      persistConfirmedChoice(next);
+    }
+  }
+
+  function goToPricing() {
+    if (alreadyConfirmed && isShippingIntakeSubmittedRow(container)) {
+      const deliveryMethod = resolvedDeliveryMethod();
+      if (!deliveryMethod) {
+        toast.error("Choose how you will clear customs.");
+        return;
+      }
+      if (
+        !isDestinationClearanceChoiceComplete(
+          choice,
+          container.outboundCharges,
+          destinationCountry,
+        )
+      ) {
+        toast.error("Choose destination clearance and local transportation.");
+        return;
+      }
+      startTransition(async () => {
+        const res = await updateBarrelShippingIntakeAction({
+          intakeId: container.intakeId,
+          deliveryMethod,
+          brokerKey: choice.brokerKey,
+          courierKey: choice.courierKey,
+        });
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        router.push(DASHBOARD_SHIPPING_ROUTES.pricing);
+        router.refresh();
+      });
+      return;
+    }
+    router.push(DASHBOARD_SHIPPING_ROUTES.pricing);
+  }
 
   function submit() {
     const deliveryMethod =
@@ -253,6 +352,7 @@ export function BarrelShippingIntakeForm({
       });
       if (res.ok) {
         toast.success(res.message);
+        router.push(DASHBOARD_SHIPPING_ROUTES.tracking);
         router.refresh();
         return;
       }
@@ -289,14 +389,15 @@ export function BarrelShippingIntakeForm({
           sourceBarrelId={container.barrelId}
           unpaidContainers={unpaidContainers}
           preferPayHostBarrelIds={preferPayHostBarrelIds}
+          linkDisabled={pending || paymentPendingReview}
           customsContent={
             <DestinationClearanceChoices
               destinationCountry={destinationCountry}
               namePrefix={container.barrelId}
               value={choice}
-              onChange={setChoice}
-              disabled={pending || alreadyConfirmed}
-              linkDisabled={pending}
+              onChange={updateChoice}
+              disabled={clearanceLocked}
+              linkDisabled={pending || paymentPendingReview}
               charges={container.outboundCharges}
               sourceBarrelId={container.barrelId}
               unpaidContainers={unpaidContainers}
@@ -310,6 +411,20 @@ export function BarrelShippingIntakeForm({
           {destinationCountry ?? "your destination"}, then continue to pricing
           to add published freight and related charges.
         </p>
+        {!freightReady ?
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Add freight to your cart, then continue to pricing.
+          </p>
+        : (hasUnpaidAwaiting || mustChooseLocalTransport) && !choiceComplete ?
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Choose local transportation, then continue to pricing.
+          </p>
+        : paymentPendingReview ?
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Linked containers are locked while this payment awaits verification.
+            Use Cancel confirmation to add or remove containers on this card.
+          </p>
+        : null}
       </CardContent>
       <CardFooter className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-6">
         <Button
@@ -323,13 +438,20 @@ export function BarrelShippingIntakeForm({
         </Button>
         <Button
           type="button"
-          disabled={pending || (hasUnpaidAwaiting && !choiceComplete)}
+          disabled={continueDisabled}
+          title={
+            !freightReady
+              ? "Add freight to your cart before continuing to pricing."
+              : (hasUnpaidAwaiting || mustChooseLocalTransport) && !choiceComplete
+                ? "Choose local transportation before continuing to pricing."
+                : undefined
+          }
           onClick={() => {
             if (hasUnpaidAwaiting) {
               setConfirmOpen(true);
               return;
             }
-            router.push(DASHBOARD_SHIPPING_ROUTES.pricing);
+            goToPricing();
           }}
         >
           Continue to pricing
@@ -398,7 +520,7 @@ export function BarrelShippingIntakeForm({
             </Button>
             <Button
               type="button"
-              disabled={pending || !choiceComplete}
+              disabled={pending || !choiceComplete || !freightReady}
               onClick={submit}
             >
               {pending ? "Saving…" : "Confirm and continue"}

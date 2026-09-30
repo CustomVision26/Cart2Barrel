@@ -317,13 +317,111 @@ export function outboundPartnerContactLines(
   return lines;
 }
 
+export function toIsoTimestamp(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  return null;
+}
+
 export function isOffPlatformPaymentPendingReview(
   charge: Pick<
     BarrelOutboundShippingChargeView,
     "paidAt" | "offPlatformSubmittedAt"
-  >,
+  > &
+    Partial<Pick<BarrelOutboundShippingChargeView, "offPlatformReceiptUrl">>,
 ): boolean {
-  return Boolean(charge.offPlatformSubmittedAt) && !charge.paidAt;
+  if (charge.paidAt) return false;
+  return (
+    Boolean(charge.offPlatformSubmittedAt) ||
+    Boolean(charge.offPlatformReceiptUrl?.trim())
+  );
+}
+
+export function chargesPendingOffPlatformReview(
+  charges: readonly BarrelOutboundShippingChargeView[],
+): BarrelOutboundShippingChargeView[] {
+  return charges.filter(isOffPlatformPaymentPendingReview);
+}
+
+/**
+ * Copy a submitted Zelle / Cash App / local-office receipt onto every unpaid
+ * sibling that shares the same company rate link so each container card shows
+ * the awaiting-verification state.
+ */
+export function inheritLinkedOffPlatformPayment(
+  chargesByBarrel: Map<string, BarrelOutboundShippingChargeView[]>,
+): void {
+  const all = [...chargesByBarrel.values()].flat();
+  for (const kind of ["broker", "courier"] as const) {
+    const ofKind = all.filter(
+      (charge) => charge.chargeKind === kind && !charge.paidAt,
+    );
+    const assigned = new Set<string>();
+    for (const charge of ofKind) {
+      if (assigned.has(charge.chargeId)) continue;
+      const linkedIds = new Set<string>();
+      if (charge.barrelId) linkedIds.add(charge.barrelId);
+      for (const item of charge.linkedContainers ?? []) {
+        if (item.barrelId) linkedIds.add(item.barrelId);
+      }
+      const group = ofKind.filter((other) => {
+        if (other.barrelId && linkedIds.has(other.barrelId)) return true;
+        return (other.linkedContainers ?? []).some(
+          (item) => item.barrelId && linkedIds.has(item.barrelId),
+        );
+      });
+      for (const item of group) assigned.add(item.chargeId);
+      const source = group.find(
+        (item) =>
+          item.offPlatformSubmittedAt || item.offPlatformReceiptUrl,
+      );
+      const richestLinks = group.reduce((best, item) =>
+        (item.linkedContainers?.length ?? 0) >
+        (best.linkedContainers?.length ?? 0)
+          ? item
+          : best,
+      );
+      for (const item of group) {
+        if (
+          (item.linkedContainers?.length ?? 0) <
+          (richestLinks.linkedContainers?.length ?? 0)
+        ) {
+          item.linkedContainers = richestLinks.linkedContainers;
+        }
+        if (!source || item.offPlatformSubmittedAt) continue;
+        item.offPlatformPaymentMethod = source.offPlatformPaymentMethod;
+        item.offPlatformPayerName = source.offPlatformPayerName;
+        item.offPlatformReceiptUrl = source.offPlatformReceiptUrl;
+        item.offPlatformSubmittedAt = toIsoTimestamp(
+          source.offPlatformSubmittedAt,
+        );
+      }
+    }
+  }
+}
+
+/** Continue to pricing stays disabled until unpaid freight is in the cart. */
+export function unpaidFreightReadyForPricingContinue(
+  members: readonly {
+    outboundCharges: readonly BarrelOutboundShippingChargeView[];
+  }[],
+): boolean {
+  const freight = members.flatMap((row) =>
+    applyOutboundChargeBundleForCustomer([...row.outboundCharges]).filter(
+      (charge) =>
+        charge.chargeKind === "freight" &&
+        !charge.paidAt &&
+        charge.totalCents > 0,
+    ),
+  );
+  if (freight.length === 0) return true;
+  return freight.some((charge) => charge.inCart);
 }
 
 /** Customer picked local office and can still switch to Zelle or Cash App before staff approve. */
@@ -961,6 +1059,8 @@ export type AdminRateLinkableContainer = {
     Record<BarrelOutboundShippingChargeKind, string>
   >;
   unpaidByKind: Partial<Record<BarrelOutboundShippingChargeKind, boolean>>;
+  /** Confirmed intake courier choice; awaiting cards have none yet. */
+  selectedCourierKey?: string | null;
 };
 
 /** Same company, or no company assigned yet for these kinds. */
@@ -975,11 +1075,23 @@ export function containerCanJoinCompanyRateCard(
   });
 }
 
+/** Courier linking: unpaid containers that already chose own transportation. */
+export function containerEligibleForCourierRateLink(
+  container: Pick<
+    AdminRateLinkableContainer,
+    "unpaidByKind" | "selectedCourierKey"
+  >,
+): boolean {
+  if (container.unpaidByKind.courier === false) return false;
+  return isOwnTransportCourierKey(container.selectedCourierKey);
+}
+
 export function linkableContainersFromChargeRows(
   rows: readonly {
     barrelId: string;
     alias: string;
     slotLabel: string;
+    selectedCourierKey?: string | null;
     outboundCharges: readonly Pick<
       BarrelOutboundShippingChargeView,
       "chargeKind" | "partnerName" | "paidAt"
@@ -1001,6 +1113,7 @@ export function linkableContainersFromChargeRows(
       slotLabel: row.slotLabel,
       partnerKeyByKind,
       unpaidByKind,
+      selectedCourierKey: row.selectedCourierKey ?? null,
     };
   });
 }

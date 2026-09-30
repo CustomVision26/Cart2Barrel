@@ -45,8 +45,8 @@ function submittedLabel(iso: string): string {
 
 export function receiptPanelClass(pendingReview: boolean): string {
   return pendingReview
-    ? "space-y-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3"
-    : "space-y-3 rounded-md border border-border/70 bg-muted px-3 py-3";
+    ? "space-y-3 rounded-md border border-amber-500/35 bg-amber-500/10 px-3.5 py-3"
+    : "space-y-3 rounded-md border border-border/70 bg-muted px-3.5 py-3";
 }
 
 export function PaymentReceiptDetails({
@@ -185,12 +185,12 @@ export function PaymentReceiptDetails({
 }
 
 export function chargesWithPaymentReceipts(
-  charges: BarrelOutboundShippingChargeView[],
+  charges: readonly BarrelOutboundShippingChargeView[],
 ): BarrelOutboundShippingChargeView[] {
   return charges.filter(
     (charge) =>
-      Boolean(charge.offPlatformSubmittedAt) &&
-      (Boolean(charge.offPlatformReceiptUrl?.trim()) || Boolean(charge.paidAt)),
+      Boolean(charge.offPlatformReceiptUrl?.trim()) ||
+      Boolean(charge.offPlatformSubmittedAt),
   );
 }
 

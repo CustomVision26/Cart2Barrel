@@ -54,6 +54,7 @@ import {
   parseOutboundChargeBundle,
   parseOutboundCompanyRateKinds,
   primaryPartnerNameForKind,
+  toIsoTimestamp,
 } from "@/lib/barrel-outbound-shipping-charge";
 import { sumOutboundChargesCents } from "@/lib/barrel-outbound-shipping-charge";
 import { formatBarrelSlotLabel } from "@/lib/barrel-slot-label";
@@ -127,7 +128,14 @@ function mapSingleAdminRow(
   const offeringId = oci?.containerOfferingId ?? null;
   const containerImageUrl =
     offeringId ? (imageByOfferingId.get(offeringId) ?? null) : null;
-  const charges = chargesByBarrel.get(r.barrel.id) ?? [];
+  const charges = (chargesByBarrel.get(r.barrel.id) ?? []).map((charge) => ({
+    ...charge,
+    paidAt: toIsoTimestamp(charge.paidAt),
+    offPlatformSubmittedAt: toIsoTimestamp(charge.offPlatformSubmittedAt),
+    offPlatformReceiptUrl: charge.offPlatformReceiptUrl ?? null,
+    offPlatformPayerName: charge.offPlatformPayerName ?? null,
+    offPlatformPaymentMethod: charge.offPlatformPaymentMethod ?? null,
+  }));
   const primary =
     charges.find((c) => c.chargeKind === "freight") ?? charges[0] ?? null;
   const readyForShipping = isContainerReadyForShippingIntake({
@@ -206,6 +214,7 @@ function toRateLinkableContainer(
     slotLabel: row.slotLabel,
     partnerKeyByKind,
     unpaidByKind,
+    selectedCourierKey: row.selectedCourierKey,
   };
 }
 

@@ -13,6 +13,7 @@ import {
 import type { BarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import {
+  linkableContainersFromChargeRows,
   paidOutboundCharges,
   unpaidPublishedChargesForIntake,
 } from "@/lib/barrel-outbound-shipping-charge";
@@ -74,6 +75,10 @@ export function BarrelShippingPricingSection({
   destinationCountry,
 }: BarrelShippingPricingSectionProps) {
   const { awaiting, submitted } = data;
+  const unpaidContainers = linkableContainersFromChargeRows([
+    ...awaiting,
+    ...submitted,
+  ]);
   const groups = groupShippingContainersByRateLinks(awaiting, submitted);
   const awaitingOnlyGroups = groups.filter(
     (group) => group.awaiting.length > 0 && group.submitted.length === 0,
@@ -168,7 +173,13 @@ export function BarrelShippingPricingSection({
               <li key={row.intakeId}>
                 <BarrelOutboundShippingChargeCard
                   row={row}
-                  members={readyGroupByIntake.get(row.intakeId)}
+                  members={(readyGroupByIntake.get(row.intakeId) ?? []).map(
+                    (item) => ({
+                      alias: item.alias,
+                      intakeId:
+                        "intakeId" in item ? item.intakeId : undefined,
+                    }),
+                  )}
                   destinationCountry={destinationCountry}
                 />
               </li>
@@ -225,6 +236,7 @@ export function BarrelShippingPricingSection({
                   row={row}
                   members={readyGroupByIntake.get(row.intakeId)}
                   destinationCountry={destinationCountry}
+                  unpaidContainers={unpaidContainers}
                 />
               </li>
             ))}
