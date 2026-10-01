@@ -42,6 +42,7 @@ export function ServiceHandlingFeeChart({
       icon={copy.icon}
       title={copy.title}
       description={copy.description}
+      accent={kind === "in-app" ? "sky" : "amber"}
       footer={
         <p className="inline-flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
@@ -49,8 +50,8 @@ export function ServiceHandlingFeeChart({
         </p>
       }
     >
-      <div className="overflow-hidden rounded-lg border border-border/60">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-b border-border/60 bg-muted/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="pricing-overview-ledger overflow-hidden rounded-lg">
+        <div className="pricing-overview-ledger-head grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
           <span>Unit price range</span>
           <span className="text-right">Fee</span>
         </div>
@@ -68,7 +69,7 @@ export function ServiceHandlingFeeChart({
               <span className="font-medium text-foreground">
                 {row.unitPriceRangeLabel}
               </span>
-              <span className="text-right tabular-nums font-semibold text-primary">
+              <span className="pricing-overview-fee text-right tabular-nums font-semibold">
                 {row.feePerUnitLabel}
               </span>
             </li>

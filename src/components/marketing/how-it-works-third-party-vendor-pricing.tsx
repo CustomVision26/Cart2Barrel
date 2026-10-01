@@ -27,8 +27,8 @@ function RateTable({
   const isZone = tableKind === "zone";
   return (
     <div className="space-y-1.5">
-      <div className="overflow-hidden rounded-lg border border-border/70">
-        <div className="grid grid-cols-[minmax(0,1.1fr)_auto_auto] gap-2 border-b border-border/70 bg-muted px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="pricing-overview-ledger overflow-hidden rounded-lg">
+        <div className="pricing-overview-ledger-head grid grid-cols-[minmax(0,1.1fr)_auto_auto] gap-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
           <span>{isZone ? "Zone / location" : "Container"}</span>
           <span className="text-right">1 container</span>
           <span className="text-right">Each extra</span>
@@ -47,10 +47,10 @@ function RateTable({
               <span className="min-w-0 break-words font-medium text-foreground">
                 {row.rowLabel}
               </span>
-              <span className="text-right tabular-nums font-semibold text-primary">
+              <span className="pricing-overview-fee text-right tabular-nums font-semibold">
                 {formatUsd(row.costOneCents)}
               </span>
-              <span className="text-right tabular-nums font-semibold text-primary">
+              <span className="pricing-overview-fee text-right tabular-nums font-semibold">
                 {formatUsd(row.costTwoPlusCents)}
               </span>
             </li>
@@ -137,7 +137,7 @@ function CompanyCard({
     company.customerNote?.trim() ||
     "This company moves a container from the United States warehouse to the destination port.";
   return (
-    <div className="space-y-3 overflow-visible rounded-lg border border-border/60 bg-background/30 px-3 py-3">
+    <div className="pricing-overview-vendor-card space-y-3 overflow-visible rounded-lg px-3 py-3">
       {serviceOnly ?
         <ServiceBadge
           label={company.serviceLabel}
@@ -194,14 +194,12 @@ function VendorGroup({
   title,
   description,
   companies,
-  serviceOnlyKeys,
   showServiceInfo = false,
   identity = "full",
 }: {
   title: string;
   description: string;
   companies: PublicOutboundCompanyPricingCard[];
-  serviceOnlyKeys?: ReadonlySet<string>;
   showServiceInfo?: boolean;
   identity?: "full" | "service";
 }) {
@@ -209,7 +207,7 @@ function VendorGroup({
   return (
     <div className="space-y-2">
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground">
           {title}
         </p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
@@ -221,11 +219,7 @@ function VendorGroup({
           <CompanyCard
             key={company.companyKey}
             company={company}
-            identity={
-              identity === "service" || serviceOnlyKeys?.has(company.companyKey)
-                ? "service"
-                : "full"
-            }
+            identity={identity}
             showServiceInfo={showServiceInfo}
           />
         ))}
@@ -245,18 +239,13 @@ export function HowItWorksThirdPartyVendorPricing({
   const inUs = companies.filter((company) =>
     publicCompanyVendorHeadings(company.kinds).includes("in-us"),
   );
-  const overseas = companies.filter((company) =>
-    publicCompanyVendorHeadings(company.kinds).includes("overseas"),
-  );
   const inUsKeys = new Set(inUs.map((company) => company.companyKey));
-  const overseasServiceOnlyKeys = new Set(
-    overseas
-      .filter(
-        (company) =>
-          inUsKeys.has(company.companyKey) && company.kinds.length >= 2,
-      )
-      .map((company) => company.companyKey),
-  );
+  const overseas = companies.filter((company) => {
+    if (!publicCompanyVendorHeadings(company.kinds).includes("overseas")) {
+      return false;
+    }
+    return !inUsKeys.has(company.companyKey);
+  });
 
   return (
     <PricingOverviewSection
@@ -264,6 +253,7 @@ export function HowItWorksThirdPartyVendorPricing({
       icon={<Ship className="size-4" />}
       title="Third-party vendors"
       description="Published freight, broker, and local courier companies. Freight sits under In-US vendor; broker and local courier sit under Overseas third-party vendor."
+      accent="rose"
       footer={
         <p className="inline-flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
@@ -285,7 +275,6 @@ export function HowItWorksThirdPartyVendorPricing({
           title="Overseas third-party vendor"
           description="Destination-country clearance and local transportation after the container arrives."
           companies={overseas}
-          serviceOnlyKeys={overseasServiceOnlyKeys}
         />
       </div>
     </PricingOverviewSection>

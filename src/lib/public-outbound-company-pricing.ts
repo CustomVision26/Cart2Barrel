@@ -42,7 +42,7 @@ export function publicCompanyServiceLabel(
   return BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS.freight;
 }
 
-/** Freight companies sit under In-US; broker and courier under Overseas. Bundles can appear in both. */
+/** Freight companies sit under In-US; broker and courier under Overseas. Freight+broker bundles stay In-US only on How it works. */
 export function publicCompanyVendorHeadings(
   kinds: readonly BarrelOutboundShippingChargeKind[],
 ): Array<"in-us" | "overseas"> {

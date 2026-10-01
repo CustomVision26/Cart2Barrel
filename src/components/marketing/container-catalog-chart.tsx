@@ -155,14 +155,15 @@ export function ContainerCatalogChart({
         icon={<Container className="size-4" />}
         title="Container options"
         description="Barrels and bins you can add from Dashboard → Barrels. Each listing shows the container price before checkout. Double-click a photo to browse images."
+        accent="violet"
       >
         {rows.length === 0 ?
           <p className="rounded-lg border border-dashed border-border/70 bg-muted/50 px-3 py-4 text-xs leading-relaxed text-muted-foreground">
             Container options are being published. Sign in later or contact us
             for current barrel and bin availability.
           </p>
-        : <div className="overflow-hidden rounded-lg border border-border/60">
-            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 border-b border-border/60 bg-muted/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        : <div className="pricing-overview-ledger overflow-hidden rounded-lg">
+            <div className="pricing-overview-ledger-head grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
               <span className="w-10">Photo</span>
               <span>Container</span>
               <span className="text-right">Price</span>
@@ -191,7 +192,7 @@ export function ContainerCatalogChart({
                   <span className="min-w-0 font-medium text-foreground">
                     {row.containerLabel}
                   </span>
-                  <span className="shrink-0 text-right tabular-nums font-semibold text-primary">
+                  <span className="pricing-overview-fee shrink-0 text-right tabular-nums font-semibold">
                     {row.priceLabel}
                   </span>
                 </li>

@@ -8,10 +8,10 @@ export function HowItWorksPricingOverview({
   return (
     <div className="pricing-overview-panel">
       <header className="pricing-overview-masthead">
-        <p className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
+        <p className="pricing-overview-stamp relative z-10 text-[10px] font-semibold uppercase tracking-[0.22em]">
           Rate schedule
         </p>
-        <h2 className="relative z-10 mt-1 font-heading text-lg font-semibold tracking-tight text-foreground">
+        <h2 className="relative z-10 mt-2 font-heading text-lg font-semibold tracking-tight text-foreground">
           Pricing overview
         </h2>
         <p className="relative z-10 mt-1.5 max-w-[20rem] text-xs leading-relaxed text-muted-foreground">
@@ -19,7 +19,7 @@ export function HowItWorksPricingOverview({
           at checkout.
         </p>
       </header>
-      <div className="divide-y divide-border/70">{children}</div>
+      <div className="pricing-overview-body">{children}</div>
     </div>
   );
 }
@@ -31,6 +31,7 @@ export function PricingOverviewSection({
   description,
   children,
   footer,
+  accent = "violet",
 }: {
   index: number;
   icon: ReactNode;
@@ -38,11 +39,13 @@ export function PricingOverviewSection({
   description: string;
   children: ReactNode;
   footer?: ReactNode;
+  accent?: "sky" | "amber" | "violet" | "emerald" | "rose";
 }) {
   const label = String(index).padStart(2, "0");
   return (
     <section
       className="pricing-overview-section space-y-3 px-3.5 py-4"
+      data-accent={accent}
       style={
         {
           "--pricing-section-delay": `${(index - 1) * 90}ms`,
@@ -51,13 +54,13 @@ export function PricingOverviewSection({
     >
       <div className="flex items-start gap-2.5">
         <span
-          className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary"
+          className="pricing-overview-icon mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md"
           aria-hidden
         >
           {icon}
         </span>
         <div className="min-w-0 space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="pricing-overview-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
             {label}
           </p>
           <h3 className="font-heading text-sm font-semibold leading-snug tracking-tight text-foreground">
