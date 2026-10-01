@@ -1758,7 +1758,8 @@ function AdminChargeBundleControls({
             variant="outline"
             disabled={pending}
             onClick={() => {
-              setSelected([]);
+              setDraftKey(savedKey);
+              setDraft([]);
               apply([]);
             }}
           >
