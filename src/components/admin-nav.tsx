@@ -61,7 +61,9 @@ function isShipmentsPath(path: string): boolean {
     path === "/admin/shipments" ||
     path.startsWith("/admin/shipments/") ||
     path === "/admin/shipments-history" ||
-    path.startsWith("/admin/shipments-history/")
+    path.startsWith("/admin/shipments-history/") ||
+    path === "/admin/shipments-container-control" ||
+    path.startsWith("/admin/shipments-container-control/")
   );
 }
 

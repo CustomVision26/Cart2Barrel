@@ -154,6 +154,7 @@ function CompanyCard({
             <OutboundCompanyAdButton
               imageUrl={company.imageUrl}
               companyName={company.companyName}
+              customerNote={company.customerNote}
             />
           </div>
           <StatusBadge kind="quoted">{company.serviceLabel}</StatusBadge>

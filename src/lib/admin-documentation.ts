@@ -481,9 +481,10 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     category: "Fulfillment",
     quickReference: {
       summary: "Outbound barrel freight, customs charges, shipment tracking, and shipped-container history.",
-      location: "Sidebar → Shipments; history at /admin/shipments-history.",
+      location: "Sidebar → Shipments; Container Control at /admin/shipments-container-control; history at /admin/shipments-history.",
       bullets: [
         "Create and manage outbound shipment charges and 1-container vs extra-container rate tables. Customers link unpaid containers on Dashboard → Shipping.",
+        "Container Control tab: same Freight / Broker / Local courier catalog as Manage on a container card, without opening a shipment.",
         "Publish a company to How it works → Pricing overview from the company record. Freight (or freight+broker) appears under In-US vendor as a service badge plus the customer note info button—no company name or street. Pickup fee is a separate table (not shown on that public freight card). Standalone overseas brokers and couriers show identity, Operate from, and zone or container rates.",
         "Customs and freight billing to customer cart.",
         "Carrier tracking for international delivery.",
@@ -500,10 +501,11 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     article: {
       overview: [
         "Shipments handles the last mile of Amani Cart2Barrel operations—outbound barrel freight, customs-related charges, and carrier tracking once containers leave the hub toward the customer's country.",
-        "Shipping History is the archive of containers already sent: a table of freight, broker, and courier records plus receipts and customs documents, newest first. Double-click a row or Open for the full record.",
+        "Container Control is the company catalog (Freight charge, Broker, Local courier) without a customer container. Shipping History is the archive of containers already sent: a table of freight, broker, and courier records plus receipts and customs documents, newest first. Double-click a row or Open for the full record.",
       ],
       walkthrough: [
         "Open Shipments from the Fulfillment sidebar.",
+        "Use Container Control to save freight, broker, and courier companies, pickup-fee tables, and notes without opening Manage on a barrel.",
         "Review containers. Paid freight moves that container out of Ready for shipping into the current shipment stage (the same record the customer sees on Dashboard → Shipping).",
         "Create or update shipment charges and the 1-container vs extra-container rate tables so customers can pay via Dashboard → Shipping. Customers link unpaid containers there; do not link containers from the company Charge dialog.",
         "On a freight, broker, or courier company record, use Publish to How it works to show that company under Pricing overview. Freight+broker cards sit only under In-US vendor (badge and Note to customer; freight rates exclude pickup fee). Standalone destination brokers and couriers sit under Overseas third-party vendor with Operate from and contact details. Pickup fee tables are not published on the public freight card.",
@@ -519,6 +521,53 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Do not release barrels with unpaid required freight charges unless explicitly approved.",
         "Do not enter incorrect customs declarations—downstream delivery may be blocked.",
+      ],
+    },
+  },
+  {
+    id: "shipments-container-control",
+    title: "Shipments — Container control",
+    category: "Fulfillment",
+    quickReference: {
+      summary:
+        "Freight, broker, and local courier company catalog—the same tools as Manage on a shipment card.",
+      location:
+        "Sidebar → Shipments → Container Control tab (/admin/shipments-container-control).",
+      bullets: [
+        "Always available, even when no customer container is ready.",
+        "Freight charge, Broker, and Local courier sub-tabs match Manage on a Shipments card.",
+        "Save companies, Ad images, notes to customer, pickup fees, and 1-container vs extra-container rates.",
+        "Publish to How it works from the company record. Per-container charge publish stays on Shipments → Manage.",
+      ],
+      requirements: ["Admin access."],
+      dos: [
+        "Set up companies and rate tables here before the first barrel is ready.",
+        "Use Shipments → Manage to publish a quote onto a confirmed customer container.",
+      ],
+      donts: [
+        "Don't expect Container Control to bill a specific customer's barrel—use Manage on that container.",
+        "Don't skip Save note after editing the customer note.",
+      ],
+    },
+    article: {
+      overview: [
+        "Container Control is a copy of the Manage panel on a Shipments container card. It holds the freight, broker, and courier catalog so staff can maintain companies without opening a barrel.",
+        "Charge publish onto a live container still happens from Shipments after the customer confirms shipping.",
+      ],
+      walkthrough: [
+        "Open Sidebar → Shipments, then the Container Control tab.",
+        "Use Freight charge, Broker, and Local courier the same way as Manage: add or edit companies, upload an Ad image, save the note to customer, and set container or zone rate tables and pickup fees.",
+        "Publish a company to How it works from the company record when the public rate schedule should show it.",
+        "When a customer container is ready, open Shipments → Manage on that card to publish the charge for Dashboard → Shipping.",
+      ],
+      requirements: ["Admin access."],
+      dos: [
+        "Keep company notes accurate; they appear on How it works (Ad dialog or info button).",
+        "Return to Shipments to bill a specific container.",
+      ],
+      donts: [
+        "Do not treat catalog save as publishing a customer invoice.",
+        "Do not duplicate companies with slightly different names if they are the same vendor.",
       ],
     },
   },

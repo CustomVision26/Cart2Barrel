@@ -24,6 +24,7 @@ export type OutboundShippingCompanyRateActionState =
 
 function revalidateRatePaths() {
   revalidatePath("/admin/shipments");
+  revalidatePath("/admin/shipments-container-control");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");

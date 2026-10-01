@@ -1343,6 +1343,21 @@ export const ADMIN_SHIPPING_CHARGE_PREVIEW_ROW: AdminBarrelOutboundShippingCharg
     companyRateLinks: [],
   };
 
+export function buildAdminShippingCatalogPreviewRow(input: {
+  partners: AdminBarrelOutboundShippingChargeRow["partners"];
+  companyRates: AdminBarrelOutboundShippingChargeRow["companyRates"];
+  chargeBundle: AdminBarrelOutboundShippingChargeRow["chargeBundle"];
+  companyRateKinds: AdminBarrelOutboundShippingChargeRow["companyRateKinds"];
+}): AdminBarrelOutboundShippingChargeRow {
+  return {
+    ...ADMIN_SHIPPING_CHARGE_PREVIEW_ROW,
+    partners: input.partners,
+    companyRates: input.companyRates,
+    chargeBundle: input.chargeBundle,
+    companyRateKinds: input.companyRateKinds,
+  };
+}
+
 export type AdminShipmentCustomerGroup = {
   clerkUserId: string;
   customerName: string | null;

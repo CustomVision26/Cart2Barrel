@@ -4,7 +4,7 @@ import { AdminShipmentsTabNav } from "@/components/admin/admin-shipments-tab-nav
 import { listAdminShipmentChargePageData } from "@/data/admin-barrel-outbound-shipping-charges";
 import { parseAdminCustomerFilter } from "@/lib/admin-customer-filter";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
-import { ADMIN_SHIPPING_CHARGE_PREVIEW_ROW } from "@/lib/barrel-outbound-shipping-charge";
+import { buildAdminShippingCatalogPreviewRow } from "@/lib/barrel-outbound-shipping-charge";
 import { loadAdminStaffProfilesByClerkUserIds } from "@/lib/admin-staff-profiles.server";
 import { safeCurrentUser } from "@/lib/safe-current-user";
 
@@ -61,8 +61,9 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
         help={
           <>
             All active customer containers — ready and still packing. Open Manage
-            for Freight charge, Broker, and Local courier sub-tabs. Published
-            amounts appear on{" "}
+            for Freight charge, Broker, and Local courier sub-tabs, or use the
+            Container Control tab for the same company catalog without a
+            container. Published amounts appear on{" "}
             <span className="font-medium text-foreground">
               Dashboard → Shipping
             </span>{" "}
@@ -85,13 +86,12 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
         <AdminShipmentsPanel
           customerGroups={customerGroups}
           showPreview={showPreview}
-          previewRow={{
-            ...ADMIN_SHIPPING_CHARGE_PREVIEW_ROW,
+          previewRow={buildAdminShippingCatalogPreviewRow({
             partners: catalogPartners,
             companyRates,
             chargeBundle: catalogChargeBundle,
             companyRateKinds: catalogCompanyRateKinds,
-          }}
+          })}
           staffProfilesByClerkUserId={staffProfilesByClerkUserId}
         />
       )}

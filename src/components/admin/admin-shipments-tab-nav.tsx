@@ -6,7 +6,7 @@ import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter
 import { ADMIN_SHIPMENTS_ROUTES } from "@/lib/admin-shipments-routes";
 import { cn } from "@/lib/utils";
 
-type AdminShipmentsTab = "shipments" | "history";
+type AdminShipmentsTab = "shipments" | "history" | "container-control";
 
 const tabClass = (selected: boolean) =>
   cn(
@@ -43,6 +43,14 @@ export function AdminShipmentsTabNav({
         className={tabClass(activeTab === "history")}
       >
         Shipping History
+      </Link>
+      <Link
+        href={hrefWithFilter(ADMIN_SHIPMENTS_ROUTES.containerControl)}
+        role="tab"
+        aria-selected={activeTab === "container-control"}
+        className={tabClass(activeTab === "container-control")}
+      >
+        Container Control
       </Link>
     </div>
   );

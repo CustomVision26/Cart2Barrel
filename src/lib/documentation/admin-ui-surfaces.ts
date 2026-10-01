@@ -1,5 +1,6 @@
 import { ADMIN_GUIDE_ROUTE } from "@/lib/admin-guide-routes";
 import { ADMIN_ITEM_REQUESTS_ROUTES } from "@/lib/admin-item-requests-routes";
+import { ADMIN_SHIPMENTS_ROUTES } from "@/lib/admin-shipments-routes";
 import { ADMIN_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 import { ADMIN_USERS_ROUTES } from "@/lib/admin-users-routes";
 import type {
@@ -118,6 +119,15 @@ const ADMIN_HEADER_AND_EXTRA_SURFACES: UiSurfaceDefinition[] = [
     location: "Sidebar → Users → Site traffic tab.",
     kind: "tab",
   },
+  {
+    id: "shipments-container-control",
+    title: "Shipments — Container control",
+    category: "Fulfillment",
+    route: ADMIN_SHIPMENTS_ROUTES.containerControl,
+    location:
+      "Sidebar → Shipments → Container Control tab (/admin/shipments-container-control).",
+    kind: "tab",
+  },
 ];
 
 function surfaceFromNavLink(link: SidebarNavLinkDefinition): UiSurfaceDefinition {
@@ -174,7 +184,7 @@ const ADMIN_SURFACE_OVERRIDES: Partial<
   },
   shipments: {
     title: "Shipments & history",
-    location: "Sidebar → Shipments; history at /admin/shipments-history.",
+    location: "Sidebar → Shipments; Container Control at /admin/shipments-container-control; history at /admin/shipments-history.",
   },
   users: {
     title: "Users & admin grants",

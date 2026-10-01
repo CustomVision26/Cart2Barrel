@@ -216,6 +216,7 @@ export async function saveBarrelOutboundShippingChargeAction(
   }
 
   revalidatePath("/admin/shipments");
+  revalidatePath("/admin/shipments-container-control");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
@@ -258,6 +259,7 @@ export async function approveOutboundOffPlatformPaymentAction(
   if (!result.ok) return result;
 
   revalidatePath("/admin/shipments");
+  revalidatePath("/admin/shipments-container-control");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
@@ -290,6 +292,7 @@ export async function setBarrelOutboundChargeBundleAction(
   if (!result.ok) return result;
 
   revalidatePath("/admin/shipments");
+  revalidatePath("/admin/shipments-container-control");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
@@ -323,6 +326,7 @@ export async function setBarrelOutboundCompanyRateKindsAction(
   const result = await setOutboundCompanyRateKindsForBarrel(parsed.data);
   if (!result.ok) return result;
   revalidatePath("/admin/shipments");
+  revalidatePath("/admin/shipments-container-control");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");

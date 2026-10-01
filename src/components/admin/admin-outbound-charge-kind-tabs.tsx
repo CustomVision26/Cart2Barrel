@@ -147,7 +147,8 @@ function CompanyServiceNoteField({
       <Label htmlFor={noteId}>Note to customer (optional)</Label>
       <p className="text-[11px] leading-snug text-muted-foreground">
         Unique to this company. Visitors see it on How it works when they tap
-        the info button.
+        Ad, or the info button on In-US freight. Edit it here or on Container
+        Control.
       </p>
       <textarea
         id={noteId}

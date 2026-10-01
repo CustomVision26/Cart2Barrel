@@ -33,6 +33,7 @@ export type OutboundShippingPartnerActionState =
 
 function revalidatePartnerPaths() {
   revalidatePath("/admin/shipments");
+  revalidatePath("/admin/shipments-container-control");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/how-it-works");
