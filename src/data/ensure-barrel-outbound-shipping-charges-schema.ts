@@ -237,6 +237,10 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
       ADD COLUMN IF NOT EXISTS "public_pricing_published_at" timestamp with time zone
     `);
     await db.execute(sql`
+      ALTER TABLE "barrel_outbound_shipping_partners"
+      ADD COLUMN IF NOT EXISTS "customer_note" text
+    `);
+    await db.execute(sql`
       ALTER TABLE "barrel_outbound_shipping_charges"
       ADD COLUMN IF NOT EXISTS "partner_cashapp_account" text
     `);
@@ -296,6 +300,10 @@ export async function ensureOutboundPartnerPublicPricingColumn(): Promise<void> 
   await db.execute(sql`
     ALTER TABLE "barrel_outbound_shipping_partners"
     ADD COLUMN IF NOT EXISTS "public_pricing_published_at" timestamp with time zone
+  `);
+  await db.execute(sql`
+    ALTER TABLE "barrel_outbound_shipping_partners"
+    ADD COLUMN IF NOT EXISTS "customer_note" text
   `);
   publicPricingColumnReady = true;
 }

@@ -20,6 +20,7 @@ import type {
 import {
   isBarrelOutboundShippingChargeKind,
   outboundChargeBundleHost,
+  outboundShippingCompanyKey,
   parseOutboundChargeBundle,
 } from "@/lib/barrel-outbound-shipping-charge";
 
@@ -43,6 +44,7 @@ function mapPartner(
     zelleAccount: row.zelleAccount,
     imageUrl: row.imageUrl,
     isPrimary: row.isPrimary,
+    customerNote: row.customerNote ?? null,
     publicPricingPublishedAt: row.publicPricingPublishedAt ?? null,
   };
 }
@@ -73,6 +75,23 @@ async function findCompanyImageUrl(
     (row) => partnerNameKey(row.name) === key && Boolean(row.imageUrl?.trim()),
   );
   return match?.imageUrl?.trim() || null;
+}
+
+async function findCompanyCustomerNote(name: string): Promise<string | null> {
+  const key = partnerNameKey(name);
+  if (!key) return null;
+  const db = getDb();
+  const rows = await db
+    .select({
+      customerNote: barrelOutboundShippingPartners.customerNote,
+      name: barrelOutboundShippingPartners.name,
+    })
+    .from(barrelOutboundShippingPartners);
+  const match = rows.find(
+    (row) =>
+      partnerNameKey(row.name) === key && Boolean(row.customerNote?.trim()),
+  );
+  return match?.customerNote?.trim() || null;
 }
 
 async function propagateCompanyImageUrl(input: {
@@ -464,6 +483,7 @@ export async function addOutboundShippingPartner(input: {
       zelleAccount: input.zelleAccount,
       imageUrl,
       isPrimary: makePrimary,
+      customerNote: await findCompanyCustomerNote(input.name),
     })
     .returning();
   if (!inserted) {
@@ -730,4 +750,37 @@ export async function setOutboundShippingPartnerPublicPricing(input: {
     }
     throw e;
   }
+}
+
+export async function setOutboundCompanyCustomerNote(input: {
+  companyName: string;
+  customerNote: string | null;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const companyKey = outboundShippingCompanyKey(input.companyName);
+  if (!companyKey) {
+    return { ok: false, message: "Add a company first." };
+  }
+  await ensureBarrelOutboundShippingChargesSchema();
+  await ensureOutboundPartnerPublicPricingColumn();
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: barrelOutboundShippingPartners.id,
+      name: barrelOutboundShippingPartners.name,
+    })
+    .from(barrelOutboundShippingPartners);
+  const ids = rows
+    .filter((row) => outboundShippingCompanyKey(row.name) === companyKey)
+    .map((row) => row.id);
+  if (ids.length === 0) {
+    return { ok: false, message: "Add a company first." };
+  }
+  await db
+    .update(barrelOutboundShippingPartners)
+    .set({
+      customerNote: input.customerNote?.trim() || null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(inArray(barrelOutboundShippingPartners.id, ids));
+  return { ok: true };
 }

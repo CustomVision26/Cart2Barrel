@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import {
   getPrimaryOutboundShippingPartner,
+  setOutboundCompanyCustomerNote,
   syncBundlePartnersFromHost,
 } from "@/data/barrel-outbound-shipping-partners";
 import {
@@ -207,10 +208,18 @@ export async function saveBarrelOutboundShippingChargeAction(
     await syncBundlePartnersFromHost(barrelId, bundle);
   }
 
+  if (partnerNameValue) {
+    await setOutboundCompanyCustomerNote({
+      companyName: partnerNameValue,
+      customerNote: adminNote,
+    });
+  }
+
   revalidatePath("/admin/shipments");
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
+  revalidatePath("/how-it-works");
 
   const kindLabel = BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[chargeKind];
   if (host && bundle.includes(chargeKind) && chargeKind === host) {

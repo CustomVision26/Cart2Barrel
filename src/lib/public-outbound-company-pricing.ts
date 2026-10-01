@@ -1,6 +1,8 @@
-import type {
-  BarrelOutboundShippingChargeKind,
-  OutboundShippingCompanyRateTableKind,
+import {
+  BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS,
+  outboundChargeBundleLabel,
+  type BarrelOutboundShippingChargeKind,
+  type OutboundShippingCompanyRateTableKind,
 } from "@/lib/barrel-outbound-shipping-charge";
 
 export type PublicOutboundCompanyPricingCard = {
@@ -14,6 +16,7 @@ export type PublicOutboundCompanyPricingCard = {
   address: string | null;
   phone: string | null;
   imageUrl: string | null;
+  customerNote: string | null;
   rateTables: {
     tableKind: OutboundShippingCompanyRateTableKind;
     rows: {
@@ -24,12 +27,6 @@ export type PublicOutboundCompanyPricingCard = {
   }[];
 };
 
-const KIND_SHORT: Record<BarrelOutboundShippingChargeKind, string> = {
-  freight: "freight",
-  broker: "broker",
-  courier: "local courier",
-};
-
 export function publicCompanyServiceLabel(
   kinds: readonly BarrelOutboundShippingChargeKind[],
 ): string {
@@ -37,12 +34,12 @@ export function publicCompanyServiceLabel(
     kinds.includes(kind),
   );
   if (ordered.length >= 2) {
-    return ordered.map((kind) => KIND_SHORT[kind]).join(" + ");
+    return outboundChargeBundleLabel(ordered);
   }
   const kind = ordered[0];
   if (kind === "courier") return "Standalone local courier";
   if (kind === "broker") return "Standalone broker";
-  return "Standalone freight";
+  return BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS.freight;
 }
 
 /** Freight companies sit under In-US; broker and courier under Overseas. Bundles can appear in both. */

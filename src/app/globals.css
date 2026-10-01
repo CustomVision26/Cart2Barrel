@@ -800,6 +800,135 @@
   transform: translateY(0);
 }
 
+/* How it works — Pricing overview ledger */
+.pricing-overview-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklch, var(--primary) 28%, var(--border));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--primary) 8%, var(--card)) 0%,
+      var(--card) 7.5rem
+    );
+  box-shadow:
+    0 18px 40px rgb(0 0 0 / 0.22),
+    0 0 0 1px color-mix(in oklch, var(--primary) 12%, transparent);
+}
+
+.pricing-overview-panel::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0 auto auto 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--primary),
+    color-mix(in oklch, var(--primary) 45%, white),
+    var(--primary),
+    transparent
+  );
+  background-size: 220% 100%;
+  animation: pricing-overview-sheen 8s ease-in-out infinite;
+}
+
+.pricing-overview-masthead {
+  position: relative;
+  overflow: hidden;
+  padding: 1.15rem 1.1rem 1rem;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+}
+
+.pricing-overview-masthead::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -40% auto auto -20%;
+  height: 180%;
+  width: 55%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    color-mix(in oklch, var(--primary) 16%, transparent) 45%,
+    transparent 70%
+  );
+  animation: pricing-overview-glint 7s ease-in-out infinite;
+}
+
+.pricing-overview-section {
+  opacity: 0;
+  transform: translateY(0.7rem);
+  animation: pricing-overview-section-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--pricing-section-delay, 0ms) + 180ms);
+}
+
+.pricing-overview-row {
+  opacity: 0;
+  transform: translateX(0.45rem);
+  animation: pricing-overview-row-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(
+    var(--pricing-section-delay, 0ms) + 280ms + (var(--pricing-row-index, 0) * 45ms)
+  );
+}
+
+.pricing-overview-row:nth-child(even) {
+  background: color-mix(in oklch, var(--muted) 45%, transparent);
+}
+
+.pricing-overview-row:hover {
+  background: color-mix(in oklch, var(--primary) 9%, var(--muted));
+}
+
+@keyframes pricing-overview-sheen {
+  0%,
+  100% {
+    background-position: 100% 0;
+    opacity: 0.55;
+  }
+  50% {
+    background-position: 0% 0;
+    opacity: 1;
+  }
+}
+
+@keyframes pricing-overview-glint {
+  0%,
+  100% {
+    transform: translateX(-8%) rotate(12deg);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateX(28%) rotate(12deg);
+    opacity: 0.7;
+  }
+}
+
+@keyframes pricing-overview-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.7rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pricing-overview-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.45rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .billing-receipts-account-panel select option {
   background-color: #27272a;
   color: #fafafa;
@@ -847,6 +976,19 @@
     opacity: 1;
     transform: none;
     transition: none;
+  }
+
+  .pricing-overview-panel::before,
+  .pricing-overview-masthead::after,
+  .pricing-overview-section,
+  .pricing-overview-row {
+    animation: none;
+  }
+
+  .pricing-overview-section,
+  .pricing-overview-row {
+    opacity: 1;
+    transform: none;
   }
 
   .special-feature-promo-banner__track {

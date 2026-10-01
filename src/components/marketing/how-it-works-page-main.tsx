@@ -12,6 +12,7 @@ import { HowItWorksJourney } from "@/components/marketing/how-it-works-journey";
 import { HowItWorksServices } from "@/components/marketing/how-it-works-services";
 import { HowItWorksSpecialFeatures } from "@/components/marketing/how-it-works-special-features";
 import { HowItWorksSubTabNav } from "@/components/marketing/how-it-works-sub-tab-nav";
+import { HowItWorksPricingOverview } from "@/components/marketing/how-it-works-pricing-overview";
 import { HowItWorksThirdPartyVendorPricing } from "@/components/marketing/how-it-works-third-party-vendor-pricing";
 import { RevealOnScroll } from "@/components/marketing/reveal-on-scroll";
 import { ServiceHandlingFeeChart } from "@/components/marketing/service-handling-fee-chart";
@@ -88,31 +89,31 @@ export function HowItWorksPageMain({
           <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-12">
             <aside className="order-1 lg:sticky lg:top-6 lg:order-2 lg:justify-self-end lg:w-full">
               <RevealOnScroll variant="scroll" delayMs={0}>
-                <div className="space-y-4 lg:ml-auto lg:max-w-[340px]">
-                  <div className="space-y-1 px-0.5">
-                    <h2 className="font-heading text-sm font-semibold uppercase tracking-wide text-foreground">
-                      Pricing overview
-                    </h2>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      Current published rates. Your signed-in dashboard shows exact
-                      totals at checkout.
-                    </p>
-                  </div>
-                  <div className="space-y-6">
+                <div className="lg:ml-auto lg:max-w-[22.5rem]">
+                  <HowItWorksPricingOverview>
                     <ServiceHandlingFeeChart
                       kind="in-app"
                       rows={inAppServiceFeeChartRows}
+                      index={1}
                     />
                     <ServiceHandlingFeeChart
                       kind="outside"
                       rows={outsidePurchaseServiceFeeChartRows}
+                      index={2}
                     />
-                    <ContainerCatalogChart rows={containerCatalogChartRows} />
-                    <ContainerPackingFeeChart rows={containerPackingChartRows} />
+                    <ContainerCatalogChart
+                      rows={containerCatalogChartRows}
+                      index={3}
+                    />
+                    <ContainerPackingFeeChart
+                      rows={containerPackingChartRows}
+                      index={4}
+                    />
                     <HowItWorksThirdPartyVendorPricing
                       companies={thirdPartyVendorPricing}
+                      index={5}
                     />
-                  </div>
+                  </HowItWorksPricingOverview>
                 </div>
               </RevealOnScroll>
             </aside>

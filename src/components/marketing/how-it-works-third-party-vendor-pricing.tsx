@@ -1,16 +1,19 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { Info, Ship } from "lucide-react";
+import { useState, type CSSProperties } from "react";
 
 import { OutboundCompanyAdButton } from "@/components/shipping/outbound-company-ad-button";
+import { PricingOverviewSection } from "@/components/marketing/how-it-works-pricing-overview";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   publicCompanyVendorHeadings,
   type PublicOutboundCompanyPricingCard,
@@ -23,55 +26,125 @@ function RateTable({
 }: PublicOutboundCompanyPricingCard["rateTables"][number]) {
   const isZone = tableKind === "zone";
   return (
-    <div className="overflow-hidden rounded-lg border border-border/70">
-      <div className="grid grid-cols-[minmax(0,1.1fr)_auto_auto] gap-2 border-b border-border/70 bg-muted px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <span>{isZone ? "Zone / location" : "Container"}</span>
-        <span className="text-right">1 container</span>
-        <span className="text-right">Each extra</span>
+    <div className="space-y-1.5">
+      <div className="overflow-hidden rounded-lg border border-border/70">
+        <div className="grid grid-cols-[minmax(0,1.1fr)_auto_auto] gap-2 border-b border-border/70 bg-muted px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <span>{isZone ? "Zone / location" : "Container"}</span>
+          <span className="text-right">1 container</span>
+          <span className="text-right">Each extra</span>
+        </div>
+        <ul>
+          {rows.map((row, rowIndex) => (
+            <li
+              key={row.rowLabel}
+              className="pricing-overview-row grid grid-cols-[minmax(0,1.1fr)_auto_auto] gap-2 px-3 py-2 text-xs transition-colors"
+              style={
+                {
+                  "--pricing-row-index": rowIndex,
+                } as CSSProperties
+              }
+            >
+              <span className="min-w-0 break-words font-medium text-foreground">
+                {row.rowLabel}
+              </span>
+              <span className="text-right tabular-nums font-semibold text-primary">
+                {formatUsd(row.costOneCents)}
+              </span>
+              <span className="text-right tabular-nums font-semibold text-primary">
+                {formatUsd(row.costTwoPlusCents)}
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
-      <ul>
-        {rows.map((row, index) => (
-          <li
-            key={row.rowLabel}
-            className={`grid grid-cols-[minmax(0,1.1fr)_auto_auto] gap-2 px-3 py-2 text-xs ${
-              index % 2 === 0 ? "bg-card" : "bg-muted"
-            }`}
-          >
-            <span className="min-w-0 break-words font-medium text-foreground">
-              {row.rowLabel}
-            </span>
-            <span className="text-right tabular-nums font-semibold text-primary">
-              {formatUsd(row.costOneCents)}
-            </span>
-            <span className="text-right tabular-nums font-semibold text-primary">
-              {formatUsd(row.costTwoPlusCents)}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {isZone ? null : (
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          These freight charges do not include the pickup fee.
+        </p>
+      )}
     </div>
   );
 }
 
-function formatServiceLabel(label: string): string {
-  if (!label.trim()) return label;
-  return label.charAt(0).toUpperCase() + label.slice(1);
+function ServiceOfferedDialog({
+  companyName,
+  note,
+}: {
+  companyName: string;
+  note: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        className="size-7 shrink-0 rounded-full"
+        aria-label={`Service offered by ${companyName}`}
+        onClick={() => setOpen(true)}
+      >
+        <Info className="size-3.5" aria-hidden />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[min(90vh,32rem)] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Service offered</DialogTitle>
+            <DialogDescription className="whitespace-pre-wrap text-left text-sm leading-relaxed text-foreground">
+              {note}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function ServiceBadge({
+  label,
+  showServiceInfo,
+  companyName,
+  serviceNote,
+}: {
+  label: string;
+  showServiceInfo?: boolean;
+  companyName: string;
+  serviceNote: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <p className="inline-flex items-center rounded-full border border-primary/35 bg-primary/10 px-3.5 py-1.5 text-sm font-semibold tracking-tight text-primary">
+        {label}
+      </p>
+      {showServiceInfo ?
+        <ServiceOfferedDialog companyName={companyName} note={serviceNote} />
+      : null}
+    </div>
+  );
 }
 
 function CompanyCard({
   company,
   identity = "full",
+  showServiceInfo = false,
 }: {
   company: PublicOutboundCompanyPricingCard;
   identity?: "full" | "service";
+  showServiceInfo?: boolean;
 }) {
   const serviceOnly = identity === "service";
+  const serviceNote =
+    company.customerNote?.trim() ||
+    "This company moves a container from the United States warehouse to the destination port.";
   return (
-    <div className="space-y-3 rounded-md border border-border/70 bg-card/80 px-3 py-3">
+    <div className="space-y-3 overflow-visible rounded-lg border border-border/60 bg-background/30 px-3 py-3">
       {serviceOnly ?
-        <p className="inline-flex items-center rounded-full border border-primary/35 bg-primary/10 px-3.5 py-1.5 text-sm font-semibold tracking-tight text-primary">
-          {formatServiceLabel(company.serviceLabel)}
-        </p>
+        <ServiceBadge
+          label={company.serviceLabel}
+          showServiceInfo={showServiceInfo}
+          companyName={company.companyName}
+          serviceNote={serviceNote}
+        />
       : (
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -87,12 +160,15 @@ function CompanyCard({
           <div className="space-y-0.5 text-xs leading-relaxed text-muted-foreground">
             {company.country ? <p>{company.country}</p> : null}
             {company.location ?
-              <p
-                className="font-semibold text-primary"
-                title="Where this company transports the container from"
-              >
-                {company.location}
-              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <StatusBadge kind="quoted">Operate from</StatusBadge>
+                <p
+                  className="font-semibold text-primary"
+                  title="Where this company operates from"
+                >
+                  {company.location}
+                </p>
+              </div>
             : null}
             {company.address ?
               <p className="whitespace-pre-wrap">{company.address}</p>
@@ -119,15 +195,19 @@ function VendorGroup({
   description,
   companies,
   serviceOnlyKeys,
+  showServiceInfo = false,
+  identity = "full",
 }: {
   title: string;
   description: string;
   companies: PublicOutboundCompanyPricingCard[];
   serviceOnlyKeys?: ReadonlySet<string>;
+  showServiceInfo?: boolean;
+  identity?: "full" | "service";
 }) {
   if (companies.length === 0) return null;
   return (
-    <div className="space-y-2 rounded-md border border-border/70 bg-muted/40 px-3 py-2.5">
+    <div className="space-y-2">
       <div>
         <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           {title}
@@ -142,8 +222,11 @@ function VendorGroup({
             key={company.companyKey}
             company={company}
             identity={
-              serviceOnlyKeys?.has(company.companyKey) ? "service" : "full"
+              identity === "service" || serviceOnlyKeys?.has(company.companyKey)
+                ? "service"
+                : "full"
             }
+            showServiceInfo={showServiceInfo}
           />
         ))}
       </div>
@@ -153,8 +236,10 @@ function VendorGroup({
 
 export function HowItWorksThirdPartyVendorPricing({
   companies,
+  index = 5,
 }: {
   companies: PublicOutboundCompanyPricingCard[];
+  index?: number;
 }) {
   if (companies.length === 0) return null;
   const inUs = companies.filter((company) =>
@@ -174,23 +259,27 @@ export function HowItWorksThirdPartyVendorPricing({
   );
 
   return (
-    <Card className="border-primary/25 bg-card/80 shadow-md ring-1 ring-primary/10 backdrop-blur-sm">
-      <CardHeader className="space-y-1 pb-3">
-        <CardTitle className="font-heading text-base">
-          Third-party vendors
-        </CardTitle>
-        <CardDescription className="text-xs leading-relaxed">
-          Published freight, broker, and local courier companies. Freight sits
-          under In-US vendor; broker and local courier sit under Overseas
-          third-party vendor. Freight + broker (or other bundled) companies are
-          marked as such; a single-kind company is standalone.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0">
+    <PricingOverviewSection
+      index={index}
+      icon={<Ship className="size-4" />}
+      title="Third-party vendors"
+      description="Published freight, broker, and local courier companies. Freight sits under In-US vendor; broker and local courier sit under Overseas third-party vendor."
+      footer={
+        <p className="inline-flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
+          The first unpaid container uses the 1-container cost. Each extra
+          linked unpaid container adds the extra-container cost. Your dashboard
+          shows the exact total for your barrels.
+        </p>
+      }
+    >
+      <div className="space-y-4">
         <VendorGroup
           title="In-US vendor"
           description="Freight companies that move a container from the United States warehouse to the destination port."
           companies={inUs}
+          identity="service"
+          showServiceInfo
         />
         <VendorGroup
           title="Overseas third-party vendor"
@@ -198,13 +287,7 @@ export function HowItWorksThirdPartyVendorPricing({
           companies={overseas}
           serviceOnlyKeys={overseasServiceOnlyKeys}
         />
-        <p className="inline-flex items-start gap-2 rounded-lg border border-border/70 bg-muted px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
-          <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
-          The first unpaid container uses the 1-container cost. Each extra
-          linked unpaid container adds the extra-container cost. Your dashboard
-          shows the exact total for your barrels.
-        </p>
-      </CardContent>
-    </Card>
+      </div>
+    </PricingOverviewSection>
   );
 }

@@ -27,6 +27,8 @@ import {
   isAdminShippingCatalogPreviewBarrelId,
   matchCourierZoneRateRow,
   outboundShippingCompanyKey,
+  quotedHubTransportFeeCents,
+  unpaidLinkedContainerCount,
   type AdminCompanyRateLinkGroup,
   type AdminRateLinkableContainer,
   type BarrelOutboundShippingChargeKind,
@@ -44,11 +46,35 @@ function centsToUsdInput(cents: number): string {
 }
 
 function tableTitle(kind: OutboundShippingCompanyRateTableKind): string {
-  return kind === "zone" ? "Local courier zones" : "Freight and broker containers";
+  if (kind === "zone") return "Local courier zones";
+  if (kind === "transport") return "Hub to freight office";
+  return "Freight and broker containers";
 }
 
 function rowLabelHeading(kind: OutboundShippingCompanyRateTableKind): string {
   return kind === "zone" ? "Zone / Location" : "Container type";
+}
+
+function costOneHeading(kind: OutboundShippingCompanyRateTableKind): string {
+  return kind === "transport"
+    ? "1-container pickup fee"
+    : "Cost for 1 container";
+}
+
+function costExtraHeading(kind: OutboundShippingCompanyRateTableKind): string {
+  return kind === "transport"
+    ? "Extra-container fee (2+)"
+    : "Cost for each extra container";
+}
+
+function tableHelp(kind: OutboundShippingCompanyRateTableKind): string {
+  if (kind === "zone") {
+    return "Name each zone after the destination parish (for example St. Catherine). The matching zone is billed automatically from the customer's shipping address. The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost (for example $10,000 + $5,000 + $5,000 = $20,000 for three).";
+  }
+  if (kind === "transport") {
+    return "Pickup fee to move a container from the hub to this company's freight office. One billed container uses the 1-container pickup fee. Two or more barrels on the same freight quote use the extra-container fee for every container (2 linked barrels = 2 × extra-container fee).";
+  }
+  return "The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost (for example $10,000 + $5,000 + $5,000 = $20,000 for three).";
 }
 
 function RateTableEditor({
@@ -152,20 +178,15 @@ function RateTableEditor({
     <div className="space-y-2">
       <h4 className="text-sm font-medium text-foreground">{tableTitle(tableKind)}</h4>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        {tableKind === "zone" ?
-          "Name each zone after the destination parish (for example St. Catherine). The matching zone is billed automatically from the customer's shipping address. "
-        : null}
-        The first unpaid container uses the 1-container cost. Each extra linked
-        unpaid container adds the extra-container cost (for example $10,000 +
-        $5,000 + $5,000 = $20,000 for three).
+        {tableHelp(tableKind)}
       </p>
       <div className={cn(appTableScroll, "overflow-x-auto")}>
         <table className="w-full min-w-[40rem] text-left text-sm">
           <thead>
             <tr className={appTableHead}>
               <th className="px-3 py-2 font-medium">{rowLabelHeading(tableKind)}</th>
-              <th className="px-3 py-2 font-medium">Cost for 1 container</th>
-              <th className="px-3 py-2 font-medium">Cost for each extra container</th>
+              <th className="px-3 py-2 font-medium">{costOneHeading(tableKind)}</th>
+              <th className="px-3 py-2 font-medium">{costExtraHeading(tableKind)}</th>
               <th className="px-3 py-2 font-medium">Actions</th>
             </tr>
           </thead>
@@ -309,12 +330,12 @@ function RateTableEditor({
         </table>
       </div>
       <datalist id={listId}>
-        {tableKind === "container"
-          ? CONTAINER_TYPE_OPTIONS.map((option) => (
-              <option key={option} value={option} />
-            ))
-          : JAMAICA_PARISHES.map((parish) => (
+        {tableKind === "zone"
+          ? JAMAICA_PARISHES.map((parish) => (
               <option key={parish} value={parish} />
+            ))
+          : CONTAINER_TYPE_OPTIONS.map((option) => (
+              <option key={option} value={option} />
             ))}
       </datalist>
       {rows.length > 0 ?
@@ -341,12 +362,13 @@ export function ChargeLabelWithCompanyPricing({
   barrelId,
   kindsToToggle,
   enabledKinds,
-  linkableContainers: _linkableContainers = [],
-  companyRateLinks: _companyRateLinks = [],
-  containerKind: _containerKind = "barrel",
+  linkableContainers = [],
+  companyRateLinks = [],
+  containerKind = "barrel",
   destinationParish = null,
   destinationCityOrTown = null,
   showRateCardToggle = true,
+  dialogVariant = "company",
 }: {
   htmlFor: string;
   label: string;
@@ -363,6 +385,7 @@ export function ChargeLabelWithCompanyPricing({
   destinationCityOrTown?: string | null;
   /** When false, only the Charge button (no rate-card checkbox). */
   showRateCardToggle?: boolean;
+  dialogVariant?: "company" | "hub-transport";
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -374,6 +397,19 @@ export function ChargeLabelWithCompanyPricing({
     () => (rates ?? []).filter((row) => row.companyKey === companyKey),
     [companyKey, rates],
   );
+  const hubTransportCount = unpaidLinkedContainerCount({
+    barrelId,
+    companyName,
+    chargeKind: "freight",
+    companyRateLinks,
+    linkableContainers,
+  });
+  const hubTransportQuotedCents = quotedHubTransportFeeCents({
+    rates: companyRates,
+    companyName,
+    containerKind,
+    containerCount: hubTransportCount,
+  });
 
   function toggleRateCard(nextChecked: boolean) {
     if (nextChecked && !companyName) {
@@ -444,18 +480,31 @@ export function ChargeLabelWithCompanyPricing({
         <DialogContent className="max-h-[min(94vh,58rem)] overflow-y-auto sm:max-w-6xl">
           <DialogHeader>
             <DialogTitle>
-              {companyName ? `${companyName} pricing` : "Company pricing"}
+              {dialogVariant === "hub-transport"
+                ? companyName
+                  ? `${companyName} pickup pricing`
+                  : "Pickup pricing"
+                : companyName
+                  ? `${companyName} pricing`
+                  : "Company pricing"}
             </DialogTitle>
             <DialogDescription>
-              These rates belong to this company and are what the customer is
-              charged when the rate card is on. Local courier zones are matched
-              to the destination parish on the shipping address. The first unpaid
-              container uses the 1-container rate; each extra linked unpaid
-              container adds the extra-container rate. Customers link unpaid
-              containers on Dashboard → Shipping.
+              {dialogVariant === "hub-transport" ?
+                "These rates are the pickup fee to move a container from the hub to this company's freight office. They are not the ocean freight charge. One billed container uses the 1-container pickup fee. Two or more barrels on the same freight quote use the extra-container fee for every container (2 linked barrels = 2 × extra-container fee)."
+              : "These rates belong to this company and are what the customer is charged when the rate card is on. Local courier zones are matched to the destination parish on the shipping address. The first unpaid container uses the 1-container rate; each extra linked unpaid container adds the extra-container rate. Customers link unpaid containers on Dashboard → Shipping."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
+            {dialogVariant === "hub-transport" && hubTransportQuotedCents != null ?
+              <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground">
+                This freight quote is billing {hubTransportCount}{" "}
+                {hubTransportCount === 1 ? "container" : "containers"}
+                {hubTransportCount >= 2
+                  ? ` × extra-container fee = ${formatUsd(hubTransportQuotedCents)}`
+                  : ` at the 1-container pickup fee = ${formatUsd(hubTransportQuotedCents)}`}
+                .
+              </p>
+            : null}
             {tableKinds.map((tableKind) => (
               <RateTableEditor
                 key={tableKind}

@@ -94,6 +94,10 @@ export async function listPublicOutboundCompanyPricing(): Promise<
   const cards: PublicOutboundCompanyPricingCard[] = [];
   for (const [companyKey, rows] of grouped) {
     const display = pickDisplayPartner(rows);
+    const customerNote =
+      rows
+        .map((row) => row.customerNote?.trim())
+        .find((note) => Boolean(note)) || null;
     const publishedKinds = new Set(
       rows
         .map((row) => row.chargeKind)
@@ -118,7 +122,10 @@ export async function listPublicOutboundCompanyPricing(): Promise<
       .map((tableKind) => ({
         tableKind,
         rows: companyRates
-          .filter((row) => row.tableKind === tableKind)
+          .filter(
+            (row) =>
+              row.tableKind === tableKind && row.tableKind !== "transport",
+          )
           .map((row) => ({
             rowLabel: row.rowLabel,
             costOneCents: row.costOneCents,
@@ -138,6 +145,7 @@ export async function listPublicOutboundCompanyPricing(): Promise<
       address: display.address?.trim() || null,
       phone: display.phone?.trim() || null,
       imageUrl: display.imageUrl?.trim() || null,
+      customerNote,
       rateTables,
     });
   }

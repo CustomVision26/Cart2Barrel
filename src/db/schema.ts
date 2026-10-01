@@ -2134,6 +2134,8 @@ export const barrelOutboundShippingPartners = pgTable(
     zelleAccount: text("zelle_account"),
     imageUrl: text("image_url"),
     isPrimary: boolean("is_primary").notNull().default(false),
+    /** Public How it works service note; unique per company. */
+    customerNote: text("customer_note"),
     publicPricingPublishedAt: timestamp("public_pricing_published_at", {
       withTimezone: true,
       mode: "string",
@@ -2153,7 +2155,7 @@ export const barrelOutboundShippingPartners = pgTable(
   ],
 );
 
-/** Per-company outbound rate card: container-type (freight/broker) or zone (courier). */
+/** Per-company outbound rate card: container (freight/broker), transport (hub → freight office), or zone (courier). */
 export const outboundShippingCompanyRates = pgTable(
   "outbound_shipping_company_rates",
   {

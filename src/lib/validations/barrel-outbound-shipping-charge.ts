@@ -111,6 +111,15 @@ export type SetOutboundShippingPartnerPublicPricingInput = z.infer<
   typeof setOutboundShippingPartnerPublicPricingSchema
 >;
 
+export const setOutboundCompanyCustomerNoteSchema = z.object({
+  companyName: z.string().trim().min(1, "Add a company first.").max(160),
+  customerNote: z.string().trim().max(2000).optional().default(""),
+});
+
+export type SetOutboundCompanyCustomerNoteInput = z.infer<
+  typeof setOutboundCompanyCustomerNoteSchema
+>;
+
 export const addOutboundShippingChargeToCartSchema = z.object({
   chargeId: z.string().uuid("Invalid charge."),
 });
@@ -162,6 +171,7 @@ const usdAmountAllowZeroSchema = z
 
 export const outboundShippingCompanyRateTableKindSchema = z.enum([
   "container",
+  "transport",
   "zone",
 ]);
 

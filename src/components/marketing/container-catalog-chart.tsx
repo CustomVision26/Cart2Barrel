@@ -1,8 +1,9 @@
 "use client";
 
-import { ImageIcon } from "lucide-react";
-import { useState } from "react";
+import { Container, ImageIcon } from "lucide-react";
+import { useState, type CSSProperties } from "react";
 
+import { PricingOverviewSection } from "@/components/marketing/how-it-works-pricing-overview";
 import {
   Carousel,
   CarouselContent,
@@ -10,13 +11,6 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +26,7 @@ import { cn } from "@/lib/utils";
 
 type ContainerCatalogChartProps = {
   rows: ContainerCatalogChartRow[];
+  index?: number;
 };
 
 type SlideshowState = {
@@ -147,63 +142,64 @@ function ContainerImageSlideshow({
   );
 }
 
-export function ContainerCatalogChart({ rows }: ContainerCatalogChartProps) {
+export function ContainerCatalogChart({
+  rows,
+  index = 3,
+}: ContainerCatalogChartProps) {
   const [slideshow, setSlideshow] = useState<SlideshowState | null>(null);
 
   return (
     <>
-      <Card className="border-primary/25 bg-card/80 shadow-md ring-1 ring-primary/10 backdrop-blur-sm">
-        <CardHeader className="space-y-1 pb-3">
-          <CardTitle className="font-heading text-base">Container options</CardTitle>
-          <CardDescription className="text-xs leading-relaxed">
-            Barrels and bins you can add from Dashboard → Barrels. Each listing
-            shows the container price before checkout. Double-click a photo to
-            browse images.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {rows.length === 0 ?
-            <p className="rounded-lg border border-dashed border-border/70 bg-muted px-3 py-4 text-xs leading-relaxed text-muted-foreground">
-              Container options are being published. Sign in later or contact us
-              for current barrel and bin availability.
-            </p>
-          : <div className="overflow-hidden rounded-lg border border-border/70">
-              <div className="grid grid-cols-[auto_1fr_auto] gap-2 border-b border-border/70 bg-muted px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <span className="w-10">Photo</span>
-                <span>Container</span>
-                <span className="text-right">Price</span>
-              </div>
-              <ul>
-                {rows.map((row, index) => (
-                  <li
-                    key={row.id}
-                    className={`grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2.5 text-xs ${
-                      index % 2 === 0 ? "bg-card" : "bg-muted"
-                    }`}
-                  >
-                    <ContainerThumbnail
-                      images={row.images}
-                      containerLabel={row.containerLabel}
-                      onOpenSlideshow={() =>
-                        setSlideshow({
-                          containerLabel: row.containerLabel,
-                          images: row.images,
-                        })
-                      }
-                    />
-                    <span className="min-w-0 font-medium text-foreground">
-                      {row.containerLabel}
-                    </span>
-                    <span className="shrink-0 text-right tabular-nums font-semibold text-primary">
-                      {row.priceLabel}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+      <PricingOverviewSection
+        index={index}
+        icon={<Container className="size-4" />}
+        title="Container options"
+        description="Barrels and bins you can add from Dashboard → Barrels. Each listing shows the container price before checkout. Double-click a photo to browse images."
+      >
+        {rows.length === 0 ?
+          <p className="rounded-lg border border-dashed border-border/70 bg-muted/50 px-3 py-4 text-xs leading-relaxed text-muted-foreground">
+            Container options are being published. Sign in later or contact us
+            for current barrel and bin availability.
+          </p>
+        : <div className="overflow-hidden rounded-lg border border-border/60">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 border-b border-border/60 bg-muted/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="w-10">Photo</span>
+              <span>Container</span>
+              <span className="text-right">Price</span>
             </div>
-          }
-        </CardContent>
-      </Card>
+            <ul>
+              {rows.map((row, rowIndex) => (
+                <li
+                  key={row.id}
+                  className="pricing-overview-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 text-xs transition-colors"
+                  style={
+                    {
+                      "--pricing-row-index": rowIndex,
+                    } as CSSProperties
+                  }
+                >
+                  <ContainerThumbnail
+                    images={row.images}
+                    containerLabel={row.containerLabel}
+                    onOpenSlideshow={() =>
+                      setSlideshow({
+                        containerLabel: row.containerLabel,
+                        images: row.images,
+                      })
+                    }
+                  />
+                  <span className="min-w-0 font-medium text-foreground">
+                    {row.containerLabel}
+                  </span>
+                  <span className="shrink-0 text-right tabular-nums font-semibold text-primary">
+                    {row.priceLabel}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        }
+      </PricingOverviewSection>
 
       <ContainerImageSlideshow
         slideshow={slideshow}

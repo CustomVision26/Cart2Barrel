@@ -20,6 +20,7 @@ export type BarrelOutboundShippingChargeKind =
 
 export const OUTBOUND_SHIPPING_COMPANY_RATE_TABLE_KINDS = [
   "container",
+  "transport",
   "zone",
 ] as const;
 
@@ -29,7 +30,9 @@ export type OutboundShippingCompanyRateTableKind =
 export function isOutboundShippingCompanyRateTableKind(
   value: string | null | undefined,
 ): value is OutboundShippingCompanyRateTableKind {
-  return value === "container" || value === "zone";
+  return (
+    value === "container" || value === "transport" || value === "zone"
+  );
 }
 
 export function outboundShippingCompanyKey(name: string): string {
@@ -84,6 +87,20 @@ export function primaryPartnerNameForKind(
   return name ? name : null;
 }
 
+export function companyCustomerNoteFromPartners(
+  partners: readonly OutboundShippingPartnerRecord[],
+  companyName: string | null | undefined,
+): string | null {
+  const companyKey = outboundShippingCompanyKey(companyName ?? "");
+  if (!companyKey) return null;
+  const match = partners.find(
+    (partner) =>
+      outboundShippingCompanyKey(partner.name) === companyKey &&
+      Boolean(partner.customerNote?.trim()),
+  );
+  return match?.customerNote?.trim() || null;
+}
+
 export const BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS: Record<
   BarrelOutboundShippingChargeKind,
   string
@@ -103,7 +120,7 @@ export const BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_DEFAULT_LABELS: Record<
 };
 
 export const FREIGHT_SHIPPER_CHARGE_LABEL = "Freight / shipper charge";
-export const FREIGHT_TRANSPORTATION_FEE_LABEL = "Transportation fee";
+export const FREIGHT_TRANSPORTATION_FEE_LABEL = "Pickup fee";
 
 export type OutboundShippingChargeLineView = {
   label: string;
@@ -111,7 +128,8 @@ export type OutboundShippingChargeLineView = {
 };
 
 export function isTransportationFeeLabel(label: string): boolean {
-  return /transportation/i.test(label.trim());
+  const trimmed = label.trim();
+  return /transportation/i.test(trimmed) || /^pickup fee$/i.test(trimmed);
 }
 
 export function splitFreightChargeLines(
@@ -762,13 +780,24 @@ export function resolveCompanyRateLine(input: {
     match = rows[0];
   }
   if (!match) return null;
+  const amountCents =
+    input.tableKind === "transport"
+      ? hubTransportFeeAmountCents(
+          match.costOneCents,
+          match.costTwoPlusCents,
+          input.containerCount,
+        )
+      : companyRateCardAmountCents(
+          match.costOneCents,
+          match.costTwoPlusCents,
+          input.containerCount,
+        );
   return {
-    label: match.rowLabel,
-    amountCents: companyRateCardAmountCents(
-      match.costOneCents,
-      match.costTwoPlusCents,
-      input.containerCount,
-    ),
+    label:
+      input.tableKind === "transport"
+        ? FREIGHT_TRANSPORTATION_FEE_LABEL
+        : match.rowLabel,
+    amountCents,
   };
 }
 
@@ -783,6 +812,48 @@ export function companyRateCardAmountCents(
   return (
     Math.max(0, costOneCents) + (count - 1) * Math.max(0, costTwoPlusCents)
   );
+}
+
+/**
+ * Hub → freight office. One container uses the 1-container fee. Two or more
+ * containers billed on the same freight quote use the extra-container fee for
+ * every container (2 linked barrels = 2 × extra-container fee).
+ */
+export function hubTransportFeeAmountCents(
+  costOneCents: number,
+  costTwoPlusCents: number,
+  containerCount: number,
+): number {
+  const count = Math.max(1, Math.trunc(containerCount));
+  if (count === 1) return Math.max(0, costOneCents);
+  return count * Math.max(0, costTwoPlusCents);
+}
+
+export function unpaidLinkedContainerCount(input: {
+  barrelId: string;
+  companyName: string | null | undefined;
+  chargeKind: BarrelOutboundShippingChargeKind;
+  companyRateLinks: readonly AdminCompanyRateLinkGroup[];
+  linkableContainers: readonly AdminRateLinkableContainer[];
+}): number {
+  const companyKey = outboundShippingCompanyKey(input.companyName ?? "");
+  const group = companyKey
+    ? input.companyRateLinks.find(
+        (item) =>
+          item.companyKey === companyKey &&
+          item.chargeKind === input.chargeKind,
+      )
+    : undefined;
+  const ids =
+    group && group.barrelIds.includes(input.barrelId)
+      ? group.barrelIds
+      : [input.barrelId];
+  const unpaid = ids.filter((id) => {
+    const row = input.linkableContainers.find((item) => item.barrelId === id);
+    if (!row) return true;
+    return row.unpaidByKind[input.chargeKind] !== false;
+  });
+  return unpaid.length >= 2 ? unpaid.length : 1;
 }
 
 export function companyRateKindsToPrice(input: {
@@ -830,11 +901,43 @@ export function resolveCompanyRateLinesForKinds(input: {
     seen.add(key);
     lines.push(line);
   }
+  if (input.kinds.includes("freight")) {
+    const transport = resolveCompanyRateLine({
+      rates: input.rates,
+      companyName: input.companyName,
+      tableKind: "transport",
+      rowHint: containerTypeRateHint(input.containerKind),
+      containerCount: input.containerCount,
+    });
+    if (transport && transport.amountCents > 0) {
+      const key = `transport:${transport.label}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        lines.push(transport);
+      }
+    }
+  }
   return lines;
 }
 
 export function containerTypeRateHint(kind: ContainerOfferingKind): string {
   return containerOfferingKindLabel(kind);
+}
+
+export function quotedHubTransportFeeCents(input: {
+  rates: readonly OutboundShippingCompanyRateRow[];
+  companyName: string | null | undefined;
+  containerKind: ContainerOfferingKind;
+  containerCount: number;
+}): number | null {
+  const line = resolveCompanyRateLine({
+    rates: input.rates,
+    companyName: input.companyName,
+    tableKind: "transport",
+    rowHint: containerTypeRateHint(input.containerKind),
+    containerCount: input.containerCount,
+  });
+  return line ? line.amountCents : null;
 }
 
 export function applyOutboundChargeBundleForCustomer(
@@ -1048,6 +1151,7 @@ export type OutboundShippingPartnerRecord = {
   zelleAccount: string | null;
     imageUrl: string | null;
     isPrimary: boolean;
+    customerNote: string | null;
     publicPricingPublishedAt: string | null;
 };
 

@@ -12,6 +12,7 @@ import {
   setOutboundShippingPartnerPrimary,
   setOutboundShippingPartnerPublicPricing,
   updateOutboundShippingPartner,
+  setOutboundCompanyCustomerNote,
 } from "@/data/barrel-outbound-shipping-partners";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { isAdminShippingCatalogPreviewBarrelId } from "@/lib/barrel-outbound-shipping-charge";
@@ -23,6 +24,7 @@ import {
   setBarrelOutboundShippingPartnerPrimarySchema,
   setOutboundShippingPartnerPublicPricingSchema,
   updateBarrelOutboundShippingPartnerSchema,
+  setOutboundCompanyCustomerNoteSchema,
 } from "@/lib/validations/barrel-outbound-shipping-charge";
 
 export type OutboundShippingPartnerActionState =
@@ -238,4 +240,28 @@ export async function setOutboundShippingPartnerPublicPricingAction(
       ? "Company published on How it works → Pricing overview."
       : "Company removed from How it works pricing.",
   };
+}
+
+export async function setOutboundCompanyCustomerNoteAction(
+  raw: unknown,
+): Promise<OutboundShippingPartnerActionState> {
+  const admin = await requireAdmin();
+  if (!admin.ok) return admin;
+
+  const parsed = setOutboundCompanyCustomerNoteSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  const result = await setOutboundCompanyCustomerNote({
+    companyName: parsed.data.companyName,
+    customerNote: parsed.data.customerNote,
+  });
+  if (!result.ok) return result;
+
+  revalidatePartnerPaths();
+  return { ok: true, message: "Company service note saved." };
 }
