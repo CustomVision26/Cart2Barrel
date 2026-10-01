@@ -53,36 +53,54 @@ function RateTable({
   );
 }
 
-function CompanyCard({ company }: { company: PublicOutboundCompanyPricingCard }) {
+function formatServiceLabel(label: string): string {
+  if (!label.trim()) return label;
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function CompanyCard({
+  company,
+  identity = "full",
+}: {
+  company: PublicOutboundCompanyPricingCard;
+  identity?: "full" | "service";
+}) {
+  const serviceOnly = identity === "service";
   return (
     <div className="space-y-3 rounded-md border border-border/70 bg-card/80 px-3 py-3">
-      <div className="space-y-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-heading text-sm font-semibold text-foreground">
-            {company.companyName}
-          </p>
-          <OutboundCompanyAdButton
-            imageUrl={company.imageUrl}
-            companyName={company.companyName}
-          />
-        </div>
-        <StatusBadge kind="quoted">{company.serviceLabel}</StatusBadge>
-        <div className="space-y-0.5 text-xs leading-relaxed text-muted-foreground">
-          {company.country ? <p>{company.country}</p> : null}
-          {company.location ?
-            <p
-              className="font-semibold text-primary"
-              title="Where this company transports the container from"
-            >
-              {company.location}
+      {serviceOnly ?
+        <p className="inline-flex items-center rounded-full border border-primary/35 bg-primary/10 px-3.5 py-1.5 text-sm font-semibold tracking-tight text-primary">
+          {formatServiceLabel(company.serviceLabel)}
+        </p>
+      : (
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-heading text-sm font-semibold text-foreground">
+              {company.companyName}
             </p>
-          : null}
-          {company.address ?
-            <p className="whitespace-pre-wrap">{company.address}</p>
-          : null}
-          {company.phone ? <p>Tel {company.phone}</p> : null}
+            <OutboundCompanyAdButton
+              imageUrl={company.imageUrl}
+              companyName={company.companyName}
+            />
+          </div>
+          <StatusBadge kind="quoted">{company.serviceLabel}</StatusBadge>
+          <div className="space-y-0.5 text-xs leading-relaxed text-muted-foreground">
+            {company.country ? <p>{company.country}</p> : null}
+            {company.location ?
+              <p
+                className="font-semibold text-primary"
+                title="Where this company transports the container from"
+              >
+                {company.location}
+              </p>
+            : null}
+            {company.address ?
+              <p className="whitespace-pre-wrap">{company.address}</p>
+            : null}
+            {company.phone ? <p>Tel {company.phone}</p> : null}
+          </div>
         </div>
-      </div>
+      )}
       {company.rateTables.length > 0 ?
         company.rateTables.map((table) => (
           <RateTable key={table.tableKind} {...table} />
@@ -100,10 +118,12 @@ function VendorGroup({
   title,
   description,
   companies,
+  serviceOnlyKeys,
 }: {
   title: string;
   description: string;
   companies: PublicOutboundCompanyPricingCard[];
+  serviceOnlyKeys?: ReadonlySet<string>;
 }) {
   if (companies.length === 0) return null;
   return (
@@ -118,7 +138,13 @@ function VendorGroup({
       </div>
       <div className="space-y-3">
         {companies.map((company) => (
-          <CompanyCard key={company.companyKey} company={company} />
+          <CompanyCard
+            key={company.companyKey}
+            company={company}
+            identity={
+              serviceOnlyKeys?.has(company.companyKey) ? "service" : "full"
+            }
+          />
         ))}
       </div>
     </div>
@@ -136,6 +162,15 @@ export function HowItWorksThirdPartyVendorPricing({
   );
   const overseas = companies.filter((company) =>
     publicCompanyVendorHeadings(company.kinds).includes("overseas"),
+  );
+  const inUsKeys = new Set(inUs.map((company) => company.companyKey));
+  const overseasServiceOnlyKeys = new Set(
+    overseas
+      .filter(
+        (company) =>
+          inUsKeys.has(company.companyKey) && company.kinds.length >= 2,
+      )
+      .map((company) => company.companyKey),
   );
 
   return (
@@ -161,6 +196,7 @@ export function HowItWorksThirdPartyVendorPricing({
           title="Overseas third-party vendor"
           description="Destination-country clearance and local transportation after the container arrives."
           companies={overseas}
+          serviceOnlyKeys={overseasServiceOnlyKeys}
         />
         <p className="inline-flex items-start gap-2 rounded-lg border border-border/70 bg-muted px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
