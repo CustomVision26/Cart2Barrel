@@ -1,5 +1,40 @@
 import type { CSSProperties, ReactNode } from "react";
 
+import { cn } from "@/lib/utils";
+
+export function HowItWorksPanel({
+  stamp,
+  title,
+  description,
+  children,
+  className,
+}: {
+  stamp: string;
+  title: string;
+  description?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("hiw-panel", className)}>
+      <header className="hiw-masthead">
+        <p className="hiw-stamp relative z-10 text-[10px] font-semibold uppercase tracking-[0.22em]">
+          {stamp}
+        </p>
+        <h2 className="relative z-10 mt-2 font-heading text-lg font-semibold tracking-tight text-foreground">
+          {title}
+        </h2>
+        {description ?
+          <p className="relative z-10 mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+            {description}
+          </p>
+        : null}
+      </header>
+      <div className="hiw-body">{children}</div>
+    </div>
+  );
+}
+
 export function HowItWorksPricingOverview({
   children,
 }: {

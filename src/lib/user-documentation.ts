@@ -110,8 +110,10 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Public guide explaining the full Amani Cart2Barrel journey from quote to delivery.",
       location: "Marketing header → How it works, or visit /how-it-works.",
       bullets: [
-        "Overview tab: services, journey, typical costs, and seasonal special-feature offers. User guide tab: full customer documentation.",
-        "Pricing overview shows published service & handling, container catalog prices, barrel/bin packing rates, and staff-published freight, broker, and courier companies.",
+        "Overview tab: services, journey, typical costs, and seasonal special-feature offers in a formal panel next to Pricing overview. User guide tab: full customer documentation.",
+        "Pricing overview is a rate schedule: in-app and outside-purchase service & handling, container catalog (double-click a photo), packing fees, and third-party vendors.",
+        "In-US vendor shows the service badge only (Freight charge or Freight charge + Broker) plus an info button for that company's note. Freight tables do not include the pickup fee.",
+        "Overseas third-party vendors are destination brokers and local couriers. Freight+broker companies are not repeated there. Courier cards show an Operate from badge on the location.",
         "When a suitcase special is in season, a company courier traveler carries extra bags to Jamaica on a published travel date with limited slots.",
         "Packing fees follow barrel and bin counts (1 vs 2+ of each type)—not a fee per quoted product line.",
         "Destination-country charges are not included in the US outbound quote.",
@@ -125,17 +127,21 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Don't treat published rates as binding quotes for your items.",
         "Don't assume destination duties or inland delivery are in the US outbound quote.",
+        "Don't assume In-US freight rates include the pickup fee.",
       ],
     },
     article: {
       overview: [
         "How it works is Amani Cart2Barrel's public explainer. Overview describes how US retailer shopping, hub processing, barrel consolidation, international delivery, and seasonal special-feature suitcase offers fit together. User guide is the same customer documentation signed-in shoppers open from Documentation in the dashboard header.",
-        "Anyone can read both tabs without signing in. Overview includes a Pricing overview of current published rates; your signed-in dashboard shows exact totals at checkout.",
+        "Anyone can read both tabs without signing in. Overview includes a Pricing overview of current published rates; your signed-in dashboard shows exact totals at checkout. The page surface follows your light, dark, and interface-color theme so the rate schedule stays readable against the background.",
       ],
       walkthrough: [
-        "Open How it works from the marketing header or go to /how-it-works (Overview tab by default).",
-        "Review Pricing overview: in-app and outside-purchase service & handling charts, container catalog prices, barrel/bin packing fees (exactly 1 vs 2+ of each type), and third-party vendor companies staff published (freight under In-US vendor; broker and local courier under Overseas third-party vendor). Each company shows contact details, an Ad button when an image is on file, whether it is freight+broker or standalone, and how the 1-container vs extra-container rate table applies.",
-        "Read services, the illustrated journey (request → quote → payment → warehouse receipt → barrel packing → delivery), the four cost phases, and Seasonal special-feature offers (timed suitcase specials via a company courier traveler when in season).",
+        "Open How it works from the marketing header or go to /how-it-works (Overview tab by default). Use the Overview / User guide pills to switch tabs.",
+        "On Overview, read From cart to barrel (services, journey, four cost phases, and seasonal specials) beside Pricing overview.",
+        "Review the rate schedule: in-app service & handling, outside-purchase service & handling, container catalog prices (double-click a photo to browse images), packing fees (exactly 1 vs 2+ of each type), and third-party vendors.",
+        "In-US vendor lists freight companies that move a container from the US warehouse to the destination port. The card shows only the service badge (Freight charge or Freight charge + Broker) and an info button. Open the info button to read that company's note about the service. Company name, street, and phone are not shown on this public card. Freight 1-container and extra-container rates do not include the pickup fee (hub to freight office).",
+        "Overseas third-party vendor lists destination-country brokers and standalone local couriers after arrival. A freight+broker company already listed under In-US is not shown again here. Courier cards show company identity, an Ad button when an image is on file, country, an Operate from badge next to the location, address, and phone. Zone tables use 1-container and extra-container rates for each area.",
+        "The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost. Your dashboard shows the exact total for your barrels.",
         "Destination charges (duties, inland delivery, port or warehouse storage, local handling) are billed on arrival by customs or the local carrier. They are not included in the US outbound quote.",
         "Switch to the User guide tab (or /how-it-works?tab=user-guide) for quick references and full articles on every customer page.",
       ],
@@ -148,6 +154,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Do not treat published rates as binding quotes for your specific items—actual quotes appear after staff review.",
         "Do not expect destination-country charges to appear in Shipping → Pricing; that tab is the US outbound quote.",
+        "Do not assume In-US freight tables include the pickup fee from the hub to the freight office.",
       ],
     },
   },
@@ -980,7 +987,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Shipping.",
       bullets: [
         "Tracking: containers that share freight and the same local courier appear on one charges card. Unlinking courier keeps a separate card. Add freight to cart first — Continue to pricing stays greyed until that charge is in the cart. Cancel confirmation returns the card to tracking intake. Link under the freight or courier company so 1-container and extra-container rates apply; only one Add to cart shows for a joint freight amount. After a courier Zelle or Cash App receipt is submitted, every linked container shows awaiting verification. After freight is paid, containers are grouped by shipment stage.",
-        "Pricing: pay published freight and standalone broker or courier charges. Linked containers are listed on the courier card and share one joint amount. Cancel confirmation on that card returns you to tracking. Destination clearance stays on Tracking.",
+        "Pricing: pay published freight (and pickup fee when billed), plus standalone broker or courier charges. Linked containers are listed on the courier card and share one joint amount. Cancel confirmation on that card returns you to tracking. Destination clearance stays on Tracking.",
         "Address: name, phone, and delivery street on each record; multiple addresses, one primary.",
         "Shipping History: every container shipped through Amani Cart2Barrel, listed in a table. Double-click a row or Open to see freight, broker, courier, and customs documents. Newest first, with search, sort, and pagination.",
         "/dashboard/settings redirects here.",
@@ -999,6 +1006,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Don't use gear settings for address—use Address tab.",
         "Don't ignore Pricing tab charges.",
         "Don't assume destination duties are in the US outbound quote.",
+        "Don't assume freight covers the pickup fee from hub to freight office.",
       ],
     },
     article: {
@@ -1008,7 +1016,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Tracking tab: unpaid containers share one Outbound shipping charges card when they are linked to the same freight company and the same local courier. Unlinking courier (or never linking it) keeps a separate card so each container can choose its own pickup. Add freight to cart first — Continue to pricing stays greyed until that charge is in the cart. Cancel confirmation returns the card to tracking intake. Under the published freight (or freight+broker) and courier charges, check other unpaid containers to share 1-container and extra-container rates. Only one Add to cart shows for a joint freight amount. After a courier receipt is submitted, every linked container shows awaiting verification, including on Admin → Shipments. After freight is paid, the Tracking tab heading matches the container's current shipment stage (for example Ready for shipment). Catalog destination couriers are not listed.",
-        "Pricing tab: pay published freight and any standalone broker or courier charges after you confirm clearance on Tracking. Linked containers share one joint amount so the 1-container and extra-container rates are not billed twice. This tab does not show destination clearance radios or unpaid-container linking. If freight is billed with broker, destination self-clearance is not offered on Tracking, but a staff-published courier can still be chosen unless courier is also billed with freight. Destination-country charges after arrival are billed locally and are not included in that quote.",
+        "Pricing tab: pay published freight and any standalone broker or courier charges after you confirm clearance on Tracking. Linked containers share one joint amount so the 1-container and extra-container rates are not billed twice. When staff bill a pickup fee, it is a separate line for moving the container from the hub to the freight office—it is not included in the How it works In-US freight table. This tab does not show destination clearance radios or unpaid-container linking. If freight is billed with broker, destination self-clearance is not offered on Tracking, but a staff-published courier can still be chosen unless courier is also billed with freight. Destination-country charges after arrival are billed locally and are not included in that quote.",
         "Address tab: add or edit shipping records (name, phone, and street together). Mark one as primary for barrels and invoices.",
         "Shipping History tab: review every container shipped through Amani Cart2Barrel, newest first, in a table. Double-click a row or Open to see the freight, broker, and courier used, plus customs documents and receipts saved to that container. Search, sort, and paginate the list.",
         "Complete any customs or intake forms when prompted to avoid shipment delays.",
@@ -1118,7 +1126,8 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Public on /how-it-works?tab=user-guide (no sign-in required).",
         "Also available as Documentation in the signed-in dashboard header.",
-        "Search topics; each has Quick reference and Full article views.",
+        "The User guide tab opens a Customer handbook panel: search, category topics, and a preview of the selected article.",
+        "Each topic has Quick reference (summary, location, do / do not) and Full article (walkthrough) views.",
       ],
       requirements: ["None for the public How it works tab."],
       dos: [
@@ -1131,14 +1140,15 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The User guide is Amani Cart2Barrel's customer documentation. It explains every shopper-facing page, header control, and account feature with scannable quick references and deeper articles. How it works → Overview is the public service explainer (pricing charts and cost phases); this User guide tab is the formal page-by-page reference.",
-        "Guests can read it on How it works → User guide without an account. Signed-in customers can open the same content from the dashboard Documentation button.",
+        "The User guide is Amani Cart2Barrel's customer documentation. It explains every shopper-facing page, header control, and account feature with scannable quick references and deeper articles. How it works → Overview is the public service explainer (From cart to barrel plus Pricing overview); this User guide tab is the formal page-by-page handbook.",
+        "Guests can read it on How it works → User guide without an account. Signed-in customers can open the same content from the dashboard Documentation button. The handbook panel uses the same theme contrast as Overview so it stays readable in light and dark mode.",
       ],
       walkthrough: [
-        "Open How it works from the marketing header, then select the User guide tab.",
-        "Or, when signed in, click Documentation in the dashboard top bar.",
-        "Search or browse topics in the left sidebar grouped by category.",
-        "Use Quick reference for at-a-glance rules; switch to Full article for step-by-step detail.",
+        "Open How it works from the marketing header, then select the User guide pill (or go to /how-it-works?tab=user-guide).",
+        "Or, when signed in, click Documentation in the dashboard top bar (opens the same topics in a dialog).",
+        "Search the Customer handbook, or browse topics in the left list grouped by Getting started, Header & account, Shopping, Orders & shipping, and Support.",
+        "Select a topic to read it in the preview. Use Quick reference for at-a-glance rules; switch to Full article for step-by-step detail.",
+        "On a phone, pick a topic to open the article, then All topics to return to the list.",
       ],
       requirements: ["No account required on the public How it works tab."],
       dos: [

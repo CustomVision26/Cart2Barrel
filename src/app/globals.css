@@ -1026,6 +1026,316 @@
   background: color-mix(in oklch, var(--section-accent) 16%, var(--muted));
 }
 
+/* How it works — Overview + User guide surfaces (match pricing contrast) */
+.hiw-panel {
+  --hiw-surface: color-mix(
+    in oklch,
+    var(--background) 86%,
+    var(--foreground) 14%
+  );
+  --hiw-glow: color-mix(
+    in oklch,
+    var(--brand-logo-glow) 55%,
+    var(--primary)
+  );
+  --section-accent: var(--primary);
+  --pricing-surface: var(--hiw-surface);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 1rem;
+  color: var(--foreground);
+  border: 1px solid color-mix(in oklch, var(--hiw-glow) 42%, var(--border));
+  background-color: var(--hiw-surface);
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--primary) 18%, transparent) 0%,
+      transparent 9.5rem
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--hiw-glow) 16%, transparent) 0%,
+      transparent 58%
+    );
+  box-shadow:
+    0 1px 0 color-mix(in oklch, var(--hiw-glow) 28%, transparent),
+    0 22px 48px color-mix(in oklch, var(--foreground) 12%, transparent),
+    inset 0 1px 0 color-mix(in oklch, var(--primary) 18%, transparent);
+}
+
+.dark .hiw-panel {
+  --hiw-surface: color-mix(
+    in oklch,
+    var(--background) 78%,
+    var(--foreground) 22%
+  );
+  box-shadow:
+    0 1px 0 color-mix(in oklch, var(--hiw-glow) 32%, transparent),
+    0 24px 52px rgb(0 0 0 / 0.48),
+    inset 0 1px 0 color-mix(in oklch, var(--primary) 22%, transparent);
+}
+
+.hiw-panel::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 1;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--hiw-glow),
+    color-mix(in oklch, var(--primary) 55%, white),
+    var(--hiw-glow),
+    transparent
+  );
+  background-size: 220% 100%;
+  animation: pricing-overview-sheen 8s ease-in-out infinite;
+}
+
+.hiw-masthead {
+  position: relative;
+  overflow: hidden;
+  padding: 1.15rem 1.15rem 1rem;
+  border-bottom: 1px solid
+    color-mix(in oklch, var(--hiw-glow) 28%, var(--border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--primary) 12%, transparent),
+    transparent 92%
+  );
+}
+
+.hiw-masthead::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -40% auto auto -20%;
+  height: 180%;
+  width: 55%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    color-mix(in oklch, var(--hiw-glow) 22%, transparent) 45%,
+    transparent 70%
+  );
+  animation: pricing-overview-glint 7s ease-in-out infinite;
+}
+
+.hiw-stamp {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--primary) 38%, var(--border));
+  background: color-mix(in oklch, var(--primary) 16%, transparent);
+  padding: 0.2rem 0.65rem;
+  color: var(--primary);
+}
+
+.hiw-body > * + * {
+  border-top: 1px solid color-mix(in oklch, var(--hiw-glow) 18%, var(--border));
+}
+
+.hiw-section {
+  position: relative;
+  padding: 1.25rem 1.15rem 1.4rem;
+}
+
+.hiw-section[data-accent="sky"] {
+  --section-accent: color-mix(in oklch, oklch(0.55 0.14 230) 78%, var(--primary));
+}
+
+.hiw-section[data-accent="amber"] {
+  --section-accent: color-mix(in oklch, oklch(0.68 0.15 75) 78%, var(--primary));
+}
+
+.hiw-section[data-accent="violet"] {
+  --section-accent: color-mix(in oklch, oklch(0.55 0.18 293) 78%, var(--primary));
+}
+
+.hiw-section[data-accent="emerald"] {
+  --section-accent: color-mix(in oklch, oklch(0.55 0.14 155) 78%, var(--primary));
+}
+
+.hiw-section[data-accent="rose"] {
+  --section-accent: color-mix(in oklch, oklch(0.58 0.16 12) 78%, var(--primary));
+}
+
+.dark .hiw-section[data-accent="sky"] {
+  --section-accent: color-mix(in oklch, oklch(0.78 0.12 230) 72%, var(--primary));
+}
+
+.dark .hiw-section[data-accent="amber"] {
+  --section-accent: color-mix(in oklch, oklch(0.84 0.13 75) 72%, var(--primary));
+}
+
+.dark .hiw-section[data-accent="violet"] {
+  --section-accent: color-mix(in oklch, oklch(0.78 0.14 293) 72%, var(--primary));
+}
+
+.dark .hiw-section[data-accent="emerald"] {
+  --section-accent: color-mix(in oklch, oklch(0.8 0.12 155) 72%, var(--primary));
+}
+
+.dark .hiw-section[data-accent="rose"] {
+  --section-accent: color-mix(in oklch, oklch(0.8 0.13 12) 72%, var(--primary));
+}
+
+.hiw-kicker {
+  color: var(--section-accent, var(--primary));
+}
+
+.hiw-icon {
+  color: var(--section-accent, var(--primary));
+  background: color-mix(
+    in oklch,
+    var(--section-accent, var(--primary)) 18%,
+    var(--hiw-surface, var(--card))
+  );
+  border: 1px solid
+    color-mix(in oklch, var(--section-accent, var(--primary)) 38%, var(--border));
+  box-shadow: 0 0 0 1px
+    color-mix(in oklch, var(--section-accent, var(--primary)) 10%, transparent);
+}
+
+.hiw-card {
+  border: 1px solid
+    color-mix(in oklch, var(--section-accent, var(--hiw-glow, var(--primary))) 32%, var(--border));
+  background: color-mix(
+    in oklch,
+    var(--section-accent, var(--primary)) 10%,
+    var(--hiw-surface, var(--card))
+  );
+  box-shadow:
+    0 10px 24px color-mix(in oklch, var(--foreground) 8%, transparent),
+    inset 0 1px 0 color-mix(in oklch, var(--section-accent, var(--primary)) 12%, transparent);
+}
+
+.hiw-panel .hiw-card {
+  background-color: color-mix(
+    in oklch,
+    var(--section-accent, var(--primary)) 10%,
+    var(--hiw-surface, var(--card))
+  );
+  --tw-ring-shadow: 0 0 #0000;
+}
+
+.hiw-card[data-accent="sky"] {
+  --section-accent: color-mix(in oklch, oklch(0.55 0.14 230) 78%, var(--primary));
+}
+
+.hiw-card[data-accent="amber"] {
+  --section-accent: color-mix(in oklch, oklch(0.68 0.15 75) 78%, var(--primary));
+}
+
+.hiw-card[data-accent="violet"] {
+  --section-accent: color-mix(in oklch, oklch(0.55 0.18 293) 78%, var(--primary));
+}
+
+.hiw-card[data-accent="emerald"] {
+  --section-accent: color-mix(in oklch, oklch(0.55 0.14 155) 78%, var(--primary));
+}
+
+.hiw-card[data-accent="rose"] {
+  --section-accent: color-mix(in oklch, oklch(0.58 0.16 12) 78%, var(--primary));
+}
+
+.dark .hiw-card[data-accent="sky"] {
+  --section-accent: color-mix(in oklch, oklch(0.78 0.12 230) 72%, var(--primary));
+}
+
+.dark .hiw-card[data-accent="amber"] {
+  --section-accent: color-mix(in oklch, oklch(0.84 0.13 75) 72%, var(--primary));
+}
+
+.dark .hiw-card[data-accent="violet"] {
+  --section-accent: color-mix(in oklch, oklch(0.78 0.14 293) 72%, var(--primary));
+}
+
+.dark .hiw-card[data-accent="emerald"] {
+  --section-accent: color-mix(in oklch, oklch(0.8 0.12 155) 72%, var(--primary));
+}
+
+.dark .hiw-card[data-accent="rose"] {
+  --section-accent: color-mix(in oklch, oklch(0.8 0.13 12) 72%, var(--primary));
+}
+
+.hiw-note {
+  border: 1px solid color-mix(in oklch, var(--section-accent, var(--primary)) 24%, var(--border));
+  background: color-mix(in oklch, var(--section-accent, var(--primary)) 12%, var(--muted));
+}
+
+.hiw-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.28rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--brand-logo-glow) 36%, var(--border));
+  background: color-mix(in oklch, var(--background) 82%, var(--foreground) 18%);
+  box-shadow:
+    0 1px 0 color-mix(in oklch, var(--primary) 22%, transparent),
+    inset 0 1px 0 color-mix(in oklch, var(--primary) 12%, transparent);
+}
+
+.dark .hiw-tabs {
+  background: color-mix(in oklch, var(--background) 72%, var(--foreground) 28%);
+}
+
+.hiw-tab {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.45rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--muted-foreground);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.hiw-tab:hover {
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+}
+
+.hiw-tab[aria-selected="true"] {
+  color: var(--primary);
+  border-color: color-mix(in oklch, var(--primary) 38%, var(--border));
+  background: color-mix(in oklch, var(--primary) 16%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 12%, transparent);
+}
+
+.hiw-docs {
+  background: transparent;
+}
+
+.hiw-docs-search {
+  border-bottom: 1px solid color-mix(in oklch, var(--hiw-glow, var(--primary)) 22%, var(--border));
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+}
+
+.hiw-docs-nav {
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+  border-color: color-mix(in oklch, var(--hiw-glow, var(--primary)) 22%, var(--border));
+}
+
+.hiw-docs-topic[data-selected="true"] {
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--primary) 16%, var(--hiw-surface, var(--card)));
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 28%, transparent);
+}
+
+.hiw-docs-preview {
+  background: color-mix(in oklch, var(--background) 55%, transparent);
+}
+
 @keyframes pricing-overview-sheen {
   0%,
   100% {
@@ -1123,6 +1433,8 @@
 
   .pricing-overview-panel::before,
   .pricing-overview-masthead::after,
+  .hiw-panel::before,
+  .hiw-masthead::after,
   .pricing-overview-section,
   .pricing-overview-row {
     animation: none;

@@ -42,9 +42,13 @@ const HOW_IT_RUNS: { title: string; body: string; icon: LucideIcon }[] = [
 ];
 
 export function HowItWorksSpecialFeatures() {
+  const accents = ["sky", "amber", "violet", "rose"] as const;
   return (
-    <section className="space-y-5">
+    <section className="hiw-section space-y-5" data-accent="emerald">
       <RevealOnScroll delayMs={0} className="space-y-2">
+        <p className="hiw-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+          04
+        </p>
         <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
           Seasonal special-feature offers
         </h2>
@@ -57,13 +61,13 @@ export function HowItWorksSpecialFeatures() {
       </RevealOnScroll>
 
       <RevealOnScroll delayMs={40}>
-        <Card className="border-border/80 bg-card/50 shadow-sm ring-1 ring-foreground/5">
+        <Card className="hiw-card border-0 bg-transparent shadow-none ring-0" data-accent="emerald">
           <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-primary/40 bg-primary/15 text-primary">
+            <div className="hiw-icon flex size-10 shrink-0 items-center justify-center rounded-lg">
               <PackageCheck className="size-5" aria-hidden />
             </div>
             <div className="min-w-0 space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="hiw-kicker text-[10px] font-semibold uppercase tracking-wider">
                 When a special is in season
               </p>
               <CardTitle className="font-heading text-base leading-snug">
@@ -111,8 +115,11 @@ export function HowItWorksSpecialFeatures() {
           const Icon = item.icon;
           return (
             <RevealOnScroll key={item.title} delayMs={index * 50} as="li">
-              <article className="h-full rounded-xl border border-border/80 bg-card/50 p-4 shadow-sm ring-1 ring-foreground/5">
-                <div className="mb-3 inline-flex size-10 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <article
+                className="hiw-card h-full rounded-xl p-4"
+                data-accent={accents[index % accents.length]}
+              >
+                <div className="hiw-icon mb-3 inline-flex size-10 items-center justify-center rounded-lg">
                   <Icon className="size-5" aria-hidden />
                 </div>
                 <h3 className="font-heading text-base font-semibold text-foreground">
@@ -128,7 +135,7 @@ export function HowItWorksSpecialFeatures() {
       </ul>
 
       <RevealOnScroll delayMs={80}>
-        <Card className="border-border/80 bg-card/50 shadow-sm ring-1 ring-foreground/5">
+        <Card className="hiw-card border-0 bg-transparent shadow-none ring-0" data-accent="violet">
           <CardHeader className="pb-3">
             <CardTitle className="font-heading text-base">
               What you pay on a special
@@ -140,7 +147,7 @@ export function HowItWorksSpecialFeatures() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 rounded-lg border border-border/70 bg-muted/30 p-3">
+            <div className="hiw-note space-y-2 rounded-lg p-3">
               <p className="text-sm font-medium text-foreground">
                 In-app packaging
               </p>
@@ -152,7 +159,7 @@ export function HowItWorksSpecialFeatures() {
                 <li>Airline bag fee (varies by airline and bag number)</li>
               </ul>
             </div>
-            <div className="space-y-2 rounded-lg border border-border/70 bg-muted/30 p-3">
+            <div className="hiw-note space-y-2 rounded-lg p-3">
               <p className="text-sm font-medium text-foreground">
                 Outside packaging
               </p>
@@ -168,7 +175,7 @@ export function HowItWorksSpecialFeatures() {
       </RevealOnScroll>
 
       <RevealOnScroll delayMs={100}>
-        <p className="rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+        <p className="hiw-note rounded-lg px-3 py-2 text-xs leading-relaxed text-muted-foreground">
           Specials are not always on. If you do not see a banner on Home or in
           the dashboard, no suitcase special is in season. Barrel and bin
           consolidation remains available year-round.

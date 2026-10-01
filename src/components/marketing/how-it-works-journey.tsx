@@ -92,8 +92,9 @@ const EXPERIENCE_HIGHLIGHTS = [
 ];
 
 export function HowItWorksJourney() {
+  const accents = ["sky", "amber", "violet", "emerald", "rose"] as const;
   return (
-    <div className="space-y-10">
+    <div className="hiw-section space-y-10" data-accent="amber">
       <section className="grid gap-4 sm:grid-cols-3">
         {EXPERIENCE_HIGHLIGHTS.map((item, index) => {
           const Icon = item.icon;
@@ -101,9 +102,10 @@ export function HowItWorksJourney() {
             <RevealOnScroll
               key={item.title}
               delayMs={index * 90}
-              className="marketing-highlight-card rounded-xl border border-border/80 bg-card/60 p-4 shadow-sm ring-1 ring-foreground/5 backdrop-blur-sm"
+              className="marketing-highlight-card hiw-card rounded-xl p-4"
+              data-accent={accents[index % accents.length]}
             >
-              <div className="mb-3 inline-flex size-10 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <div className="hiw-icon mb-3 inline-flex size-10 items-center justify-center rounded-lg">
                 <Icon className="size-5" aria-hidden />
               </div>
               <h2 className="font-heading text-base font-semibold text-foreground">
@@ -119,6 +121,9 @@ export function HowItWorksJourney() {
 
       <section className="space-y-6">
         <RevealOnScroll delayMs={0} className="space-y-1">
+          <p className="hiw-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+            02
+          </p>
           <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
             Step by step: cart to barrel to your door
           </h2>
@@ -150,25 +155,28 @@ export function HowItWorksJourney() {
                 <div className="marketing-step-column relative z-10 flex shrink-0 flex-col items-center">
                   <div
                     className={cn(
-                      "marketing-step-icon flex size-11 items-center justify-center rounded-xl border-2 border-primary/60 bg-primary text-primary-foreground shadow-md sm:size-12",
+                      "marketing-step-icon hiw-icon flex size-11 items-center justify-center rounded-xl sm:size-12",
                     )}
                   >
                     <Icon className="size-5" aria-hidden />
                   </div>
-                  <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="hiw-kicker mt-1.5 text-[10px] font-semibold uppercase tracking-wider">
                     Step {item.step}
                   </span>
                 </div>
 
-                <div className="marketing-step-card min-w-0 flex-1 space-y-2 rounded-xl border border-border/80 bg-card/50 p-4 shadow-sm ring-1 ring-foreground/5 sm:p-5">
+                <div
+                  className="marketing-step-card hiw-card min-w-0 flex-1 space-y-2 rounded-xl p-4 sm:p-5"
+                  data-accent={accents[index % accents.length]}
+                >
                   <h3 className="font-heading text-lg font-semibold leading-snug text-foreground">
                     {item.title}
                   </h3>
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     {item.description}
                   </p>
-                  <p className="marketing-live-note inline-flex items-start gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium leading-relaxed text-primary">
-                    <Radar className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                  <p className="marketing-live-note hiw-note inline-flex items-start gap-2 rounded-lg px-3 py-2 text-xs font-medium leading-relaxed text-foreground">
+                    <Radar className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
                     {item.liveNote}
                   </p>
                 </div>

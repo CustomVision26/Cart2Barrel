@@ -82,9 +82,13 @@ const COST_PHASES: CostPhase[] = [
 ];
 
 export function HowItWorksCustomerCosts() {
+  const accents = ["sky", "amber", "violet", "emerald"] as const;
   return (
-    <section className="space-y-5">
+    <section className="hiw-section space-y-5" data-accent="violet">
       <RevealOnScroll delayMs={0} className="space-y-2">
+        <p className="hiw-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+          03
+        </p>
         <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
           What you pay along the way
         </h2>
@@ -99,13 +103,16 @@ export function HowItWorksCustomerCosts() {
           const Icon = phase.icon;
           return (
             <RevealOnScroll key={phase.step} delayMs={index * 60} as="li">
-              <Card className="border-border/80 bg-card/50 shadow-sm ring-1 ring-foreground/5">
+              <Card
+                className="hiw-card border-0 bg-transparent shadow-none ring-0"
+                data-accent={accents[index % accents.length]}
+              >
                 <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-primary/40 bg-primary/15 text-primary">
+                  <div className="hiw-icon flex size-10 shrink-0 items-center justify-center rounded-lg">
                     <Icon className="size-5" aria-hidden />
                   </div>
                   <div className="min-w-0 space-y-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="hiw-kicker text-[10px] font-semibold uppercase tracking-wider">
                       Cost {phase.step}
                     </p>
                     <CardTitle className="font-heading text-base leading-snug">
@@ -122,7 +129,7 @@ export function HowItWorksCustomerCosts() {
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
-                  <p className="rounded-lg bg-muted px-3 py-2 text-xs font-medium text-foreground">
+                  <p className="hiw-note rounded-lg px-3 py-2 text-xs font-medium text-foreground">
                     When due:{" "}
                     <span className="font-normal text-muted-foreground">
                       {phase.when}

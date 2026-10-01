@@ -12,7 +12,7 @@ import { HowItWorksJourney } from "@/components/marketing/how-it-works-journey";
 import { HowItWorksServices } from "@/components/marketing/how-it-works-services";
 import { HowItWorksSpecialFeatures } from "@/components/marketing/how-it-works-special-features";
 import { HowItWorksSubTabNav } from "@/components/marketing/how-it-works-sub-tab-nav";
-import { HowItWorksPricingOverview } from "@/components/marketing/how-it-works-pricing-overview";
+import { HowItWorksPanel, HowItWorksPricingOverview } from "@/components/marketing/how-it-works-pricing-overview";
 import { HowItWorksThirdPartyVendorPricing } from "@/components/marketing/how-it-works-third-party-vendor-pricing";
 import { RevealOnScroll } from "@/components/marketing/reveal-on-scroll";
 import { ServiceHandlingFeeChart } from "@/components/marketing/service-handling-fee-chart";
@@ -82,7 +82,13 @@ export function HowItWorksPageMain({
       {isUserGuide ?
         <RevealOnScroll variant="load" delayMs={80}>
           <div id="user-guide-panel" className="scroll-mt-6">
-            <UserDocumentationBrowser variant="page" />
+            <HowItWorksPanel
+              stamp="Reference"
+              title="Customer handbook"
+              description="Search any customer page or control. Each topic has a quick reference for scanning and a full article for the complete walkthrough."
+            >
+              <UserDocumentationBrowser variant="page" tone="hiw" />
+            </HowItWorksPanel>
           </div>
         </RevealOnScroll>
       : <>
@@ -118,11 +124,17 @@ export function HowItWorksPageMain({
               </RevealOnScroll>
             </aside>
 
-            <div className="order-2 min-w-0 space-y-12 lg:order-1">
-              <HowItWorksServices />
-              <HowItWorksJourney />
-              <HowItWorksCustomerCosts />
-              <HowItWorksSpecialFeatures />
+            <div className="order-2 min-w-0 lg:order-1">
+              <HowItWorksPanel
+                stamp="Overview"
+                title="From cart to barrel"
+                description="Services, the live dashboard journey, what you pay at each stage, and seasonal suitcase specials."
+              >
+                <HowItWorksServices />
+                <HowItWorksJourney />
+                <HowItWorksCustomerCosts />
+                <HowItWorksSpecialFeatures />
+              </HowItWorksPanel>
             </div>
           </div>
 

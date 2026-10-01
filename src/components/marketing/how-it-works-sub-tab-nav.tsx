@@ -5,14 +5,6 @@ import Link from "next/link";
 import { HOW_IT_WORKS_ROUTES, type HowItWorksTab } from "@/lib/how-it-works-routes";
 import { cn } from "@/lib/utils";
 
-const tabLinkClass = (selected: boolean) =>
-  cn(
-    "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-    selected
-      ? "border-primary text-foreground"
-      : "border-transparent text-muted-foreground hover:text-foreground",
-  );
-
 type HowItWorksSubTabNavProps = {
   activeTab: HowItWorksTab;
 };
@@ -22,13 +14,13 @@ export function HowItWorksSubTabNav({ activeTab }: HowItWorksSubTabNavProps) {
     <div
       role="tablist"
       aria-label="How it works sections"
-      className="flex flex-wrap gap-1 border-b border-border/80"
+      className="hiw-tabs"
     >
       <Link
         href={HOW_IT_WORKS_ROUTES.overview}
         role="tab"
         aria-selected={activeTab === "overview"}
-        className={tabLinkClass(activeTab === "overview")}
+        className={cn("hiw-tab", activeTab === "overview" && "pointer-events-none")}
       >
         Overview
       </Link>
@@ -36,7 +28,7 @@ export function HowItWorksSubTabNav({ activeTab }: HowItWorksSubTabNavProps) {
         href={HOW_IT_WORKS_ROUTES.userGuide}
         role="tab"
         aria-selected={activeTab === "user-guide"}
-        className={tabLinkClass(activeTab === "user-guide")}
+        className={cn("hiw-tab", activeTab === "user-guide" && "pointer-events-none")}
       >
         User guide
       </Link>

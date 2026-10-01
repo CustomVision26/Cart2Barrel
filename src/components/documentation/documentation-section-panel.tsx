@@ -26,7 +26,7 @@ function ViewToggle({
 }) {
   return (
     <div
-      className="inline-flex rounded-lg border border-border/80 bg-muted/50 p-0.5"
+      className="inline-flex rounded-lg border border-primary/30 bg-primary/10 p-0.5"
       role="tablist"
       aria-label="Documentation view"
     >
@@ -38,7 +38,7 @@ function ViewToggle({
         className={cn(
           "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
           mode === "quick"
-            ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
+            ? "bg-background text-foreground shadow-sm ring-1 ring-primary/35"
             : "text-muted-foreground hover:text-foreground",
         )}
       >
@@ -53,7 +53,7 @@ function ViewToggle({
         className={cn(
           "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
           mode === "article"
-            ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
+            ? "bg-background text-foreground shadow-sm ring-1 ring-primary/35"
             : "text-muted-foreground hover:text-foreground",
         )}
       >
@@ -127,17 +127,21 @@ function PolicyCard({
   if (items.length === 0) return null;
 
   const styles = {
-    neutral: "border-border/70 bg-card/60",
-    success: "border-emerald-500/25 bg-emerald-500/5",
-    danger: "border-red-500/25 bg-red-500/5",
-    warning: "border-amber-500/25 bg-amber-500/5",
+    neutral:
+      "border-border/70 bg-card/60 dark:border-border/70",
+    success:
+      "border-emerald-600/30 bg-emerald-500/10 dark:border-emerald-500/25 dark:bg-emerald-500/5",
+    danger:
+      "border-red-600/30 bg-red-500/10 dark:border-red-500/25 dark:bg-red-500/5",
+    warning:
+      "border-amber-600/30 bg-amber-500/10 dark:border-amber-500/25 dark:bg-amber-500/5",
   } as const;
 
   const titleStyles = {
     neutral: "text-foreground",
-    success: "text-emerald-200",
-    danger: "text-red-200",
-    warning: "text-amber-200",
+    success: "text-emerald-800 dark:text-emerald-200",
+    danger: "text-red-800 dark:text-red-200",
+    warning: "text-amber-800 dark:text-amber-200",
   } as const;
 
   const icons = {
@@ -149,9 +153,9 @@ function PolicyCard({
 
   const iconColors = {
     neutral: "text-primary",
-    success: "text-emerald-400",
-    danger: "text-red-400",
-    warning: "text-amber-400",
+    success: "text-emerald-600 dark:text-emerald-400",
+    danger: "text-red-600 dark:text-red-400",
+    warning: "text-amber-600 dark:text-amber-400",
   } as const;
 
   const Icon = icons[tone];
@@ -186,7 +190,7 @@ function QuickReferencePanel({ section }: { section: DocumentationSection }) {
 
   return (
     <div className="space-y-5" role="tabpanel">
-      <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 sm:p-5">
+      <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/16 via-primary/8 to-transparent p-4 sm:p-5">
         <p className="text-base font-medium leading-relaxed text-foreground">
           {q.summary}
         </p>
@@ -247,7 +251,7 @@ function FullArticlePanel({ section }: { section: DocumentationSection }) {
             {article.walkthrough.map((step, index) => (
               <li
                 key={step}
-                className="flex gap-3 rounded-lg border border-border/60 bg-card/40 px-3 py-3"
+                className="flex gap-3 rounded-lg border border-primary/25 bg-primary/8 px-3 py-3"
               >
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
                   {index + 1}
@@ -262,8 +266,8 @@ function FullArticlePanel({ section }: { section: DocumentationSection }) {
       ) : null}
 
       {article.notes && article.notes.length > 0 ? (
-        <section className="space-y-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
-          <h3 className="text-sm font-semibold text-sky-100">Good to know</h3>
+        <section className="space-y-2 rounded-xl border border-sky-600/25 bg-sky-500/10 p-4 dark:border-sky-500/20 dark:bg-sky-500/5">
+          <h3 className="text-sm font-semibold text-sky-800 dark:text-sky-100">Good to know</h3>
           <BulletList items={article.notes} />
         </section>
       ) : null}
@@ -295,7 +299,7 @@ export function DocumentationSectionPanel({
   return (
     <div className="space-y-5">
       <header className="space-y-3 border-b border-border/60 pb-4">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/80">
+        <p className="hiw-kicker text-[10px] font-semibold uppercase tracking-widest">
           {section.category}
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

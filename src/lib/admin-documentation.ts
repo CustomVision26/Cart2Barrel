@@ -484,7 +484,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Shipments; history at /admin/shipments-history.",
       bullets: [
         "Create and manage outbound shipment charges and 1-container vs extra-container rate tables. Customers link unpaid containers on Dashboard → Shipping.",
-        "Publish a company to How it works → Pricing overview from the company record.",
+        "Publish a company to How it works → Pricing overview from the company record. Freight (or freight+broker) appears under In-US vendor as a service badge plus the customer note info button—no company name or street. Pickup fee is a separate table (not shown on that public freight card). Standalone overseas brokers and couriers show identity, Operate from, and zone or container rates.",
         "Customs and freight billing to customer cart.",
         "Carrier tracking for international delivery.",
         "Shipping History: every container shipped through Amani Cart2Barrel, listed in a table with freight, broker, courier, receipts, and customs documents. Double-click a row or Open for the full record. Newest first, with search, sort, pagination, and the header customer filter.",
@@ -506,7 +506,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Open Shipments from the Fulfillment sidebar.",
         "Review containers. Paid freight moves that container out of Ready for shipping into the current shipment stage (the same record the customer sees on Dashboard → Shipping).",
         "Create or update shipment charges and the 1-container vs extra-container rate tables so customers can pay via Dashboard → Shipping. Customers link unpaid containers there; do not link containers from the company Charge dialog.",
-        "On a freight, broker, or courier company record, use Publish to How it works to show that company under Pricing overview (contact details, Ad image, and the 1-container vs extra-container rate table).",
+        "On a freight, broker, or courier company record, use Publish to How it works to show that company under Pricing overview. Freight+broker cards sit only under In-US vendor (badge and Note to customer; freight rates exclude pickup fee). Standalone destination brokers and couriers sit under Overseas third-party vendor with Operate from and contact details. Pickup fee tables are not published on the public freight card.",
         "Record carrier tracking and customs intake details as required.",
         "Open the Shipping History tab for containers that already left. Search, sort, and paginate the table; use the header customer filter to scope one shopper. Double-click a row or Open to see freight, broker, courier, receipts, and customs documents.",
       ],

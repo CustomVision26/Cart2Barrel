@@ -48,6 +48,7 @@ type DocumentationBrowserProps = {
   sections: DocumentationSection[];
   categories: readonly string[];
   variant?: "page" | "dialog";
+  tone?: "plain" | "hiw";
   className?: string;
   searchPlaceholder?: string;
 };
@@ -56,6 +57,7 @@ export function DocumentationBrowser({
   sections,
   categories,
   variant = "page",
+  tone = "plain",
   className,
   searchPlaceholder = "Search topics, pages, or features…",
 }: DocumentationBrowserProps) {
@@ -134,13 +136,16 @@ export function DocumentationBrowser({
   }, [activeId, filteredSections, isSplitLayout, sections]);
 
   const isPage = variant === "page";
+  const isHiw = tone === "hiw";
 
   return (
     <div
       className={cn(
         "flex min-h-0 flex-col",
         isPage &&
+          !isHiw &&
           "min-h-[min(72vh,52rem)] overflow-hidden rounded-xl border border-border/80 bg-card/40 shadow-sm ring-1 ring-border/50",
+        isHiw && "hiw-docs min-h-[min(64vh,48rem)] overflow-hidden",
         className,
       )}
     >
@@ -148,6 +153,7 @@ export function DocumentationBrowser({
         className={cn(
           "border-b border-border/80 bg-muted/20 px-4 py-3 sm:px-5",
           isPage && "sm:py-4",
+          isHiw && "hiw-docs-search border-border/0",
           !showTopicList && "lg:block",
         )}
       >
@@ -160,7 +166,7 @@ export function DocumentationBrowser({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={searchPlaceholder}
-            className="h-9 bg-background pl-9"
+            className={cn("h-9 bg-background pl-9", isHiw && "border-primary/30")}
             aria-label="Search documentation"
           />
         </div>
@@ -171,6 +177,7 @@ export function DocumentationBrowser({
           className={cn(
             "shrink-0 overflow-y-auto border-b border-border/80 bg-muted/30 lg:w-64 lg:max-h-none lg:border-b-0 lg:border-r",
             isPage ? "max-h-none lg:max-h-none" : "max-h-none sm:w-60",
+            isHiw && "hiw-docs-nav",
             !showTopicList && "hidden lg:block",
             showTopicList && !isSplitLayout && "min-h-[min(40vh,24rem)] flex-1 lg:min-h-0 lg:flex-none",
           )}
@@ -188,7 +195,12 @@ export function DocumentationBrowser({
               if (categorySections.length === 0) return null;
               return (
                 <div key={category} className="space-y-1">
-                  <p className="px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  <p
+                    className={cn(
+                      "px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground",
+                      isHiw && "hiw-kicker",
+                    )}
+                  >
                     {category}
                   </p>
                   <ul className="space-y-0.5">
@@ -201,10 +213,14 @@ export function DocumentationBrowser({
                             onClick={() => selectTopic(section.id)}
                             className={cn(
                               "w-full rounded-lg px-2.5 py-2 text-left transition-colors",
+                              isHiw && "hiw-docs-topic",
                               selected
-                                ? "bg-background font-medium text-foreground shadow-sm ring-1 ring-primary/25"
+                                ? isHiw
+                                  ? "font-medium"
+                                  : "bg-background font-medium text-foreground shadow-sm ring-1 ring-primary/25"
                                 : "text-muted-foreground hover:bg-card hover:text-foreground",
                             )}
+                            data-selected={selected ? "true" : "false"}
                           >
                             <span className="block text-sm leading-snug">
                               {section.title}
@@ -227,6 +243,7 @@ export function DocumentationBrowser({
           ref={contentRef}
           className={cn(
             "min-h-0 flex-1 overflow-y-auto bg-background/50 p-4 sm:p-6",
+            isHiw && "hiw-docs-preview",
             !showTopicPreview && "hidden lg:block",
             showTopicPreview && !isSplitLayout && "flex-1",
           )}

@@ -66,8 +66,11 @@ const SERVICES: Service[] = [
 
 export function HowItWorksServices() {
   return (
-    <section className="space-y-5">
+    <section className="hiw-section space-y-5" data-accent="sky">
       <RevealOnScroll delayMs={0} className="space-y-2">
+        <p className="hiw-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+          01
+        </p>
         <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
           What Amani Cart2Barrel does for you
         </h2>
@@ -84,10 +87,14 @@ export function HowItWorksServices() {
       <ul className="grid list-none gap-4 p-0 sm:grid-cols-2">
         {SERVICES.map((service, index) => {
           const Icon = service.icon;
+          const accents = ["sky", "amber", "violet", "emerald", "rose"] as const;
           return (
             <RevealOnScroll key={service.title} delayMs={index * 50} as="li">
-              <article className="h-full rounded-xl border border-border/80 bg-card/50 p-4 shadow-sm ring-1 ring-foreground/5">
-                <div className="mb-3 inline-flex size-10 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <article
+                className="hiw-card h-full rounded-xl p-4"
+                data-accent={accents[index % accents.length]}
+              >
+                <div className="hiw-icon mb-3 inline-flex size-10 items-center justify-center rounded-lg">
                   <Icon className="size-5" aria-hidden />
                 </div>
                 <h3 className="font-heading text-base font-semibold text-foreground">
