@@ -18,7 +18,7 @@ import {
 } from "@/actions/admin-container-offerings";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, inputFieldClassName } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -33,6 +33,7 @@ import { formatUsd } from "@/lib/admin-markup";
 import type { SpecialFeatureContainerFormRef } from "@/lib/special-feature-window-label";
 import {
   containerOfferingKindLabel,
+  isShopperCatalogContainerKind,
   type ContainerOfferingKind,
   type SuitcaseSizeOption,
 } from "@/lib/validations/container-offering";
@@ -57,6 +58,8 @@ export type AdminSerializableOffering = {
   name: string;
   sizeLabel: string;
   kind: ContainerOfferingKind;
+  customerNote: string;
+  dimensionLabel: string;
   priceUsdCents: number;
   isActive: boolean;
   specialFeatureOfferId?: string | null;
@@ -105,6 +108,8 @@ function catalogRowClassName(
     kind === "barrel" &&
       "border-l-amber-400 bg-amber-500/20 hover:bg-amber-500/35",
     kind === "bin" && "border-l-sky-400 bg-sky-500/20 hover:bg-sky-500/35",
+    kind === "cargo_box" &&
+      "border-l-emerald-400 bg-emerald-500/20 hover:bg-emerald-500/35",
     kind === "suitcase" &&
       "border-l-violet-400 bg-violet-500/20 hover:bg-violet-500/35",
     !published && "opacity-80",
@@ -140,6 +145,7 @@ export function AdminBarrelsManager({
   const [selectedSpecialId, setSelectedSpecialId] = useState<string | null>(
     specialFeatures[0]?.id ?? null,
   );
+  const [createKind, setCreateKind] = useState<ContainerOfferingKind>("barrel");
 
   const selectedSpecial =
     specialFeatures.find((special) => special.id === selectedSpecialId) ??
@@ -186,7 +192,7 @@ export function AdminBarrelsManager({
           <CardDescription>
             {specialFeatureOffer ?
               "Link suitcase SKU(s) to an existing special, pick sizes and price, then Publish from the catalog table."
-            : "Add a name, type (barrel or bin), size label, and price. After create, double-click the row to edit, then Publish or Unpublish. Upload photos after the container is created."}
+            : "Add a name, type (barrel, bin, or cargo box), size, optional note, and price. Cargo boxes also need dimensions. After create, double-click the row to edit, then Publish or Unpublish. Upload photos after the container is created."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -204,6 +210,8 @@ export function AdminBarrelsManager({
                   sizeLabel: wasSpecial ?
                     selectedSizes[0] ?? 'Medium 24"'
                   : String(fd.get("sizeLabel") ?? ""),
+                  customerNote: String(fd.get("customerNote") ?? ""),
+                  dimensionLabel: String(fd.get("dimensionLabel") ?? ""),
                   kind: wasSpecial ? "suitcase" : String(fd.get("kind") ?? "barrel"),
                   priceUsd: String(fd.get("priceUsd") ?? ""),
                   specialFeatureOffer: wasSpecial,
@@ -216,6 +224,7 @@ export function AdminBarrelsManager({
                 }
                 createFormRef.current?.reset();
                 setSpecialFeatureOffer(false);
+                setCreateKind("barrel");
                 setSuitcaseSizes({
                   'Small 20"': true,
                   'Medium 24"': true,
@@ -298,6 +307,17 @@ export function AdminBarrelsManager({
                 />
               }
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="new-note">Note</Label>
+              <textarea
+                id="new-note"
+                name="customerNote"
+                rows={3}
+                maxLength={2000}
+                placeholder="Shown to shoppers on How it works"
+                className={cn(inputFieldClassName, "min-h-20 py-2 text-sm md:text-sm")}
+              />
+            </div>
             {specialFeatureOffer ?
               <>
                 <div className="space-y-2">
@@ -350,13 +370,28 @@ export function AdminBarrelsManager({
                     id="new-kind"
                     name="kind"
                     required
-                    defaultValue="barrel"
+                    value={createKind}
+                    onChange={(e) =>
+                      setCreateKind(e.target.value as ContainerOfferingKind)
+                    }
                     className={barrelsFieldSelectClassName}
                   >
                     <option value="barrel">Barrel</option>
                     <option value="bin">Bin</option>
+                    <option value="cargo_box">Cargo box</option>
                   </select>
                 </div>
+                {createKind === "cargo_box" ?
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="new-dimensions">Dimensions</Label>
+                    <Input
+                      id="new-dimensions"
+                      name="dimensionLabel"
+                      required
+                      placeholder="e.g. 24 × 18 × 16 in"
+                    />
+                  </div>
+                : null}
               </>
             }
             <div className="space-y-2">
@@ -450,6 +485,10 @@ export function AdminBarrelsManager({
                   <span className="inline-flex items-center gap-1.5">
                     <span className="size-2.5 rounded-sm bg-sky-400" aria-hidden />
                     Bin
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-emerald-400" aria-hidden />
+                    Cargo box
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="size-2.5 rounded-sm bg-violet-400" aria-hidden />
@@ -566,7 +605,6 @@ function AdminOfferingRow({
   const isSpecialFeature =
     offering.kind === "suitcase" &&
     Boolean(offering.specialFeatureOfferId ?? offering.linkedSpecialFeatureOfferId);
-  const isBarrelOrBin = offering.kind === "barrel" || offering.kind === "bin";
   const specialWindowLive = Boolean(offering.specialFeaturePublished);
   const isPublished = offering.isActive;
   const isShopperVisible = offering.isActive && specialWindowLive;
@@ -578,7 +616,10 @@ function AdminOfferingRow({
   const [selectedSpecialId, setSelectedSpecialId] = useState(linkedSpecialId);
   const [sizeLabel, setSizeLabel] = useState(offering.sizeLabel);
   const [kind, setKind] = useState<ContainerOfferingKind>(offering.kind);
+  const [customerNote, setCustomerNote] = useState(offering.customerNote);
+  const [dimensionLabel, setDimensionLabel] = useState(offering.dimensionLabel);
   const [priceUsd, setPriceUsd] = useState(centsToUsdInput(offering.priceUsdCents));
+  const isShopperCatalog = isShopperCatalogContainerKind(kind);
 
   const selectedSpecial =
     specialFeatures.find((special) => special.id === selectedSpecialId) ?? null;
@@ -587,6 +628,8 @@ function AdminOfferingRow({
     setName(offering.name);
     setSizeLabel(offering.sizeLabel);
     setKind(offering.kind);
+    setCustomerNote(offering.customerNote);
+    setDimensionLabel(offering.dimensionLabel);
     setPriceUsd(centsToUsdInput(offering.priceUsdCents));
 
     const linked =
@@ -602,6 +645,8 @@ function AdminOfferingRow({
     offering.name,
     offering.sizeLabel,
     offering.kind,
+    offering.customerNote,
+    offering.dimensionLabel,
     offering.priceUsdCents,
     offering.isActive,
     offering.linkedSpecialFeatureOfferId,
@@ -663,6 +708,8 @@ function AdminOfferingRow({
                 id: offering.id,
                 name,
                 sizeLabel,
+                customerNote,
+                dimensionLabel,
                 kind,
                 priceUsd,
                 isActive: offering.isActive,
@@ -734,6 +781,19 @@ function AdminOfferingRow({
               />
             }
           </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor={`note-${offering.id}`}>Note</Label>
+            <textarea
+              id={`note-${offering.id}`}
+              rows={3}
+              maxLength={2000}
+              value={customerNote}
+              onChange={(e) => setCustomerNote(e.target.value)}
+              placeholder="Shown to shoppers on How it works"
+              className={cn(inputFieldClassName, "min-h-20 py-2 text-sm md:text-sm")}
+              disabled={disabled}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor={`size-${offering.id}`}>Size</Label>
             <Input
@@ -760,10 +820,23 @@ function AdminOfferingRow({
               : <>
                   <option value="barrel">Barrel</option>
                   <option value="bin">Bin</option>
+                  <option value="cargo_box">Cargo box</option>
                 </>
               }
             </select>
           </div>
+          {kind === "cargo_box" ?
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor={`dimensions-${offering.id}`}>Dimensions</Label>
+              <Input
+                id={`dimensions-${offering.id}`}
+                required
+                value={dimensionLabel}
+                onChange={(e) => setDimensionLabel(e.target.value)}
+                placeholder="e.g. 24 × 18 × 16 in"
+              />
+            </div>
+          : null}
           <div className="space-y-2">
             <Label htmlFor={`price-${offering.id}`}>Price (USD)</Label>
             <Input
@@ -801,7 +874,7 @@ function AdminOfferingRow({
             <Button type="submit" size="sm" disabled={disabled}>
               Save changes
             </Button>
-            {isBarrelOrBin && !isPublished ?
+            {isShopperCatalog && !isPublished ?
               <Button
                 type="button"
                 size="sm"
@@ -826,7 +899,7 @@ function AdminOfferingRow({
                 {pending ? "Publishing…" : "Publish"}
               </Button>
             : null}
-            {isBarrelOrBin && isPublished ?
+            {isShopperCatalog && isPublished ?
               <Button
                 type="button"
                 size="sm"

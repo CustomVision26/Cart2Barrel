@@ -1,6 +1,6 @@
 "use client";
 
-import { Container, ImageIcon } from "lucide-react";
+import { Container, ImageIcon, Info } from "lucide-react";
 import { useState, type CSSProperties } from "react";
 
 import { PricingOverviewSection } from "@/components/marketing/how-it-works-pricing-overview";
@@ -11,6 +11,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -142,6 +143,66 @@ function ContainerImageSlideshow({
   );
 }
 
+function ContainerCatalogDetailsButton({
+  row,
+}: {
+  row: ContainerCatalogChartRow;
+}) {
+  const [open, setOpen] = useState(false);
+  const note = row.customerNote.trim();
+  const dimensions = row.dimensionLabel.trim();
+  const isCargoBox = row.kind === "cargo_box";
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        className="size-7 shrink-0 rounded-full"
+        aria-label={`Note and details for ${row.containerLabel}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(true);
+        }}
+        onDoubleClick={(event) => event.stopPropagation()}
+      >
+        <Info className="size-3.5" aria-hidden />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[min(90vh,32rem)] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Container details</DialogTitle>
+            <DialogDescription className="sr-only">
+              Note and size details for {row.containerLabel}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm leading-relaxed">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Note
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-foreground">
+                {note || "No note for this container."}
+              </p>
+            </div>
+            {isCargoBox ?
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Dimensions
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-foreground">
+                  {dimensions || "Dimensions not listed."}
+                </p>
+              </div>
+            : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export function ContainerCatalogChart({
   rows,
   index = 3,
@@ -154,25 +215,26 @@ export function ContainerCatalogChart({
         index={index}
         icon={<Container className="size-4" />}
         title="Container options"
-        description="Barrels and bins you can add from Dashboard → Barrels. Each listing shows the container price before checkout. Double-click a photo to browse images."
+        description="Barrels, bins, and cargo boxes you can add from Dashboard → Barrels. Each listing shows the container price before checkout. Open the info button for the container note and, for cargo boxes, dimensions. Double-click a photo to browse images."
         accent="violet"
       >
         {rows.length === 0 ?
           <p className="rounded-lg border border-dashed border-border/70 bg-muted/50 px-3 py-4 text-xs leading-relaxed text-muted-foreground">
             Container options are being published. Sign in later or contact us
-            for current barrel and bin availability.
+            for current barrel, bin, and cargo box availability.
           </p>
         : <div className="pricing-overview-ledger overflow-hidden rounded-lg">
-            <div className="pricing-overview-ledger-head grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
+            <div className="pricing-overview-ledger-head grid grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
               <span className="w-10">Photo</span>
               <span>Container</span>
+              <span className="text-center">Info</span>
               <span className="text-right">Price</span>
             </div>
             <ul>
               {rows.map((row, rowIndex) => (
                 <li
                   key={row.id}
-                  className="pricing-overview-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 text-xs transition-colors"
+                  className="pricing-overview-row grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-2 text-xs transition-colors"
                   style={
                     {
                       "--pricing-row-index": rowIndex,
@@ -192,6 +254,7 @@ export function ContainerCatalogChart({
                   <span className="min-w-0 font-medium text-foreground">
                     {row.containerLabel}
                   </span>
+                  <ContainerCatalogDetailsButton row={row} />
                   <span className="pricing-overview-fee shrink-0 text-right tabular-nums font-semibold">
                     {row.priceLabel}
                   </span>

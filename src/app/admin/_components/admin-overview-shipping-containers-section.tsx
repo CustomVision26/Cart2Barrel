@@ -20,6 +20,8 @@ export async function AdminOverviewShippingContainersSection() {
       name: r.offering.name,
       sizeLabel: r.offering.sizeLabel,
       kind: r.offering.kind,
+      customerNote: r.offering.customerNote ?? "",
+      dimensionLabel: r.offering.dimensionLabel ?? "",
       priceUsdCents: r.offering.priceUsdCents,
       isActive: r.offering.isActive,
       specialFeatureOfferId: r.specialFeature?.id ?? null,
@@ -40,15 +42,16 @@ export async function AdminOverviewShippingContainersSection() {
           Shipping containers
         </h2>
         <p className="text-sm text-muted-foreground">
-          Define the barrel and container options shoppers see on{" "}
+          Define the barrel, bin, and cargo box options shoppers see on{" "}
           <span className="font-medium text-foreground">/dashboard/barrels</span>. Create timed
           specials under{" "}
           <span className="font-medium text-foreground">Special features</span>, then link suitcase
           SKU(s) here with{" "}
-          <span className="font-medium text-foreground">Special feature offer</span>. Use{" "}
+          <span className="font-medium text-foreground">Special feature offer</span>. Add a note
+          on every container; cargo boxes also need dimensions. Use{" "}
           <span className="font-medium text-foreground">Publish</span> or{" "}
           <span className="font-medium text-foreground">Unpublish</span> on each catalog
-          card after double-clicking a color-coded table row (barrels, bins, and special
+          card after double-clicking a color-coded table row (barrels, bins, cargo boxes, and special
           suitcases). Upload photos per SKU; use the arrows beside each thumbnail to change
           carousel order.
         </p>

@@ -4,7 +4,10 @@ import {
   DEFAULT_CONTAINER_PACKING_RATES,
   type ContainerPackingRates,
 } from "@/lib/container-packing-fee";
-import { containerOfferingKindLabel } from "@/lib/validations/container-offering";
+import {
+  containerOfferingKindLabel,
+  type ContainerOfferingKind,
+} from "@/lib/validations/container-offering";
 
 export type ContainerCatalogChartImage = {
   id: string;
@@ -16,6 +19,9 @@ export type ContainerCatalogChartRow = {
   id: string;
   containerLabel: string;
   priceLabel: string;
+  kind: ContainerOfferingKind;
+  customerNote: string;
+  dimensionLabel: string;
   images: ContainerCatalogChartImage[];
 };
 
@@ -29,7 +35,13 @@ export function buildContainerCatalogChartRows(
   entries: {
     offering: Pick<
       ContainerOffering,
-      "id" | "name" | "sizeLabel" | "kind" | "priceUsdCents"
+      | "id"
+      | "name"
+      | "sizeLabel"
+      | "kind"
+      | "priceUsdCents"
+      | "customerNote"
+      | "dimensionLabel"
     >;
     images: Pick<ContainerOfferingImage, "id" | "imageUrl" | "sortIndex">[];
   }[],
@@ -38,6 +50,9 @@ export function buildContainerCatalogChartRows(
     id: offering.id,
     containerLabel: `${offering.name} · ${containerOfferingKindLabel(offering.kind)} · ${offering.sizeLabel}`,
     priceLabel: formatUsd(offering.priceUsdCents),
+    kind: offering.kind,
+    customerNote: offering.customerNote?.trim() ?? "",
+    dimensionLabel: offering.dimensionLabel?.trim() ?? "",
     images: images
       .map((image) => ({
         id: image.id,

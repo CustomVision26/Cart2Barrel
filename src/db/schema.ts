@@ -276,6 +276,7 @@ export const containerOfferingKindEnum = pgEnum("container_offering_kind", [
   "barrel",
   "bin",
   "suitcase",
+  "cargo_box",
 ]);
 
 /** How a timed special-feature suitcase is packed for shipping. */
@@ -2292,6 +2293,10 @@ export const containerOfferings = pgTable(
     name: text("name").notNull(),
     sizeLabel: text("size_label").notNull(),
     kind: containerOfferingKindEnum("kind").notNull().default("barrel"),
+    /** Shopper-facing catalog note (How it works info button). */
+    customerNote: text("customer_note"),
+    /** Required when `kind` is `cargo_box` — e.g. 24 × 18 × 16 in. */
+    dimensionLabel: text("dimension_label"),
     priceUsdCents: integer("price_usd_cents").notNull(),
     isActive: boolean("is_active").notNull().default(true),
     sortIndex: integer("sort_index").notNull().default(0),
@@ -2711,7 +2716,7 @@ export const orderContainerItems = pgTable(
     packagingPerUnitCents: integer("packaging_per_unit_cents").notNull().default(0),
     nameSnapshot: text("name_snapshot").notNull(),
     sizeSnapshot: text("size_snapshot").notNull(),
-    /** `barrel` | `bin` | `suitcase` at checkout (matches `container_offering_kind`). */
+    /** `barrel` | `bin` | `suitcase` | `cargo_box` at checkout (matches `container_offering_kind`). */
     kindSnapshot: text("kind_snapshot").notNull().default("barrel"),
     /** Cart line first-add time for special suitcase baggage slot ordering at checkout. */
     cartLineAddedAt: timestamp("cart_line_added_at", {

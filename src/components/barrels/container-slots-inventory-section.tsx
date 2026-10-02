@@ -673,6 +673,7 @@ export function ContainerSlotsInventorySection({
               <option value="all">All types</option>
               <option value="barrel">Barrels only</option>
               <option value="bin">Bins only</option>
+              <option value="cargo_box">Cargo boxes only</option>
             </select>
           </div>
           {(lookupSearch.trim() || kindFilter !== "all") ?

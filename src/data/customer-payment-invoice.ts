@@ -308,6 +308,7 @@ async function linesFromDatabase(
         label,
         row.kindSnapshot === "bin" ? "Storage bin"
         : row.kindSnapshot === "suitcase" ? "Suitcase"
+        : row.kindSnapshot === "cargo_box" ? "Cargo box"
         : "Shipping barrel",
         row.quantity,
         row.lineTotalCents,

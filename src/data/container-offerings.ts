@@ -8,8 +8,10 @@ import {
   type ContainerOffering,
   type ContainerOfferingImage,
 } from "@/db/schema";
+import { ensureContainerOfferingCargoBoxSchema } from "@/data/ensure-container-offering-cargo-box-schema";
 import {
   isMissingContainerCatalogSchemaError,
+  isUndefinedColumnError,
 } from "@/lib/db-column-missing";
 import { resolveSpecialFeatureForContainer } from "@/lib/special-feature-container-link";
 
@@ -82,25 +84,54 @@ export async function getPrimaryImageUrlByOfferingIds(
   return out;
 }
 
+function isMissingCargoBoxCatalogColumnsError(e: unknown): boolean {
+  return (
+    isUndefinedColumnError(e, "customer_note") ||
+    isUndefinedColumnError(e, "dimension_label")
+  );
+}
+
+async function selectActiveCatalogOfferings() {
+  const db = getDb();
+  return db
+    .select()
+    .from(containerOfferings)
+    .where(
+      and(
+        eq(containerOfferings.isActive, true),
+        // Suitcases are timed specials — listed via special-feature helpers only.
+        ne(containerOfferings.kind, "suitcase"),
+      ),
+    )
+    .orderBy(asc(containerOfferings.sortIndex), desc(containerOfferings.createdAt));
+}
+
+async function selectAllCatalogOfferings() {
+  const db = getDb();
+  return db
+    .select()
+    .from(containerOfferings)
+    .orderBy(asc(containerOfferings.sortIndex), desc(containerOfferings.createdAt));
+}
+
 export async function listActiveContainerOfferingsWithImages(): Promise<
   ContainerOfferingWithImages[]
 > {
-  const db = getDb();
+  await ensureContainerOfferingCargoBoxSchema().catch(() => undefined);
   let offerings;
   try {
-    offerings = await db
-      .select()
-      .from(containerOfferings)
-      .where(
-        and(
-          eq(containerOfferings.isActive, true),
-          // Suitcases are timed specials — listed via special-feature helpers only.
-          ne(containerOfferings.kind, "suitcase"),
-        ),
-      )
-      .orderBy(asc(containerOfferings.sortIndex), desc(containerOfferings.createdAt));
+    offerings = await selectActiveCatalogOfferings();
   } catch (e) {
-    rethrowIfMissingContainerCatalog(e);
+    if (isMissingCargoBoxCatalogColumnsError(e)) {
+      await ensureContainerOfferingCargoBoxSchema().catch(() => undefined);
+      try {
+        offerings = await selectActiveCatalogOfferings();
+      } catch (retryError) {
+        rethrowIfMissingContainerCatalog(retryError);
+      }
+    } else {
+      rethrowIfMissingContainerCatalog(e);
+    }
   }
 
   const imgMap = await loadImagesForOfferingIds(offerings.map((o) => o.id));
@@ -113,15 +144,22 @@ export async function listActiveContainerOfferingsWithImages(): Promise<
 export async function listAllContainerOfferingsWithImagesForAdmin(): Promise<
   AdminContainerOfferingWithImages[]
 > {
+  await ensureContainerOfferingCargoBoxSchema().catch(() => undefined);
   const db = getDb();
   let offerings;
   try {
-    offerings = await db
-      .select()
-      .from(containerOfferings)
-      .orderBy(asc(containerOfferings.sortIndex), desc(containerOfferings.createdAt));
+    offerings = await selectAllCatalogOfferings();
   } catch (e) {
-    rethrowIfMissingContainerCatalog(e);
+    if (isMissingCargoBoxCatalogColumnsError(e)) {
+      await ensureContainerOfferingCargoBoxSchema().catch(() => undefined);
+      try {
+        offerings = await selectAllCatalogOfferings();
+      } catch (retryError) {
+        rethrowIfMissingContainerCatalog(retryError);
+      }
+    } else {
+      rethrowIfMissingContainerCatalog(e);
+    }
   }
 
   const imgMap = await loadImagesForOfferingIds(offerings.map((o) => o.id));

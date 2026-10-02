@@ -15,6 +15,7 @@ export function buildContainerAliasMap(
     barrel: 0,
     bin: 0,
     suitcase: 0,
+    cargo_box: 0,
   };
   const map = new Map<string, string>();
 
@@ -24,6 +25,7 @@ export function buildContainerAliasMap(
     const label =
       row.kind === "barrel" ? `Barrel ${n}`
       : row.kind === "bin" ? `Bin ${n}`
+      : row.kind === "cargo_box" ? `Cargo box ${n}`
       : `Suitcase ${n}`;
     map.set(row.barrelId, label);
   }
@@ -95,7 +97,8 @@ export function countContainersByKind(
 export function containerKindSortRank(kind: ContainerOfferingKind): number {
   if (kind === "barrel") return 0;
   if (kind === "bin") return 1;
-  return 2;
+  if (kind === "cargo_box") return 2;
+  return 3;
 }
 
 export function aliasSortKey(alias: string, kind: ContainerOfferingKind): number {

@@ -203,7 +203,7 @@ export function containerFilterOptionsByBarrelId(
   }));
 }
 
-export type ContainerKindFilter = "all" | "barrel" | "bin";
+export type ContainerKindFilter = "all" | "barrel" | "bin" | "cargo_box";
 
 export function filterContainerInventoryRows(
   barrels: UserBarrelOptionRow[],

@@ -7,6 +7,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 
+import { ensureContainerOfferingCargoBoxSchema } from "@/data/ensure-container-offering-cargo-box-schema";
 import { ensureSpecialFeatureOfferSchema } from "@/data/ensure-special-feature-schema";
 import { getDb } from "@/db";
 import {
@@ -18,6 +19,7 @@ import {
   adminCreateContainerOfferingSchema,
   adminSetContainerOfferingPublishedSchema,
   adminUpdateContainerOfferingSchema,
+  isShopperCatalogContainerKind,
   priceUsdStringToCents,
 } from "@/lib/validations/container-offering";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
@@ -50,14 +52,26 @@ export async function adminCreateContainerOfferingAction(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { name, sizeLabel, kind, priceUsd, specialFeatureOffer, specialFeatureOfferId, suitcaseSizes } =
-    parsed.data;
+  const {
+    name,
+    sizeLabel,
+    customerNote,
+    dimensionLabel,
+    kind,
+    priceUsd,
+    specialFeatureOffer,
+    specialFeatureOfferId,
+    suitcaseSizes,
+  } = parsed.data;
   const cents = priceUsdStringToCents(priceUsd);
   if (cents < 50) {
     return { ok: false, message: "Price must be at least $0.50 USD (Stripe minimum per line)." };
   }
 
+  await ensureContainerOfferingCargoBoxSchema();
   const db = getDb();
+  const note = customerNote.trim() || null;
+  const dimensions = kind === "cargo_box" ? dimensionLabel.trim() || null : null;
 
   if (specialFeatureOffer) {
     const specialId = specialFeatureOfferId!.trim();
@@ -76,6 +90,8 @@ export async function adminCreateContainerOfferingAction(
         name: name.trim(),
         sizeLabel: size,
         kind: "suitcase",
+        customerNote: note,
+        dimensionLabel: null,
         priceUsdCents: cents,
         // Unpublished until admin clicks Publish on the catalog card.
         isActive: false,
@@ -87,15 +103,14 @@ export async function adminCreateContainerOfferingAction(
       name: name.trim(),
       sizeLabel: (sizeLabel ?? "").trim(),
       kind,
+      customerNote: note,
+      dimensionLabel: dimensions,
       priceUsdCents: cents,
       isActive: true,
     });
   }
 
-  revalidatePath("/admin/barrels");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/barrels");
-  revalidatePath("/");
+  revalidateContainerCatalogPaths();
   return { ok: true };
 }
 
@@ -199,11 +214,7 @@ export async function adminPublishSpecialFeatureContainerAction(
     })
     .where(eq(specialFeatureOffers.id, offer.id));
 
-  revalidatePath("/admin/barrels");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/barrels");
-  revalidatePath("/");
-  revalidatePath("/dashboard");
+  revalidateContainerCatalogPaths();
   return { ok: true };
 }
 
@@ -280,11 +291,7 @@ export async function adminUnpublishSpecialFeatureContainerAction(
     .set({ isActive: false })
     .where(eq(containerOfferings.id, offering.id));
 
-  revalidatePath("/admin/barrels");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/barrels");
-  revalidatePath("/");
-  revalidatePath("/dashboard");
+  revalidateContainerCatalogPaths();
   return { ok: true };
 }
 
@@ -294,6 +301,7 @@ function revalidateContainerCatalogPaths() {
   revalidatePath("/dashboard/barrels");
   revalidatePath("/");
   revalidatePath("/dashboard");
+  revalidatePath("/how-it-works");
 }
 
 /**
@@ -325,7 +333,7 @@ export async function adminSetContainerOfferingPublishedAction(
   if (!offering) {
     return { ok: false, message: "Container not found." };
   }
-  if (offering.kind !== "barrel" && offering.kind !== "bin") {
+  if (!isShopperCatalogContainerKind(offering.kind)) {
     return {
       ok: false,
       message: "Use Publish on special-feature suitcases, not this control.",
@@ -352,8 +360,17 @@ export async function adminUpdateContainerOfferingAction(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { id, name, sizeLabel, kind, priceUsd, isActive, specialFeatureOfferId } =
-    parsed.data;
+  const {
+    id,
+    name,
+    sizeLabel,
+    customerNote,
+    dimensionLabel,
+    kind,
+    priceUsd,
+    isActive,
+    specialFeatureOfferId,
+  } = parsed.data;
   const cents = priceUsdStringToCents(priceUsd);
   if (cents < 50) {
     return { ok: false, message: "Price must be at least $0.50 USD (Stripe minimum per line)." };
@@ -380,12 +397,15 @@ export async function adminUpdateContainerOfferingAction(
     resolvedSpecialFeatureOfferId = specialId;
   }
 
+  await ensureContainerOfferingCargoBoxSchema();
   const [row] = await db
     .update(containerOfferings)
     .set({
       name: resolvedName,
       sizeLabel: sizeLabel.trim(),
       kind,
+      customerNote: customerNote.trim() || null,
+      dimensionLabel: kind === "cargo_box" ? dimensionLabel.trim() || null : null,
       priceUsdCents: cents,
       isActive,
       ...(resolvedSpecialFeatureOfferId !== undefined ?
@@ -399,9 +419,7 @@ export async function adminUpdateContainerOfferingAction(
     return { ok: false, message: "Container not found." };
   }
 
-  revalidatePath("/admin/barrels");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/barrels");
+  revalidateContainerCatalogPaths();
   return { ok: true };
 }
 
@@ -432,9 +450,7 @@ export async function adminDeleteContainerOfferingAction(
     return { ok: false, message: "Container not found." };
   }
 
-  revalidatePath("/admin/barrels");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/barrels");
+  revalidateContainerCatalogPaths();
   return { ok: true };
 }
 
@@ -528,9 +544,7 @@ export async function adminUploadContainerOfferingImagesAction(
     uploaded += 1;
   }
 
-  revalidatePath("/admin/barrels");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/barrels");
+  revalidateContainerCatalogPaths();
   return { ok: true, uploaded };
 }
 
@@ -556,9 +570,7 @@ export async function adminDeleteContainerOfferingImageAction(input: {
     return { ok: false, message: "Image not found." };
   }
 
-  revalidatePath("/admin/barrels");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/barrels");
+  revalidateContainerCatalogPaths();
   return { ok: true };
 }
 
@@ -610,8 +622,6 @@ export async function adminMoveContainerOfferingImageAction(
       .where(eq(containerOfferingImages.id, row.id));
   }
 
-  revalidatePath("/admin/barrels");
-  revalidatePath("/admin/overview");
-  revalidatePath("/dashboard/barrels");
+  revalidateContainerCatalogPaths();
   return { ok: true };
 }
