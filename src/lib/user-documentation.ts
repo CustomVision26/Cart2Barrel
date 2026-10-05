@@ -111,7 +111,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Marketing header → How it works, or visit /how-it-works.",
       bullets: [
         "Overview tab: services, journey, typical costs, and seasonal special-feature offers in a formal panel next to Pricing overview. User guide tab: full customer documentation.",
-        "Pricing overview is a rate schedule: in-app and outside-purchase service & handling, container catalog (info button for notes and cargo-box dimensions; double-click a photo), packing fees, and third-party vendors.",
+        "Pricing overview is a rate schedule: in-app and outside-purchase service & handling, container catalog (info button for notes and cargo-box size; double-click a photo), packing fees, and third-party vendors.",
         "In-US vendor shows the service badge only (Freight charge or Freight charge + Broker) plus an info button for that company's note. Freight tables do not include the pickup fee.",
         "Overseas third-party vendors are destination brokers and local couriers. Freight+broker companies are not repeated there. Courier cards show an Operate from badge on the location.",
         "When a suitcase special is in season, a company courier traveler carries extra bags to Jamaica on a published travel date with limited slots.",
@@ -138,7 +138,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open How it works from the marketing header or go to /how-it-works (Overview tab by default). Use the Overview / User guide pills to switch tabs.",
         "On Overview, read From cart to barrel (services, journey, four cost phases, and seasonal specials) beside Pricing overview.",
-        "Review the rate schedule: in-app service & handling, outside-purchase service & handling, container catalog prices (info button for the container note and cargo-box dimensions; double-click a photo to browse images), packing fees (exactly 1 vs 2+ of each type), and third-party vendors.",
+        "Review the rate schedule: in-app service & handling, outside-purchase service & handling, container catalog prices (info button for the container note and cargo-box size; double-click a photo to browse images), packing fees (exactly 1 vs 2+ of each type), and third-party vendors.",
         "In-US vendor lists freight companies that move a container from the US warehouse to the destination port. The card shows only the service badge (Freight charge or Freight charge + Broker) and an info button. Open the info button to read that company's note about the service. Company name, street, and phone are not shown on this public card. Freight 1-container and extra-container rates do not include the pickup fee (hub to freight office).",
         "Overseas third-party vendor lists destination-country brokers and standalone local couriers after arrival. A freight+broker company already listed under In-US is not shown again here. Courier cards show company identity, an Ad button when an image is on file, country, an Operate from badge next to the location, address, and phone. Open Ad to see the company image and that company's note to customer. Zone tables use 1-container and extra-container rates for each area.",
         "The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost. Your dashboard shows the exact total for your barrels.",

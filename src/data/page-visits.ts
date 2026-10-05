@@ -7,11 +7,17 @@ import { getDb } from "@/db";
 import { pageVisits, profiles } from "@/db/schema";
 import { isMissingPageVisitsTableError } from "@/lib/db-column-missing";
 import { profileDisplayName } from "@/lib/profile-display-name";
+import {
+  siteTrafficPeriodLookbackDays,
+  type SiteTrafficPeriod,
+} from "@/lib/site-traffic";
 
-const LOOKBACK_DAYS = 30;
 const VISITOR_LIMIT = 400;
+const VISITOR_LIMIT_YEAR = 800;
 const PAGE_LIMIT = 200;
+const PAGE_LIMIT_YEAR = 400;
 const RECENT_LIMIT = 250;
+const RECENT_LIMIT_YEAR = 400;
 
 export type SiteTrafficVisitorKind = "registered" | "unregistered";
 
@@ -57,13 +63,14 @@ export type SiteTrafficRecentVisitRow = {
 
 export type SiteTrafficSummary = {
   visits24h: number;
-  visits30d: number;
-  uniqueVisitors30d: number;
-  registeredVisitors30d: number;
-  unregisteredVisitors30d: number;
+  visitsInPeriod: number;
+  uniqueVisitors: number;
+  registeredVisitors: number;
+  unregisteredVisitors: number;
 };
 
 export type SiteTrafficSnapshot = {
+  period: SiteTrafficPeriod;
   summary: SiteTrafficSummary;
   visitors: SiteTrafficVisitorRow[];
   pages: SiteTrafficPageRow[];
@@ -74,14 +81,15 @@ function iso(d: Date): string {
   return d.toISOString();
 }
 
-function emptySnapshot(): SiteTrafficSnapshot {
+function emptySnapshot(period: SiteTrafficPeriod): SiteTrafficSnapshot {
   return {
+    period,
     summary: {
       visits24h: 0,
-      visits30d: 0,
-      uniqueVisitors30d: 0,
-      registeredVisitors30d: 0,
-      unregisteredVisitors30d: 0,
+      visitsInPeriod: 0,
+      uniqueVisitors: 0,
+      registeredVisitors: 0,
+      unregisteredVisitors: 0,
     },
     visitors: [],
     pages: [],
@@ -118,17 +126,27 @@ export async function recordPageVisit(input: {
   }
 }
 
-export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
+export async function listSiteTrafficSnapshot(
+  period: SiteTrafficPeriod = "month",
+): Promise<SiteTrafficSnapshot> {
   const ready = await ensurePageVisitsSchema();
-  if (!ready) return emptySnapshot();
+  if (!ready) return emptySnapshot(period);
 
   const now = new Date();
-  const since30 = new Date(now);
-  since30.setUTCDate(since30.getUTCDate() - LOOKBACK_DAYS);
+  const lookbackDays = siteTrafficPeriodLookbackDays(period);
+  const sincePeriod = new Date(now);
+  if (period === "day") {
+    sincePeriod.setUTCHours(sincePeriod.getUTCHours() - 24);
+  } else {
+    sincePeriod.setUTCDate(sincePeriod.getUTCDate() - lookbackDays);
+  }
   const since24 = new Date(now);
   since24.setUTCHours(since24.getUTCHours() - 24);
-  const since30Iso = iso(since30);
+  const sincePeriodIso = iso(sincePeriod);
   const since24Iso = iso(since24);
+  const visitorLimit = period === "year" ? VISITOR_LIMIT_YEAR : VISITOR_LIMIT;
+  const pageLimit = period === "year" ? PAGE_LIMIT_YEAR : PAGE_LIMIT;
+  const recentLimit = period === "year" ? RECENT_LIMIT_YEAR : RECENT_LIMIT;
 
   try {
     const db = getDb();
@@ -136,12 +154,12 @@ export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
     const [summaryRow] = await db
       .select({
         visits24h: sql<number>`count(*) FILTER (WHERE ${pageVisits.createdAt} >= ${since24Iso})::int`,
-        visits30d: sql<number>`count(*)::int`,
-        uniqueVisitors30d: sql<number>`count(distinct ${pageVisits.visitorId})::int`,
-        registeredVisitors30d: sql<number>`count(distinct ${pageVisits.visitorId}) FILTER (WHERE ${pageVisits.clerkUserId} IS NOT NULL)::int`,
+        visitsInPeriod: sql<number>`count(*)::int`,
+        uniqueVisitors: sql<number>`count(distinct ${pageVisits.visitorId})::int`,
+        registeredVisitors: sql<number>`count(distinct ${pageVisits.visitorId}) FILTER (WHERE ${pageVisits.clerkUserId} IS NOT NULL)::int`,
       })
       .from(pageVisits)
-      .where(gte(pageVisits.createdAt, since30Iso));
+      .where(gte(pageVisits.createdAt, sincePeriodIso));
 
     const visitorAgg = await db
       .select({
@@ -154,10 +172,10 @@ export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
         lastClerkUserId: sql<string | null>`(array_agg(${pageVisits.clerkUserId} ORDER BY ${pageVisits.createdAt} DESC) FILTER (WHERE ${pageVisits.clerkUserId} IS NOT NULL))[1]`,
       })
       .from(pageVisits)
-      .where(gte(pageVisits.createdAt, since30Iso))
+      .where(gte(pageVisits.createdAt, sincePeriodIso))
       .groupBy(pageVisits.visitorId)
       .orderBy(sql`max(${pageVisits.createdAt}) DESC`)
-      .limit(VISITOR_LIMIT);
+      .limit(visitorLimit);
 
     const pageAgg = await db
       .select({
@@ -169,10 +187,10 @@ export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
         lastVisitedAt: sql<string>`max(${pageVisits.createdAt})`,
       })
       .from(pageVisits)
-      .where(gte(pageVisits.createdAt, since30Iso))
+      .where(gte(pageVisits.createdAt, sincePeriodIso))
       .groupBy(pageVisits.path)
       .orderBy(sql`count(*) DESC`)
-      .limit(PAGE_LIMIT);
+      .limit(pageLimit);
 
     const visitorIds = visitorAgg.map((row) => row.visitorId);
     const visitorPages =
@@ -189,7 +207,7 @@ export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
             .where(
               and(
                 inArray(pageVisits.visitorId, visitorIds),
-                gte(pageVisits.createdAt, since30Iso),
+                gte(pageVisits.createdAt, sincePeriodIso),
               ),
             )
             .groupBy(pageVisits.visitorId, pageVisits.path);
@@ -203,9 +221,9 @@ export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
         createdAt: pageVisits.createdAt,
       })
       .from(pageVisits)
-      .where(gte(pageVisits.createdAt, since30Iso))
+      .where(gte(pageVisits.createdAt, sincePeriodIso))
       .orderBy(desc(pageVisits.createdAt))
-      .limit(RECENT_LIMIT);
+      .limit(recentLimit);
 
     const clerkIds = [
       ...new Set(
@@ -299,19 +317,14 @@ export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
       };
     });
 
-    const uniqueVisitors30d = Number(summaryRow?.uniqueVisitors30d ?? 0);
-    const registeredVisitors30d = Number(
-      summaryRow?.registeredVisitors30d ?? 0,
-    );
+    const uniqueVisitors = Number(summaryRow?.uniqueVisitors ?? 0);
+    const registeredVisitors = Number(summaryRow?.registeredVisitors ?? 0);
     const summary: SiteTrafficSummary = {
       visits24h: Number(summaryRow?.visits24h ?? 0),
-      visits30d: Number(summaryRow?.visits30d ?? 0),
-      uniqueVisitors30d,
-      registeredVisitors30d,
-      unregisteredVisitors30d: Math.max(
-        0,
-        uniqueVisitors30d - registeredVisitors30d,
-      ),
+      visitsInPeriod: Number(summaryRow?.visitsInPeriod ?? 0),
+      uniqueVisitors,
+      registeredVisitors,
+      unregisteredVisitors: Math.max(0, uniqueVisitors - registeredVisitors),
     };
 
     const pages: SiteTrafficPageRow[] = pageAgg.map((row) => ({
@@ -337,7 +350,7 @@ export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
       };
     });
 
-    return { summary, visitors, pages, recentVisits };
+    return { period, summary, visitors, pages, recentVisits };
   } catch (error) {
     if (!isMissingPageVisitsTableError(error)) {
       console.warn(
@@ -345,6 +358,6 @@ export async function listSiteTrafficSnapshot(): Promise<SiteTrafficSnapshot> {
         error instanceof Error ? error.message : String(error),
       );
     }
-    return emptySnapshot();
+    return emptySnapshot(period);
   }
 }

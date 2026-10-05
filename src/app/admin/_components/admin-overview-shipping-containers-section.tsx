@@ -21,7 +21,6 @@ export async function AdminOverviewShippingContainersSection() {
       sizeLabel: r.offering.sizeLabel,
       kind: r.offering.kind,
       customerNote: r.offering.customerNote ?? "",
-      dimensionLabel: r.offering.dimensionLabel ?? "",
       priceUsdCents: r.offering.priceUsdCents,
       isActive: r.offering.isActive,
       specialFeatureOfferId: r.specialFeature?.id ?? null,
@@ -48,7 +47,7 @@ export async function AdminOverviewShippingContainersSection() {
           <span className="font-medium text-foreground">Special features</span>, then link suitcase
           SKU(s) here with{" "}
           <span className="font-medium text-foreground">Special feature offer</span>. Add a note
-          on every container; cargo boxes also need dimensions. Use{" "}
+          on every container. Use{" "}
           <span className="font-medium text-foreground">Publish</span> or{" "}
           <span className="font-medium text-foreground">Unpublish</span> on each catalog
           card after double-clicking a color-coded table row (barrels, bins, cargo boxes, and special

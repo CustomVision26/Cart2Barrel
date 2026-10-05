@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 
@@ -8,7 +9,7 @@ import {
   type AdminNestedFindOrganizePageSize,
 } from "@/components/admin/admin-nested-find-organize-panel";
 import { SortableTh } from "@/components/sortable-th";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { FloatingHorizontalScroll } from "@/components/ui/floating-horizontal-scroll";
 import type {
   SiteTrafficPageRow,
@@ -18,6 +19,14 @@ import type {
   SiteTrafficVisitorKind,
   SiteTrafficVisitorRow,
 } from "@/data/page-visits";
+import { ADMIN_USERS_ROUTES } from "@/lib/admin-users-routes";
+import {
+  SITE_TRAFFIC_PERIODS,
+  siteTrafficPeriodButtonLabel,
+  siteTrafficPeriodRangeLabel,
+  siteTrafficPeriodShortLabel,
+  type SiteTrafficPeriod,
+} from "@/lib/site-traffic";
 import {
   compareLocale,
   compareNum,
@@ -71,6 +80,33 @@ function SummaryCard({
       </p>
       <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
     </section>
+  );
+}
+
+function PeriodFilterButtons({ value }: { value: SiteTrafficPeriod }) {
+  return (
+    <div
+      role="group"
+      aria-label="Sort traffic by day, week, month, or year"
+      className="flex flex-wrap items-center gap-1.5"
+    >
+      <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Sort by
+      </span>
+      {SITE_TRAFFIC_PERIODS.map((period) => (
+        <Link
+          key={period}
+          href={`${ADMIN_USERS_ROUTES.siteTraffic}?period=${period}`}
+          className={buttonVariants({
+            variant: value === period ? "default" : "outline",
+            size: "sm",
+          })}
+          aria-current={value === period ? "page" : undefined}
+        >
+          {siteTrafficPeriodButtonLabel(period)}
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -194,9 +230,11 @@ function compareVisitors(
 function VisitorsTable({
   rows,
   kindFilter,
+  period,
 }: {
   rows: SiteTrafficVisitorRow[];
   kindFilter: KindFilter;
+  period: SiteTrafficPeriod;
 }) {
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
   const [search, setSearch] = useState("");
@@ -262,7 +300,7 @@ function VisitorsTable({
         showTo={showTo}
         totalCount={filteredSorted.length}
         totalLoaded={rows.length}
-        totalLoadedLabel="visitors in the last 30 days"
+        totalLoadedLabel={`visitors in ${siteTrafficPeriodRangeLabel(period)}`}
         itemLabel="visitor"
         emptyMessage="No visitors recorded yet."
         noMatchMessage="No visitors match the current search."
@@ -491,7 +529,13 @@ function comparePages(
   }
 }
 
-function PagesTable({ rows }: { rows: SiteTrafficPageRow[] }) {
+function PagesTable({
+  rows,
+  period,
+}: {
+  rows: SiteTrafficPageRow[];
+  period: SiteTrafficPeriod;
+}) {
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] =
@@ -537,7 +581,7 @@ function PagesTable({ rows }: { rows: SiteTrafficPageRow[] }) {
         onSearchChange={setSearch}
         searchLabel="Search pages"
         searchPlaceholder="Path, such as / or /dashboard/cart…"
-        searchDescription="Filters this pages table. Counts cover the last 30 days."
+        searchDescription={`Filters this pages table. Counts cover ${siteTrafficPeriodRangeLabel(period)}.`}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
         pageSizeLabel="Rows per page"
@@ -723,9 +767,11 @@ function groupRecentVisits(
 function RecentVisitsTable({
   rows,
   kindFilter,
+  period,
 }: {
   rows: SiteTrafficRecentVisitRow[];
   kindFilter: KindFilter;
+  period: SiteTrafficPeriod;
 }) {
   const [findOrganizeVisible, setFindOrganizeVisible] = useState(true);
   const [search, setSearch] = useState("");
@@ -791,7 +837,7 @@ function RecentVisitsTable({
         showTo={showTo}
         totalCount={filteredSorted.length}
         totalLoaded={loadedGroupCount}
-        totalLoadedLabel="visitors in this log"
+        totalLoadedLabel={`visitors in ${siteTrafficPeriodRangeLabel(period)}`}
         itemLabel="visitor"
         emptyMessage="No recent visits yet."
         noMatchMessage="No visits match the current search."
@@ -978,49 +1024,61 @@ export function AdminSiteTrafficPanel({
 }) {
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const summary: SiteTrafficSummary = snapshot.summary;
+  const period = snapshot.period;
+  const range = siteTrafficPeriodRangeLabel(period);
+  const periodShort = siteTrafficPeriodShortLabel(period);
 
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {period === "day" ? null : (
+          <SummaryCard
+            label="Visits · 24h"
+            value={summary.visits24h}
+            hint="Page views in the last 24 hours."
+          />
+        )}
         <SummaryCard
-          label="Visits · 24h"
-          value={summary.visits24h}
-          hint="Page views in the last 24 hours."
-        />
-        <SummaryCard
-          label="Visits · 30d"
-          value={summary.visits30d}
-          hint="Page views in the last 30 days."
+          label={`Visits · ${periodShort}`}
+          value={summary.visitsInPeriod}
+          hint={`Page views in ${range}.`}
         />
         <SummaryCard
           label="Unique visitors"
-          value={summary.uniqueVisitors30d}
-          hint="Distinct browsers (cookie) in 30 days."
+          value={summary.uniqueVisitors}
+          hint={`Distinct browsers (cookie) in ${range}.`}
         />
         <SummaryCard
           label="Registered"
-          value={summary.registeredVisitors30d}
+          value={summary.registeredVisitors}
           hint="Visitors who were signed in for at least one view."
         />
         <SummaryCard
           label="Unregistered"
-          value={summary.unregisteredVisitors30d}
+          value={summary.unregisteredVisitors}
           hint="Visitors with no signed-in page view."
         />
       </div>
 
-      <KindFilterButtons value={kindFilter} onChange={setKindFilter} />
+      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+        <PeriodFilterButtons value={period} />
+        <KindFilterButtons value={kindFilter} onChange={setKindFilter} />
+      </div>
 
       <section className="space-y-3">
         <h2 className="font-heading text-base font-medium text-foreground">
           Visitors
         </h2>
         <p className="text-sm text-muted-foreground">
-          Expand a row to list every page that visitor opened. Guests share a
-          browser cookie until they sign in; later signed-in views stay on the
-          same visitor.
+          Expand a row to list every page that visitor opened in {range}. Guests
+          share a browser cookie until they sign in; later signed-in views stay
+          on the same visitor.
         </p>
-        <VisitorsTable rows={snapshot.visitors} kindFilter={kindFilter} />
+        <VisitorsTable
+          rows={snapshot.visitors}
+          kindFilter={kindFilter}
+          period={period}
+        />
       </section>
 
       <section className="space-y-3">
@@ -1028,10 +1086,10 @@ export function AdminSiteTrafficPanel({
           Pages
         </h2>
         <p className="text-sm text-muted-foreground">
-          How often each route was opened, split between signed-in and guest
-          views.
+          How often each route was opened in {range}, split between signed-in
+          and guest views.
         </p>
-        <PagesTable rows={snapshot.pages} />
+        <PagesTable rows={snapshot.pages} period={period} />
       </section>
 
       <section className="space-y-3">
@@ -1046,6 +1104,7 @@ export function AdminSiteTrafficPanel({
         <RecentVisitsTable
           rows={snapshot.recentVisits}
           kindFilter={kindFilter}
+          period={period}
         />
       </section>
     </div>

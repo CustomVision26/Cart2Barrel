@@ -150,7 +150,7 @@ function ContainerCatalogDetailsButton({
 }) {
   const [open, setOpen] = useState(false);
   const note = row.customerNote.trim();
-  const dimensions = row.dimensionLabel.trim();
+  const dimensions = row.sizeLabel.trim();
   const isCargoBox = row.kind === "cargo_box";
 
   return (
@@ -215,7 +215,7 @@ export function ContainerCatalogChart({
         index={index}
         icon={<Container className="size-4" />}
         title="Container options"
-        description="Barrels, bins, and cargo boxes you can add from Dashboard → Barrels. Each listing shows the container price before checkout. Open the info button for the container note and, for cargo boxes, dimensions. Double-click a photo to browse images."
+        description="Barrels, bins, and cargo boxes you can add from Dashboard → Barrels. Each listing shows the container price before checkout. Open the info button for the container note and, for cargo boxes, size. Double-click a photo to browse images."
         accent="violet"
       >
         {rows.length === 0 ?

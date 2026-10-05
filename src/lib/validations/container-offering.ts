@@ -55,19 +55,12 @@ export const suitcaseSizeOptionSchema = z.enum([
 export type SuitcaseSizeOption = z.infer<typeof suitcaseSizeOptionSchema>;
 
 const optionalCatalogNoteSchema = z.string().trim().max(2000).optional().default("");
-const optionalDimensionLabelSchema = z
-  .string()
-  .trim()
-  .max(200)
-  .optional()
-  .default("");
 
 export const adminCreateContainerOfferingSchema = z
   .object({
     name: z.string().trim().min(1).max(200),
     sizeLabel: z.string().trim().max(200).optional().default(""),
     customerNote: optionalCatalogNoteSchema,
-    dimensionLabel: optionalDimensionLabelSchema,
     kind: containerOfferingKindSchema,
     /** USD dollars as decimal string or whole number, e.g. "12.99" or "13" */
     priceUsd: z
@@ -114,46 +107,28 @@ export const adminCreateContainerOfferingSchema = z
         message: "Enter a size label.",
       });
     }
-    if (!data.specialFeatureOffer && data.kind === "cargo_box" && !data.dimensionLabel?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["dimensionLabel"],
-        message: "Enter cargo box dimensions.",
-      });
-    }
   });
 
 export type AdminCreateContainerOfferingInput = z.infer<
   typeof adminCreateContainerOfferingSchema
 >;
 
-export const adminUpdateContainerOfferingSchema = z
-  .object({
-    id: z.string().uuid(),
-    name: z.string().trim().min(1).max(200),
-    sizeLabel: z.string().trim().min(1).max(200),
-    customerNote: optionalCatalogNoteSchema,
-    dimensionLabel: optionalDimensionLabelSchema,
-    kind: containerOfferingKindSchema,
-    priceUsd: z
-      .string()
-      .trim()
-      .min(1)
-      .refine((s) => Number.isFinite(Number.parseFloat(s)) && Number.parseFloat(s) >= 0, {
-        message: "Enter a valid price.",
-      }),
-    isActive: z.boolean(),
-    specialFeatureOfferId: z.string().uuid().optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.kind === "cargo_box" && !data.dimensionLabel?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["dimensionLabel"],
-        message: "Enter cargo box dimensions.",
-      });
-    }
-  });
+export const adminUpdateContainerOfferingSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  sizeLabel: z.string().trim().min(1).max(200),
+  customerNote: optionalCatalogNoteSchema,
+  kind: containerOfferingKindSchema,
+  priceUsd: z
+    .string()
+    .trim()
+    .min(1)
+    .refine((s) => Number.isFinite(Number.parseFloat(s)) && Number.parseFloat(s) >= 0, {
+      message: "Enter a valid price.",
+    }),
+  isActive: z.boolean(),
+  specialFeatureOfferId: z.string().uuid().optional(),
+});
 
 export type AdminUpdateContainerOfferingInput = z.infer<
   typeof adminUpdateContainerOfferingSchema

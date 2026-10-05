@@ -59,7 +59,6 @@ export type AdminSerializableOffering = {
   sizeLabel: string;
   kind: ContainerOfferingKind;
   customerNote: string;
-  dimensionLabel: string;
   priceUsdCents: number;
   isActive: boolean;
   specialFeatureOfferId?: string | null;
@@ -145,7 +144,6 @@ export function AdminBarrelsManager({
   const [selectedSpecialId, setSelectedSpecialId] = useState<string | null>(
     specialFeatures[0]?.id ?? null,
   );
-  const [createKind, setCreateKind] = useState<ContainerOfferingKind>("barrel");
 
   const selectedSpecial =
     specialFeatures.find((special) => special.id === selectedSpecialId) ??
@@ -192,7 +190,7 @@ export function AdminBarrelsManager({
           <CardDescription>
             {specialFeatureOffer ?
               "Link suitcase SKU(s) to an existing special, pick sizes and price, then Publish from the catalog table."
-            : "Add a name, type (barrel, bin, or cargo box), size, optional note, and price. Cargo boxes also need dimensions. After create, double-click the row to edit, then Publish or Unpublish. Upload photos after the container is created."}
+            : "Add a name, type (barrel, bin, or cargo box), size, optional note, and price. After create, double-click the row to edit, then Publish or Unpublish. Upload photos after the container is created."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -211,7 +209,6 @@ export function AdminBarrelsManager({
                     selectedSizes[0] ?? 'Medium 24"'
                   : String(fd.get("sizeLabel") ?? ""),
                   customerNote: String(fd.get("customerNote") ?? ""),
-                  dimensionLabel: String(fd.get("dimensionLabel") ?? ""),
                   kind: wasSpecial ? "suitcase" : String(fd.get("kind") ?? "barrel"),
                   priceUsd: String(fd.get("priceUsd") ?? ""),
                   specialFeatureOffer: wasSpecial,
@@ -224,7 +221,6 @@ export function AdminBarrelsManager({
                 }
                 createFormRef.current?.reset();
                 setSpecialFeatureOffer(false);
-                setCreateKind("barrel");
                 setSuitcaseSizes({
                   'Small 20"': true,
                   'Medium 24"': true,
@@ -370,10 +366,7 @@ export function AdminBarrelsManager({
                     id="new-kind"
                     name="kind"
                     required
-                    value={createKind}
-                    onChange={(e) =>
-                      setCreateKind(e.target.value as ContainerOfferingKind)
-                    }
+                    defaultValue="barrel"
                     className={barrelsFieldSelectClassName}
                   >
                     <option value="barrel">Barrel</option>
@@ -381,17 +374,6 @@ export function AdminBarrelsManager({
                     <option value="cargo_box">Cargo box</option>
                   </select>
                 </div>
-                {createKind === "cargo_box" ?
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="new-dimensions">Dimensions</Label>
-                    <Input
-                      id="new-dimensions"
-                      name="dimensionLabel"
-                      required
-                      placeholder="e.g. 24 × 18 × 16 in"
-                    />
-                  </div>
-                : null}
               </>
             }
             <div className="space-y-2">
@@ -617,7 +599,6 @@ function AdminOfferingRow({
   const [sizeLabel, setSizeLabel] = useState(offering.sizeLabel);
   const [kind, setKind] = useState<ContainerOfferingKind>(offering.kind);
   const [customerNote, setCustomerNote] = useState(offering.customerNote);
-  const [dimensionLabel, setDimensionLabel] = useState(offering.dimensionLabel);
   const [priceUsd, setPriceUsd] = useState(centsToUsdInput(offering.priceUsdCents));
   const isShopperCatalog = isShopperCatalogContainerKind(kind);
 
@@ -629,7 +610,6 @@ function AdminOfferingRow({
     setSizeLabel(offering.sizeLabel);
     setKind(offering.kind);
     setCustomerNote(offering.customerNote);
-    setDimensionLabel(offering.dimensionLabel);
     setPriceUsd(centsToUsdInput(offering.priceUsdCents));
 
     const linked =
@@ -646,7 +626,6 @@ function AdminOfferingRow({
     offering.sizeLabel,
     offering.kind,
     offering.customerNote,
-    offering.dimensionLabel,
     offering.priceUsdCents,
     offering.isActive,
     offering.linkedSpecialFeatureOfferId,
@@ -709,7 +688,6 @@ function AdminOfferingRow({
                 name,
                 sizeLabel,
                 customerNote,
-                dimensionLabel,
                 kind,
                 priceUsd,
                 isActive: offering.isActive,
@@ -825,18 +803,6 @@ function AdminOfferingRow({
               }
             </select>
           </div>
-          {kind === "cargo_box" ?
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor={`dimensions-${offering.id}`}>Dimensions</Label>
-              <Input
-                id={`dimensions-${offering.id}`}
-                required
-                value={dimensionLabel}
-                onChange={(e) => setDimensionLabel(e.target.value)}
-                placeholder="e.g. 24 × 18 × 16 in"
-              />
-            </div>
-          : null}
           <div className="space-y-2">
             <Label htmlFor={`price-${offering.id}`}>Price (USD)</Label>
             <Input

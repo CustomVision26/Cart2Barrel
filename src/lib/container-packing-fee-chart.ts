@@ -21,7 +21,7 @@ export type ContainerCatalogChartRow = {
   priceLabel: string;
   kind: ContainerOfferingKind;
   customerNote: string;
-  dimensionLabel: string;
+  sizeLabel: string;
   images: ContainerCatalogChartImage[];
 };
 
@@ -41,7 +41,6 @@ export function buildContainerCatalogChartRows(
       | "kind"
       | "priceUsdCents"
       | "customerNote"
-      | "dimensionLabel"
     >;
     images: Pick<ContainerOfferingImage, "id" | "imageUrl" | "sortIndex">[];
   }[],
@@ -52,7 +51,7 @@ export function buildContainerCatalogChartRows(
     priceLabel: formatUsd(offering.priceUsdCents),
     kind: offering.kind,
     customerNote: offering.customerNote?.trim() ?? "",
-    dimensionLabel: offering.dimensionLabel?.trim() ?? "",
+    sizeLabel: offering.sizeLabel.trim(),
     images: images
       .map((image) => ({
         id: image.id,

@@ -2295,7 +2295,7 @@ export const containerOfferings = pgTable(
     kind: containerOfferingKindEnum("kind").notNull().default("barrel"),
     /** Shopper-facing catalog note (How it works info button). */
     customerNote: text("customer_note"),
-    /** Required when `kind` is `cargo_box` — e.g. 24 × 18 × 16 in. */
+    /** Unused leftover column; cargo box size is stored in `size_label`. */
     dimensionLabel: text("dimension_label"),
     priceUsdCents: integer("price_usd_cents").notNull(),
     isActive: boolean("is_active").notNull().default(true),

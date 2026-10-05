@@ -56,7 +56,6 @@ export async function adminCreateContainerOfferingAction(
     name,
     sizeLabel,
     customerNote,
-    dimensionLabel,
     kind,
     priceUsd,
     specialFeatureOffer,
@@ -71,7 +70,6 @@ export async function adminCreateContainerOfferingAction(
   await ensureContainerOfferingCargoBoxSchema();
   const db = getDb();
   const note = customerNote.trim() || null;
-  const dimensions = kind === "cargo_box" ? dimensionLabel.trim() || null : null;
 
   if (specialFeatureOffer) {
     const specialId = specialFeatureOfferId!.trim();
@@ -104,7 +102,7 @@ export async function adminCreateContainerOfferingAction(
       sizeLabel: (sizeLabel ?? "").trim(),
       kind,
       customerNote: note,
-      dimensionLabel: dimensions,
+      dimensionLabel: null,
       priceUsdCents: cents,
       isActive: true,
     });
@@ -365,7 +363,6 @@ export async function adminUpdateContainerOfferingAction(
     name,
     sizeLabel,
     customerNote,
-    dimensionLabel,
     kind,
     priceUsd,
     isActive,
@@ -405,7 +402,7 @@ export async function adminUpdateContainerOfferingAction(
       sizeLabel: sizeLabel.trim(),
       kind,
       customerNote: customerNote.trim() || null,
-      dimensionLabel: kind === "cargo_box" ? dimensionLabel.trim() || null : null,
+      dimensionLabel: null,
       priceUsdCents: cents,
       isActive,
       ...(resolvedSpecialFeatureOfferId !== undefined ?

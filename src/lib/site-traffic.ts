@@ -69,6 +69,89 @@ export function sanitizeTrackedPath(raw: string): string | null {
   return out.length > 768 ? out.slice(0, 768) : out;
 }
 
+export const SITE_TRAFFIC_PERIODS = ["day", "week", "month", "year"] as const;
+
+export type SiteTrafficPeriod = (typeof SITE_TRAFFIC_PERIODS)[number];
+
+const SITE_TRAFFIC_PERIOD_SET = new Set<string>(SITE_TRAFFIC_PERIODS);
+
+export function parseSiteTrafficPeriod(raw: unknown): SiteTrafficPeriod {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value === "string" && SITE_TRAFFIC_PERIOD_SET.has(value)) {
+    return value as SiteTrafficPeriod;
+  }
+  return "month";
+}
+
+export function siteTrafficPeriodLookbackDays(period: SiteTrafficPeriod): number {
+  switch (period) {
+    case "day":
+      return 1;
+    case "week":
+      return 7;
+    case "month":
+      return 30;
+    case "year":
+      return 365;
+    default: {
+      const _x: never = period;
+      return _x;
+    }
+  }
+}
+
+export function siteTrafficPeriodButtonLabel(period: SiteTrafficPeriod): string {
+  switch (period) {
+    case "day":
+      return "Day";
+    case "week":
+      return "Week";
+    case "month":
+      return "Month";
+    case "year":
+      return "Year";
+    default: {
+      const _x: never = period;
+      return _x;
+    }
+  }
+}
+
+/** Phrase used in copy: "the last 7 days". */
+export function siteTrafficPeriodRangeLabel(period: SiteTrafficPeriod): string {
+  switch (period) {
+    case "day":
+      return "the last 24 hours";
+    case "week":
+      return "the last 7 days";
+    case "month":
+      return "the last 30 days";
+    case "year":
+      return "the last 12 months";
+    default: {
+      const _x: never = period;
+      return _x;
+    }
+  }
+}
+
+export function siteTrafficPeriodShortLabel(period: SiteTrafficPeriod): string {
+  switch (period) {
+    case "day":
+      return "24h";
+    case "week":
+      return "7d";
+    case "month":
+      return "30d";
+    case "year":
+      return "12mo";
+    default: {
+      const _x: never = period;
+      return _x;
+    }
+  }
+}
+
 export function sanitizeTrackedReferrer(raw: string | null | undefined): string | null {
   const trimmed = raw?.trim() ?? "";
   if (!trimmed) return null;
