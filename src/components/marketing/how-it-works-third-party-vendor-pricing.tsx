@@ -1,6 +1,6 @@
 "use client";
 
-import { Info, Ship } from "lucide-react";
+import { Building2, Info, Ship, Truck, Warehouse } from "lucide-react";
 import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { OutboundCompanyAdButton } from "@/components/shipping/outbound-company-ad-button";
@@ -58,7 +58,7 @@ function uniqueRateDestinations(tables: PublicRateTable[]): string[] {
 function partnerDestination(
   company: PublicOutboundCompanyPricingCard,
 ): string | null {
-  return company.location?.trim() || company.country?.trim() || null;
+  return company.country?.trim() || company.location?.trim() || null;
 }
 
 function cardDestinations(
@@ -106,55 +106,108 @@ function PickupChargeButton({
         type="button"
         variant="outline"
         size="sm"
-        className="h-6 shrink-0 rounded-full px-2 text-[10px] font-semibold"
+        className="h-7 shrink-0 gap-1 rounded-full border-primary/40 bg-primary/10 px-2.5 text-[11px] font-semibold tracking-wide text-primary hover:bg-primary/20"
         aria-label={`Pickup charge for ${containerLabel}`}
         onClick={() => setOpen(true)}
       >
+        <Truck className="size-3.5" aria-hidden />
         Pickup
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[min(90vh,32rem)] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Pickup charge — {containerLabel}</DialogTitle>
-            <DialogDescription>
-              These rates are the pickup fee to move a {containerLabel.toLowerCase()}{" "}
-              from the hub to this company&apos;s freight office. They are not
-              the ocean freight charge.
-            </DialogDescription>
-          </DialogHeader>
-          {pickupRate ? (
-            <div className="space-y-1.5">
-              <div className="pricing-overview-ledger overflow-hidden rounded-lg">
-                <div className="pricing-overview-ledger-head grid grid-cols-[minmax(0,1.1fr)_auto_auto] gap-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
-                  <span>Container</span>
-                  <span className="text-right">1 container</span>
-                  <span className="text-right">Each extra</span>
-                </div>
-                <ul>
-                  <li className="pricing-overview-row grid grid-cols-[minmax(0,1.1fr)_auto_auto] gap-2 px-3 py-2 text-xs">
-                    <span className="min-w-0 break-words font-medium text-foreground">
-                      {pickupRate.rowLabel}
-                    </span>
-                    <span className="pricing-overview-fee text-right tabular-nums font-semibold">
-                      {formatUsd(pickupRate.costOneCents)}
-                    </span>
-                    <span className="pricing-overview-fee text-right tabular-nums font-semibold">
-                      {formatUsd(pickupRate.costTwoPlusCents)}
-                    </span>
-                  </li>
-                </ul>
+        <DialogContent className="pickup-charge-dialog max-h-[min(92vh,44rem)] gap-0 overflow-y-auto p-0 text-base sm:max-w-xl">
+          <div className="pickup-charge-hero px-6 pb-5 pt-6">
+            <DialogHeader className="relative z-10 gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
+                <span
+                  className="pickup-charge-icon inline-flex size-12 items-center justify-center rounded-xl"
+                  aria-hidden
+                >
+                  <Truck className="size-6" />
+                </span>
+                <p className="rounded-full border border-primary/35 bg-background/70 px-3 py-1 text-xs font-semibold tracking-wide text-primary">
+                  {containerLabel}
+                </p>
               </div>
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                One billed container uses the 1-container pickup fee. Two or
-                more containers on the same freight quote use the extra-container
-                fee for every container.
-              </p>
+              <div className="space-y-1.5">
+                <p className="pickup-charge-kicker text-[11px] font-semibold uppercase tracking-[0.18em]">
+                  Hub to freight office
+                </p>
+                <DialogTitle className="font-heading text-xl font-semibold tracking-tight">
+                  Pickup charge
+                </DialogTitle>
+                <DialogDescription className="max-w-lg text-sm leading-relaxed">
+                  Formal rate to move a {containerLabel.toLowerCase()} from the
+                  Amani hub warehouse to this company&apos;s freight office.
+                  This is not the ocean freight charge.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+          </div>
+          <div className="space-y-5 px-6 py-5">
+            <div className="space-y-2">
+              <div className="pickup-charge-route" aria-hidden>
+                <span className="pickup-charge-route-node">
+                  <Warehouse className="size-4" />
+                </span>
+                <span className="pickup-charge-route-line">
+                  <span className="pickup-charge-route-packet" />
+                </span>
+                <span className="pickup-charge-route-node">
+                  <Truck className="size-4" />
+                </span>
+                <span className="pickup-charge-route-line">
+                  <span className="pickup-charge-route-packet" />
+                </span>
+                <span className="pickup-charge-route-node">
+                  <Building2 className="size-4" />
+                </span>
+              </div>
+              <div className="grid grid-cols-3 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <span>Hub warehouse</span>
+                <span>Pickup</span>
+                <span>Freight office</span>
+              </div>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No pickup fee is published for {containerLabel}.
-            </p>
-          )}
+            {pickupRate ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <article className="pickup-charge-fee-card space-y-2 px-4 py-4">
+                    <p className="pickup-charge-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+                      1 container
+                    </p>
+                    <p className="pricing-overview-fee font-heading text-3xl font-semibold tabular-nums tracking-tight">
+                      {formatUsd(pickupRate.costOneCents)}
+                    </p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      1-container pickup fee for the first unpaid{" "}
+                      {containerLabel.toLowerCase()} on the freight quote.
+                    </p>
+                  </article>
+                  <article className="pickup-charge-fee-card space-y-2 px-4 py-4">
+                    <p className="pickup-charge-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+                      Each extra
+                    </p>
+                    <p className="pricing-overview-fee font-heading text-3xl font-semibold tabular-nums tracking-tight">
+                      {formatUsd(pickupRate.costTwoPlusCents)}
+                    </p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      Extra-container fee. Two or more linked unpaid containers
+                      use this amount for every container.
+                    </p>
+                  </article>
+                </div>
+                <p className="rounded-lg border border-border/80 bg-muted/40 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                  One billed container uses the 1-container pickup fee. Two or
+                  more containers on the same freight quote use the
+                  extra-container fee for every container.
+                </p>
+              </>
+            ) : (
+              <p className="rounded-lg border border-border/80 bg-muted/40 px-4 py-4 text-sm leading-relaxed text-muted-foreground">
+                No pickup fee is published for {containerLabel}.
+              </p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </>
@@ -337,6 +390,16 @@ function ServiceBadge({
   );
 }
 
+function overseasServiceHeading(
+  company: PublicOutboundCompanyPricingCard,
+): string {
+  const courier = company.kinds.includes("courier");
+  const broker = company.kinds.includes("broker");
+  if (courier && !broker) return "Local courier";
+  if (broker && !courier) return "Broker";
+  return company.serviceLabel;
+}
+
 function CompanyCard({
   company,
   identity = "full",
@@ -377,8 +440,11 @@ function CompanyCard({
         </ServiceBadge>
       ) : (
         <div className="space-y-2">
+          <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+            {overseasServiceHeading(company)}
+          </h3>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-heading text-sm font-semibold text-foreground">
+            <p className="text-sm font-medium text-foreground">
               {company.companyName}
             </p>
             <OutboundCompanyAdButton
@@ -387,7 +453,6 @@ function CompanyCard({
               customerNote={company.customerNote}
             />
           </div>
-          <StatusBadge kind="quoted">{company.serviceLabel}</StatusBadge>
           {hideInlineRates ? (
             <div className="flex flex-wrap items-center gap-2">
               {destinationButtons}
