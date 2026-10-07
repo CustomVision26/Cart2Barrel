@@ -229,7 +229,7 @@ function PartnerRecordsEditor({
   const records = row.partners.filter((p) => p.chargeKind === chargeKind);
   const catalogPreview = isAdminShippingCatalogPreview(row);
   const localCount = records.filter((p) =>
-    catalogPreview ? !p.barrelId : p.barrelId === row.barrelId,
+    catalogPreview ? true : p.barrelId === row.barrelId,
   ).length;
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
@@ -377,12 +377,17 @@ function PartnerRecordsEditor({
   function setPrimary(record: (typeof records)[number]) {
     startTransition(async () => {
       const res =
-        catalogPreview || record.barrelId === row.barrelId
-          ? await setBarrelOutboundShippingPartnerPrimaryAction({ id: record.id })
-          : await applyCatalogOutboundShippingPartnerAction({
-              sourcePartnerId: record.id,
-              barrelId: row.barrelId,
-            });
+        catalogPreview
+          ? await setBarrelOutboundShippingPartnerPrimaryAction({
+              id: record.id,
+              catalog: true,
+            })
+          : record.barrelId === row.barrelId
+            ? await setBarrelOutboundShippingPartnerPrimaryAction({ id: record.id })
+            : await applyCatalogOutboundShippingPartnerAction({
+                sourcePartnerId: record.id,
+                barrelId: row.barrelId,
+              });
       if (!res.ok) {
         toast.error(res.message);
         return;
@@ -636,10 +641,15 @@ function PartnerRecordsEditor({
         </p>
       : (
         <div className="space-y-1.5">
-          {localCount < records.length ?
+          {!catalogPreview && localCount < records.length ?
             <p className="text-xs text-muted-foreground">
               Companies already saved on other containers are listed here. Select
               Primary to use one on this container.
+            </p>
+          : catalogPreview ?
+            <p className="text-xs text-muted-foreground">
+              Companies saved here or on a shipment card. Edit address, payment
+              IDs, and Charge rate tables without opening a container.
             </p>
           : null}
           <div className={cn(appTableScroll, "overflow-x-auto")}>
@@ -673,9 +683,11 @@ function PartnerRecordsEditor({
             </thead>
             <tbody className="divide-y divide-border">
               {records.map((record) => {
-                const onThisBarrel = catalogPreview
-                  ? record.barrelId == null
-                  : record.barrelId === row.barrelId;
+                const onThisBarrel =
+                  catalogPreview || record.barrelId === row.barrelId;
+                const showAsPrimary = catalogPreview
+                  ? record.barrelId == null && record.isPrimary
+                  : onThisBarrel && record.isPrimary;
                 return (
                 <tr
                   key={record.id}
@@ -689,7 +701,7 @@ function PartnerRecordsEditor({
                       type="radio"
                       name={`${row.barrelId}-${chargeKind}-primary`}
                       className="size-4 accent-primary"
-                      checked={onThisBarrel && record.isPrimary}
+                      checked={showAsPrimary}
                       disabled={busy}
                       aria-label={`Set ${record.name} as primary`}
                       onChange={() => setPrimary(record)}
@@ -700,9 +712,9 @@ function PartnerRecordsEditor({
                       <span className="truncate" title={record.name}>
                         {record.name}
                       </span>
-                      {onThisBarrel && record.isPrimary ?
+                      {showAsPrimary ?
                         <StatusBadge kind="fullyReceived">Primary</StatusBadge>
-                      : !onThisBarrel ?
+                      : !onThisBarrel && !catalogPreview ?
                         <StatusBadge kind="draft">Saved</StatusBadge>
                       : null}
                       {record.publicPricingPublishedAt ?

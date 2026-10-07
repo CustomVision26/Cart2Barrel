@@ -319,6 +319,7 @@ export async function ensureOutboundShippingCompanyRatesTable(): Promise<void> {
       "table_kind" text NOT NULL,
       "row_label" text NOT NULL,
       "row_key" text NOT NULL,
+      "destination" text,
       "cost_one_cents" integer NOT NULL,
       "cost_two_plus_cents" integer NOT NULL,
       "sort_index" integer DEFAULT 0 NOT NULL,
@@ -333,6 +334,10 @@ export async function ensureOutboundShippingCompanyRatesTable(): Promise<void> {
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "outbound_shipping_company_rates_company_idx"
     ON "outbound_shipping_company_rates" ("company_key")
+  `);
+  await db.execute(sql`
+    ALTER TABLE "outbound_shipping_company_rates"
+    ADD COLUMN IF NOT EXISTS "destination" text
   `);
   await db.execute(sql`
     ALTER TABLE "barrels"

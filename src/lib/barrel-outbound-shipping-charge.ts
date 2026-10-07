@@ -39,8 +39,13 @@ export function outboundShippingCompanyKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
-export function outboundShippingRateRowKey(label: string): string {
-  return label.trim().toLowerCase();
+export function outboundShippingRateRowKey(
+  label: string,
+  destination?: string | null,
+): string {
+  const base = label.trim().toLowerCase();
+  const dest = destination?.trim().toLowerCase();
+  return dest ? `${base}::${dest}` : base;
 }
 
 export function outboundShippingRateTableKindForChargeKind(
@@ -68,6 +73,7 @@ export type OutboundShippingCompanyRateRow = {
   companyKey: string;
   tableKind: OutboundShippingCompanyRateTableKind;
   rowLabel: string;
+  destination: string | null;
   costOneCents: number;
   costTwoPlusCents: number;
   sortIndex: number;
@@ -79,6 +85,14 @@ export function primaryPartnerNameForKind(
   chargeKind: BarrelOutboundShippingChargeKind,
 ): string | null {
   const ofKind = partners.filter((partner) => partner.chargeKind === chargeKind);
+  if (ofKind.length === 0) return null;
+  if (isAdminShippingCatalogPreviewBarrelId(barrelId)) {
+    const catalog = ofKind.filter((partner) => partner.barrelId == null);
+    const pool = catalog.length > 0 ? catalog : ofKind;
+    const primary = pool.find((partner) => partner.isPrimary) ?? pool[0];
+    const name = primary?.name.trim();
+    return name ? name : null;
+  }
   const local = ofKind.filter((partner) => partner.barrelId === barrelId);
   const catalog = ofKind.filter((partner) => partner.barrelId == null);
   const pool = local.length > 0 ? local : catalog;
@@ -768,10 +782,27 @@ export function resolveCompanyRateLine(input: {
   if (input.tableKind === "zone") {
     match = matchCourierZoneRateRow(rows, hints) ?? undefined;
   } else {
+    const destHints = (input.destinationHints ?? [])
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean);
+    const destMatches = destHints.length
+      ? rows.filter((row) => {
+          const dest = row.destination?.trim().toLowerCase();
+          if (!dest) return false;
+          return destHints.some(
+            (hint) => dest === hint || dest.includes(hint) || hint.includes(dest),
+          );
+        })
+      : [];
+    const unlabeled = rows.filter((row) => !row.destination?.trim());
+    const pool =
+      destMatches.length > 0 ? destMatches
+      : unlabeled.length > 0 ? unlabeled
+      : rows;
     const hint = (input.rowHint ?? "").trim().toLowerCase();
     match =
-      rows.find((row) => row.rowLabel.trim().toLowerCase() === hint) ??
-      rows.find((row) => {
+      pool.find((row) => row.rowLabel.trim().toLowerCase() === hint) ??
+      pool.find((row) => {
         const label = row.rowLabel.trim().toLowerCase();
         return Boolean(hint) && (label.includes(hint) || hint.includes(label));
       });
@@ -891,8 +922,7 @@ export function resolveCompanyRateLinesForKinds(input: {
         tableKind === "container"
           ? containerTypeRateHint(input.containerKind)
           : (input.destinationHints?.[0] ?? null),
-      destinationHints:
-        tableKind === "zone" ? input.destinationHints : undefined,
+      destinationHints: input.destinationHints,
       containerCount: input.containerCount,
     });
     if (!line) continue;

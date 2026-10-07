@@ -2166,6 +2166,8 @@ export const outboundShippingCompanyRates = pgTable(
     tableKind: text("table_kind").notNull(),
     rowLabel: text("row_label").notNull(),
     rowKey: text("row_key").notNull(),
+    /** Freight/broker destination this container rate applies to. */
+    destination: text("destination"),
     costOneCents: integer("cost_one_cents").notNull(),
     costTwoPlusCents: integer("cost_two_plus_cents").notNull(),
     sortIndex: integer("sort_index").notNull().default(0),

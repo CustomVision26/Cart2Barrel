@@ -485,7 +485,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Create and manage outbound shipment charges and 1-container vs extra-container rate tables. Customers link unpaid containers on Dashboard → Shipping.",
         "Container Control tab: same Freight / Broker / Local courier catalog as Manage on a container card, without opening a shipment.",
-        "Publish a company to How it works → Pricing overview from the company record. Freight (or freight+broker) appears under In-US vendor as a service badge plus the customer note info button—no company name or street. Pickup fee is a separate table (not shown on that public freight card). Standalone overseas brokers and couriers show identity, Operate from, and zone or container rates.",
+        "Publish a company to How it works → Pricing overview from the company record. Freight (or freight+broker) appears under In-US vendor as a service badge, customer-note info button, and destination buttons from the freight rate card—no company name or street. Pickup next to a container type opens that type's hub-to-office pickup fee. Standalone overseas brokers and couriers show identity and a destination button that opens Operate from, contact details, and charges for that destination only.",
         "Customs and freight billing to customer cart.",
         "Carrier tracking for international delivery.",
         "Shipping History: every container shipped through Amani Cart2Barrel, listed in a table with freight, broker, courier, receipts, and customs documents. Double-click a row or Open for the full record. Newest first, with search, sort, pagination, and the header customer filter.",
@@ -508,7 +508,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Use Container Control to save freight, broker, and courier companies, pickup-fee tables, and notes without opening Manage on a barrel.",
         "Review containers. Paid freight moves that container out of Ready for shipping into the current shipment stage (the same record the customer sees on Dashboard → Shipping).",
         "Create or update shipment charges and the 1-container vs extra-container rate tables so customers can pay via Dashboard → Shipping. Customers link unpaid containers there; do not link containers from the company Charge dialog.",
-        "On a freight, broker, or courier company record, use Publish to How it works to show that company under Pricing overview. Freight+broker cards sit only under In-US vendor (badge and Note to customer; freight rates exclude pickup fee). Standalone destination brokers and couriers sit under Overseas third-party vendor with Operate from and contact details. Pickup fee tables are not published on the public freight card.",
+        "On a freight, broker, or courier company record, use Publish to How it works to show that company under Pricing overview. Freight and broker container rows require a destination; that name becomes the destination button on How it works. Freight+broker cards sit only under In-US vendor (badge, Note to customer, and destination rates). Pickup next to a container type opens that type's hub-to-office pickup fee from the company's pickup rate card. Standalone destination brokers and couriers sit under Overseas third-party vendor with a destination button that opens Operate from, contact details, and charges for that destination only.",
         "Record carrier tracking and customs intake details as required.",
         "Open the Shipping History tab for containers that already left. Search, sort, and paginate the table; use the header customer filter to scope one shopper. Double-click a row or Open to see freight, broker, courier, receipts, and customs documents.",
       ],
@@ -535,8 +535,8 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Sidebar → Shipments → Container Control tab (/admin/shipments-container-control).",
       bullets: [
         "Always available, even when no customer container is ready.",
-        "Freight charge, Broker, and Local courier sub-tabs match Manage on a Shipments card.",
-        "Save companies, Ad images, notes to customer, pickup fees, and 1-container vs extra-container rates.",
+        "Freight charge, Broker, and Local courier sub-tabs match Manage on a Shipments card, including companies already created on a container.",
+        "Edit company address, payment IDs, Ad, notes, Charge rate tables, and pickup fees here. Destination is required on each freight or broker container row.",
         "Publish to How it works from the company record. Per-container charge publish stays on Shipments → Manage.",
       ],
       requirements: ["Admin access."],
@@ -556,7 +556,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Open Sidebar → Shipments, then the Container Control tab.",
-        "Use Freight charge, Broker, and Local courier the same way as Manage: add or edit companies, upload an Ad image, save the note to customer, and set container or zone rate tables and pickup fees.",
+        "Use Freight charge, Broker, and Local courier the same way as Manage: companies created on a shipment card appear here to edit. Add or edit name, address, location, payment IDs, Ad image, the note to customer, and Charge rate tables (including pickup fees). Freight and broker container rows need a destination so How it works can show that destination as a button.",
         "Publish a company to How it works from the company record when the public rate schedule should show it.",
         "When a customer container is ready, open Shipments → Manage on that card to publish the charge for Dashboard → Shipping.",
       ],

@@ -222,6 +222,7 @@ async function loadChargeViewsForBarrelIds(
   const courierZoneHints = destinationCourierZoneHints({
     parish: destinationAddress?.parish,
     cityOrTown: destinationAddress?.cityOrTown,
+    extra: destinationAddress?.country,
   });
   let partnerRows: {
     barrelId: string | null;
@@ -504,6 +505,7 @@ export async function listUserOutboundShippingCartLines(
   const courierZoneHints = destinationCourierZoneHints({
     parish: destinationAddress?.parish,
     cityOrTown: destinationAddress?.cityOrTown,
+    extra: destinationAddress?.country,
   });
   const linkGroups = groupCompanyRateLinks(
     await listOutboundShippingCompanyRateLinksForUser(clerkUserId),

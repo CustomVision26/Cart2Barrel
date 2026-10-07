@@ -96,6 +96,7 @@ export const applyCatalogOutboundShippingPartnerSchema = z.object({
 
 export const setBarrelOutboundShippingPartnerPrimarySchema = z.object({
   id: z.string().uuid("Invalid record."),
+  catalog: z.boolean().optional().default(false),
 });
 
 export const deleteBarrelOutboundShippingPartnerSchema = z.object({
@@ -175,32 +176,55 @@ export const outboundShippingCompanyRateTableKindSchema = z.enum([
   "zone",
 ]);
 
-export const addOutboundShippingCompanyRateSchema = z.object({
-  companyName: z.string().trim().min(1, "Add a company first.").max(160),
-  tableKind: outboundShippingCompanyRateTableKindSchema,
-  rowLabel: z
-    .string()
-    .trim()
-    .min(1, "Enter a row label.")
-    .max(120, "Label is too long."),
-  costOneUsd: usdAmountAllowZeroSchema,
-  costTwoPlusUsd: usdAmountAllowZeroSchema,
-});
+export const addOutboundShippingCompanyRateSchema = z
+  .object({
+    companyName: z.string().trim().min(1, "Add a company first.").max(160),
+    tableKind: outboundShippingCompanyRateTableKindSchema,
+    rowLabel: z
+      .string()
+      .trim()
+      .min(1, "Enter a row label.")
+      .max(120, "Label is too long."),
+    destination: z.string().trim().max(160).optional().default(""),
+    costOneUsd: usdAmountAllowZeroSchema,
+    costTwoPlusUsd: usdAmountAllowZeroSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.tableKind === "container" && !data.destination?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["destination"],
+        message: "Enter a destination.",
+      });
+    }
+  });
 
 export type AddOutboundShippingCompanyRateInput = z.infer<
   typeof addOutboundShippingCompanyRateSchema
 >;
 
-export const updateOutboundShippingCompanyRateSchema = z.object({
-  id: z.string().uuid("Invalid rate."),
-  rowLabel: z
-    .string()
-    .trim()
-    .min(1, "Enter a row label.")
-    .max(120, "Label is too long."),
-  costOneUsd: usdAmountAllowZeroSchema,
-  costTwoPlusUsd: usdAmountAllowZeroSchema,
-});
+export const updateOutboundShippingCompanyRateSchema = z
+  .object({
+    id: z.string().uuid("Invalid rate."),
+    tableKind: outboundShippingCompanyRateTableKindSchema.optional(),
+    rowLabel: z
+      .string()
+      .trim()
+      .min(1, "Enter a row label.")
+      .max(120, "Label is too long."),
+    destination: z.string().trim().max(160).optional().default(""),
+    costOneUsd: usdAmountAllowZeroSchema,
+    costTwoPlusUsd: usdAmountAllowZeroSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.tableKind === "container" && !data.destination?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["destination"],
+        message: "Enter a destination.",
+      });
+    }
+  });
 
 export type UpdateOutboundShippingCompanyRateInput = z.infer<
   typeof updateOutboundShippingCompanyRateSchema

@@ -128,11 +128,19 @@ export async function listPublicOutboundCompanyPricing(): Promise<
           )
           .map((row) => ({
             rowLabel: row.rowLabel,
+            destination: row.destination,
             costOneCents: row.costOneCents,
             costTwoPlusCents: row.costTwoPlusCents,
           })),
       }))
       .filter((table) => table.rows.length > 0);
+    const pickupRates = companyRates
+      .filter((row) => row.tableKind === "transport")
+      .map((row) => ({
+        rowLabel: row.rowLabel,
+        costOneCents: row.costOneCents,
+        costTwoPlusCents: row.costTwoPlusCents,
+      }));
 
     cards.push({
       companyKey,
@@ -147,6 +155,7 @@ export async function listPublicOutboundCompanyPricing(): Promise<
       imageUrl: display.imageUrl?.trim() || null,
       customerNote,
       rateTables,
+      pickupRates,
     });
   }
 

@@ -151,7 +151,9 @@ export async function setBarrelOutboundShippingPartnerPrimaryAction(
     };
   }
 
-  const result = await setOutboundShippingPartnerPrimary(parsed.data.id);
+  const result = await setOutboundShippingPartnerPrimary(parsed.data.id, {
+    catalog: parsed.data.catalog,
+  });
   if (!result.ok) return result;
 
   revalidatePartnerPaths();

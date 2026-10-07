@@ -11,7 +11,7 @@ export function AdminContainerControlPanel({
   row: AdminBarrelOutboundShippingChargeRow;
 }) {
   return (
-    <div className="grid max-w-2xl gap-4">
+    <div className="grid max-w-6xl gap-4">
       <header className="space-y-1">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Container control

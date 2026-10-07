@@ -94,6 +94,56 @@ async function findCompanyCustomerNote(name: string): Promise<string | null> {
   return match?.customerNote?.trim() || null;
 }
 
+async function propagateCompanyProfile(input: {
+  chargeKind: BarrelOutboundShippingChargeKind;
+  previousName: string;
+  name: string;
+  location: string | null;
+  address: string | null;
+  country: string | null;
+  phone: string | null;
+  cashappId: string | null;
+  cashappAccount: string | null;
+  zelleId: string | null;
+  zelleAccount: string | null;
+  imageUrl: string | null;
+}): Promise<void> {
+  const keys = new Set(
+    [partnerNameKey(input.previousName), partnerNameKey(input.name)].filter(
+      Boolean,
+    ),
+  );
+  if (keys.size === 0) return;
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: barrelOutboundShippingPartners.id,
+      name: barrelOutboundShippingPartners.name,
+    })
+    .from(barrelOutboundShippingPartners)
+    .where(eq(barrelOutboundShippingPartners.chargeKind, input.chargeKind));
+  const ids = rows
+    .filter((row) => keys.has(partnerNameKey(row.name)))
+    .map((row) => row.id);
+  if (ids.length === 0) return;
+  await db
+    .update(barrelOutboundShippingPartners)
+    .set({
+      name: input.name,
+      location: input.chargeKind === "freight" ? null : input.location,
+      address: input.address,
+      country: input.chargeKind === "freight" ? null : input.country,
+      phone: input.phone,
+      cashappId: input.cashappId,
+      cashappAccount: input.cashappAccount,
+      zelleId: input.zelleId,
+      zelleAccount: input.zelleAccount,
+      imageUrl: input.imageUrl,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(inArray(barrelOutboundShippingPartners.id, ids));
+}
+
 async function propagateCompanyImageUrl(input: {
   chargeKind: BarrelOutboundShippingChargeKind;
   name: string;
@@ -182,8 +232,16 @@ export async function listOutboundShippingPartnerCatalog(): Promise<
       const key = partnerCatalogKey(mapped);
       const existingIndex = seen.get(key);
       if (existingIndex != null) {
-        if (!catalog[existingIndex]?.imageUrl && mapped.imageUrl) {
-          catalog[existingIndex] = mapped;
+        const existing = catalog[existingIndex]!;
+        const preferCatalog =
+          mapped.barrelId == null && existing.barrelId != null;
+        if (preferCatalog) {
+          catalog[existingIndex] = {
+            ...mapped,
+            imageUrl: mapped.imageUrl || existing.imageUrl,
+          };
+        } else if (!existing.imageUrl && mapped.imageUrl) {
+          catalog[existingIndex] = { ...existing, imageUrl: mapped.imageUrl };
         }
         continue;
       }
@@ -587,17 +645,44 @@ export async function updateOutboundShippingPartner(input: {
       updatedAt: new Date().toISOString(),
     })
     .where(eq(barrelOutboundShippingPartners.id, input.id));
-  await propagateCompanyImageUrl({
+  await propagateCompanyProfile({
     chargeKind: kind,
+    previousName: row.name,
     name: input.name,
+    location: kind === "freight" ? null : input.location,
+    address: input.address,
+    country: kind === "freight" ? null : input.country,
+    phone: input.phone,
+    cashappId: input.cashappId,
+    cashappAccount: input.cashappAccount,
+    zelleId: input.zelleId,
+    zelleAccount: input.zelleAccount,
     imageUrl,
   });
+  if (row.barrelId != null) {
+    await addOutboundShippingPartner({
+      barrelId: null,
+      chargeKind: kind,
+      name: input.name,
+      location: kind === "freight" ? null : input.location,
+      address: input.address,
+      country: kind === "freight" ? null : input.country,
+      phone: input.phone,
+      cashappId: input.cashappId,
+      cashappAccount: input.cashappAccount,
+      zelleId: input.zelleId,
+      zelleAccount: input.zelleAccount,
+      imageUrl,
+      isPrimary: makePrimary,
+    });
+  }
   await maybeSyncPartnerOntoBarrel(row.barrelId, kind);
   return { ok: true };
 }
 
 export async function setOutboundShippingPartnerPrimary(
   id: string,
+  options?: { catalog?: boolean },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   await ensureBarrelOutboundShippingChargesSchema();
   const db = getDb();
@@ -612,6 +697,25 @@ export async function setOutboundShippingPartnerPrimary(
   const kind = isBarrelOutboundShippingChargeKind(row.chargeKind)
     ? row.chargeKind
     : "freight";
+  if (options?.catalog) {
+    const catalog = await addOutboundShippingPartner({
+      barrelId: null,
+      chargeKind: kind,
+      name: row.name,
+      location: row.location,
+      address: row.address,
+      country: row.country,
+      phone: row.phone,
+      cashappId: row.cashappId,
+      cashappAccount: row.cashappAccount,
+      zelleId: row.zelleId,
+      zelleAccount: row.zelleAccount,
+      imageUrl: row.imageUrl,
+      isPrimary: true,
+    });
+    await maybeSyncPartnerOntoBarrel(catalog.barrelId, kind);
+    return { ok: true };
+  }
   await clearPrimaryForKind(row.barrelId, kind);
   await db
     .update(barrelOutboundShippingPartners)

@@ -28,6 +28,7 @@ function revalidateRatePaths() {
   revalidatePath("/dashboard/shipping");
   revalidatePath("/dashboard/shipping/pricing");
   revalidatePath("/dashboard/cart");
+  revalidatePath("/how-it-works");
 }
 
 async function requireAdmin(): Promise<
@@ -63,6 +64,7 @@ export async function addOutboundShippingCompanyRateAction(
     companyName: parsed.data.companyName,
     tableKind: parsed.data.tableKind,
     rowLabel: parsed.data.rowLabel,
+    destination: parsed.data.destination,
     costOneCents,
     costTwoPlusCents,
   });
@@ -93,6 +95,7 @@ export async function updateOutboundShippingCompanyRateAction(
   const result = await updateOutboundShippingCompanyRate({
     id: parsed.data.id,
     rowLabel: parsed.data.rowLabel,
+    destination: parsed.data.destination,
     costOneCents,
     costTwoPlusCents,
   });

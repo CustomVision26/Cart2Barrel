@@ -27,6 +27,7 @@ function mapRate(
     companyKey: row.companyKey,
     tableKind: row.tableKind,
     rowLabel: row.rowLabel,
+    destination: row.destination?.trim() || null,
     costOneCents: row.costOneCents,
     costTwoPlusCents: row.costTwoPlusCents,
     sortIndex: row.sortIndex,
@@ -76,6 +77,7 @@ export async function addOutboundShippingCompanyRate(input: {
   companyName: string;
   tableKind: OutboundShippingCompanyRateTableKind;
   rowLabel: string;
+  destination?: string | null;
   costOneCents: number;
   costTwoPlusCents: number;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
@@ -85,8 +87,10 @@ export async function addOutboundShippingCompanyRate(input: {
   const db = getDb();
   const companyName = input.companyName.trim();
   const rowLabel = input.rowLabel.trim();
+  const destination =
+    input.tableKind === "container" ? input.destination?.trim() || null : null;
   const companyKey = outboundShippingCompanyKey(companyName);
-  const rowKey = outboundShippingRateRowKey(rowLabel);
+  const rowKey = outboundShippingRateRowKey(rowLabel, destination);
   const existing = await db
     .select({
       sortIndex: outboundShippingCompanyRates.sortIndex,
@@ -111,6 +115,7 @@ export async function addOutboundShippingCompanyRate(input: {
       tableKind: input.tableKind,
       rowLabel,
       rowKey,
+      destination,
       costOneCents: input.costOneCents,
       costTwoPlusCents: input.costTwoPlusCents,
       sortIndex: nextSort,
@@ -131,6 +136,7 @@ export async function addOutboundShippingCompanyRate(input: {
 export async function updateOutboundShippingCompanyRate(input: {
   id: string;
   rowLabel: string;
+  destination?: string | null;
   costOneCents: number;
   costTwoPlusCents: number;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
@@ -139,12 +145,14 @@ export async function updateOutboundShippingCompanyRate(input: {
   }
   const db = getDb();
   const rowLabel = input.rowLabel.trim();
+  const destination = input.destination?.trim() || null;
   try {
     const [updated] = await db
       .update(outboundShippingCompanyRates)
       .set({
         rowLabel,
-        rowKey: outboundShippingRateRowKey(rowLabel),
+        rowKey: outboundShippingRateRowKey(rowLabel, destination),
+        destination,
         costOneCents: input.costOneCents,
         costTwoPlusCents: input.costTwoPlusCents,
         updatedAt: new Date().toISOString(),

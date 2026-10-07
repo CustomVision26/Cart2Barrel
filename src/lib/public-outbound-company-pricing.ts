@@ -21,9 +21,15 @@ export type PublicOutboundCompanyPricingCard = {
     tableKind: OutboundShippingCompanyRateTableKind;
     rows: {
       rowLabel: string;
+      destination: string | null;
       costOneCents: number;
       costTwoPlusCents: number;
     }[];
+  }[];
+  pickupRates: {
+    rowLabel: string;
+    costOneCents: number;
+    costTwoPlusCents: number;
   }[];
 };
 

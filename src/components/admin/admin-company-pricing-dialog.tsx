@@ -74,7 +74,7 @@ function tableHelp(kind: OutboundShippingCompanyRateTableKind): string {
   if (kind === "transport") {
     return "Pickup fee to move a container from the hub to this company's freight office. One billed container uses the 1-container pickup fee. Two or more barrels on the same freight quote use the extra-container fee for every container (2 linked barrels = 2 × extra-container fee).";
   }
-  return "The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost (for example $10,000 + $5,000 + $5,000 = $20,000 for three).";
+  return "Name the destination this rate applies to (for example Jamaica or Kingston Container Terminal). The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost (for example $10,000 + $5,000 + $5,000 = $20,000 for three).";
 }
 
 function RateTableEditor({
@@ -93,13 +93,22 @@ function RateTableEditor({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [drafts, setDrafts] = useState<
-    Record<string, { rowLabel: string; costOneUsd: string; costTwoPlusUsd: string }>
+    Record<
+      string,
+      {
+        rowLabel: string;
+        destination: string;
+        costOneUsd: string;
+        costTwoPlusUsd: string;
+      }
+    >
   >(() =>
     Object.fromEntries(
       rows.map((row) => [
         row.id,
         {
           rowLabel: row.rowLabel,
+          destination: row.destination ?? "",
           costOneUsd: centsToUsdInput(row.costOneCents),
           costTwoPlusUsd: centsToUsdInput(row.costTwoPlusCents),
         },
@@ -107,10 +116,13 @@ function RateTableEditor({
     ),
   );
   const [newLabel, setNewLabel] = useState("");
+  const [newDestination, setNewDestination] = useState("");
   const [newOne, setNewOne] = useState("");
   const [newTwoPlus, setNewTwoPlus] = useState("");
   const listId = `${tableKind}-rate-suggestions`;
   const busy = pending;
+  const showDestination = tableKind === "container";
+  const columnCount = showDestination ? 5 : 4;
   const matchedZoneLabel =
     tableKind === "zone"
       ? matchCourierZoneRateRow(
@@ -128,7 +140,9 @@ function RateTableEditor({
     startTransition(async () => {
       const res = await updateOutboundShippingCompanyRateAction({
         id,
+        tableKind,
         rowLabel: draft.rowLabel,
+        destination: draft.destination,
         costOneUsd: draft.costOneUsd,
         costTwoPlusUsd: draft.costTwoPlusUsd,
       });
@@ -159,6 +173,7 @@ function RateTableEditor({
         companyName,
         tableKind,
         rowLabel: newLabel,
+        destination: newDestination,
         costOneUsd: newOne,
         costTwoPlusUsd: newTwoPlus,
       });
@@ -168,6 +183,7 @@ function RateTableEditor({
       }
       toast.success(res.message);
       setNewLabel("");
+      setNewDestination("");
       setNewOne("");
       setNewTwoPlus("");
       router.refresh();
@@ -181,10 +197,13 @@ function RateTableEditor({
         {tableHelp(tableKind)}
       </p>
       <div className={cn(appTableScroll, "overflow-x-auto")}>
-        <table className="w-full min-w-[40rem] text-left text-sm">
+        <table className={cn("w-full text-left text-sm", showDestination ? "min-w-[50rem]" : "min-w-[40rem]")}>
           <thead>
             <tr className={appTableHead}>
               <th className="px-3 py-2 font-medium">{rowLabelHeading(tableKind)}</th>
+              {showDestination ?
+                <th className="px-3 py-2 font-medium">Destination</th>
+              : null}
               <th className="px-3 py-2 font-medium">{costOneHeading(tableKind)}</th>
               <th className="px-3 py-2 font-medium">{costExtraHeading(tableKind)}</th>
               <th className="px-3 py-2 font-medium">Actions</th>
@@ -194,7 +213,7 @@ function RateTableEditor({
             {rows.length === 0 ?
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={columnCount}
                   className="px-3 py-3 text-xs text-muted-foreground"
                 >
                   No pricing rows yet. Add a record below.
@@ -203,6 +222,7 @@ function RateTableEditor({
             : rows.map((row) => {
                 const draft = drafts[row.id] ?? {
                   rowLabel: row.rowLabel,
+                  destination: row.destination ?? "",
                   costOneUsd: centsToUsdInput(row.costOneCents),
                   costTwoPlusUsd: centsToUsdInput(row.costTwoPlusCents),
                 };
@@ -229,6 +249,24 @@ function RateTableEditor({
                         : null}
                       </div>
                     </td>
+                    {showDestination ?
+                      <td className="px-3 py-2">
+                        <Input
+                          value={draft.destination}
+                          disabled={busy}
+                          placeholder="e.g. Jamaica"
+                          onChange={(e) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [row.id]: {
+                                ...draft,
+                                destination: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </td>
+                    : null}
                     <td className="px-3 py-2">
                       <Input
                         inputMode="decimal"
@@ -296,6 +334,16 @@ function RateTableEditor({
                   onChange={(e) => setNewLabel(e.target.value)}
                 />
               </td>
+              {showDestination ?
+                <td className="px-3 py-2">
+                  <Input
+                    value={newDestination}
+                    disabled={busy}
+                    placeholder="e.g. Jamaica"
+                    onChange={(e) => setNewDestination(e.target.value)}
+                  />
+                </td>
+              : null}
               <td className="px-3 py-2">
                 <Input
                   inputMode="decimal"
@@ -342,10 +390,12 @@ function RateTableEditor({
         <p className="text-[11px] text-muted-foreground">
           Published costs:{" "}
           {rows
-            .map(
-              (row) =>
-                `${row.rowLabel} ${formatUsd(row.costOneCents)} / ${formatUsd(row.costTwoPlusCents)}`,
-            )
+            .map((row) => {
+              const dest = row.destination?.trim();
+              return dest
+                ? `${row.rowLabel} → ${dest} ${formatUsd(row.costOneCents)} / ${formatUsd(row.costTwoPlusCents)}`
+                : `${row.rowLabel} ${formatUsd(row.costOneCents)} / ${formatUsd(row.costTwoPlusCents)}`;
+            })
             .join(" · ")}
         </p>
       : null}
@@ -491,7 +541,7 @@ export function ChargeLabelWithCompanyPricing({
             <DialogDescription>
               {dialogVariant === "hub-transport" ?
                 "These rates are the pickup fee to move a container from the hub to this company's freight office. They are not the ocean freight charge. One billed container uses the 1-container pickup fee. Two or more barrels on the same freight quote use the extra-container fee for every container (2 linked barrels = 2 × extra-container fee)."
-              : "These rates belong to this company and are what the customer is charged when the rate card is on. Local courier zones are matched to the destination parish on the shipping address. The first unpaid container uses the 1-container rate; each extra linked unpaid container adds the extra-container rate. Customers link unpaid containers on Dashboard → Shipping."}
+              : "These rates belong to this company and are what the customer is charged when the rate card is on. Freight and broker container rows need a destination; that name is the destination button on How it works. Local courier zones are matched to the destination parish on the shipping address. The first unpaid container uses the 1-container rate; each extra linked unpaid container adds the extra-container rate. Customers link unpaid containers on Dashboard → Shipping."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
