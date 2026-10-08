@@ -637,30 +637,6 @@ function CompanyCard({
                 </DialogDescription>
               </div>
             </DialogHeader>
-            <div className="relative z-10 mt-6 space-y-2">
-              <div className="pickup-charge-route" aria-hidden>
-                <span className="pickup-charge-route-node">
-                  {serviceOnly ? <Warehouse className="size-4" /> : <Ship className="size-4" />}
-                </span>
-                <span className="pickup-charge-route-line">
-                  <span className="pickup-charge-route-packet" />
-                </span>
-                <span className="pickup-charge-route-node">
-                  {serviceOnly ? <Ship className="size-4" /> : <Truck className="size-4" />}
-                </span>
-                <span className="pickup-charge-route-line">
-                  <span className="pickup-charge-route-packet" />
-                </span>
-                <span className="pickup-charge-route-node">
-                  <MapPin className="size-4" />
-                </span>
-              </div>
-              <div className="grid grid-cols-3 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:text-[11px]">
-                <span>{serviceOnly ? "US warehouse" : "Arrival port"}</span>
-                <span>{serviceOnly ? "Ocean freight" : "Local delivery"}</span>
-                <span>{openDestination ?? "Destination"}</span>
-              </div>
-            </div>
           </div>
           <div className="space-y-6 px-6 py-6 sm:px-8">
             {serviceOnly ? null : <CompanyIdentity company={company} />}

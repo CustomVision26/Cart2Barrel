@@ -19,6 +19,7 @@ import {
   outboundChargeBundleHost,
   outboundShippingCompanyKey,
   outboundShippingCountryKey,
+  outboundShippingPartnerOfferingKey,
   parseOutboundChargeBundle,
   type BarrelOutboundShippingChargeKind,
   type OutboundShippingPartnerRecord,
@@ -995,13 +996,34 @@ export async function setOutboundShippingPartnerPublicPricing(input: {
   const db = getDb();
   try {
     const [row] = await db
-      .select({ id: barrelOutboundShippingPartners.id })
+      .select()
       .from(barrelOutboundShippingPartners)
       .where(eq(barrelOutboundShippingPartners.id, input.id))
       .limit(1);
     if (!row) {
       return { ok: false, message: "Company record not found." };
     }
+    const offeringKey = outboundShippingPartnerOfferingKey(row.name, row.country);
+    const scoped = await db
+      .select({
+        id: barrelOutboundShippingPartners.id,
+        name: barrelOutboundShippingPartners.name,
+        country: barrelOutboundShippingPartners.country,
+        barrelId: barrelOutboundShippingPartners.barrelId,
+      })
+      .from(barrelOutboundShippingPartners)
+      .where(
+        row.barrelId == null
+          ? isNull(barrelOutboundShippingPartners.barrelId)
+          : eq(barrelOutboundShippingPartners.barrelId, row.barrelId),
+      );
+    const ids = scoped
+      .filter(
+        (item) =>
+          outboundShippingPartnerOfferingKey(item.name, item.country) ===
+          offeringKey,
+      )
+      .map((item) => item.id);
     await db
       .update(barrelOutboundShippingPartners)
       .set({
@@ -1010,7 +1032,12 @@ export async function setOutboundShippingPartnerPublicPricing(input: {
           : null,
         updatedAt: new Date().toISOString(),
       })
-      .where(eq(barrelOutboundShippingPartners.id, input.id));
+      .where(
+        inArray(
+          barrelOutboundShippingPartners.id,
+          ids.length > 0 ? ids : [row.id],
+        ),
+      );
     return { ok: true };
   } catch (e) {
     if (isMissingBarrelOutboundShippingChargesTableError(e)) {

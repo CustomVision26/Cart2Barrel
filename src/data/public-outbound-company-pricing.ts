@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, isNotNull } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { barrelOutboundShippingPartners } from "@/db/schema";
@@ -60,7 +60,6 @@ export async function listPublicOutboundCompanyPricing(): Promise<
     partners = await db
       .select()
       .from(barrelOutboundShippingPartners)
-      .where(isNotNull(barrelOutboundShippingPartners.publicPricingPublishedAt))
       .orderBy(desc(barrelOutboundShippingPartners.publicPricingPublishedAt));
   } catch (e) {
     if (isMissingBarrelOutboundShippingChargesTableError(e)) {
@@ -81,18 +80,22 @@ export async function listPublicOutboundCompanyPricing(): Promise<
 
   const cards: PublicOutboundCompanyPricingCard[] = [];
   for (const [companyKey, rows] of grouped) {
-    const display = pickDisplayPartner(rows);
+    const publishedRows = rows.filter(
+      (row) => row.publicPricingPublishedAt != null,
+    );
+    if (publishedRows.length === 0) continue;
+    const display = pickDisplayPartner(publishedRows);
     const customerNote =
       rows
         .map((row) => row.customerNote?.trim())
         .find((note) => Boolean(note)) || null;
-    const publishedKinds = new Set(
+    const offeringKinds = new Set(
       rows
         .map((row) => row.chargeKind)
         .filter(isBarrelOutboundShippingChargeKind),
     );
     const kinds = BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) =>
-      publishedKinds.has(kind),
+      offeringKinds.has(kind),
     );
     if (kinds.length === 0) continue;
     const headings = publicCompanyVendorHeadings(kinds);
