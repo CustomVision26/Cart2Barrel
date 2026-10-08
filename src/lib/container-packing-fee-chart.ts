@@ -72,6 +72,24 @@ export function buildContainerCatalogChartRows(
   }));
 }
 
+function packingFeePublicName(
+  kind: ContainerOfferingKind,
+  cargoBoxSize?: string | null,
+): string {
+  return packingFeeContainerLabel(kind, cargoBoxSize);
+}
+
+function packingFeeCartRow(
+  countPrefix: "1" | "2+",
+  name: string,
+  chargeLabel: string,
+): ContainerPackingFeeChartRow {
+  return {
+    containerLabel: `${countPrefix} ${name} Container in cart`,
+    chargeLabel,
+  };
+}
+
 /** Packaging fee tiers shown alongside container catalog prices. */
 export function buildContainerPackingFeeChartRows(
   rates: ContainerPackingRates = DEFAULT_CONTAINER_PACKING_RATES,
@@ -80,50 +98,55 @@ export function buildContainerPackingFeeChartRows(
   if (publishedRecords && publishedRecords.length > 0) {
     const rows: ContainerPackingFeeChartRow[] = [];
     for (const record of publishedRecords) {
-      const label = packingFeeContainerLabel(
+      const name = packingFeePublicName(
         record.containerKind,
         record.cargoBoxSize,
-      ).toLowerCase();
-      rows.push({
-        containerLabel: `1 ${label} in cart`,
-        chargeLabel: formatUsd(record.singleFeeCents),
-      });
-      rows.push({
-        containerLabel: `2+ ${label} in cart`,
-        chargeLabel: `${formatUsd(record.multiFeeCents)} per ${label}`,
-      });
+      );
+      rows.push(
+        packingFeeCartRow("1", name, formatUsd(record.singleFeeCents)),
+      );
+      rows.push(
+        packingFeeCartRow(
+          "2+",
+          name,
+          `${formatUsd(record.multiFeeCents)} per ${name} Container`,
+        ),
+      );
     }
     return rows;
   }
   const rows: ContainerPackingFeeChartRow[] = [
-    {
-      containerLabel: "1 barrel in cart",
-      chargeLabel: formatUsd(rates.singleBarrelPackingFeeCents),
-    },
-    {
-      containerLabel: "2+ barrels in cart",
-      chargeLabel: `${formatUsd(rates.multiBarrelPackingPerUnitCents)} per barrel`,
-    },
-    {
-      containerLabel: "1 bin in cart",
-      chargeLabel: formatUsd(rates.singleBinPackingFeeCents),
-    },
-    {
-      containerLabel: "2+ bins in cart",
-      chargeLabel: `${formatUsd(rates.multiBinPackingPerUnitCents)} per bin`,
-    },
+    packingFeeCartRow(
+      "1",
+      "Barrel",
+      formatUsd(rates.singleBarrelPackingFeeCents),
+    ),
+    packingFeeCartRow(
+      "2+",
+      "Barrel",
+      `${formatUsd(rates.multiBarrelPackingPerUnitCents)} per Barrel Container`,
+    ),
+    packingFeeCartRow("1", "Bin", formatUsd(rates.singleBinPackingFeeCents)),
+    packingFeeCartRow(
+      "2+",
+      "Bin",
+      `${formatUsd(rates.multiBinPackingPerUnitCents)} per Bin Container`,
+    ),
   ];
   for (const size of CARGO_BOX_PACKING_SIZES) {
     const rate = rates.cargoBoxRates?.[size];
     if (!rate) continue;
-    rows.push({
-      containerLabel: `1 cargo box ${size} in cart`,
-      chargeLabel: formatUsd(rate.singlePackingFeeCents),
-    });
-    rows.push({
-      containerLabel: `2+ cargo box ${size} in cart`,
-      chargeLabel: `${formatUsd(rate.multiPackingPerUnitCents)} per cargo box ${size}`,
-    });
+    const name = packingFeePublicName("cargo_box", size);
+    rows.push(
+      packingFeeCartRow("1", name, formatUsd(rate.singlePackingFeeCents)),
+    );
+    rows.push(
+      packingFeeCartRow(
+        "2+",
+        name,
+        `${formatUsd(rate.multiPackingPerUnitCents)} per ${name} Container`,
+      ),
+    );
   }
   return rows;
 }

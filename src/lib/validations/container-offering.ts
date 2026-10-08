@@ -63,7 +63,7 @@ export function packingFeeContainerLabel(
 ): string {
   if (kind === "cargo_box") {
     const size = parseCargoBoxPackingSize(cargoBoxSize) ?? cargoBoxSize?.trim();
-    return size ? `Cargo box ${size}` : "Cargo box";
+    return size ? `Cargo Box ${size}` : "Cargo Box";
   }
   return containerOfferingKindLabel(kind);
 }
