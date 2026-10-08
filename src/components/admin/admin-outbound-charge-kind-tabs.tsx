@@ -4,10 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import {
-  saveBarrelOutboundShippingChargeAction,
-  setBarrelOutboundChargeBundleAction,
-} from "@/actions/admin-barrel-outbound-shipping-charge";
+import { saveBarrelOutboundShippingChargeAction } from "@/actions/admin-barrel-outbound-shipping-charge";
 import {
   addBarrelOutboundShippingPartnerAction,
   applyCatalogOutboundShippingPartnerAction,
@@ -50,6 +47,7 @@ import {
   outboundChargeBundleHost,
   outboundChargeBundleLabel,
   outboundChargeBundleSameCompanyTitle,
+  outboundShippingCompanyKey,
   outboundShippingRateTableKindForChargeKind,
   outboundShippingRateTableKindsForTabs,
   primaryPartnerNameForKind,
@@ -63,6 +61,64 @@ import { cn } from "@/lib/utils";
 
 function centsToUsdInput(cents: number): string {
   return cents > 0 ? (cents / 100).toFixed(2) : "";
+}
+
+function kindsForCompanyName(
+  partners: AdminBarrelOutboundShippingChargeRow["partners"],
+  name: string,
+): BarrelOutboundShippingChargeKind[] {
+  const key = outboundShippingCompanyKey(name);
+  if (!key) return [];
+  return BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) =>
+    partners.some(
+      (partner) =>
+        partner.chargeKind === kind &&
+        outboundShippingCompanyKey(partner.name) === key,
+    ),
+  );
+}
+
+function tabIdForCompanyKinds(
+  kinds: readonly BarrelOutboundShippingChargeKind[],
+  bundle: readonly BarrelOutboundShippingChargeKind[],
+): string {
+  const host = outboundChargeBundleHost(bundle);
+  if (host && kinds.some((kind) => bundle.includes(kind))) return host;
+  return kinds[0] ?? "freight";
+}
+
+function companyTypeLabel(
+  partners: AdminBarrelOutboundShippingChargeRow["partners"],
+  name: string,
+): string | null {
+  const typeKinds = kindsForCompanyName(partners, name);
+  if (typeKinds.length === 0) return null;
+  return typeKinds.length >= 2
+    ? outboundChargeBundleLabel(typeKinds)
+    : BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[typeKinds[0]!];
+}
+
+function uniquePartnerRecords(
+  partners: AdminBarrelOutboundShippingChargeRow["partners"],
+  preferredKind: BarrelOutboundShippingChargeKind,
+) {
+  const byKey = new Map<string, (typeof partners)[number]>();
+  for (const partner of partners) {
+    const key = outboundShippingCompanyKey(partner.name);
+    if (!key) continue;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, partner);
+      continue;
+    }
+    if (
+      partner.chargeKind === preferredKind &&
+      existing.chargeKind !== preferredKind
+    ) {
+      byKey.set(key, partner);
+    }
+  }
+  return [...byKey.values()];
 }
 
 function hubTransportQuote(row: AdminBarrelOutboundShippingChargeRow): {
@@ -219,16 +275,23 @@ function PartnerRecordsEditor({
   row,
   chargeKind,
   formDisabled,
+  selectedCompanyKey = null,
+  onSelectCompany,
 }: {
   row: AdminBarrelOutboundShippingChargeRow;
   chargeKind: BarrelOutboundShippingChargeKind;
   formDisabled: boolean;
+  selectedCompanyKey?: string | null;
+  onSelectCompany?: (
+    record: AdminBarrelOutboundShippingChargeRow["partners"][number],
+  ) => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const records = row.partners.filter((p) => p.chargeKind === chargeKind);
+  const kindRecords = row.partners.filter((p) => p.chargeKind === chargeKind);
+  const records = uniquePartnerRecords(row.partners, chargeKind);
   const catalogPreview = isAdminShippingCatalogPreview(row);
-  const localCount = records.filter((p) =>
+  const localCount = kindRecords.filter((p) =>
     catalogPreview ? true : p.barrelId === row.barrelId,
   ).length;
   const [name, setName] = useState("");
@@ -244,8 +307,15 @@ function PartnerRecordsEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [makePrimary, setMakePrimary] = useState(localCount === 0);
   const [formOpen, setFormOpen] = useState(false);
+  const [companyRole, setCompanyRole] = useState<"standalone" | "consolidate">(
+    "standalone",
+  );
+  const [formKinds, setFormKinds] = useState<BarrelOutboundShippingChargeKind[]>(
+    [chargeKind],
+  );
   const busy = formDisabled || pending;
   const isFreight = chargeKind === "freight";
+  const showOperateFrom = formKinds.some((kind) => kind !== "freight");
   const nameLabel =
     chargeKind === "freight"
       ? "Company name"
@@ -284,6 +354,8 @@ function PartnerRecordsEditor({
     setZelleAccount("");
     setImageUrl("");
     setMakePrimary(nextCount === 0);
+    setCompanyRole("standalone");
+    setFormKinds([chargeKind]);
     setFormOpen(false);
   }
 
@@ -300,10 +372,13 @@ function PartnerRecordsEditor({
     setZelleAccount("");
     setImageUrl("");
     setMakePrimary(localCount === 0);
+    setCompanyRole("standalone");
+    setFormKinds([chargeKind]);
     setFormOpen(true);
   }
 
   function startEdit(record: (typeof records)[number]) {
+    const kinds = kindsForCompanyName(row.partners, record.name);
     setEditingId(record.id);
     setName(record.name);
     setLocation(record.location ?? "");
@@ -316,40 +391,93 @@ function PartnerRecordsEditor({
     setZelleAccount(record.zelleAccount ?? "");
     setImageUrl(record.imageUrl ?? "");
     setMakePrimary(record.isPrimary);
+    setCompanyRole(kinds.length >= 2 ? "consolidate" : "standalone");
+    setFormKinds(kinds.length > 0 ? kinds : [record.chargeKind]);
     setFormOpen(true);
+    onSelectCompany?.(record);
   }
 
   function saveRecord() {
+    const kindsToSave =
+      companyRole === "standalone"
+        ? [formKinds[0] ?? chargeKind]
+        : BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) =>
+            formKinds.includes(kind),
+          );
+    if (companyRole === "standalone" && kindsToSave.length !== 1) {
+      toast.error("Choose Freight, Broker, or Local courier for a standalone company.");
+      return;
+    }
+    if (companyRole === "consolidate" && kindsToSave.length < 2) {
+      toast.error("Select two or three charges to consolidate this company.");
+      return;
+    }
     startTransition(async () => {
-      const payload = {
-        name,
-        location: isFreight ? "" : location,
-        address,
-        country: isFreight ? "" : country,
-        phone,
-        cashappId,
-        cashappAccount,
-        zelleId,
-        zelleAccount,
-        imageUrl,
-        isPrimary: makePrimary || localCount === 0,
-      };
-      const res =
-        editingId
-          ? await updateBarrelOutboundShippingPartnerAction({
-              id: editingId,
-              ...payload,
-            })
-          : await addBarrelOutboundShippingPartnerAction({
-              ...(catalogPreview ? {} : { barrelId: row.barrelId }),
-              chargeKind,
-              ...payload,
-            });
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
+      const makeThisPrimary = makePrimary || localCount === 0;
+      for (const kind of kindsToSave) {
+        const operateFrom = kind !== "freight";
+        const payload = {
+          name,
+          location: operateFrom ? location : "",
+          address,
+          country: operateFrom ? country : "",
+          phone,
+          cashappId,
+          cashappAccount,
+          zelleId,
+          zelleAccount,
+          imageUrl,
+          isPrimary: makeThisPrimary,
+        };
+        const existing = row.partners.find(
+          (partner) =>
+            partner.chargeKind === kind &&
+            outboundShippingCompanyKey(partner.name) ===
+              outboundShippingCompanyKey(name) &&
+            (catalogPreview || partner.barrelId === row.barrelId || partner.barrelId == null),
+        );
+        const res =
+          existing
+            ? await updateBarrelOutboundShippingPartnerAction({
+                id: existing.id,
+                ...payload,
+                keepOnlyThisKind: companyRole === "standalone",
+              })
+            : await addBarrelOutboundShippingPartnerAction({
+                ...(catalogPreview ? {} : { barrelId: row.barrelId }),
+                chargeKind: kind,
+                ...payload,
+                keepOnlyThisKind: companyRole === "standalone",
+              });
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
       }
-      toast.success(res.message);
+      const savedKind = kindsToSave[0] ?? chargeKind;
+      onSelectCompany?.({
+        id: editingId ?? "",
+        barrelId: catalogPreview ? null : row.barrelId,
+        chargeKind: savedKind,
+        name,
+        location: location || null,
+        address: address || null,
+        country: country || null,
+        phone: phone || null,
+        cashappId: cashappId || null,
+        cashappAccount: cashappAccount || null,
+        zelleId: zelleId || null,
+        zelleAccount: zelleAccount || null,
+        imageUrl: imageUrl || null,
+        isPrimary: makeThisPrimary,
+        customerNote: null,
+        publicPricingPublishedAt: null,
+      });
+      toast.success(
+        companyRole === "consolidate"
+          ? `${outboundChargeBundleLabel(kindsToSave)} saved as one company.`
+          : "Record saved.",
+      );
       resetForm(Math.max(records.length, 1));
       router.refresh();
     });
@@ -393,6 +521,7 @@ function PartnerRecordsEditor({
         return;
       }
       toast.success(res.message);
+      onSelectCompany?.(record);
       router.refresh();
     });
   }
@@ -431,6 +560,87 @@ function PartnerRecordsEditor({
     <div className="space-y-2">
       {formOpen ?
         <>
+          <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2.5">
+            <p className="text-xs font-medium text-foreground">
+              Company type
+            </p>
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              Standalone is one charge. Consolidate shares one company form
+              across two or three charges (Freight and broker use the same
+              quote).
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <label className="inline-flex items-center gap-1.5 text-xs text-foreground">
+                <input
+                  type="radio"
+                  name={`${row.barrelId}-${chargeKind}-company-role`}
+                  className="size-3.5 accent-primary"
+                  checked={companyRole === "standalone"}
+                  disabled={busy}
+                  onChange={() => {
+                    setCompanyRole("standalone");
+                    setFormKinds([formKinds[0] ?? chargeKind]);
+                  }}
+                />
+                Standalone
+              </label>
+              <label className="inline-flex items-center gap-1.5 text-xs text-foreground">
+                <input
+                  type="radio"
+                  name={`${row.barrelId}-${chargeKind}-company-role`}
+                  className="size-3.5 accent-primary"
+                  checked={companyRole === "consolidate"}
+                  disabled={busy}
+                  onChange={() => {
+                    setCompanyRole("consolidate");
+                    setFormKinds(
+                      formKinds.length >= 2
+                        ? formKinds
+                        : (["freight", "broker"] as BarrelOutboundShippingChargeKind[]),
+                    );
+                  }}
+                />
+                Consolidate
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.map((kind) => {
+                const checked = formKinds.includes(kind);
+                return (
+                  <label
+                    key={kind}
+                    className="inline-flex items-center gap-1.5 text-xs text-foreground"
+                  >
+                    <input
+                      type={companyRole === "standalone" ? "radio" : "checkbox"}
+                      name={
+                        companyRole === "standalone"
+                          ? `${row.barrelId}-${chargeKind}-form-kind`
+                          : undefined
+                      }
+                      className="size-3.5 accent-primary"
+                      checked={checked}
+                      disabled={busy}
+                      onChange={() => {
+                        if (companyRole === "standalone") {
+                          setFormKinds([kind]);
+                          return;
+                        }
+                        setFormKinds((current) =>
+                          current.includes(kind)
+                            ? current.filter((item) => item !== kind)
+                            : BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter(
+                                (item) => item === kind || current.includes(item),
+                              ),
+                        );
+                      }}
+                    />
+                    {BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind]}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor={`${row.barrelId}-${chargeKind}-name`}>
@@ -450,7 +660,7 @@ function PartnerRecordsEditor({
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
-            {!isFreight ?
+            {showOperateFrom ?
               <>
                 <div className="space-y-1 rounded-md border border-primary/30 bg-primary/10 p-2">
                   <Label htmlFor={`${row.barrelId}-${chargeKind}-location`}>
@@ -643,15 +853,23 @@ function PartnerRecordsEditor({
         <div className="space-y-1.5">
           {!catalogPreview && localCount < records.length ?
             <p className="text-xs text-muted-foreground">
-              Companies already saved on other containers are listed here. Select
-              Primary to use one on this container.
+              Companies already saved on other containers are listed here. Click
+              a row to select it and switch the tab to that company&apos;s type.
+              Select Primary to use one on this container.
             </p>
           : catalogPreview ?
             <p className="text-xs text-muted-foreground">
-              Companies saved here or on a shipment card. Edit address, payment
-              IDs, and Charge rate tables without opening a container.
+              Companies saved here or on a shipment card. Click a row to select
+              it — the tab bar shows that company&apos;s type (standalone or
+              consolidated). Edit address, payment IDs, and Charge rate tables
+              without opening a container.
             </p>
-          : null}
+          : (
+            <p className="text-xs text-muted-foreground">
+              Click a company to select it. The tab bar switches to that
+              company&apos;s type.
+            </p>
+          )}
           <div className={cn(appTableScroll, "overflow-x-auto")}>
           <table className="w-full min-w-[44rem] text-left text-sm">
             <thead>
@@ -688,23 +906,31 @@ function PartnerRecordsEditor({
                 const showAsPrimary = catalogPreview
                   ? record.barrelId == null && record.isPrimary
                   : onThisBarrel && record.isPrimary;
+                const isSelected =
+                  selectedCompanyKey === outboundShippingCompanyKey(record.name);
+                const typeLabel = companyTypeLabel(row.partners, record.name);
                 return (
                 <tr
                   key={record.id}
                   className={cn(
                     appTableRowHover,
-                    editingId === record.id && "bg-primary/10",
+                    "cursor-pointer",
+                    (editingId === record.id || isSelected) && "bg-primary/10",
                   )}
+                  onClick={() => onSelectCompany?.(record)}
                 >
                   <td className="px-3 py-2">
                     <input
                       type="radio"
                       name={`${row.barrelId}-${chargeKind}-primary`}
                       className="size-4 accent-primary"
-                      checked={showAsPrimary}
-                      disabled={busy}
+                      checked={record.chargeKind === chargeKind && showAsPrimary}
+                      disabled={busy || record.chargeKind !== chargeKind}
                       aria-label={`Set ${record.name} as primary`}
-                      onChange={() => setPrimary(record)}
+                      onChange={() => {
+                        onSelectCompany?.(record);
+                        setPrimary(record);
+                      }}
                     />
                   </td>
                   <td className="max-w-[9rem] px-3 py-2 font-medium text-foreground">
@@ -719,6 +945,9 @@ function PartnerRecordsEditor({
                       : null}
                       {record.publicPricingPublishedAt ?
                         <StatusBadge kind="quoted">How it works</StatusBadge>
+                      : null}
+                      {typeLabel ?
+                        <StatusBadge kind="quoted">{typeLabel}</StatusBadge>
                       : null}
                     </span>
                   </td>
@@ -815,11 +1044,17 @@ function AdminChargeKindForm({
   chargeKind,
   publishEnabled,
   lockMessage,
+  selectedCompanyKey = null,
+  onSelectCompany,
 }: {
   row: AdminBarrelOutboundShippingChargeRow;
   chargeKind: BarrelOutboundShippingChargeKind;
   publishEnabled: boolean;
   lockMessage?: string;
+  selectedCompanyKey?: string | null;
+  onSelectCompany?: (
+    record: AdminBarrelOutboundShippingChargeRow["partners"][number],
+  ) => void;
 }) {
   const router = useRouter();
   const existing = chargeViewForKind(row.charges, chargeKind);
@@ -960,6 +1195,8 @@ function AdminChargeKindForm({
         row={row}
         chargeKind={chargeKind}
         formDisabled={isPaid || pendingReview}
+        selectedCompanyKey={selectedCompanyKey}
+        onSelectCompany={onSelectCompany}
       />
 
       {chargeKind === "freight" ?
@@ -1134,11 +1371,17 @@ function AdminMergedBundleForm({
   bundledKinds,
   publishEnabled,
   lockMessage,
+  selectedCompanyKey = null,
+  onSelectCompany,
 }: {
   row: AdminBarrelOutboundShippingChargeRow;
   bundledKinds: BarrelOutboundShippingChargeKind[];
   publishEnabled: boolean;
   lockMessage?: string;
+  selectedCompanyKey?: string | null;
+  onSelectCompany?: (
+    record: AdminBarrelOutboundShippingChargeRow["partners"][number],
+  ) => void;
 }) {
   const router = useRouter();
   const host = outboundChargeBundleHost(bundledKinds) ?? bundledKinds[0] ?? "freight";
@@ -1352,6 +1595,8 @@ function AdminMergedBundleForm({
         row={row}
         chargeKind={host}
         formDisabled={anyPaid}
+        selectedCompanyKey={selectedCompanyKey}
+        onSelectCompany={onSelectCompany}
       />
 
       {host === "freight" ?
@@ -1568,8 +1813,18 @@ export function AdminOutboundChargeKindTabs({
   lockMessage?: string;
 }) {
   const kinds = useMemo(() => [...BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS], []);
+  const [selectedCompanyKey, setSelectedCompanyKey] = useState<string | null>(
+    null,
+  );
+  const selectedKinds = useMemo(() => {
+    if (!selectedCompanyKey) return [] as BarrelOutboundShippingChargeKind[];
+    const partner = row.partners.find(
+      (item) => outboundShippingCompanyKey(item.name) === selectedCompanyKey,
+    );
+    return partner ? kindsForCompanyName(row.partners, partner.name) : [];
+  }, [selectedCompanyKey, row.partners]);
   const groups = useMemo(() => {
-    const bundle = row.chargeBundle ?? [];
+    const bundle = selectedKinds.length >= 2 ? selectedKinds : [];
     const host = outboundChargeBundleHost(bundle);
     if (!host) {
       return kinds.map((kind) => ({
@@ -1592,7 +1847,7 @@ export function AdminOutboundChargeKindTabs({
         label: BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind],
       })),
     ];
-  }, [kinds, row.chargeBundle]);
+  }, [kinds, selectedKinds]);
   const [tab, setTab] = useState<string>(() => {
     const pendingKind = kinds.find((kind) => {
       const charge = chargeViewForKind(row.charges, kind);
@@ -1605,9 +1860,20 @@ export function AdminOutboundChargeKindTabs({
   });
   const activeGroup = groups.find((group) => group.id === tab) ?? groups[0];
 
+  function selectCompany(
+    record: AdminBarrelOutboundShippingChargeRow["partners"][number],
+  ) {
+    const key = outboundShippingCompanyKey(record.name);
+    setSelectedCompanyKey(key);
+    const companyKinds = kindsForCompanyName(row.partners, record.name);
+    const nextKinds =
+      companyKinds.length > 0 ? companyKinds : [record.chargeKind];
+    const bundle = nextKinds.length >= 2 ? nextKinds : [];
+    setTab(tabIdForCompanyKinds(nextKinds, bundle));
+  }
+
   return (
     <div className="space-y-3">
-      <AdminChargeBundleControls row={row} />
       <div
         role="tablist"
         aria-label="Outbound charge types"
@@ -1668,6 +1934,8 @@ export function AdminOutboundChargeKindTabs({
             bundledKinds={activeGroup.kinds}
             publishEnabled={publishEnabled}
             lockMessage={lockMessage}
+            selectedCompanyKey={selectedCompanyKey}
+            onSelectCompany={selectCompany}
           />
         : (
           <AdminChargeKindForm
@@ -1676,110 +1944,11 @@ export function AdminOutboundChargeKindTabs({
             chargeKind={activeGroup.kinds[0]!}
             publishEnabled={publishEnabled}
             lockMessage={lockMessage}
+            selectedCompanyKey={selectedCompanyKey}
+            onSelectCompany={selectCompany}
           />
         )
       : null}
-    </div>
-  );
-}
-
-function AdminChargeBundleControls({
-  row,
-}: {
-  row: AdminBarrelOutboundShippingChargeRow;
-}) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const catalogPreview = isAdminShippingCatalogPreview(row);
-  const saved = row.chargeBundle ?? [];
-  const savedKey = saved.join("\0");
-  const [draft, setDraft] = useState<BarrelOutboundShippingChargeKind[] | null>(
-    null,
-  );
-  const [draftKey, setDraftKey] = useState(savedKey);
-  const selected =
-    draft != null && draftKey === savedKey ? draft : saved;
-
-  function toggle(kind: BarrelOutboundShippingChargeKind) {
-    const current = draft != null && draftKey === savedKey ? draft : saved;
-    const next = current.includes(kind)
-      ? current.filter((item) => item !== kind)
-      : BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter(
-          (item) => item === kind || current.includes(item),
-        );
-    setDraftKey(savedKey);
-    setDraft(next);
-  }
-
-  function apply(kinds: BarrelOutboundShippingChargeKind[]) {
-    startTransition(async () => {
-      const res = await setBarrelOutboundChargeBundleAction({
-        barrelId: row.barrelId,
-        kinds,
-      });
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      toast.success(res.message);
-      router.refresh();
-    });
-  }
-
-  return (
-    <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2.5">
-      <p className="text-xs font-medium text-foreground">
-        Consolidate sub-tab charges
-      </p>
-      <p className="text-[11px] leading-snug text-muted-foreground">
-        Select two or all three. Freight and broker share one company form and
-        one clearance PDF section.
-        {catalogPreview
-          ? " This merger is saved for all future customer containers."
-          : " New containers for this customer reuse the same merger."}
-      </p>
-      <div className="flex flex-wrap gap-3">
-        {BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.map((kind) => (
-          <label
-            key={kind}
-            className="inline-flex items-center gap-1.5 text-xs text-foreground"
-          >
-            <input
-              type="checkbox"
-              className="size-3.5 accent-primary"
-              checked={selected.includes(kind)}
-              disabled={pending}
-              onChange={() => toggle(kind)}
-            />
-            {BARREL_OUTBOUND_SHIPPING_CHARGE_KIND_LABELS[kind]}
-          </label>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={pending || selected.length < 2}
-          onClick={() => apply(selected)}
-        >
-          {pending ? "Saving…" : "Consolidate selected"}
-        </Button>
-        {saved.length >= 2 ?
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() => {
-              setDraftKey(savedKey);
-              setDraft([]);
-              apply([]);
-            }}
-          >
-            Separate tabs
-          </Button>
-        : null}
-      </div>
     </div>
   );
 }

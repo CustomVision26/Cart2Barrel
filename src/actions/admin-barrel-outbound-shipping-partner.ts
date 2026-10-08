@@ -92,6 +92,7 @@ export async function addBarrelOutboundShippingPartnerAction(
     zelleAccount: parsed.data.zelleAccount.trim() || null,
     imageUrl: parsed.data.imageUrl.trim() || null,
     isPrimary: parsed.data.isPrimary,
+    keepOnlyThisKind: parsed.data.keepOnlyThisKind,
   });
 
   revalidatePartnerPaths();
@@ -130,6 +131,7 @@ export async function updateBarrelOutboundShippingPartnerAction(
     zelleAccount: parsed.data.zelleAccount.trim() || null,
     imageUrl: parsed.data.imageUrl.trim() || null,
     isPrimary: parsed.data.isPrimary,
+    keepOnlyThisKind: parsed.data.keepOnlyThisKind,
   });
   if (!result.ok) return result;
 

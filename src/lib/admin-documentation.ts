@@ -484,7 +484,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Shipments; Container Control at /admin/shipments-container-control; history at /admin/shipments-history.",
       bullets: [
         "Create and manage outbound shipment charges and 1-container vs extra-container rate tables. Customers link unpaid containers on Dashboard → Shipping.",
-        "Container Control tab: same Freight / Broker / Local courier catalog as Manage on a container card, without opening a shipment.",
+        "Container Control tab: same Freight / Broker / Local courier catalog as Manage on a container card, without opening a shipment. Add company chooses Standalone or Consolidate; selecting a company in the table switches the charge tab to that company's type.",
         "Publish a company to How it works → Pricing overview from the company record. Freight (or freight+broker) appears under In-US vendor as a service badge, customer-note info button, and destination buttons from the freight rate card—no company name or street. Pickup next to a container type opens that type's hub-to-office pickup fee. Standalone overseas brokers and couriers show a Local courier or Broker heading, then the company name, then a destination button for the country on the company record.",
         "Customs and freight billing to customer cart.",
         "Carrier tracking for international delivery.",
@@ -535,7 +535,8 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Sidebar → Shipments → Container Control tab (/admin/shipments-container-control).",
       bullets: [
         "Always available, even when no customer container is ready.",
-        "Freight charge, Broker, and Local courier sub-tabs match Manage on a Shipments card, including companies already created on a container.",
+        "Freight charge, Broker, and Local courier sub-tabs match Manage on a Shipments card, including companies already created on a container. Click a company in the table to select it; the tab bar shows that company's type (standalone Freight / Broker / Local courier, or a consolidated tab such as Freight charge + Broker).",
+        "Add company opens Standalone vs Consolidate. Standalone is one charge only (it is not copied onto Broker). Consolidate shares one company form across two or three charges.",
         "Edit company address, payment IDs, Ad, notes, Charge rate tables, and pickup fees here. Destination is required on each freight or broker container row.",
         "Publish to How it works from the company record. Per-container charge publish stays on Shipments → Manage.",
       ],
@@ -556,7 +557,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Open Sidebar → Shipments, then the Container Control tab.",
-        "Use Freight charge, Broker, and Local courier the same way as Manage: companies created on a shipment card appear here to edit. Add or edit name, address, location, payment IDs, Ad image, the note to customer, and Charge rate tables (including pickup fees). Freight and broker container rows need a destination so How it works can show that destination as a button.",
+        "Use Freight charge, Broker, and Local courier the same way as Manage: companies created on a shipment card appear here to edit. Click Add company and choose Standalone or Consolidate, then which charges the company covers. Click a saved company in the table to highlight it and switch the tab bar to that company's type. Add or edit name, address, location, payment IDs, Ad image, the note to customer, and Charge rate tables (including pickup fees). Freight and broker container rows need a destination so How it works can show that destination as a button.",
         "Publish a company to How it works from the company record when the public rate schedule should show it.",
         "When a customer container is ready, open Shipments → Manage on that card to publish the charge for Dashboard → Shipping.",
       ],

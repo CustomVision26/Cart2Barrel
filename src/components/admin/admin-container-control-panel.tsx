@@ -18,8 +18,10 @@ export function AdminContainerControlPanel({
         </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
           Same Freight charge, Broker, and Local courier tools as Manage on a
-          shipment card. Use this tab to maintain companies, notes, pickup fees,
-          and How it works publish without opening a container.
+          shipment card. Add company chooses Standalone or Consolidate. Click a
+          saved company to open its type as a tab. Use this page to maintain
+          companies, notes, pickup fees, and How it works publish without
+          opening a container.
         </p>
       </header>
       <Card className="overflow-hidden border-border/80 bg-card shadow-sm">

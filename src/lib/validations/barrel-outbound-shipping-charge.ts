@@ -72,6 +72,7 @@ export const addBarrelOutboundShippingPartnerSchema = z.object({
   zelleAccount: z.string().trim().max(160).optional().default(""),
   imageUrl: z.string().trim().max(2000).optional().default(""),
   isPrimary: z.boolean().optional().default(false),
+  keepOnlyThisKind: z.boolean().optional().default(false),
 });
 
 export const updateBarrelOutboundShippingPartnerSchema = z.object({
@@ -87,6 +88,7 @@ export const updateBarrelOutboundShippingPartnerSchema = z.object({
   zelleAccount: z.string().trim().max(160).optional().default(""),
   imageUrl: z.string().trim().max(2000).optional().default(""),
   isPrimary: z.boolean().optional().default(false),
+  keepOnlyThisKind: z.boolean().optional().default(false),
 });
 
 export const applyCatalogOutboundShippingPartnerSchema = z.object({

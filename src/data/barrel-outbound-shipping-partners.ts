@@ -13,15 +13,14 @@ import {
   ensureOutboundPartnerPublicPricingColumn,
 } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
 import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-column-missing";
-import type {
-  BarrelOutboundShippingChargeKind,
-  OutboundShippingPartnerRecord,
-} from "@/lib/barrel-outbound-shipping-charge";
 import {
+  BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS,
   isBarrelOutboundShippingChargeKind,
   outboundChargeBundleHost,
   outboundShippingCompanyKey,
   parseOutboundChargeBundle,
+  type BarrelOutboundShippingChargeKind,
+  type OutboundShippingPartnerRecord,
 } from "@/lib/barrel-outbound-shipping-charge";
 
 function mapPartner(
@@ -361,12 +360,112 @@ export async function copyPrimaryPartnerToChargeKind(input: {
   });
 }
 
+async function companyChargeKindsAtScope(
+  barrelId: string | null,
+  name: string,
+): Promise<BarrelOutboundShippingChargeKind[]> {
+  const key = partnerNameKey(name);
+  if (!key) return [];
+  const db = getDb();
+  const rows = await db
+    .select({
+      chargeKind: barrelOutboundShippingPartners.chargeKind,
+      name: barrelOutboundShippingPartners.name,
+    })
+    .from(barrelOutboundShippingPartners)
+    .where(partnerBarrelIdFilter(barrelId));
+  const found = new Set<BarrelOutboundShippingChargeKind>();
+  for (const row of rows) {
+    if (partnerNameKey(row.name) !== key) continue;
+    if (isBarrelOutboundShippingChargeKind(row.chargeKind)) {
+      found.add(row.chargeKind);
+    }
+  }
+  return BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) => found.has(kind));
+}
+
+export async function removeCompanyFromOtherChargeKinds(input: {
+  barrelId: string | null;
+  name: string;
+  keepKind: BarrelOutboundShippingChargeKind;
+}): Promise<void> {
+  const key = partnerNameKey(input.name);
+  if (!key) return;
+  const db = getDb();
+  const scoped = db
+    .select({
+      id: barrelOutboundShippingPartners.id,
+      name: barrelOutboundShippingPartners.name,
+      chargeKind: barrelOutboundShippingPartners.chargeKind,
+    })
+    .from(barrelOutboundShippingPartners);
+  const rows =
+    input.barrelId === null
+      ? await scoped
+      : await scoped.where(partnerBarrelIdFilter(input.barrelId));
+  const ids = rows
+    .filter(
+      (row) =>
+        partnerNameKey(row.name) === key && row.chargeKind !== input.keepKind,
+    )
+    .map((row) => row.id);
+  if (ids.length === 0) return;
+  await db
+    .delete(barrelOutboundShippingPartners)
+    .where(inArray(barrelOutboundShippingPartners.id, ids));
+}
+
+/** Undo leftover global freight+broker clones on the company catalog. */
+export async function clearStaleCatalogChargeBundleClones(): Promise<void> {
+  const { getOutboundShippingCatalogDefaults, setCatalogChargeBundle } =
+    await import("@/data/outbound-shipping-catalog-defaults");
+  const defaults = await getOutboundShippingCatalogDefaults();
+  const host = outboundChargeBundleHost(defaults.chargeBundle);
+  if (!host) return;
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: barrelOutboundShippingPartners.id,
+      name: barrelOutboundShippingPartners.name,
+      chargeKind: barrelOutboundShippingPartners.chargeKind,
+    })
+    .from(barrelOutboundShippingPartners);
+  const hostNames = new Set(
+    rows
+      .filter((row) => row.chargeKind === host)
+      .map((row) => partnerNameKey(row.name)),
+  );
+  const extraIds = rows
+    .filter(
+      (row) =>
+        row.chargeKind !== host &&
+        defaults.chargeBundle.includes(
+          row.chargeKind as BarrelOutboundShippingChargeKind,
+        ) &&
+        hostNames.has(partnerNameKey(row.name)),
+    )
+    .map((row) => row.id);
+  if (extraIds.length > 0) {
+    await db
+      .delete(barrelOutboundShippingPartners)
+      .where(inArray(barrelOutboundShippingPartners.id, extraIds));
+  }
+  await setCatalogChargeBundle([]);
+}
+
 export async function syncBundlePartnersFromHost(
   barrelId: string | null,
   bundle: readonly BarrelOutboundShippingChargeKind[],
 ): Promise<void> {
   const host = outboundChargeBundleHost(bundle);
   if (!host) return;
+  const source = await getPrimaryOutboundShippingPartner(barrelId, host);
+  if (!source?.name.trim()) return;
+  const existingKinds = await companyChargeKindsAtScope(barrelId, source.name);
+  const alreadyConsolidated = existingKinds.some(
+    (kind) => kind !== host && bundle.includes(kind),
+  );
+  if (!alreadyConsolidated) return;
   for (const kind of bundle) {
     if (kind === host) continue;
     await copyPrimaryPartnerToChargeKind({
@@ -460,6 +559,7 @@ export async function addOutboundShippingPartner(input: {
   zelleAccount: string | null;
   imageUrl?: string | null;
   isPrimary: boolean;
+  keepOnlyThisKind?: boolean;
 }): Promise<OutboundShippingPartnerRecord> {
   await ensureBarrelOutboundShippingChargesSchema();
   const db = getDb();
@@ -522,6 +622,13 @@ export async function addOutboundShippingPartner(input: {
       });
     }
     await maybeSyncPartnerOntoBarrel(input.barrelId, input.chargeKind);
+    if (input.keepOnlyThisKind) {
+      await removeCompanyFromOtherChargeKinds({
+        barrelId: input.barrelId,
+        name: input.name,
+        keepKind: input.chargeKind,
+      });
+    }
     return mapPartner(updated);
   }
 
@@ -555,6 +662,13 @@ export async function addOutboundShippingPartner(input: {
     });
   }
   await maybeSyncPartnerOntoBarrel(input.barrelId, input.chargeKind);
+  if (input.keepOnlyThisKind) {
+    await removeCompanyFromOtherChargeKinds({
+      barrelId: input.barrelId,
+      name: input.name,
+      keepKind: input.chargeKind,
+    });
+  }
 
   return mapPartner(inserted);
 }
@@ -609,6 +723,7 @@ export async function updateOutboundShippingPartner(input: {
   zelleAccount: string | null;
   imageUrl?: string | null;
   isPrimary: boolean;
+  keepOnlyThisKind?: boolean;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   await ensureBarrelOutboundShippingChargesSchema();
   const db = getDb();
@@ -674,9 +789,17 @@ export async function updateOutboundShippingPartner(input: {
       zelleAccount: input.zelleAccount,
       imageUrl,
       isPrimary: makePrimary,
+      keepOnlyThisKind: input.keepOnlyThisKind,
     });
   }
   await maybeSyncPartnerOntoBarrel(row.barrelId, kind);
+  if (input.keepOnlyThisKind) {
+    await removeCompanyFromOtherChargeKinds({
+      barrelId: row.barrelId,
+      name: input.name,
+      keepKind: kind,
+    });
+  }
   return { ok: true };
 }
 
