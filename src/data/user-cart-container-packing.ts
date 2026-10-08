@@ -9,6 +9,7 @@ import {
 import {
   computeContainerPackingFeeBreakdown,
   withDefaultContainerPackingRates,
+  type CargoBoxPackingCounts,
   type ContainerPackingFeeBreakdown,
   type ContainerPackingRates,
 } from "@/lib/container-packing-fee";
@@ -125,12 +126,14 @@ export async function resolveContainerPackingForUserCart(
   barrelCount: number,
   binCount: number,
   rates: ContainerPackingRates,
+  cargoBoxCounts?: CargoBoxPackingCounts,
 ): Promise<ContainerPackingFeeBreakdown> {
   const effectiveRates = withDefaultContainerPackingRates(rates);
   const live = computeContainerPackingFeeBreakdown(
     barrelCount,
     binCount,
     effectiveRates,
+    cargoBoxCounts,
   );
   const applied = await getAppliedCartContainerPackingFees(clerkUserId);
   if (
@@ -145,7 +148,13 @@ export async function resolveContainerPackingForUserCart(
       binCount: applied.binCount,
       barrelPackingFeeCents: applied.barrelPackingFeeCents,
       binPackingFeeCents: applied.binPackingFeeCents,
-      totalPackingFeeCents: applied.totalPackingFeeCents,
+      cargoBoxCounts: live.cargoBoxCounts,
+      cargoBoxPackingBySize: live.cargoBoxPackingBySize,
+      cargoBoxPackingFeeCents: live.cargoBoxPackingFeeCents,
+      totalPackingFeeCents:
+        applied.barrelPackingFeeCents +
+        applied.binPackingFeeCents +
+        live.cargoBoxPackingFeeCents,
     };
   }
   return live;

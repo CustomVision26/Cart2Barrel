@@ -9,6 +9,7 @@ import { SiteContactFooter } from "@/components/marketing/site-contact-footer";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { Button } from "@/components/ui/button";
 import { listActiveContainerOfferingsWithImages } from "@/data/container-offerings";
+import { listPublishedContainerPackingFeeRecords } from "@/data/container-packing-fee-records";
 import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 import { DEFAULT_MERCHANT_SERVICE_TIERS } from "@/lib/admin-markup";
 import { buildContainerCatalogChartRows, buildContainerPackingFeeChartRows } from "@/lib/container-packing-fee-chart";
@@ -54,8 +55,10 @@ export default async function HowItWorksPage({
       outsidePurchaseServiceFeeChartRows = buildServiceHandlingFeeChartRows(
         pricing.outsidePurchaseServiceTiers,
       );
+      const publishedPacking = await listPublishedContainerPackingFeeRecords();
       containerPackingChartRows = buildContainerPackingFeeChartRows(
         pricing.containerPackingRates,
+        publishedPacking,
       );
     } catch {
       inAppServiceFeeChartRows = buildServiceHandlingFeeChartRows(

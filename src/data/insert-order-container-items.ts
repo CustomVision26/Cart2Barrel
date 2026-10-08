@@ -4,6 +4,7 @@ import type { ContainerCheckoutLine } from "@/data/user-container-cart";
 import {
   allocateContainerPackingFeeToLineCents,
   containerPackingPerUnitCentsForKind,
+  type CargoBoxPackingCounts,
   type ContainerPackingRates,
 } from "@/lib/container-packing-fee";
 import { ensureOrderContainerPackagingFeeColumns } from "@/data/ensure-order-container-packaging-fee-schema";
@@ -12,6 +13,7 @@ import { isMissingOrderContainerPackagingFeeColumnError } from "@/lib/db-column-
 export type OrderContainerPackingContext = {
   barrelCount: number;
   binCount: number;
+  cargoBoxCounts?: CargoBoxPackingCounts;
   rates: ContainerPackingRates;
 };
 
@@ -29,12 +31,18 @@ function packingFieldsForLine(
       barrelCount: packing.barrelCount,
       binCount: packing.binCount,
       rates: packing.rates,
+      sizeLabel: line.sizeLabel,
+      cargoBoxCounts: packing.cargoBoxCounts,
     }),
     packagingPerUnitCents: containerPackingPerUnitCentsForKind(
       line.kind,
       packing.barrelCount,
       packing.binCount,
       packing.rates,
+      {
+        sizeLabel: line.sizeLabel,
+        cargoBoxCounts: packing.cargoBoxCounts,
+      },
     ),
   };
 }

@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { orderContainerItems, orders } from "@/db/schema";
 import {
   allocateContainerPackingFeeToLineCents,
+  cargoBoxCountsFromLines,
   containerPackingPerUnitCentsForKind,
   type ContainerPackingRates,
 } from "@/lib/container-packing-fee";
@@ -78,6 +79,13 @@ function applyPackingFallback(
     }, 0);
     const clerkUserId = orderRows[0]?.clerkUserId ?? "";
     const rates = ratesByClerkUserId.get(clerkUserId);
+    const cargoBoxCounts = cargoBoxCountsFromLines(
+      orderRows.map((row) => ({
+        kind: parseContainerOfferingKind(row.kindSnapshot),
+        quantity: row.quantity,
+        sizeLabel: row.sizeSnapshot,
+      })),
+    );
 
     for (const row of orderRows) {
       if (row.packagingFeeCents > 0 || !rates) {
@@ -93,12 +101,15 @@ function applyPackingFallback(
           barrelCount,
           binCount,
           rates,
+          sizeLabel: row.sizeSnapshot,
+          cargoBoxCounts,
         }),
         packagingPerUnitCents: containerPackingPerUnitCentsForKind(
           kind,
           barrelCount,
           binCount,
           rates,
+          { sizeLabel: row.sizeSnapshot, cargoBoxCounts },
         ),
       });
     }

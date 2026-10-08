@@ -1247,6 +1247,38 @@ export const merchantPackingFeeSettings = pgTable("merchant_packing_fee_settings
 });
 
 /**
+ * Staff packing-fee schedules: one row per barrel, bin, or cargo-box size (E / EH / D).
+ * Publish to show on How it works and to bill at checkout.
+ */
+export const containerPackingFeeRecords = pgTable(
+  "container_packing_fee_records",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    containerKind: containerOfferingKindEnum("container_kind").notNull(),
+    /** Empty for barrel/bin. `E`, `EH`, or `D` for cargo boxes. */
+    cargoBoxSize: text("cargo_box_size").notNull().default(""),
+    singleFeeCents: integer("single_fee_cents").notNull(),
+    multiFeeCents: integer("multi_fee_cents").notNull(),
+    publishedAt: timestamp("published_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("container_packing_fee_records_kind_size_uidx").on(
+      t.containerKind,
+      t.cargoBoxSize,
+    ),
+  ],
+);
+
+/**
  * Manual total packing/shipping fee (cents) for a cart mix of barrel vs bin container counts.
  * Lookup: exact match on (barrel_count, bin_count) after summing quantities by offering kind.
  */
@@ -3423,6 +3455,10 @@ export type NewDeliveryRequest = typeof deliveryRequests.$inferInsert;
 
 export type MerchantPackingFeeSetting = typeof merchantPackingFeeSettings.$inferSelect;
 export type NewMerchantPackingFeeSetting = typeof merchantPackingFeeSettings.$inferInsert;
+export type ContainerPackingFeeRecordRow =
+  typeof containerPackingFeeRecords.$inferSelect;
+export type NewContainerPackingFeeRecord =
+  typeof containerPackingFeeRecords.$inferInsert;
 export type MerchantPackingComboFee = typeof merchantPackingComboFees.$inferSelect;
 export type NewMerchantPackingComboFee = typeof merchantPackingComboFees.$inferInsert;
 

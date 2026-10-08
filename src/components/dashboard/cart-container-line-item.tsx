@@ -8,6 +8,7 @@ import { formatUsd } from "@/lib/admin-markup";
 import {
   allocateContainerPackingFeeToLineCents,
   containerPackingPerUnitCentsForKind,
+  type CargoBoxPackingCounts,
   type ContainerPackingRates,
 } from "@/lib/container-packing-fee";
 import {
@@ -29,6 +30,7 @@ export type CartContainerLineItemProps = {
   imageUrl: string | null;
   barrelCount: number;
   binCount: number;
+  cargoBoxCounts?: CargoBoxPackingCounts;
   containerPackingRates: ContainerPackingRates;
 };
 
@@ -46,6 +48,7 @@ export function CartContainerLineItem({
   imageUrl,
   barrelCount,
   binCount,
+  cargoBoxCounts,
   containerPackingRates,
 }: CartContainerLineItemProps) {
   const containerSubtotalCents = unitPriceCents * quantity;
@@ -55,6 +58,7 @@ export function CartContainerLineItem({
     barrelCount,
     binCount,
     containerPackingRates,
+    { sizeLabel, cargoBoxCounts },
   );
   const packagingFeeCents = allocateContainerPackingFeeToLineCents({
     kind,
@@ -62,6 +66,8 @@ export function CartContainerLineItem({
     barrelCount,
     binCount,
     rates: containerPackingRates,
+    sizeLabel,
+    cargoBoxCounts,
   });
   const lineTotalCents =
     containerSubtotalCents +

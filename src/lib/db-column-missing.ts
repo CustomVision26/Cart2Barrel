@@ -490,3 +490,13 @@ export function isMissingPageVisitsTableError(e: unknown): boolean {
   if (code === "42P01") return true;
   return /does not exist|relation\b/i.test(msg);
 }
+
+export function isMissingContainerPackingFeeRecordsTableError(
+  e: unknown,
+): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("container_packing_fee_records")) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}

@@ -6,6 +6,10 @@ import {
   outsidePurchaseServiceHandlingFeeTiers,
   serviceHandlingFeeTiers,
 } from "@/db/schema";
+import {
+  applyPackingFeeRecordsToRates,
+  listPublishedContainerPackingFeeRecords,
+} from "@/data/container-packing-fee-records";
 import { getCustomerPricingPackage } from "@/data/customer-pricing-packages";
 import {
   DEFAULT_MERCHANT_SERVICE_TIERS,
@@ -106,7 +110,11 @@ async function loadGlobalMerchantPricing(): Promise<MerchantPricingEstimateSnaps
       0,
       packRow?.packingFeePerLineCents ?? 0,
     );
-    const containerPackingRates = packRowToContainerRates(packRow);
+    const publishedPacking = await listPublishedContainerPackingFeeRecords();
+    const containerPackingRates = applyPackingFeeRecordsToRates(
+      packRowToContainerRates(packRow),
+      publishedPacking,
+    );
     const serviceTiers =
       tierRows.length === 0 ?
         [...DEFAULT_MERCHANT_SERVICE_TIERS]

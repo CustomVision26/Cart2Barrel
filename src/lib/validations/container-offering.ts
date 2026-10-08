@@ -33,11 +33,39 @@ export function isShopperCatalogContainerKind(
   return kind === "barrel" || kind === "bin" || kind === "cargo_box";
 }
 
-/** Packing fees apply only to barrels and bins. */
+export const CARGO_BOX_PACKING_SIZES = ["E", "EH", "D"] as const;
+export type CargoBoxPackingSize = (typeof CARGO_BOX_PACKING_SIZES)[number];
+
+export const cargoBoxPackingSizeSchema = z.enum(CARGO_BOX_PACKING_SIZES);
+
+/** Packing fees apply to barrels, bins, and cargo boxes. */
 export function containerKindChargesPackingFee(
   kind: ContainerOfferingKind,
 ): boolean {
-  return kind === "barrel" || kind === "bin";
+  return kind === "barrel" || kind === "bin" || kind === "cargo_box";
+}
+
+/** Map a catalog size label to E / EH / D when it names a cargo-box packing size. */
+export function parseCargoBoxPackingSize(
+  raw: string | null | undefined,
+): CargoBoxPackingSize | null {
+  const compact = raw?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") ?? "";
+  if (!compact) return null;
+  if (compact === "EH" || compact.startsWith("EH")) return "EH";
+  if (compact === "E" || compact === "EBOX" || compact === "BOXE") return "E";
+  if (compact === "D" || compact === "DBOX" || compact === "BOXD") return "D";
+  return null;
+}
+
+export function packingFeeContainerLabel(
+  kind: ContainerOfferingKind,
+  cargoBoxSize?: string | null,
+): string {
+  if (kind === "cargo_box") {
+    const size = parseCargoBoxPackingSize(cargoBoxSize) ?? cargoBoxSize?.trim();
+    return size ? `Cargo box ${size}` : "Cargo box";
+  }
+  return containerOfferingKindLabel(kind);
 }
 
 /** Snapshot / legacy rows: unknown values fall back to barrel. */

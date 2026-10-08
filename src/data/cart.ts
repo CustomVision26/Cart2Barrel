@@ -35,15 +35,18 @@ import { buildSpecialSuitcaseBaggageAllocation } from "@/data/user-container-car
 import { outsidePurchaseReturnTransitCheckoutCaption } from "@/lib/outside-purchase-display";
 import { allocateBundleSubtotalAcrossLineTotalsCents } from "@/lib/batch-cart-allocation";
 import type {
+  CargoBoxPackingCounts,
   ContainerPackingFeeBreakdown,
   ContainerPackingRates,
 } from "@/lib/container-packing-fee";
 import {
   allocateContainerPackingFeeToLineCents,
+  cargoBoxCountsFromLines,
   containerPackingPerUnitCentsForKind,
   containerPackingPerUnitCentsFromBreakdown,
 } from "@/lib/container-packing-fee";
 import {
+  CARGO_BOX_PACKING_SIZES,
   containerOfferingKindLabel,
   parseContainerOfferingKind,
   type ContainerOfferingKind,
@@ -844,6 +847,25 @@ export function buildStripeLineItemsFromContainerPackingBreakdown(
       },
     });
   }
+  for (const size of CARGO_BOX_PACKING_SIZES) {
+    const fee = breakdown.cargoBoxPackingBySize[size] ?? 0;
+    if (fee <= 0) continue;
+    const n = breakdown.cargoBoxCounts[size] ?? 0;
+    items.push({
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: fee,
+        product_data: {
+          name: `Cargo box ${size} packing fee`,
+          description:
+            n === 1
+              ? `Single cargo box ${size} packing rate`
+              : `${n} cargo box ${size} at multi-unit rate`,
+        },
+      },
+    });
+  }
   return items;
 }
 
@@ -852,6 +874,7 @@ export function buildStripeLineItemsFromContainerCheckoutLines(
   packing?: {
     barrelCount: number;
     binCount: number;
+    cargoBoxCounts?: CargoBoxPackingCounts;
     rates: ContainerPackingRates;
   },
 ): StripeCheckoutPriceDataLine[] {
@@ -867,6 +890,8 @@ export function buildStripeLineItemsFromContainerCheckoutLines(
           barrelCount: packing.barrelCount,
           binCount: packing.binCount,
           rates: packing.rates,
+          sizeLabel: line.sizeLabel,
+          cargoBoxCounts: packing.cargoBoxCounts,
         })
       : 0;
     const packagingPerUnitCents =
@@ -876,6 +901,10 @@ export function buildStripeLineItemsFromContainerCheckoutLines(
           packing.barrelCount,
           packing.binCount,
           packing.rates,
+          {
+            sizeLabel: line.sizeLabel,
+            cargoBoxCounts: packing.cargoBoxCounts,
+          },
         )
       : 0;
     const chargeCents =
@@ -1212,11 +1241,19 @@ export async function getCartCheckoutOrderSummaryForUser(
     if (kind === "barrel") barrelCount += row.quantity;
     else if (kind === "bin") binCount += row.quantity;
   }
+  const cargoBoxCounts = cargoBoxCountsFromLines(
+    containerRowsRaw.map((row) => ({
+      kind: parseContainerOfferingKind(row.kindSnapshot),
+      quantity: row.quantity,
+      sizeLabel: row.sizeSnapshot,
+    })),
+  );
   const containerPacking = await resolveContainerPackingForUserCart(
     clerkUserId,
     barrelCount,
     binCount,
     containerPackingRates,
+    cargoBoxCounts,
   );
 
   const baggageAllocation = buildSpecialSuitcaseBaggageAllocation(
@@ -1255,6 +1292,7 @@ export async function getCartCheckoutOrderSummaryForUser(
       const packagingPerUnitCents = containerPackingPerUnitCentsFromBreakdown(
         kind,
         containerPacking,
+        row.sizeSnapshot,
       );
       const packagingFeeCents = allocateContainerPackingFeeToLineCents({
         kind,
@@ -1262,6 +1300,8 @@ export async function getCartCheckoutOrderSummaryForUser(
         barrelCount: containerPacking.barrelCount,
         binCount: containerPacking.binCount,
         rates: containerPackingRates,
+        sizeLabel: row.sizeSnapshot,
+        cargoBoxCounts: containerPacking.cargoBoxCounts,
       });
       return {
         id: row.id,

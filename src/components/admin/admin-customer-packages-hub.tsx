@@ -9,14 +9,14 @@ import type { AdminProfilePickerRow } from "@/data/customer-pricing-packages";
 import type { CustomerPricingPackageListRow } from "@/data/customer-pricing-packages";
 import type { CustomerPricingPackageSnapshot } from "@/data/customer-pricing-packages";
 import type { MerchantPricingEstimateSnapshot } from "@/data/merchant-pricing-settings";
-import type { ContainerPackingRates } from "@/lib/container-packing-fee";
+import type { ContainerPackingFeeRecord } from "@/lib/container-packing-fee";
 import { cn } from "@/lib/utils";
 
 export type CustomerPackagesSubTab = "general" | "customer" | "saved";
 
 type AdminCustomerPackagesHubProps = {
   packageTab: CustomerPackagesSubTab;
-  initialContainerPackingRates: ContainerPackingRates;
+  packingFeeRecords: ContainerPackingFeeRecord[];
   users: AdminProfilePickerRow[];
   savedPackages: CustomerPricingPackageListRow[];
   selectedClerkUserId?: string;
@@ -40,7 +40,7 @@ function subTabHref(
 
 export function AdminCustomerPackagesHub({
   packageTab,
-  initialContainerPackingRates,
+  packingFeeRecords,
   users,
   savedPackages,
   selectedClerkUserId,
@@ -86,9 +86,7 @@ export function AdminCustomerPackagesHub({
       </div>
 
       {packageTab === "general" ?
-        <AdminGeneralPackageFeePanel
-          initialContainerPackingRates={initialContainerPackingRates}
-        />
+        <AdminGeneralPackageFeePanel records={packingFeeRecords} />
       : packageTab === "saved" ?
         <AdminCustomerPackagesListPanel packages={savedPackages} />
       : <AdminCustomerPricingPackagesPanel

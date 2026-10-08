@@ -170,7 +170,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Summary: refund queue banner and high-level orientation.",
         "Finance: revenue, taxes, Stripe fees, refunds by date.",
         "Fees & rates: in-app and outside-purchase service & handling tiers only.",
-        "Customer packages: General package fee is barrel/bin packing (1 vs 2+ rates); Select customer and Saved packages for per-shopper overrides. No packing fee per quoted line.",
+        "Customer packages: General package fee is a table of barrel, cargo box (E/EH/D), and bin packing records (1 vs 2+ rates) with Publish, Edit, and Delete; Select customer and Saved packages for per-shopper barrel/bin overrides. No packing fee per quoted line.",
         "Shipping containers: solid-colored Catalog accordion and color-coded table; double-click a row to edit, then Publish / Unpublish.",
         "In-hub products: Hub ship-from addresses and Add in-hub product sub-tabs (warehouse origins, one primary; SKUs with packed weight/size for Shippo).",
         "Special features: catalog table of timed suitcase offers; double-click a row to edit, then Publish.",
@@ -180,24 +180,24 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       dos: [
         "Use Finance for reconciliation, not Summary alone.",
         "Change service & handling tiers deliberately—existing quotes may use prior bands.",
-        "Edit barrel/bin packing under Customer packages → General package fee, not Fees & rates.",
+        "Create and publish barrel, cargo box (E/EH/D), and bin packing under Customer packages → General package fee, not Fees & rates.",
         "Publish Quote Expiry Settings (hub, customer, or product override) when retailer volatility or refund risk changes the payment window policy.",
       ],
       donts: [
-        "Don't look for a packing fee per quoted line—quotes hardcode packing at $0; packing is barrel/bin only.",
+        "Don't look for a packing fee per quoted line—quotes hardcode packing at $0; packing is barrel, cargo box, and bin only.",
         "Don't edit container catalog without coordinating marketing spotlight.",
         "Don't change merchant tiers during active quote sessions without staff alignment.",
       ],
     },
     article: {
       overview: [
-        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, service & handling tiers, barrel/bin packing packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, and the quote expiry window for shoppers.",
+        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, service & handling tiers, barrel/cargo box/bin packing packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, and the quote expiry window for shoppers.",
       ],
       walkthrough: [
         "Summary tab: starting point with refund-awaiting banner and orientation copy.",
         "Finance tab: filter by date range; review revenue, tax, Stripe fees, and refund totals (respects customer filter when set).",
         "Fees & rates tab: edit in-app and outside-purchase service & handling tiers. Packing and container combination rates are not on this tab.",
-        "Customer packages tab: General package fee sets default barrel and bin packing (exactly 1 vs 2+ of each type). Select customer and Saved packages override those rates per shopper. Quotes do not add a packing fee per quoted product line.",
+        "Customer packages tab: General package fee creates packing records for barrel, cargo box (E, EH, D), and bin (exactly 1 vs 2+ of that type). Add a record, then Publish, Edit, or Delete it from the table. Open a row to edit the 1-container and 2+ rates. Select customer and Saved packages override barrel/bin rates per shopper. Quotes do not add a packing fee per quoted product line.",
         "Shipping containers tab: add barrels, bins, cargo boxes, and special-feature suitcases with prices and photos. Every container has a shopper-facing note; cargo box size uses the same Size field as barrels and bins. Catalog is a solid-colored accordion so the table stays readable over the page watermark. Rows are color-coded (amber barrel, blue bin, emerald cargo box, violet suitcase). Double-click a row to open the editor, then Publish / Unpublish to show or hide the SKU on the shopper Barrels page.",
         "In-hub products tab: Hub ship-from addresses sub-tab to add US warehouse origins (double-click or Open to edit; only one can be primary for Shippo). Add in-hub product sub-tab to add SKUs with packed weight (ounces) and outer length/width/height (inches), then Publish so they appear on Home. Shippo uses those parcel fields plus SHIPPO_API_KEY to rate US delivery and to buy domestic labels from Orders. Set SHIPPO_WEBHOOK_TOKEN and a track_updated webhook so customer tracking stays current (production example: https://amanicart2-barrel.vercel.app/api/webhooks/shippo?token=<SHIPPO_WEBHOOK_TOKEN>). Overseas-container destination does not call Shippo.",
         "Special features tab: catalog table of timed suitcase specials; double-click a row to open the editor.",
@@ -216,7 +216,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Do not delete or disable container offerings that customers already purchased without a migration plan.",
         "Do not change fee tiers without understanding impact on open cart lines and unpublished quotes.",
-        "Do not add a packing fee to quote lines; packing is charged on barrels and bins only.",
+        "Do not add a packing fee to quote lines; packing is charged on barrels, cargo boxes, and bins only.",
       ],
     },
   },

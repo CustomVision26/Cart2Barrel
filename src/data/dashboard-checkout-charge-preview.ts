@@ -34,6 +34,7 @@ import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-p
 import { formatUsd } from "@/lib/admin-markup";
 import {
   allocateContainerPackingFeeToLineCents,
+  cargoBoxCountsFromLines,
   containerPackingPerUnitCentsFromBreakdown,
 } from "@/lib/container-packing-fee";
 import {
@@ -488,11 +489,19 @@ async function loadContainerChargeRows(
     else if (kind === "bin") binCount += row.quantity;
   }
 
+  const cargoBoxCounts = cargoBoxCountsFromLines(
+    containerRows.map((row) => ({
+      kind: parseContainerOfferingKind(row.kindSnapshot),
+      quantity: row.quantity,
+      sizeLabel: row.sizeSnapshot,
+    })),
+  );
   const packing = await resolveContainerPackingForUserCart(
     clerkUserId,
     barrelCount,
     binCount,
     containerPackingRates,
+    cargoBoxCounts,
   );
 
   const baggageAllocation = buildSpecialSuitcaseBaggageAllocation(
@@ -530,8 +539,14 @@ async function loadContainerChargeRows(
       barrelCount: packing.barrelCount,
       binCount: packing.binCount,
       rates: containerPackingRates,
+      sizeLabel: row.sizeSnapshot,
+      cargoBoxCounts: packing.cargoBoxCounts,
     });
-    const perUnit = containerPackingPerUnitCentsFromBreakdown(kind, packing);
+    const perUnit = containerPackingPerUnitCentsFromBreakdown(
+      kind,
+      packing,
+      row.sizeSnapshot,
+    );
     const charge = containerSubtotal + transportationFeeCents + airlineBaggageFeeCents + packagingFee;
     rows.push({
       label: row.nameSnapshot,

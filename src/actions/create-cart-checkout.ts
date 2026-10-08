@@ -26,6 +26,7 @@ import {
 } from "@/data/user-container-cart";
 import { validateSpecialOfferSlotAvailabilityForCartLines } from "@/data/special-feature-suitcase-slots";
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
+import { cargoBoxCountsFromLines } from "@/lib/container-packing-fee";
 import {
   buildStripeLineItemsFromOutboundShippingCart,
   clearOutboundShippingCartForCharges,
@@ -113,11 +114,13 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
   const { barrelCount, binCount } = sumContainerQuantitiesByKind(
     containerCheckoutLines.map((l) => ({ quantity: l.quantity, kind: l.kind })),
   );
+  const cargoBoxCounts = cargoBoxCountsFromLines(containerCheckoutLines);
   const containerPacking = await resolveContainerPackingForUserCart(
     userId,
     barrelCount,
     binCount,
     containerPackingRates,
+    cargoBoxCounts,
   );
   const outboundShippingCartLines = await listUserOutboundShippingCartLines(userId);
   const outboundShippingSubtotalCents = sumOutboundShippingCartLinesCents(
@@ -277,6 +280,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     {
       barrelCount: containerPacking.barrelCount,
       binCount: containerPacking.binCount,
+      cargoBoxCounts: containerPacking.cargoBoxCounts,
       rates: containerPackingRates,
     },
   );
@@ -362,6 +366,7 @@ export async function createCartCheckoutAction(): Promise<CreateCartCheckoutStat
     ...buildStripeLineItemsFromContainerCheckoutLines(containerCheckoutLines, {
       barrelCount: containerPacking.barrelCount,
       binCount: containerPacking.binCount,
+      cargoBoxCounts: containerPacking.cargoBoxCounts,
       rates: containerPackingRates,
     }),
     ...buildStripeLineItemsFromOutboundShippingCart(outboundShippingCartLines),

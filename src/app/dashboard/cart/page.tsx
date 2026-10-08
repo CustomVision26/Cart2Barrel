@@ -29,6 +29,7 @@ import {
   sumContainerCartQuantitiesByKind,
   buildSpecialSuitcaseBaggageAllocation,
 } from "@/data/user-container-cart";
+import { cargoBoxCountsFromLines } from "@/lib/container-packing-fee";
 import { getSpecialFeatureCartPricingByOfferingIds } from "@/data/special-feature-offers";
 import { resolveContainerPackingForUserCart } from "@/data/user-cart-container-packing";
 import {
@@ -117,11 +118,19 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
   const { containerPackingRates } = await getMerchantPricingForEstimates(userId);
   const { barrelCount, binCount } =
     sumContainerCartQuantitiesByKind(containerCartRows);
+  const cargoBoxCounts = cargoBoxCountsFromLines(
+    containerCartRows.map((row) => ({
+      kind: row.offering.kind,
+      quantity: row.quantity,
+      sizeLabel: row.offering.sizeLabel,
+    })),
+  );
   const containerPacking = await resolveContainerPackingForUserCart(
     userId,
     barrelCount,
     binCount,
     containerPackingRates,
+    cargoBoxCounts,
   );
   const outboundShippingCartLines = await listUserOutboundShippingCartLines(userId);
   const outboundShippingSubtotalCents = sumOutboundShippingCartLinesCents(
@@ -410,6 +419,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
                       imageUrl={images[0]?.imageUrl ?? null}
                       barrelCount={barrelCount}
                       binCount={binCount}
+                      cargoBoxCounts={cargoBoxCounts}
                       containerPackingRates={containerPackingRates}
                     />
                     );

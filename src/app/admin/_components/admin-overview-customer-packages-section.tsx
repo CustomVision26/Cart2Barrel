@@ -7,10 +7,8 @@ import {
   listCustomerPricingPackagesForAdmin,
   listProfilesForAdminPicker,
 } from "@/data/customer-pricing-packages";
-import {
-  getMerchantPricingForAdminEditor,
-  getMerchantPricingForEstimates,
-} from "@/data/merchant-pricing-settings";
+import { listContainerPackingFeeRecords } from "@/data/container-packing-fee-records";
+import { getMerchantPricingForEstimates } from "@/data/merchant-pricing-settings";
 
 export async function AdminOverviewCustomerPackagesSection({
   packageTab,
@@ -19,11 +17,11 @@ export async function AdminOverviewCustomerPackagesSection({
   packageTab: CustomerPackagesSubTab;
   selectedClerkUserId?: string;
 }) {
-  const [users, savedPackages, globalPricing, pricingEditor] = await Promise.all([
+  const [users, savedPackages, globalPricing, packingFeeRecords] = await Promise.all([
     listProfilesForAdminPicker(),
     listCustomerPricingPackagesForAdmin(),
     getMerchantPricingForEstimates(),
-    getMerchantPricingForAdminEditor(),
+    listContainerPackingFeeRecords(),
   ]);
 
   const customerPackage =
@@ -34,7 +32,7 @@ export async function AdminOverviewCustomerPackagesSection({
   return (
     <AdminCustomerPackagesHub
       packageTab={packageTab}
-      initialContainerPackingRates={pricingEditor.containerPackingRates}
+      packingFeeRecords={packingFeeRecords}
       users={users}
       savedPackages={savedPackages}
       selectedClerkUserId={selectedClerkUserId}

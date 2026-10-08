@@ -5,9 +5,19 @@ import {
   type ContainerPackingRates,
 } from "@/lib/container-packing-fee";
 import {
+  CARGO_BOX_PACKING_SIZES,
   containerOfferingKindLabel,
+  packingFeeContainerLabel,
+  type CargoBoxPackingSize,
   type ContainerOfferingKind,
 } from "@/lib/validations/container-offering";
+
+export type PackingFeeChartSource = {
+  containerKind: ContainerOfferingKind;
+  cargoBoxSize: CargoBoxPackingSize | null;
+  singleFeeCents: number;
+  multiFeeCents: number;
+};
 
 export type ContainerCatalogChartImage = {
   id: string;
@@ -65,8 +75,27 @@ export function buildContainerCatalogChartRows(
 /** Packaging fee tiers shown alongside container catalog prices. */
 export function buildContainerPackingFeeChartRows(
   rates: ContainerPackingRates = DEFAULT_CONTAINER_PACKING_RATES,
+  publishedRecords?: readonly PackingFeeChartSource[],
 ): ContainerPackingFeeChartRow[] {
-  return [
+  if (publishedRecords && publishedRecords.length > 0) {
+    const rows: ContainerPackingFeeChartRow[] = [];
+    for (const record of publishedRecords) {
+      const label = packingFeeContainerLabel(
+        record.containerKind,
+        record.cargoBoxSize,
+      ).toLowerCase();
+      rows.push({
+        containerLabel: `1 ${label} in cart`,
+        chargeLabel: formatUsd(record.singleFeeCents),
+      });
+      rows.push({
+        containerLabel: `2+ ${label} in cart`,
+        chargeLabel: `${formatUsd(record.multiFeeCents)} per ${label}`,
+      });
+    }
+    return rows;
+  }
+  const rows: ContainerPackingFeeChartRow[] = [
     {
       containerLabel: "1 barrel in cart",
       chargeLabel: formatUsd(rates.singleBarrelPackingFeeCents),
@@ -84,4 +113,17 @@ export function buildContainerPackingFeeChartRows(
       chargeLabel: `${formatUsd(rates.multiBinPackingPerUnitCents)} per bin`,
     },
   ];
+  for (const size of CARGO_BOX_PACKING_SIZES) {
+    const rate = rates.cargoBoxRates?.[size];
+    if (!rate) continue;
+    rows.push({
+      containerLabel: `1 cargo box ${size} in cart`,
+      chargeLabel: formatUsd(rate.singlePackingFeeCents),
+    });
+    rows.push({
+      containerLabel: `2+ cargo box ${size} in cart`,
+      chargeLabel: `${formatUsd(rate.multiPackingPerUnitCents)} per cargo box ${size}`,
+    });
+  }
+  return rows;
 }

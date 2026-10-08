@@ -18,13 +18,13 @@ export function ContainerPackingFeeChart({
       index={index}
       icon={<Package className="size-4" />}
       title="Packing fees"
-      description="Packaging charges when barrels or bins are in your cart. One container uses a flat fee; ordering more of the same type uses a per-unit rate."
+      description="Packaging charges when barrels, cargo boxes, or bins are in your cart. One container uses a flat fee; ordering more of the same type uses a per-unit rate."
       accent="emerald"
       footer={
         <p className="inline-flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
-          Barrel and bin counts are added separately at checkout. Mixed carts
-          include both kinds when applicable.
+          Barrel, cargo box, and bin counts are added separately at checkout.
+          Mixed carts include each type when applicable.
         </p>
       }
     >

@@ -39,10 +39,16 @@ import {
   type OutboundShippingCompanyRateTableKind,
 } from "@/lib/barrel-outbound-shipping-charge";
 import { JAMAICA_PARISHES } from "@/lib/parishes";
-import type { ContainerOfferingKind } from "@/lib/validations/container-offering";
+import {
+  containerOfferingKindLabel,
+  containerOfferingKindSchema,
+  type ContainerOfferingKind,
+} from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
 
-const CONTAINER_TYPE_OPTIONS = ["Barrel", "Bin", "Suitcase"] as const;
+const CONTAINER_TYPE_OPTIONS = containerOfferingKindSchema.options.map(
+  (kind) => containerOfferingKindLabel(kind),
+);
 
 function centsToUsdInput(cents: number): string {
   return (cents / 100).toFixed(2);

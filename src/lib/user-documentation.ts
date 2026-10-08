@@ -115,7 +115,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "In-US vendor lists one row per destination-country mix, with a divider between them. Freight-only to Guyana is its own Freight charge row; freight + broker to Jamaica is a separate Freight charge + Broker row. Each has an info button and a destination button. Open the destination to see rates for that country only. Pickup next to a container type shows that type's hub-to-office pickup fee (1 container and each extra).",
         "Overseas third-party vendors are destination brokers and local couriers. Freight+broker companies are not repeated there. Courier cards lead with a Local courier heading, then the company name. Open the country destination button to see Operate from, contact details, and charges for that country only.",
         "When a suitcase special is in season, a company courier traveler carries extra bags to Jamaica on a published travel date with limited slots.",
-        "Packing fees follow barrel and bin counts (1 vs 2+ of each type)—not a fee per quoted product line.",
+        "Packing fees follow barrel, cargo box (E/EH/D), and bin counts (1 vs 2+ of each type)—not a fee per quoted product line.",
         "Destination-country charges are not included in the US outbound quote.",
         "No sign-in required.",
       ],
@@ -138,7 +138,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open How it works from the marketing header or go to /how-it-works (Overview tab by default). Use the Overview / User guide pills to switch tabs.",
         "On Overview, read From cart to barrel (services, journey, four cost phases, and seasonal specials) beside Pricing overview.",
-        "Review the rate schedule: in-app service & handling, outside-purchase service & handling, container catalog prices (info button for the container note and cargo-box size; double-click a photo to browse images), packing fees (exactly 1 vs 2+ of each type), and third-party vendors.",
+        "Review the rate schedule: in-app service & handling, outside-purchase service & handling, container catalog prices (info button for the container note and cargo-box size; double-click a photo to browse images), packing fees (exactly 1 vs 2+ for barrel, cargo box E/EH/D, and bin), and third-party vendors.",
         "In-US vendor lists freight companies that move a container from the US warehouse to the destination port. A vendor can appear more than once when it offers a different mix per country (freight-only to one destination, freight + broker to another), with a divider between those rows. The card shows the service badge for that destination (Freight charge, Freight charge + Broker, or all three), an info button, and a destination button. Open the info button to read that company's note. Open the destination button to see 1-container and extra-container freight rates for that destination only. Next to each container type, Pickup opens the matching hub-to-office pickup fee (1 container and each extra) from that record's pickup rate card. Company name, street, and phone are not shown on this public card. Freight table amounts do not include the pickup fee.",
         "Overseas third-party vendor lists destination-country brokers and standalone local couriers after arrival. A freight+broker company already listed under In-US is not shown again here. Courier cards use Local courier as the heading, then the company name and Ad button, then a destination button for the country on the company record. Open the destination to see Operate from, address, phone, and zone or container charges for that country only. Open Ad to see the company image and that company's note to customer.",
         "The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost. Your dashboard shows the exact total for your barrels.",
@@ -833,7 +833,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The cart holds everything approved and waiting for payment—product quotes, batch bundles, shipping containers, and outbound freight. Checkout uses Stripe's embedded payment flow for secure card processing. Packing fees on container lines follow how many barrels and bins you are buying (single vs 2+ rates), not a fee on each quoted product.",
+        "The cart holds everything approved and waiting for payment—product quotes, batch bundles, shipping containers, and outbound freight. Checkout uses Stripe's embedded payment flow for secure card processing. Packing fees on container lines follow how many barrels, cargo boxes, and bins you are buying (single vs 2+ rates), not a fee on each quoted product.",
         "Nothing in your cart is a paid order until checkout completes successfully. Review every line, fee, and total before paying.",
       ],
       walkthrough: [
@@ -932,7 +932,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Buy containers, assign received products, view assignment history.",
       location: "Sidebar → Barrels.",
       bullets: [
-        "Shop: add containers to cart. Packing fees use barrel and bin counts (1 vs 2+ of each type).",
+        "Shop: add containers to cart. Packing fees use barrel, cargo box, and bin counts (1 vs 2+ of each type).",
         "Product to barrel: pack hub-received items.",
         "History: past assignments.",
         "Containers must be paid before packing.",
