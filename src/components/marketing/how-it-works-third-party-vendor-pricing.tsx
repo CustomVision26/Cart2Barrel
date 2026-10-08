@@ -1,6 +1,14 @@
 "use client";
 
-import { Building2, Info, Ship, Truck, Warehouse } from "lucide-react";
+import {
+  Building2,
+  Info,
+  MapPin,
+  Package,
+  Ship,
+  Truck,
+  Warehouse,
+} from "lucide-react";
 import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { OutboundCompanyAdButton } from "@/components/shipping/outbound-company-ad-button";
@@ -64,12 +72,11 @@ function partnerDestination(
 function cardDestinations(
   company: PublicOutboundCompanyPricingCard,
 ): string[] {
+  const offeringCountry = company.country?.trim();
+  if (offeringCountry) return [offeringCountry];
   const fromRates = uniqueRateDestinations(company.rateTables);
   if (fromRates.length > 0) return fromRates;
-  const isFreight = company.kinds.includes("freight");
-  const partner = isFreight
-    ? company.country?.trim() || company.location?.trim() || null
-    : partnerDestination(company);
+  const partner = partnerDestination(company);
   return partner ? [partner] : [];
 }
 
@@ -95,22 +102,29 @@ function tablesForDestination(
 function PickupChargeButton({
   containerLabel,
   pickupRate,
+  size = "sm",
 }: {
   containerLabel: string;
   pickupRate: PublicPickupRate | null;
+  size?: "sm" | "lg";
 }) {
   const [open, setOpen] = useState(false);
+  const large = size === "lg";
   return (
     <>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        className="h-7 shrink-0 gap-1 rounded-full border-primary/40 bg-primary/10 px-2.5 text-[11px] font-semibold tracking-wide text-primary hover:bg-primary/20"
+        className={
+          large
+            ? "h-10 shrink-0 gap-2 rounded-full border-primary/40 bg-primary/10 px-4 text-sm font-semibold tracking-wide text-primary hover:bg-primary/20"
+            : "h-7 shrink-0 gap-1 rounded-full border-primary/40 bg-primary/10 px-2.5 text-[11px] font-semibold tracking-wide text-primary hover:bg-primary/20"
+        }
         aria-label={`Pickup charge for ${containerLabel}`}
         onClick={() => setOpen(true)}
       >
-        <Truck className="size-3.5" aria-hidden />
+        <Truck className={large ? "size-4" : "size-3.5"} aria-hidden />
         Pickup
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -281,12 +295,102 @@ function DestinationButton({
       type="button"
       variant="outline"
       size="sm"
-      className="h-8 rounded-full border-primary/35 bg-primary/10 px-3.5 text-sm font-semibold tracking-tight text-primary hover:bg-primary/15"
+      className="h-10 gap-1.5 rounded-full border-primary/35 bg-primary/10 px-4 text-base font-semibold tracking-tight text-primary hover:bg-primary/15"
       aria-label={`Show charges for ${destination}`}
       onClick={onClick}
     >
+      <MapPin className="size-4" aria-hidden />
       {destination}
     </Button>
+  );
+}
+
+function DestinationRateCards({
+  tables,
+  pickupRates,
+  destination,
+}: {
+  tables: PublicRateTable[];
+  pickupRates: readonly PublicPickupRate[];
+  destination: string;
+}) {
+  const rows = tables.flatMap((table) =>
+    table.rows.map((row) => ({ ...row, tableKind: table.tableKind })),
+  );
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-xl border border-border/80 bg-muted/40 px-5 py-6 text-sm leading-relaxed text-muted-foreground">
+        Rate table is not published for {destination} yet.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      {rows.map((row, rowIndex) => {
+        const showPickup = row.tableKind === "container";
+        return (
+          <article
+            key={`${row.tableKind}:${row.rowLabel}:${row.destination ?? ""}`}
+            className="destination-rate-card space-y-4 px-5 py-5"
+            style={
+              {
+                "--destination-card-index": rowIndex,
+              } as CSSProperties
+            }
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className="pickup-charge-icon inline-flex size-11 shrink-0 items-center justify-center rounded-xl"
+                  aria-hidden
+                >
+                  <Package className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="pickup-charge-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+                    {row.tableKind === "zone" ? "Local courier zone" : "Container"}
+                  </p>
+                  <h3 className="font-heading text-xl font-semibold tracking-tight text-foreground">
+                    {row.rowLabel}
+                  </h3>
+                </div>
+              </div>
+              {showPickup ?
+                <PickupChargeButton
+                  containerLabel={row.rowLabel}
+                  pickupRate={pickupRateForContainer(pickupRates, row.rowLabel)}
+                  size="lg"
+                />
+              : null}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="pickup-charge-fee-card space-y-2 px-4 py-4">
+                <p className="pickup-charge-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+                  1 container
+                </p>
+                <p className="pricing-overview-fee font-heading text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
+                  {formatUsd(row.costOneCents)}
+                </p>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  First unpaid {row.rowLabel.toLowerCase()} on this destination.
+                </p>
+              </div>
+              <div className="pickup-charge-fee-card space-y-2 px-4 py-4">
+                <p className="pickup-charge-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+                  Each extra
+                </p>
+                <p className="pricing-overview-fee font-heading text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
+                  {formatUsd(row.costTwoPlusCents)}
+                </p>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Added for every extra linked unpaid container.
+                </p>
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -379,7 +483,7 @@ function ServiceBadge({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <p className="inline-flex items-center rounded-full border border-primary/35 bg-primary/10 px-3.5 py-1.5 text-sm font-semibold tracking-tight text-primary">
+      <p className="inline-flex items-center rounded-full border border-primary/35 bg-primary/10 px-4 py-2 text-base font-semibold tracking-tight text-primary">
         {label}
       </p>
       {showServiceInfo ?
@@ -415,8 +519,12 @@ function CompanyCard({
     "This company moves a container from the United States warehouse to the destination port.";
   const destinations = cardDestinations(company);
   const [openDestination, setOpenDestination] = useState<string | null>(null);
+  const offeringCountry = company.country?.trim() ?? "";
   const openTables = openDestination
-    ? tablesForDestination(company.rateTables, openDestination)
+    ? offeringCountry &&
+        openDestination.trim().toLowerCase() === offeringCountry.toLowerCase()
+      ? company.rateTables.filter((table) => table.rows.length > 0)
+      : tablesForDestination(company.rateTables, openDestination)
     : [];
   const destinationButtons = destinations.map((destination) => (
     <DestinationButton
@@ -500,32 +608,73 @@ function CompanyCard({
           if (!open) setOpenDestination(null);
         }}
       >
-        <DialogContent className="max-h-[min(90vh,42rem)] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {openDestination ?? "Destination charges"}
-            </DialogTitle>
-            <DialogDescription>
-              {serviceOnly
-                ? `These prices are for ${openDestination ?? "this destination"} only.`
-                : `These charges are for ${openDestination ?? "this destination"} only.`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
+        <DialogContent className="destination-charge-dialog pickup-charge-dialog max-h-[min(94vh,56rem)] gap-0 overflow-y-auto p-0 text-base sm:max-w-2xl">
+          <div className="pickup-charge-hero px-6 pb-6 pt-7 sm:px-8">
+            <DialogHeader className="relative z-10 gap-4">
+              <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
+                <span
+                  className="pickup-charge-icon inline-flex size-14 items-center justify-center rounded-2xl"
+                  aria-hidden
+                >
+                  <MapPin className="size-7" />
+                </span>
+                <p className="rounded-full border border-primary/35 bg-background/70 px-3.5 py-1.5 text-sm font-semibold tracking-wide text-primary">
+                  {company.serviceLabel}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="pickup-charge-kicker text-[11px] font-semibold uppercase tracking-[0.2em]">
+                  {serviceOnly ? "Destination freight" : "Destination charges"}
+                </p>
+                <DialogTitle className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+                  {openDestination ?? "Destination charges"}
+                </DialogTitle>
+                <DialogDescription className="max-w-xl text-base leading-relaxed">
+                  Formal published rates for{" "}
+                  {openDestination ?? "this destination"} only. The first unpaid
+                  container uses the 1-container cost; each extra linked unpaid
+                  container adds the extra-container cost.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+            <div className="relative z-10 mt-6 space-y-2">
+              <div className="pickup-charge-route" aria-hidden>
+                <span className="pickup-charge-route-node">
+                  {serviceOnly ? <Warehouse className="size-4" /> : <Ship className="size-4" />}
+                </span>
+                <span className="pickup-charge-route-line">
+                  <span className="pickup-charge-route-packet" />
+                </span>
+                <span className="pickup-charge-route-node">
+                  {serviceOnly ? <Ship className="size-4" /> : <Truck className="size-4" />}
+                </span>
+                <span className="pickup-charge-route-line">
+                  <span className="pickup-charge-route-packet" />
+                </span>
+                <span className="pickup-charge-route-node">
+                  <MapPin className="size-4" />
+                </span>
+              </div>
+              <div className="grid grid-cols-3 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:text-[11px]">
+                <span>{serviceOnly ? "US warehouse" : "Arrival port"}</span>
+                <span>{serviceOnly ? "Ocean freight" : "Local delivery"}</span>
+                <span>{openDestination ?? "Destination"}</span>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-6 px-6 py-6 sm:px-8">
             {serviceOnly ? null : <CompanyIdentity company={company} />}
-            {openTables.length > 0 ?
-              openTables.map((table) => (
-                <RateTable
-                  key={table.tableKind}
-                  {...table}
-                  pickupRates={company.pickupRates}
-                />
-              ))
-            : (
-              <p className="text-xs text-muted-foreground">
-                Rate table is not published for this destination yet.
+            <DestinationRateCards
+              tables={openTables}
+              pickupRates={company.pickupRates}
+              destination={openDestination ?? "this destination"}
+            />
+            {openTables.some((table) => table.tableKind === "container") ?
+              <p className="rounded-xl border border-border/80 bg-muted/40 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                These freight charges do not include the pickup fee. Open Pickup
+                next to a container type for that type&apos;s hub-to-office fee.
               </p>
-            )}
+            : null}
           </div>
         </DialogContent>
       </Dialog>
@@ -557,14 +706,15 @@ function VendorGroup({
           {description}
         </p>
       </div>
-      <div className="space-y-3">
+      <div className="divide-y divide-border">
         {companies.map((company) => (
-          <CompanyCard
-            key={company.companyKey}
-            company={company}
-            identity={identity}
-            showServiceInfo={showServiceInfo}
-          />
+          <div key={company.companyKey} className="py-3 first:pt-0 last:pb-0">
+            <CompanyCard
+              company={company}
+              identity={identity}
+              showServiceInfo={showServiceInfo}
+            />
+          </div>
         ))}
       </div>
     </div>

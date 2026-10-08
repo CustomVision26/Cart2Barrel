@@ -189,6 +189,7 @@ export const addOutboundShippingCompanyRateSchema = z
       .min(1, "Enter a row label.")
       .max(120, "Label is too long."),
     destination: z.string().trim().max(160).optional().default(""),
+    destinationCountry: z.string().trim().max(80).optional().default(""),
     costOneUsd: usdAmountAllowZeroSchema,
     costTwoPlusUsd: usdAmountAllowZeroSchema,
   })
@@ -209,6 +210,7 @@ export type AddOutboundShippingCompanyRateInput = z.infer<
 export const updateOutboundShippingCompanyRateSchema = z
   .object({
     id: z.string().uuid("Invalid rate."),
+    companyName: z.string().trim().max(160).optional().default(""),
     tableKind: outboundShippingCompanyRateTableKindSchema.optional(),
     rowLabel: z
       .string()
@@ -216,6 +218,7 @@ export const updateOutboundShippingCompanyRateSchema = z
       .min(1, "Enter a row label.")
       .max(120, "Label is too long."),
     destination: z.string().trim().max(160).optional().default(""),
+    destinationCountry: z.string().trim().max(80).optional().default(""),
     costOneUsd: usdAmountAllowZeroSchema,
     costTwoPlusUsd: usdAmountAllowZeroSchema,
   })

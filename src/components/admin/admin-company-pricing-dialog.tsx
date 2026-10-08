@@ -29,7 +29,7 @@ import {
   destinationCourierZoneHints,
   isAdminShippingCatalogPreviewBarrelId,
   matchCourierZoneRateRow,
-  outboundShippingCompanyKey,
+  outboundShippingRateMatchesOffering,
   quotedHubTransportFeeCents,
   unpaidLinkedContainerCount,
   type AdminCompanyRateLinkGroup,
@@ -150,9 +150,11 @@ function RateTableEditor({
       try {
         const res = await updateOutboundShippingCompanyRateAction({
           id,
+          companyName,
           tableKind,
           rowLabel: draft.rowLabel,
           destination: draft.destination,
+          destinationCountry: destinationCountry ?? "",
           costOneUsd: draft.costOneUsd,
           costTwoPlusUsd: draft.costTwoPlusUsd,
         });
@@ -200,6 +202,7 @@ function RateTableEditor({
           tableKind,
           rowLabel: newLabel,
           destination: newDestination,
+          destinationCountry: destinationCountry ?? "",
           costOneUsd: newOne,
           costTwoPlusUsd: newTwoPlus,
         });
@@ -488,10 +491,18 @@ export function ChargeLabelWithCompanyPricing({
   const checked = kindsToToggle.every((kind) => enabledKinds.includes(kind));
   const [open, setOpen] = useState(false);
   const catalogPreview = isAdminShippingCatalogPreviewBarrelId(barrelId);
-  const companyKey = companyName ? outboundShippingCompanyKey(companyName) : "";
   const companyRates = useMemo(
-    () => (rates ?? []).filter((row) => row.companyKey === companyKey),
-    [companyKey, rates],
+    () =>
+      (rates ?? []).filter((row) =>
+        companyName
+          ? outboundShippingRateMatchesOffering(
+              row,
+              companyName,
+              destinationCountry,
+            )
+          : false,
+      ),
+    [companyName, destinationCountry, rates],
   );
   const hubTransportCount = unpaidLinkedContainerCount({
     barrelId,
@@ -587,7 +598,7 @@ export function ChargeLabelWithCompanyPricing({
             <DialogDescription>
               {dialogVariant === "hub-transport" ?
                 "These rates are the pickup fee to move a container from the hub to this company's freight office. They are not the ocean freight charge. One billed container uses the 1-container pickup fee. Two or more barrels on the same freight quote use the extra-container fee for every container (2 linked barrels = 2 × extra-container fee)."
-              : "These rates belong to this company and are what the customer is charged when the rate card is on. Freight and broker container rows need a destination; that name is the destination button on How it works. Local courier zones are matched to the destination parish on the shipping address. The first unpaid container uses the 1-container rate; each extra linked unpaid container adds the extra-container rate. Customers link unpaid containers on Dashboard → Shipping."}
+              : "These rates belong to this company record for this destination country only. Another country for the same name has its own Charge table. Freight and broker container rows need a destination; that country is the destination button on How it works. Local courier zones are matched to the destination parish on the shipping address. The first unpaid container uses the 1-container rate; each extra linked unpaid container adds the extra-container rate. Customers link unpaid containers on Dashboard → Shipping."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">

@@ -215,15 +215,7 @@ async function maybeSyncPartnerOntoBarrel(
   barrelId: string | null,
   chargeKind: BarrelOutboundShippingChargeKind,
 ): Promise<void> {
-  if (!barrelId) {
-    const { getOutboundShippingCatalogDefaults } = await import(
-      "@/data/outbound-shipping-catalog-defaults"
-    );
-    const defaults = await getOutboundShippingCatalogDefaults();
-    if (outboundChargeBundleHost(defaults.chargeBundle) !== chargeKind) return;
-    await syncBundlePartnersFromHost(null, defaults.chargeBundle);
-    return;
-  }
+  if (!barrelId) return;
   await syncPrimaryPartnerOntoCharge(barrelId, chargeKind);
   await syncBundleIfHostPartnerChanged(barrelId, chargeKind);
 }
@@ -672,9 +664,9 @@ export async function addOutboundShippingPartner(input: {
     if (input.keepOnlyThisKind) {
       await removeCompanyFromOtherChargeKinds({
         barrelId: input.barrelId,
-        name: input.name,
+        name: sameName.name,
         keepKind: input.chargeKind,
-        country: input.country,
+        country: sameName.country,
       });
     }
     return mapPartner(updated);
@@ -845,9 +837,9 @@ export async function updateOutboundShippingPartner(input: {
   if (input.keepOnlyThisKind) {
     await removeCompanyFromOtherChargeKinds({
       barrelId: row.barrelId,
-      name: input.name,
+      name: row.name,
       keepKind: kind,
-      country: input.country,
+      country: row.country,
     });
   }
   return { ok: true };
@@ -911,33 +903,32 @@ export async function deleteOutboundShippingPartner(
   if (!row) {
     return { ok: false, message: "Record not found." };
   }
-  const wasPrimary = row.isPrimary;
   const kind = isBarrelOutboundShippingChargeKind(row.chargeKind)
     ? row.chargeKind
     : "freight";
+  const nameKey = partnerNameKey(row.name);
+  const destKey = outboundShippingCountryKey(row.country);
+  const scoped = await db
+    .select({
+      id: barrelOutboundShippingPartners.id,
+      name: barrelOutboundShippingPartners.name,
+      country: barrelOutboundShippingPartners.country,
+    })
+    .from(barrelOutboundShippingPartners)
+    .where(partnerBarrelIdFilter(row.barrelId));
+  const ids = scoped
+    .filter(
+      (item) =>
+        partnerNameKey(item.name) === nameKey &&
+        outboundShippingCountryKey(item.country) === destKey,
+    )
+    .map((item) => item.id);
+  if (ids.length === 0) {
+    return { ok: false, message: "Record not found." };
+  }
   await db
     .delete(barrelOutboundShippingPartners)
-    .where(eq(barrelOutboundShippingPartners.id, id));
-
-  if (wasPrimary) {
-    const [next] = await db
-      .select()
-      .from(barrelOutboundShippingPartners)
-      .where(
-        and(
-          partnerBarrelIdFilter(row.barrelId),
-          eq(barrelOutboundShippingPartners.chargeKind, kind),
-        ),
-      )
-      .orderBy(asc(barrelOutboundShippingPartners.createdAt))
-      .limit(1);
-    if (next) {
-      await db
-        .update(barrelOutboundShippingPartners)
-        .set({ isPrimary: true, updatedAt: new Date().toISOString() })
-        .where(eq(barrelOutboundShippingPartners.id, next.id));
-    }
-  }
+    .where(inArray(barrelOutboundShippingPartners.id, ids));
   await maybeSyncPartnerOntoBarrel(row.barrelId, kind);
   return { ok: true };
 }

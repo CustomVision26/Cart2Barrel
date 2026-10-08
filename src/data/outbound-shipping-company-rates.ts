@@ -12,6 +12,7 @@ import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-colum
 import {
   isOutboundShippingCompanyRateTableKind,
   outboundShippingCompanyKey,
+  outboundShippingRateCompanyKey,
   outboundShippingRateRowKey,
   type OutboundShippingCompanyRateRow,
   type OutboundShippingCompanyRateTableKind,
@@ -85,6 +86,7 @@ function rateWriteErrorMessage(e: unknown, fallback: string): string {
 
 export async function addOutboundShippingCompanyRate(input: {
   companyName: string;
+  destinationCountry?: string | null;
   tableKind: OutboundShippingCompanyRateTableKind;
   rowLabel: string;
   destination?: string | null;
@@ -99,8 +101,13 @@ export async function addOutboundShippingCompanyRate(input: {
     const companyName = input.companyName.trim();
     const rowLabel = input.rowLabel.trim();
     const destination =
-      input.tableKind === "container" ? input.destination?.trim() || null : null;
-    const companyKey = outboundShippingCompanyKey(companyName);
+      input.tableKind === "container"
+        ? input.destination?.trim() || input.destinationCountry?.trim() || null
+        : null;
+    const companyKey = outboundShippingRateCompanyKey(
+      companyName,
+      input.destinationCountry,
+    );
     const rowKey = outboundShippingRateRowKey(rowLabel, destination);
     const existing = await db
       .select({
@@ -141,6 +148,8 @@ export async function addOutboundShippingCompanyRate(input: {
 
 export async function updateOutboundShippingCompanyRate(input: {
   id: string;
+  companyName?: string;
+  destinationCountry?: string | null;
   rowLabel: string;
   destination?: string | null;
   costOneCents: number;
@@ -153,9 +162,17 @@ export async function updateOutboundShippingCompanyRate(input: {
     const db = getDb();
     const rowLabel = input.rowLabel.trim();
     const destination = input.destination?.trim() || null;
+    const offeringKey =
+      input.companyName?.trim()
+        ? outboundShippingRateCompanyKey(
+            input.companyName,
+            input.destinationCountry,
+          )
+        : null;
     const [updated] = await db
       .update(outboundShippingCompanyRates)
       .set({
+        ...(offeringKey ? { companyKey: offeringKey } : {}),
         rowLabel,
         rowKey: outboundShippingRateRowKey(rowLabel, destination),
         destination,

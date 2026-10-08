@@ -64,6 +64,45 @@ export function outboundShippingRateRowKey(
   return dest ? `${base}::${dest}` : base;
 }
 
+/** Rate-card storage key: one table per company name + destination country. */
+export function outboundShippingRateCompanyKey(
+  companyName: string,
+  country?: string | null,
+): string {
+  return outboundShippingPartnerOfferingKey(companyName, country);
+}
+
+function destinationMatchesCountry(
+  destination: string | null | undefined,
+  country: string | null | undefined,
+): boolean {
+  const dest = outboundShippingCountryKey(destination);
+  const countryKey = outboundShippingCountryKey(country);
+  if (!countryKey) return !dest;
+  if (!dest) return false;
+  return (
+    dest === countryKey || dest.includes(countryKey) || countryKey.includes(dest)
+  );
+}
+
+/** True when a rate row belongs to this company record (name + country). */
+export function outboundShippingRateMatchesOffering(
+  row: Pick<
+    OutboundShippingCompanyRateRow,
+    "companyKey" | "tableKind" | "destination"
+  >,
+  companyName: string,
+  country?: string | null,
+): boolean {
+  const nameKey = outboundShippingCompanyKey(companyName);
+  if (!nameKey) return false;
+  const offeringKey = outboundShippingRateCompanyKey(companyName, country);
+  if (row.companyKey === offeringKey) return true;
+  if (row.companyKey !== nameKey) return false;
+  if (row.tableKind === "transport") return true;
+  return destinationMatchesCountry(row.destination, country);
+}
+
 export function outboundShippingRateTableKindForChargeKind(
   kind: BarrelOutboundShippingChargeKind,
 ): OutboundShippingCompanyRateTableKind {
@@ -786,9 +825,23 @@ export function resolveCompanyRateLine(input: {
 }): OutboundShippingChargeLineView | null {
   const companyKey = outboundShippingCompanyKey(input.companyName ?? "");
   if (!companyKey) return null;
-  const rows = input.rates.filter(
-    (row) => row.companyKey === companyKey && row.tableKind === input.tableKind,
-  );
+  const destHints = (input.destinationHints ?? [])
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const rows = input.rates.filter((row) => {
+    if (row.tableKind !== input.tableKind) return false;
+    if (row.companyKey === companyKey) return true;
+    if (!row.companyKey.startsWith(`${companyKey}::`)) return false;
+    if (destHints.length === 0) return true;
+    return destHints.some(
+      (hint) =>
+        destinationMatchesCountry(row.destination, hint) ||
+        destinationMatchesCountry(
+          row.companyKey.slice(companyKey.length + 2),
+          hint,
+        ),
+    );
+  });
   if (rows.length === 0) return null;
 
   const hints = [
@@ -802,14 +855,12 @@ export function resolveCompanyRateLine(input: {
   if (input.tableKind === "zone") {
     match = matchCourierZoneRateRow(rows, hints) ?? undefined;
   } else {
-    const destHints = (input.destinationHints ?? [])
-      .map((part) => part.trim().toLowerCase())
-      .filter(Boolean);
-    const destMatches = destHints.length
+    const destHintsLower = destHints.map((part) => part.toLowerCase());
+    const destMatches = destHintsLower.length
       ? rows.filter((row) => {
           const dest = row.destination?.trim().toLowerCase();
           if (!dest) return false;
-          return destHints.some(
+          return destHintsLower.some(
             (hint) => dest === hint || dest.includes(hint) || hint.includes(dest),
           );
         })
@@ -957,6 +1008,7 @@ export function resolveCompanyRateLinesForKinds(input: {
       companyName: input.companyName,
       tableKind: "transport",
       rowHint: containerTypeRateHint(input.containerKind),
+      destinationHints: input.destinationHints,
       containerCount: input.containerCount,
     });
     if (transport && transport.amountCents > 0) {

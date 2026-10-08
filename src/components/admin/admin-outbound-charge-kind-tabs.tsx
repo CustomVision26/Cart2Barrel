@@ -472,6 +472,36 @@ function PartnerRecordsEditor({
       toast.error("Choose a destination country for this company record.");
       return;
     }
+    const edited = editingId
+      ? row.partners.find((partner) => partner.id === editingId)
+      : null;
+    const originalOfferingKey = edited
+      ? outboundShippingPartnerOfferingKey(edited.name, edited.country)
+      : null;
+    const nextOfferingKey = outboundShippingPartnerOfferingKey(name, country);
+    if (
+      edited &&
+      originalOfferingKey &&
+      originalOfferingKey !== nextOfferingKey
+    ) {
+      const collision = row.partners.some((partner) => {
+        const inScope =
+          catalogPreview ||
+          partner.barrelId === row.barrelId ||
+          partner.barrelId == null;
+        if (!inScope) return false;
+        return (
+          outboundShippingPartnerOfferingKey(partner.name, partner.country) ===
+          nextOfferingKey
+        );
+      });
+      if (collision) {
+        toast.error(
+          "That company already has a record for this destination country. Edit that row instead.",
+        );
+        return;
+      }
+    }
     startTransition(async () => {
       const destKey = outboundShippingCountryKey(country);
       for (const kind of kindsToSave) {
@@ -489,14 +519,27 @@ function PartnerRecordsEditor({
           imageUrl,
           isPrimary: true,
         };
-        const existing = row.partners.find(
-          (partner) =>
-            partner.chargeKind === kind &&
+        const existing = row.partners.find((partner) => {
+          if (partner.chargeKind !== kind) return false;
+          const inScope =
+            catalogPreview ||
+            partner.barrelId === row.barrelId ||
+            partner.barrelId == null;
+          if (!inScope) return false;
+          if (edited && originalOfferingKey) {
+            return (
+              outboundShippingPartnerOfferingKey(
+                partner.name,
+                partner.country,
+              ) === originalOfferingKey
+            );
+          }
+          return (
             outboundShippingPartnerOfferingKey(partner.name, partner.country) ===
-              outboundShippingPartnerOfferingKey(name, country) &&
-            outboundShippingCountryKey(partner.country) === destKey &&
-            (catalogPreview || partner.barrelId === row.barrelId || partner.barrelId == null),
-        );
+              nextOfferingKey &&
+            outboundShippingCountryKey(partner.country) === destKey
+          );
+        });
         const res =
           existing
             ? await updateBarrelOutboundShippingPartnerAction({

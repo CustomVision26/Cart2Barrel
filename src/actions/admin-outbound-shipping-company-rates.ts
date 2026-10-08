@@ -63,6 +63,7 @@ export async function addOutboundShippingCompanyRateAction(
     }
     const result = await addOutboundShippingCompanyRate({
       companyName: parsed.data.companyName,
+      destinationCountry: parsed.data.destinationCountry,
       tableKind: parsed.data.tableKind,
       rowLabel: parsed.data.rowLabel,
       destination: parsed.data.destination,
@@ -100,6 +101,8 @@ export async function updateOutboundShippingCompanyRateAction(
     }
     const result = await updateOutboundShippingCompanyRate({
       id: parsed.data.id,
+      companyName: parsed.data.companyName,
+      destinationCountry: parsed.data.destinationCountry,
       rowLabel: parsed.data.rowLabel,
       destination: parsed.data.destination,
       costOneCents,

@@ -14,8 +14,8 @@ import {
   BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS,
   isBarrelOutboundShippingChargeKind,
   outboundShippingCompanyKey,
-  outboundShippingCountryKey,
   outboundShippingPartnerOfferingKey,
+  outboundShippingRateMatchesOffering,
   outboundShippingRateTableKindsForTabs,
 } from "@/lib/barrel-outbound-shipping-charge";
 import {
@@ -98,14 +98,13 @@ export async function listPublicOutboundCompanyPricing(): Promise<
     const headings = publicCompanyVendorHeadings(kinds);
     if (headings.length === 0) continue;
     const tableKinds = outboundShippingRateTableKindsForTabs(kinds);
-    const nameKey = outboundShippingCompanyKey(display.name);
-    const destKey = outboundShippingCountryKey(display.country);
-    const companyRates = rates.filter((row) => {
-      if (row.companyKey !== nameKey) return false;
-      if (!destKey || row.tableKind === "transport") return true;
-      const rowDest = outboundShippingCountryKey(row.destination);
-      return !rowDest || rowDest === destKey;
-    });
+    const companyRates = rates.filter((row) =>
+      outboundShippingRateMatchesOffering(
+        row,
+        display.name,
+        display.country,
+      ),
+    );
     const rateTables = tableKinds
       .map((tableKind) => ({
         tableKind,
@@ -149,7 +148,9 @@ export async function listPublicOutboundCompanyPricing(): Promise<
 
   cards.sort((a, b) => {
     if (a.heading !== b.heading) return a.heading === "in-us" ? -1 : 1;
-    return a.companyName.localeCompare(b.companyName);
+    const name = a.companyName.localeCompare(b.companyName);
+    if (name !== 0) return name;
+    return (a.country ?? "").localeCompare(b.country ?? "");
   });
   return cards;
 }
