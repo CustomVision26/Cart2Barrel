@@ -26,8 +26,20 @@ export default async function AdminShipmentsContainerControlPage({
 
   const pageData =
     admin ?
-      await listAdminShipmentChargePageData(filterClerkUserId)
+      await listAdminShipmentChargePageData(filterClerkUserId).catch(
+        (error) => {
+          console.error("[AdminShipmentsContainerControlPage]", error);
+          return {
+            customerGroups: [],
+            catalogPartners: [],
+            companyRates: [],
+            catalogChargeBundle: [],
+            catalogCompanyRateKinds: [],
+          };
+        },
+      )
     : {
+        customerGroups: [],
         catalogPartners: [],
         companyRates: [],
         catalogChargeBundle: [],

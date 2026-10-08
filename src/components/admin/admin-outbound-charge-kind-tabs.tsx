@@ -361,7 +361,6 @@ function PartnerRecordsEditor({
   const [zelleAccount, setZelleAccount] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [makePrimary, setMakePrimary] = useState(localCount === 0);
   const [formOpen, setFormOpen] = useState(false);
   const [companyRole, setCompanyRole] = useState<"standalone" | "consolidate">(
     "standalone",
@@ -397,7 +396,7 @@ function PartnerRecordsEditor({
         ? "Save broker"
         : "Save courier";
 
-  function resetForm(nextCount: number) {
+  function resetForm() {
     setEditingId(null);
     setName("");
     setLocation("");
@@ -409,7 +408,6 @@ function PartnerRecordsEditor({
     setZelleId("");
     setZelleAccount("");
     setImageUrl("");
-    setMakePrimary(nextCount === 0);
     setCompanyRole("standalone");
     setFormKinds([chargeKind]);
     setFormOpen(false);
@@ -427,7 +425,6 @@ function PartnerRecordsEditor({
     setZelleId("");
     setZelleAccount("");
     setImageUrl("");
-    setMakePrimary(localCount === 0);
     setCompanyRole("standalone");
     setFormKinds([chargeKind]);
     setFormOpen(true);
@@ -450,7 +447,6 @@ function PartnerRecordsEditor({
     setZelleId(record.zelleId ?? "");
     setZelleAccount(record.zelleAccount ?? "");
     setImageUrl(record.imageUrl ?? "");
-    setMakePrimary(record.isPrimary);
     setCompanyRole(kinds.length >= 2 ? "consolidate" : "standalone");
     setFormKinds(kinds.length > 0 ? kinds : [record.chargeKind]);
     setFormOpen(true);
@@ -477,7 +473,6 @@ function PartnerRecordsEditor({
       return;
     }
     startTransition(async () => {
-      const makeThisPrimary = makePrimary || localCount === 0;
       const destKey = outboundShippingCountryKey(country);
       for (const kind of kindsToSave) {
         const operateFrom = kind !== "freight";
@@ -492,7 +487,7 @@ function PartnerRecordsEditor({
           zelleId,
           zelleAccount,
           imageUrl,
-          isPrimary: makeThisPrimary,
+          isPrimary: true,
         };
         const existing = row.partners.find(
           (partner) =>
@@ -535,7 +530,7 @@ function PartnerRecordsEditor({
         zelleId: zelleId || null,
         zelleAccount: zelleAccount || null,
         imageUrl: imageUrl || null,
-        isPrimary: makeThisPrimary,
+        isPrimary: true,
         customerNote: null,
         publicPricingPublishedAt: null,
       });
@@ -544,7 +539,7 @@ function PartnerRecordsEditor({
           ? `${outboundChargeBundleLabel(kindsToSave)} saved as one company.`
           : "Record saved.",
       );
-      resetForm(Math.max(records.length, 1));
+      resetForm();
       router.refresh();
     });
   }
@@ -875,16 +870,6 @@ function PartnerRecordsEditor({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                className="size-4 accent-primary"
-                checked={records.length === 0 ? true : makePrimary}
-                disabled={busy || localCount === 0}
-                onChange={(e) => setMakePrimary(e.target.checked)}
-              />
-              Set as primary
-            </label>
             <Button type="button" size="sm" disabled={busy} onClick={saveRecord}>
               {pending ? "Saving…" : editingId ? saveLabel : addLabel}
             </Button>
@@ -893,7 +878,7 @@ function PartnerRecordsEditor({
               size="sm"
               variant="outline"
               disabled={pending}
-              onClick={() => resetForm(records.length)}
+              onClick={() => resetForm()}
             >
               Cancel
             </Button>
@@ -916,8 +901,7 @@ function PartnerRecordsEditor({
         </p>
       : records.length === 0 ?
         <p className="text-xs text-muted-foreground">
-          Added records appear in the table below. Select one as primary for this
-          charge.
+          Added records appear in the table below. Click a row to select it.
         </p>
       : (
         <div className="space-y-1.5">
@@ -925,7 +909,7 @@ function PartnerRecordsEditor({
             <p className="text-xs text-muted-foreground">
               Companies already saved on other containers are listed here. Click
               a row to select it and switch the tab to that company&apos;s type.
-              Select Primary to use one on this container.
+              Use on this container copies that record onto this shipment.
             </p>
           : catalogPreview ?
             <p className="text-xs text-muted-foreground">
@@ -945,7 +929,6 @@ function PartnerRecordsEditor({
           <table className="w-full min-w-[44rem] text-left text-sm">
             <thead>
               <tr className={appTableHead}>
-                <th className="px-3 py-2 font-medium">Primary</th>
                 <th className="px-3 py-2 font-medium">
                   {isFreight ? "Company" : "Name"}
                 </th>
@@ -970,9 +953,6 @@ function PartnerRecordsEditor({
               {records.map((record) => {
                 const onThisBarrel =
                   catalogPreview || record.barrelId === row.barrelId;
-                const showAsPrimary = catalogPreview
-                  ? record.barrelId == null && record.isPrimary
-                  : onThisBarrel && record.isPrimary;
                 const isSelected =
                   selectedCompanyKey ===
                   outboundShippingPartnerOfferingKey(
@@ -994,28 +974,12 @@ function PartnerRecordsEditor({
                   )}
                   onClick={() => onSelectCompany?.(record)}
                 >
-                  <td className="px-3 py-2">
-                    <input
-                      type="radio"
-                      name={`${row.barrelId}-${chargeKind}-${outboundShippingCountryKey(record.country) || "none"}-primary`}
-                      className="size-4 accent-primary"
-                      checked={record.chargeKind === chargeKind && showAsPrimary}
-                      disabled={busy || record.chargeKind !== chargeKind}
-                      aria-label={`Set ${record.name} as primary`}
-                      onChange={() => {
-                        onSelectCompany?.(record);
-                        setPrimary(record);
-                      }}
-                    />
-                  </td>
                   <td className="max-w-[9rem] px-3 py-2 font-medium text-foreground">
                     <span className="inline-flex max-w-full flex-wrap items-center gap-1.5">
                       <span className="truncate" title={record.name}>
                         {record.name}
                       </span>
-                      {showAsPrimary ?
-                        <StatusBadge kind="fullyReceived">Primary</StatusBadge>
-                      : !onThisBarrel && !catalogPreview ?
+                      {!onThisBarrel && !catalogPreview ?
                         <StatusBadge kind="draft">Saved</StatusBadge>
                       : null}
                       {record.publicPricingPublishedAt ?
@@ -1109,9 +1073,19 @@ function PartnerRecordsEditor({
                           </Button>
                         </>
                       : (
-                        <span className="text-xs text-muted-foreground">
-                          Select Primary to use
-                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSelectCompany?.(record);
+                            setPrimary(record);
+                          }}
+                        >
+                          Use on this container
+                        </Button>
                       )}
                     </div>
                   </td>

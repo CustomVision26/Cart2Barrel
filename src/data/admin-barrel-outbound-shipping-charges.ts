@@ -312,22 +312,36 @@ export async function listAdminShipmentChargePageData(
     return await loadAdminShipmentChargePageData(clerkUserId);
   } catch (e) {
     console.error("[listAdminShipmentChargePageData]", e);
-    await seedKingdomKleanerzCourierZones().catch(() => undefined);
-    const [catalogPartners, companyRates, catalogDefaults] = await Promise.all([
-      listOutboundShippingPartnerCatalog().catch(() => []),
-      listOutboundShippingCompanyRates().catch(() => []),
-      getOutboundShippingCatalogDefaults().catch(() => ({
-        chargeBundle: [],
-        companyRateKinds: [],
-      })),
-    ]);
-    return {
-      customerGroups: [],
-      catalogPartners,
-      companyRates,
-      catalogChargeBundle: catalogDefaults.chargeBundle,
-      catalogCompanyRateKinds: catalogDefaults.companyRateKinds,
-    };
+    try {
+      await seedKingdomKleanerzCourierZones().catch(() => undefined);
+      const [catalogPartners, companyRates, catalogDefaults] = await Promise.all([
+        listOutboundShippingPartnerCatalog().catch(() => []),
+        listOutboundShippingCompanyRates().catch(() => []),
+        getOutboundShippingCatalogDefaults().catch(() => ({
+          chargeBundle: [],
+          companyRateKinds: [],
+        })),
+      ]);
+      return {
+        customerGroups: [],
+        catalogPartners,
+        companyRates,
+        catalogChargeBundle: catalogDefaults.chargeBundle,
+        catalogCompanyRateKinds: catalogDefaults.companyRateKinds,
+      };
+    } catch (fallbackError) {
+      console.error(
+        "[listAdminShipmentChargePageData fallback]",
+        fallbackError,
+      );
+      return {
+        customerGroups: [],
+        catalogPartners: [],
+        companyRates: [],
+        catalogChargeBundle: [],
+        catalogCompanyRateKinds: [],
+      };
+    }
   }
 }
 

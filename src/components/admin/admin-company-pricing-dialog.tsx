@@ -18,7 +18,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import {
+  Input,
+  nativeSelectFieldClassName,
+} from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatUsd } from "@/lib/admin-markup";
 import { appTableHead, appTableRowHover, appTableScroll } from "@/lib/app-table-surfaces";
@@ -27,7 +30,6 @@ import {
   isAdminShippingCatalogPreviewBarrelId,
   matchCourierZoneRateRow,
   outboundShippingCompanyKey,
-  outboundShippingCountryKey,
   quotedHubTransportFeeCents,
   unpaidLinkedContainerCount,
   type AdminCompanyRateLinkGroup,
@@ -84,12 +86,14 @@ function RateTableEditor({
   rows,
   destinationParish,
   destinationCityOrTown,
+  destinationCountry,
 }: {
   companyName: string;
   tableKind: OutboundShippingCompanyRateTableKind;
   rows: OutboundShippingCompanyRateRow[];
   destinationParish?: string | null;
   destinationCityOrTown?: string | null;
+  destinationCountry?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -116,8 +120,12 @@ function RateTableEditor({
       ]),
     ),
   );
-  const [newLabel, setNewLabel] = useState("");
-  const [newDestination, setNewDestination] = useState("");
+  const [newLabel, setNewLabel] = useState(
+    tableKind === "zone" ? "" : CONTAINER_TYPE_OPTIONS[0],
+  );
+  const [newDestination, setNewDestination] = useState(
+    destinationCountry?.trim() ?? "",
+  );
   const [newOne, setNewOne] = useState("");
   const [newTwoPlus, setNewTwoPlus] = useState("");
   const listId = `${tableKind}-rate-suggestions`;
@@ -139,55 +147,79 @@ function RateTableEditor({
     const draft = drafts[id];
     if (!draft) return;
     startTransition(async () => {
-      const res = await updateOutboundShippingCompanyRateAction({
-        id,
-        tableKind,
-        rowLabel: draft.rowLabel,
-        destination: draft.destination,
-        costOneUsd: draft.costOneUsd,
-        costTwoPlusUsd: draft.costTwoPlusUsd,
-      });
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
+      try {
+        const res = await updateOutboundShippingCompanyRateAction({
+          id,
+          tableKind,
+          rowLabel: draft.rowLabel,
+          destination: draft.destination,
+          costOneUsd: draft.costOneUsd,
+          costTwoPlusUsd: draft.costTwoPlusUsd,
+        });
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success(res.message);
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not update company pricing.",
+        );
       }
-      toast.success(res.message);
-      router.refresh();
     });
   }
 
   function removeRow(id: string) {
     startTransition(async () => {
-      const res = await deleteOutboundShippingCompanyRateAction({ id });
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
+      try {
+        const res = await deleteOutboundShippingCompanyRateAction({ id });
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success(res.message);
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not remove company pricing.",
+        );
       }
-      toast.success(res.message);
-      router.refresh();
     });
   }
 
   function addRow() {
     startTransition(async () => {
-      const res = await addOutboundShippingCompanyRateAction({
-        companyName,
-        tableKind,
-        rowLabel: newLabel,
-        destination: newDestination,
-        costOneUsd: newOne,
-        costTwoPlusUsd: newTwoPlus,
-      });
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
+      try {
+        const res = await addOutboundShippingCompanyRateAction({
+          companyName,
+          tableKind,
+          rowLabel: newLabel,
+          destination: newDestination,
+          costOneUsd: newOne,
+          costTwoPlusUsd: newTwoPlus,
+        });
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success(res.message);
+        setNewLabel(tableKind === "zone" ? "" : CONTAINER_TYPE_OPTIONS[0]);
+        setNewDestination(destinationCountry?.trim() ?? "");
+        setNewOne("");
+        setNewTwoPlus("");
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not save company pricing.",
+        );
       }
-      toast.success(res.message);
-      setNewLabel("");
-      setNewDestination("");
-      setNewOne("");
-      setNewTwoPlus("");
-      router.refresh();
     });
   }
 
@@ -323,17 +355,28 @@ function RateTableEditor({
               })}
             <tr className={appTableRowHover}>
               <td className="px-3 py-2">
-                <Input
-                  list={listId}
-                  value={newLabel}
-                  disabled={busy}
-                  placeholder={
-                    tableKind === "zone"
-                      ? "e.g. St. Catherine"
-                      : "e.g. Barrel"
-                  }
-                  onChange={(e) => setNewLabel(e.target.value)}
-                />
+                {tableKind === "container" || tableKind === "transport" ?
+                  <select
+                    className={nativeSelectFieldClassName}
+                    value={newLabel}
+                    disabled={busy}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                  >
+                    {CONTAINER_TYPE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                : (
+                  <Input
+                    list={listId}
+                    value={newLabel}
+                    disabled={busy}
+                    placeholder="e.g. St. Catherine"
+                    onChange={(e) => setNewLabel(e.target.value)}
+                  />
+                )}
               </td>
               {showDestination ?
                 <td className="px-3 py-2">
@@ -446,16 +489,9 @@ export function ChargeLabelWithCompanyPricing({
   const [open, setOpen] = useState(false);
   const catalogPreview = isAdminShippingCatalogPreviewBarrelId(barrelId);
   const companyKey = companyName ? outboundShippingCompanyKey(companyName) : "";
-  const destKey = outboundShippingCountryKey(destinationCountry);
   const companyRates = useMemo(
-    () =>
-      (rates ?? []).filter((row) => {
-        if (row.companyKey !== companyKey) return false;
-        if (!destKey || row.tableKind === "transport") return true;
-        const rowDest = outboundShippingCountryKey(row.destination);
-        return !rowDest || rowDest === destKey;
-      }),
-    [companyKey, destKey, rates],
+    () => (rates ?? []).filter((row) => row.companyKey === companyKey),
+    [companyKey, rates],
   );
   const hubTransportCount = unpaidLinkedContainerCount({
     barrelId,
@@ -573,6 +609,7 @@ export function ChargeLabelWithCompanyPricing({
                 rows={companyRates.filter((row) => row.tableKind === tableKind)}
                 destinationParish={destinationParish}
                 destinationCityOrTown={destinationCityOrTown}
+                destinationCountry={destinationCountry}
               />
             ))}
           </div>
