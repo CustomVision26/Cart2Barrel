@@ -120,14 +120,18 @@ export function primaryPartnerNameForKind(
 export function companyCustomerNoteFromPartners(
   partners: readonly OutboundShippingPartnerRecord[],
   companyName: string | null | undefined,
+  country?: string | null,
 ): string | null {
   const companyKey = outboundShippingCompanyKey(companyName ?? "");
   if (!companyKey) return null;
-  const match = partners.find(
-    (partner) =>
-      outboundShippingCompanyKey(partner.name) === companyKey &&
-      Boolean(partner.customerNote?.trim()),
-  );
+  const destKey = outboundShippingCountryKey(country);
+  const match = partners.find((partner) => {
+    if (outboundShippingCompanyKey(partner.name) !== companyKey) return false;
+    if (destKey && outboundShippingCountryKey(partner.country) !== destKey) {
+      return false;
+    }
+    return Boolean(partner.customerNote?.trim());
+  });
   return match?.customerNote?.trim() || null;
 }
 

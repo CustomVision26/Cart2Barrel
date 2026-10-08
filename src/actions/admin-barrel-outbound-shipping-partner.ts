@@ -263,6 +263,7 @@ export async function setOutboundCompanyCustomerNoteAction(
 
   const result = await setOutboundCompanyCustomerNote({
     companyName: parsed.data.companyName,
+    country: parsed.data.country,
     customerNote: parsed.data.customerNote,
   });
   if (!result.ok) return result;

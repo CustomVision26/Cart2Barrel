@@ -116,6 +116,7 @@ export type SetOutboundShippingPartnerPublicPricingInput = z.infer<
 
 export const setOutboundCompanyCustomerNoteSchema = z.object({
   companyName: z.string().trim().min(1, "Add a company first.").max(160),
+  country: z.string().trim().max(80).optional().default(""),
   customerNote: z.string().trim().max(2000).optional().default(""),
 });
 

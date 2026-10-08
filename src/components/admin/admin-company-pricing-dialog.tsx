@@ -27,6 +27,7 @@ import {
   isAdminShippingCatalogPreviewBarrelId,
   matchCourierZoneRateRow,
   outboundShippingCompanyKey,
+  outboundShippingCountryKey,
   quotedHubTransportFeeCents,
   unpaidLinkedContainerCount,
   type AdminCompanyRateLinkGroup,
@@ -417,6 +418,7 @@ export function ChargeLabelWithCompanyPricing({
   containerKind = "barrel",
   destinationParish = null,
   destinationCityOrTown = null,
+  destinationCountry = null,
   showRateCardToggle = true,
   dialogVariant = "company",
 }: {
@@ -433,6 +435,7 @@ export function ChargeLabelWithCompanyPricing({
   containerKind?: ContainerOfferingKind;
   destinationParish?: string | null;
   destinationCityOrTown?: string | null;
+  destinationCountry?: string | null;
   /** When false, only the Charge button (no rate-card checkbox). */
   showRateCardToggle?: boolean;
   dialogVariant?: "company" | "hub-transport";
@@ -443,9 +446,16 @@ export function ChargeLabelWithCompanyPricing({
   const [open, setOpen] = useState(false);
   const catalogPreview = isAdminShippingCatalogPreviewBarrelId(barrelId);
   const companyKey = companyName ? outboundShippingCompanyKey(companyName) : "";
+  const destKey = outboundShippingCountryKey(destinationCountry);
   const companyRates = useMemo(
-    () => (rates ?? []).filter((row) => row.companyKey === companyKey),
-    [companyKey, rates],
+    () =>
+      (rates ?? []).filter((row) => {
+        if (row.companyKey !== companyKey) return false;
+        if (!destKey || row.tableKind === "transport") return true;
+        const rowDest = outboundShippingCountryKey(row.destination);
+        return !rowDest || rowDest === destKey;
+      }),
+    [companyKey, destKey, rates],
   );
   const hubTransportCount = unpaidLinkedContainerCount({
     barrelId,
@@ -535,7 +545,7 @@ export function ChargeLabelWithCompanyPricing({
                   ? `${companyName} pickup pricing`
                   : "Pickup pricing"
                 : companyName
-                  ? `${companyName} pricing`
+                  ? `${companyName}${destinationCountry ? ` · ${destinationCountry}` : ""} pricing`
                   : "Company pricing"}
             </DialogTitle>
             <DialogDescription>

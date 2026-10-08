@@ -137,6 +137,46 @@ function uniquePartnerRecords(
   });
 }
 
+const OUTBOUND_CHARGE_SETUP_ID = "outbound-charge-setup";
+
+function scrollToChargeSetup() {
+  window.setTimeout(() => {
+    document
+      .getElementById(OUTBOUND_CHARGE_SETUP_ID)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 80);
+}
+
+function chargeFormCompany(
+  row: AdminBarrelOutboundShippingChargeRow,
+  chargeKind: BarrelOutboundShippingChargeKind,
+  selectedCompanyKey: string | null,
+): { name: string | null; country: string | null } {
+  if (selectedCompanyKey) {
+    const selected = row.partners.find(
+      (partner) =>
+        outboundShippingPartnerOfferingKey(partner.name, partner.country) ===
+        selectedCompanyKey,
+    );
+    if (selected?.name.trim()) {
+      return { name: selected.name.trim(), country: selected.country };
+    }
+  }
+  const name = primaryPartnerNameForKind(
+    row.partners,
+    row.barrelId,
+    chargeKind,
+  );
+  if (!name) return { name: null, country: null };
+  const match = row.partners.find(
+    (partner) =>
+      partner.chargeKind === chargeKind &&
+      outboundShippingCompanyKey(partner.name) ===
+        outboundShippingCompanyKey(name),
+  );
+  return { name, country: match?.country ?? null };
+}
+
 function hubTransportQuote(row: AdminBarrelOutboundShippingChargeRow): {
   containerCount: number;
   quotedCents: number | null;
@@ -176,23 +216,22 @@ function hubTransportAmountUsd(
 function CompanyServiceNoteField({
   row,
   chargeKind,
+  companyName,
+  country,
   adminNote,
   setAdminNote,
   noteLocked,
 }: {
   row: AdminBarrelOutboundShippingChargeRow;
   chargeKind: BarrelOutboundShippingChargeKind;
+  companyName: string | null;
+  country: string | null;
   adminNote: string;
   setAdminNote: (value: string) => void;
   noteLocked: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const companyName = primaryPartnerNameForKind(
-    row.partners,
-    row.barrelId,
-    chargeKind,
-  );
   const noteId = `${row.barrelId}-${chargeKind}-company-note`;
 
   function saveNote() {
@@ -203,6 +242,7 @@ function CompanyServiceNoteField({
     startTransition(async () => {
       const res = await setOutboundCompanyCustomerNoteAction({
         companyName,
+        country: country ?? "",
         customerNote: adminNote,
       });
       if (!res.ok) {
@@ -218,9 +258,9 @@ function CompanyServiceNoteField({
     <div className="space-y-1">
       <Label htmlFor={noteId}>Note to customer (optional)</Label>
       <p className="text-[11px] leading-snug text-muted-foreground">
-        Unique to this company. Visitors see it on How it works when they tap
-        Ad, or the info button on In-US freight. Edit it here or on Container
-        Control.
+        Unique to this company and destination country. Visitors see it on How
+        it works when they tap Ad, or the info button on In-US freight. Edit it
+        here or on Container Control.
       </p>
       <textarea
         id={noteId}
@@ -998,7 +1038,24 @@ function PartnerRecordsEditor({
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <PartnerRecordValue value={record.country} />
+                  <td className="px-3 py-2">
+                    {record.country ?
+                      <button
+                        type="button"
+                        className="text-left font-medium text-primary underline-offset-2 hover:underline"
+                        title={`Open ${record.name} ${record.country} charges`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectCompany?.(record);
+                          scrollToChargeSetup();
+                        }}
+                      >
+                        {record.country}
+                      </button>
+                    : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <PartnerRecordValue
                     value={record.location}
                     emphasize={Boolean(record.location)}
@@ -1107,11 +1164,17 @@ function AdminChargeKindForm({
   const [transportAmountUsd, setTransportAmountUsd] = useState(
     centsToUsdInput(freightLines.transportation?.amountCents ?? 0),
   );
+  const chargeCompany = chargeFormCompany(
+    row,
+    chargeKind,
+    selectedCompanyKey,
+  );
   const [adminNote, setAdminNote] = useState(
     existing?.adminNote ??
       companyCustomerNoteFromPartners(
         row.partners,
-        primaryPartnerNameForKind(row.partners, row.barrelId, chargeKind),
+        chargeCompany.name,
+        chargeCompany.country,
       ) ??
       "",
   );
@@ -1230,6 +1293,7 @@ function AdminChargeKindForm({
         onSelectCompany={onSelectCompany}
       />
 
+      <div id={OUTBOUND_CHARGE_SETUP_ID} className="space-y-2 scroll-mt-4">
       {chargeKind === "freight" ?
         <div className="space-y-2">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
@@ -1237,11 +1301,8 @@ function AdminChargeKindForm({
               <ChargeLabelWithCompanyPricing
                 htmlFor={`${row.barrelId}-${chargeKind}-label`}
                 label="Shipper charge"
-                companyName={primaryPartnerNameForKind(
-                  row.partners,
-                  row.barrelId,
-                  chargeKind,
-                )}
+                companyName={chargeCompany.name}
+                destinationCountry={chargeCompany.country}
                 tableKinds={[
                   outboundShippingRateTableKindForChargeKind(chargeKind),
                 ]}
@@ -1283,11 +1344,8 @@ function AdminChargeKindForm({
                 label="Pickup fee"
                 showRateCardToggle={false}
                 dialogVariant="hub-transport"
-                companyName={primaryPartnerNameForKind(
-                  row.partners,
-                  row.barrelId,
-                  chargeKind,
-                )}
+                companyName={chargeCompany.name}
+                destinationCountry={chargeCompany.country}
                 tableKinds={["transport"]}
                 rates={row.companyRates ?? []}
                 barrelId={row.barrelId}
@@ -1341,11 +1399,8 @@ function AdminChargeKindForm({
             <ChargeLabelWithCompanyPricing
               htmlFor={`${row.barrelId}-${chargeKind}-label`}
               label="Charge label"
-              companyName={primaryPartnerNameForKind(
-                row.partners,
-                row.barrelId,
-                chargeKind,
-              )}
+              companyName={chargeCompany.name}
+              destinationCountry={chargeCompany.country}
               tableKinds={[
                 outboundShippingRateTableKindForChargeKind(chargeKind),
               ]}
@@ -1385,6 +1440,8 @@ function AdminChargeKindForm({
       <CompanyServiceNoteField
         row={row}
         chargeKind={chargeKind}
+        companyName={chargeCompany.name}
+        country={chargeCompany.country}
         adminNote={adminNote}
         setAdminNote={setAdminNote}
         noteLocked={isPaid || pendingReview}
@@ -1393,6 +1450,7 @@ function AdminChargeKindForm({
       <Button type="button" disabled={formDisabled} onClick={save}>
         {pending ? "Publishing…" : existing ? "Update & publish" : "Publish"}
       </Button>
+      </div>
     </div>
   );
 }
@@ -1436,11 +1494,13 @@ function AdminMergedBundleForm({
   const [transportAmountUsd, setTransportAmountUsd] = useState(
     centsToUsdInput(freightLines.transportation?.amountCents ?? 0),
   );
+  const chargeCompany = chargeFormCompany(row, host, selectedCompanyKey);
   const [adminNote, setAdminNote] = useState(
     hostCharge?.adminNote ??
       companyCustomerNoteFromPartners(
         row.partners,
-        primaryPartnerNameForKind(row.partners, row.barrelId, host),
+        chargeCompany.name,
+        chargeCompany.country,
       ) ??
       "",
   );
@@ -1630,6 +1690,7 @@ function AdminMergedBundleForm({
         onSelectCompany={onSelectCompany}
       />
 
+      <div id={OUTBOUND_CHARGE_SETUP_ID} className="space-y-2 scroll-mt-4">
       {host === "freight" ?
         <div className="space-y-2">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]">
@@ -1637,11 +1698,8 @@ function AdminMergedBundleForm({
               <ChargeLabelWithCompanyPricing
                 htmlFor={`${row.barrelId}-bundle-label`}
                 label="Shipper charge"
-                companyName={primaryPartnerNameForKind(
-                  row.partners,
-                  row.barrelId,
-                  host,
-                )}
+                companyName={chargeCompany.name}
+                destinationCountry={chargeCompany.country}
                 tableKinds={outboundShippingRateTableKindsForTabs(bundledKinds)}
                 rates={row.companyRates ?? []}
                 barrelId={row.barrelId}
@@ -1681,11 +1739,8 @@ function AdminMergedBundleForm({
                 label="Pickup fee"
                 showRateCardToggle={false}
                 dialogVariant="hub-transport"
-                companyName={primaryPartnerNameForKind(
-                  row.partners,
-                  row.barrelId,
-                  host,
-                )}
+                companyName={chargeCompany.name}
+                destinationCountry={chargeCompany.country}
                 tableKinds={["transport"]}
                 rates={row.companyRates ?? []}
                 barrelId={row.barrelId}
@@ -1734,11 +1789,8 @@ function AdminMergedBundleForm({
             <ChargeLabelWithCompanyPricing
               htmlFor={`${row.barrelId}-bundle-label`}
               label="Charge label"
-              companyName={primaryPartnerNameForKind(
-                row.partners,
-                row.barrelId,
-                host,
-              )}
+              companyName={chargeCompany.name}
+              destinationCountry={chargeCompany.country}
               tableKinds={outboundShippingRateTableKindsForTabs(bundledKinds)}
               rates={row.companyRates ?? []}
               barrelId={row.barrelId}
@@ -1822,6 +1874,8 @@ function AdminMergedBundleForm({
       <CompanyServiceNoteField
         row={row}
         chargeKind={host}
+        companyName={chargeCompany.name}
+        country={chargeCompany.country}
         adminNote={adminNote}
         setAdminNote={setAdminNote}
         noteLocked={anyPaid || pendingReview}
@@ -1830,6 +1884,7 @@ function AdminMergedBundleForm({
       <Button type="button" disabled={formDisabled} onClick={save}>
         {pending ? "Publishing…" : hostCharge ? "Update & publish" : "Publish"}
       </Button>
+      </div>
     </div>
   );
 }
@@ -1972,6 +2027,7 @@ export function AdminOutboundChargeKindTabs({
       {activeGroup ?
         activeGroup.kinds.length > 1 ?
           <AdminMergedBundleForm
+            key={`${row.barrelId}-bundle-${selectedCompanyKey ?? "none"}`}
             row={row}
             bundledKinds={activeGroup.kinds}
             publishEnabled={publishEnabled}
@@ -1981,7 +2037,7 @@ export function AdminOutboundChargeKindTabs({
           />
         : (
           <AdminChargeKindForm
-            key={`${row.barrelId}-${activeGroup.kinds[0]}-${chargeViewForKind(row.charges, activeGroup.kinds[0]!)?.chargeId ?? "new"}`}
+            key={`${row.barrelId}-${activeGroup.kinds[0]}-${selectedCompanyKey ?? "none"}-${chargeViewForKind(row.charges, activeGroup.kinds[0]!)?.chargeId ?? "new"}`}
             row={row}
             chargeKind={activeGroup.kinds[0]!}
             publishEnabled={publishEnabled}

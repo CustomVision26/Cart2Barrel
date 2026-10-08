@@ -77,20 +77,28 @@ async function findCompanyImageUrl(
   return match?.imageUrl?.trim() || null;
 }
 
-async function findCompanyCustomerNote(name: string): Promise<string | null> {
+async function findCompanyCustomerNote(
+  name: string,
+  country?: string | null,
+): Promise<string | null> {
   const key = partnerNameKey(name);
   if (!key) return null;
+  const destKey = outboundShippingCountryKey(country);
   const db = getDb();
   const rows = await db
     .select({
       customerNote: barrelOutboundShippingPartners.customerNote,
       name: barrelOutboundShippingPartners.name,
+      country: barrelOutboundShippingPartners.country,
     })
     .from(barrelOutboundShippingPartners);
-  const match = rows.find(
-    (row) =>
-      partnerNameKey(row.name) === key && Boolean(row.customerNote?.trim()),
-  );
+  const match = rows.find((row) => {
+    if (partnerNameKey(row.name) !== key) return false;
+    if (destKey && outboundShippingCountryKey(row.country) !== destKey) {
+      return false;
+    }
+    return Boolean(row.customerNote?.trim());
+  });
   return match?.customerNote?.trim() || null;
 }
 
@@ -688,7 +696,7 @@ export async function addOutboundShippingPartner(input: {
       zelleAccount: input.zelleAccount,
       imageUrl,
       isPrimary: makePrimary,
-      customerNote: await findCompanyCustomerNote(input.name),
+      customerNote: await findCompanyCustomerNote(input.name, input.country),
     })
     .returning();
   if (!inserted) {
@@ -1024,6 +1032,7 @@ export async function setOutboundShippingPartnerPublicPricing(input: {
 export async function setOutboundCompanyCustomerNote(input: {
   companyName: string;
   customerNote: string | null;
+  country?: string | null;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   const companyKey = outboundShippingCompanyKey(input.companyName);
   if (!companyKey) {
@@ -1032,14 +1041,22 @@ export async function setOutboundCompanyCustomerNote(input: {
   await ensureBarrelOutboundShippingChargesSchema();
   await ensureOutboundPartnerPublicPricingColumn();
   const db = getDb();
+  const destKey = outboundShippingCountryKey(input.country);
   const rows = await db
     .select({
       id: barrelOutboundShippingPartners.id,
       name: barrelOutboundShippingPartners.name,
+      country: barrelOutboundShippingPartners.country,
     })
     .from(barrelOutboundShippingPartners);
   const ids = rows
-    .filter((row) => outboundShippingCompanyKey(row.name) === companyKey)
+    .filter((row) => {
+      if (outboundShippingCompanyKey(row.name) !== companyKey) return false;
+      if (destKey && outboundShippingCountryKey(row.country) !== destKey) {
+        return false;
+      }
+      return true;
+    })
     .map((row) => row.id);
   if (ids.length === 0) {
     return { ok: false, message: "Add a company first." };

@@ -536,7 +536,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Always available, even when no customer container is ready.",
         "Freight charge, Broker, and Local courier sub-tabs match Manage on a Shipments card, including companies already created on a container. Click a company in the table to select it; the tab bar shows that company's type (standalone Freight / Broker / Local courier, or a consolidated tab such as Freight charge + Broker).",
-        "Add company opens Standalone vs Consolidate for a destination country. Standalone is one charge for that country. Consolidate shares one form across two or three charges for that same country. The same company name can have another record for a different country (freight-only to one destination, freight + broker to another).",
+        "Add company opens Standalone vs Consolidate for a destination country. Standalone is one charge for that country. Consolidate shares one form across two or three charges for that same country. The same company name can have another record for a different country (freight-only to one destination, freight + broker to another). Click the country name to open that record's charge box: freight standalone or freight+broker uses shipper charge and pickup fee; standalone local courier uses the courier charge label and note.",
         "Edit company address, payment IDs, Ad, notes, Charge rate tables, and pickup fees here. Destination is required on each freight or broker container row.",
         "Publish to How it works from the company record. Per-container charge publish stays on Shipments → Manage.",
       ],
