@@ -1123,6 +1123,10 @@
   gap: 0.4rem;
 }
 
+.pickup-charge-route-short {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
 .pickup-charge-route-node {
   display: inline-flex;
   height: 2.5rem;
