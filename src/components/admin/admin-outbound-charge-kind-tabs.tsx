@@ -48,6 +48,8 @@ import {
   outboundChargeBundleLabel,
   outboundChargeBundleSameCompanyTitle,
   outboundShippingCompanyKey,
+  outboundShippingCountryKey,
+  outboundShippingPartnerOfferingKey,
   outboundShippingRateTableKindForChargeKind,
   outboundShippingRateTableKindsForTabs,
   primaryPartnerNameForKind,
@@ -63,17 +65,19 @@ function centsToUsdInput(cents: number): string {
   return cents > 0 ? (cents / 100).toFixed(2) : "";
 }
 
-function kindsForCompanyName(
+function kindsForCompanyOffering(
   partners: AdminBarrelOutboundShippingChargeRow["partners"],
   name: string,
+  country?: string | null,
 ): BarrelOutboundShippingChargeKind[] {
-  const key = outboundShippingCompanyKey(name);
-  if (!key) return [];
+  const key = outboundShippingPartnerOfferingKey(name, country);
+  if (!outboundShippingCompanyKey(name)) return [];
   return BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) =>
     partners.some(
       (partner) =>
         partner.chargeKind === kind &&
-        outboundShippingCompanyKey(partner.name) === key,
+        outboundShippingPartnerOfferingKey(partner.name, partner.country) ===
+          key,
     ),
   );
 }
@@ -90,8 +94,9 @@ function tabIdForCompanyKinds(
 function companyTypeLabel(
   partners: AdminBarrelOutboundShippingChargeRow["partners"],
   name: string,
+  country?: string | null,
 ): string | null {
-  const typeKinds = kindsForCompanyName(partners, name);
+  const typeKinds = kindsForCompanyOffering(partners, name, country);
   if (typeKinds.length === 0) return null;
   return typeKinds.length >= 2
     ? outboundChargeBundleLabel(typeKinds)
@@ -104,8 +109,11 @@ function uniquePartnerRecords(
 ) {
   const byKey = new Map<string, (typeof partners)[number]>();
   for (const partner of partners) {
-    const key = outboundShippingCompanyKey(partner.name);
-    if (!key) continue;
+    const key = outboundShippingPartnerOfferingKey(
+      partner.name,
+      partner.country,
+    );
+    if (!outboundShippingCompanyKey(partner.name)) continue;
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, partner);
@@ -118,7 +126,15 @@ function uniquePartnerRecords(
       byKey.set(key, partner);
     }
   }
-  return [...byKey.values()];
+  return [...byKey.values()].sort((a, b) => {
+    const nameCmp = a.name.localeCompare(b.name, undefined, {
+      sensitivity: "base",
+    });
+    if (nameCmp !== 0) return nameCmp;
+    return (a.country ?? "").localeCompare(b.country ?? "", undefined, {
+      sensitivity: "base",
+    });
+  });
 }
 
 function hubTransportQuote(row: AdminBarrelOutboundShippingChargeRow): {
@@ -378,7 +394,11 @@ function PartnerRecordsEditor({
   }
 
   function startEdit(record: (typeof records)[number]) {
-    const kinds = kindsForCompanyName(row.partners, record.name);
+    const kinds = kindsForCompanyOffering(
+      row.partners,
+      record.name,
+      record.country,
+    );
     setEditingId(record.id);
     setName(record.name);
     setLocation(record.location ?? "");
@@ -412,15 +432,20 @@ function PartnerRecordsEditor({
       toast.error("Select two or three charges to consolidate this company.");
       return;
     }
+    if (!outboundShippingCountryKey(country)) {
+      toast.error("Choose a destination country for this company record.");
+      return;
+    }
     startTransition(async () => {
       const makeThisPrimary = makePrimary || localCount === 0;
+      const destKey = outboundShippingCountryKey(country);
       for (const kind of kindsToSave) {
         const operateFrom = kind !== "freight";
         const payload = {
           name,
           location: operateFrom ? location : "",
           address,
-          country: operateFrom ? country : "",
+          country,
           phone,
           cashappId,
           cashappAccount,
@@ -432,8 +457,9 @@ function PartnerRecordsEditor({
         const existing = row.partners.find(
           (partner) =>
             partner.chargeKind === kind &&
-            outboundShippingCompanyKey(partner.name) ===
-              outboundShippingCompanyKey(name) &&
+            outboundShippingPartnerOfferingKey(partner.name, partner.country) ===
+              outboundShippingPartnerOfferingKey(name, country) &&
+            outboundShippingCountryKey(partner.country) === destKey &&
             (catalogPreview || partner.barrelId === row.barrelId || partner.barrelId == null),
         );
         const res =
@@ -565,9 +591,11 @@ function PartnerRecordsEditor({
               Company type
             </p>
             <p className="text-[11px] leading-snug text-muted-foreground">
-              Standalone is one charge. Consolidate shares one company form
-              across two or three charges (Freight and broker use the same
-              quote).
+              Standalone is one charge for this destination country. Consolidate
+              shares one form across two or three charges for that same country.
+              The same company name can have another record for a different
+              country (for example freight-only to Jamaica, freight + broker to
+              Barbados).
             </p>
             <div className="flex flex-wrap gap-4">
               <label className="inline-flex items-center gap-1.5 text-xs text-foreground">
@@ -660,43 +688,45 @@ function PartnerRecordsEditor({
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${row.barrelId}-${chargeKind}-country`}>
+                Destination country
+              </Label>
+              <select
+                id={`${row.barrelId}-${chargeKind}-country`}
+                value={country}
+                disabled={busy}
+                className={nativeSelectFieldClassName}
+                onChange={(e) => setCountry(e.target.value)}
+              >
+                <option value="">Select country</option>
+                {SHIPPING_COUNTRIES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Services on this record apply to this country. Add another
+                record with the same company name for a different destination.
+              </p>
+            </div>
             {showOperateFrom ?
-              <>
-                <div className="space-y-1 rounded-md border border-primary/30 bg-primary/10 p-2">
-                  <Label htmlFor={`${row.barrelId}-${chargeKind}-location`}>
-                    Location
-                  </Label>
-                  <Input
-                    id={`${row.barrelId}-${chargeKind}-location`}
-                    value={location}
-                    disabled={busy}
-                    placeholder="e.g. Kingston Container Terminal (KCT)"
-                    onChange={(e) => setLocation(e.target.value)}
-                  />
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    {PARTNER_LOCATION_FROM_HINT}.
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${row.barrelId}-${chargeKind}-country`}>
-                    Country
-                  </Label>
-                  <select
-                    id={`${row.barrelId}-${chargeKind}-country`}
-                    value={country}
-                    disabled={busy}
-                    className={nativeSelectFieldClassName}
-                    onChange={(e) => setCountry(e.target.value)}
-                  >
-                    <option value="">Select country</option>
-                    {SHIPPING_COUNTRIES.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
+              <div className="space-y-1 rounded-md border border-primary/30 bg-primary/10 p-2">
+                <Label htmlFor={`${row.barrelId}-${chargeKind}-location`}>
+                  Location
+                </Label>
+                <Input
+                  id={`${row.barrelId}-${chargeKind}-location`}
+                  value={location}
+                  disabled={busy}
+                  placeholder="e.g. Kingston Container Terminal (KCT)"
+                  onChange={(e) => setLocation(e.target.value)}
+                />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {PARTNER_LOCATION_FROM_HINT}.
+                </p>
+              </div>
             : null}
             <div className="space-y-1 sm:col-span-2">
               <Label htmlFor={`${row.barrelId}-${chargeKind}-address`}>
@@ -859,10 +889,11 @@ function PartnerRecordsEditor({
             </p>
           : catalogPreview ?
             <p className="text-xs text-muted-foreground">
-              Companies saved here or on a shipment card. Click a row to select
-              it — the tab bar shows that company&apos;s type (standalone or
-              consolidated). Edit address, payment IDs, and Charge rate tables
-              without opening a container.
+              Companies saved here or on a shipment card. The same name can
+              appear once per destination country with its own standalone or
+              consolidated type. Click a row to select it — the tab bar shows
+              that record&apos;s type. Edit address, payment IDs, and Charge
+              rate tables without opening a container.
             </p>
           : (
             <p className="text-xs text-muted-foreground">
@@ -879,17 +910,13 @@ function PartnerRecordsEditor({
                   {isFreight ? "Company" : "Name"}
                 </th>
                 <th className="px-3 py-2 font-medium">Ad</th>
-                {!isFreight ?
-                  <>
-                    <th className="px-3 py-2 font-medium">Country</th>
-                    <th
-                      className="bg-primary/10 px-3 py-2 font-medium text-primary"
-                      title={PARTNER_LOCATION_FROM_HINT}
-                    >
-                      Location
-                    </th>
-                  </>
-                : null}
+                <th className="px-3 py-2 font-medium">Country</th>
+                <th
+                  className="bg-primary/10 px-3 py-2 font-medium text-primary"
+                  title={PARTNER_LOCATION_FROM_HINT}
+                >
+                  Location
+                </th>
                 <th className="px-3 py-2 font-medium">Address</th>
                 <th className="px-3 py-2 font-medium">Telephone</th>
                 <th className="px-3 py-2 font-medium">Cash App</th>
@@ -907,8 +934,16 @@ function PartnerRecordsEditor({
                   ? record.barrelId == null && record.isPrimary
                   : onThisBarrel && record.isPrimary;
                 const isSelected =
-                  selectedCompanyKey === outboundShippingCompanyKey(record.name);
-                const typeLabel = companyTypeLabel(row.partners, record.name);
+                  selectedCompanyKey ===
+                  outboundShippingPartnerOfferingKey(
+                    record.name,
+                    record.country,
+                  );
+                const typeLabel = companyTypeLabel(
+                  row.partners,
+                  record.name,
+                  record.country,
+                );
                 return (
                 <tr
                   key={record.id}
@@ -922,7 +957,7 @@ function PartnerRecordsEditor({
                   <td className="px-3 py-2">
                     <input
                       type="radio"
-                      name={`${row.barrelId}-${chargeKind}-primary`}
+                      name={`${row.barrelId}-${chargeKind}-${outboundShippingCountryKey(record.country) || "none"}-primary`}
                       className="size-4 accent-primary"
                       checked={record.chargeKind === chargeKind && showAsPrimary}
                       disabled={busy || record.chargeKind !== chargeKind}
@@ -963,16 +998,12 @@ function PartnerRecordsEditor({
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  {!isFreight ?
-                    <>
-                      <PartnerRecordValue value={record.country} />
-                      <PartnerRecordValue
-                        value={record.location}
-                        emphasize
-                        titleSuffix={PARTNER_LOCATION_FROM_HINT}
-                      />
-                    </>
-                  : null}
+                  <PartnerRecordValue value={record.country} />
+                  <PartnerRecordValue
+                    value={record.location}
+                    emphasize={Boolean(record.location)}
+                    titleSuffix={PARTNER_LOCATION_FROM_HINT}
+                  />
                   <PartnerRecordValue value={record.address} />
                   <PartnerRecordValue value={record.phone} />
                   <PartnerRecordValue value={record.cashappId} />
@@ -1819,9 +1850,13 @@ export function AdminOutboundChargeKindTabs({
   const selectedKinds = useMemo(() => {
     if (!selectedCompanyKey) return [] as BarrelOutboundShippingChargeKind[];
     const partner = row.partners.find(
-      (item) => outboundShippingCompanyKey(item.name) === selectedCompanyKey,
+      (item) =>
+        outboundShippingPartnerOfferingKey(item.name, item.country) ===
+        selectedCompanyKey,
     );
-    return partner ? kindsForCompanyName(row.partners, partner.name) : [];
+    return partner
+      ? kindsForCompanyOffering(row.partners, partner.name, partner.country)
+      : [];
   }, [selectedCompanyKey, row.partners]);
   const groups = useMemo(() => {
     const bundle = selectedKinds.length >= 2 ? selectedKinds : [];
@@ -1863,9 +1898,16 @@ export function AdminOutboundChargeKindTabs({
   function selectCompany(
     record: AdminBarrelOutboundShippingChargeRow["partners"][number],
   ) {
-    const key = outboundShippingCompanyKey(record.name);
+    const key = outboundShippingPartnerOfferingKey(
+      record.name,
+      record.country,
+    );
     setSelectedCompanyKey(key);
-    const companyKinds = kindsForCompanyName(row.partners, record.name);
+    const companyKinds = kindsForCompanyOffering(
+      row.partners,
+      record.name,
+      record.country,
+    );
     const nextKinds =
       companyKinds.length > 0 ? companyKinds : [record.chargeKind];
     const bundle = nextKinds.length >= 2 ? nextKinds : [];

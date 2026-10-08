@@ -20,7 +20,6 @@ import {
   getOutboundShippingChargesByBarrelIds,
 } from "@/data/barrel-outbound-shipping-charges";
 import {
-  clearStaleCatalogChargeBundleClones,
   listOutboundShippingPartnerCatalog,
   listOutboundShippingPartnersByBarrelIds,
   mergePartnersWithCatalog,
@@ -314,7 +313,6 @@ export async function listAdminShipmentChargePageData(
   } catch (e) {
     console.error("[listAdminShipmentChargePageData]", e);
     await seedKingdomKleanerzCourierZones().catch(() => undefined);
-    await clearStaleCatalogChargeBundleClones().catch(() => undefined);
     const [catalogPartners, companyRates, catalogDefaults] = await Promise.all([
       listOutboundShippingPartnerCatalog().catch(() => []),
       listOutboundShippingCompanyRates().catch(() => []),
@@ -340,9 +338,6 @@ async function loadAdminShipmentChargePageData(
   await ensureBarrelOutboundShippingChargesSchema();
   await ensureBarrelOutboundShipmentTrackingSchema();
   await ensureOrderContainerPackagingFeeColumns();
-  await clearStaleCatalogChargeBundleClones().catch((e) => {
-    console.error("[loadAdminShipmentChargePageData] catalog bundle clones", e);
-  });
 
   let sourceRows: Awaited<ReturnType<typeof loadAllActiveBarrelRows>>;
   try {

@@ -484,8 +484,8 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Shipments; Container Control at /admin/shipments-container-control; history at /admin/shipments-history.",
       bullets: [
         "Create and manage outbound shipment charges and 1-container vs extra-container rate tables. Customers link unpaid containers on Dashboard → Shipping.",
-        "Container Control tab: same Freight / Broker / Local courier catalog as Manage on a container card, without opening a shipment. Add company chooses Standalone or Consolidate; selecting a company in the table switches the charge tab to that company's type.",
-        "Publish a company to How it works → Pricing overview from the company record. Freight (or freight+broker) appears under In-US vendor as a service badge, customer-note info button, and destination buttons from the freight rate card—no company name or street. Pickup next to a container type opens that type's hub-to-office pickup fee. Standalone overseas brokers and couriers show a Local courier or Broker heading, then the company name, then a destination button for the country on the company record.",
+        "Container Control tab: same Freight / Broker / Local courier catalog as Manage on a container card, without opening a shipment. Add company chooses a destination country and Standalone or Consolidate; the same company name can have one record per country. Selecting a row switches the charge tab to that record's type.",
+        "Publish a company to How it works → Pricing overview from the company record. Each destination-country record publishes with its own service mix. Freight (or freight+broker) for that country appears under In-US vendor as a service badge, customer-note info button, and destination button—no company name or street. Pickup next to a container type opens that type's hub-to-office pickup fee. Standalone overseas brokers and couriers show a Local courier or Broker heading, then the company name, then a destination button for the country on the company record.",
         "Customs and freight billing to customer cart.",
         "Carrier tracking for international delivery.",
         "Shipping History: every container shipped through Amani Cart2Barrel, listed in a table with freight, broker, courier, receipts, and customs documents. Double-click a row or Open for the full record. Newest first, with search, sort, pagination, and the header customer filter.",
@@ -536,7 +536,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Always available, even when no customer container is ready.",
         "Freight charge, Broker, and Local courier sub-tabs match Manage on a Shipments card, including companies already created on a container. Click a company in the table to select it; the tab bar shows that company's type (standalone Freight / Broker / Local courier, or a consolidated tab such as Freight charge + Broker).",
-        "Add company opens Standalone vs Consolidate. Standalone is one charge only (it is not copied onto Broker). Consolidate shares one company form across two or three charges.",
+        "Add company opens Standalone vs Consolidate for a destination country. Standalone is one charge for that country. Consolidate shares one form across two or three charges for that same country. The same company name can have another record for a different country (freight-only to one destination, freight + broker to another).",
         "Edit company address, payment IDs, Ad, notes, Charge rate tables, and pickup fees here. Destination is required on each freight or broker container row.",
         "Publish to How it works from the company record. Per-container charge publish stays on Shipments → Manage.",
       ],
@@ -557,7 +557,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Open Sidebar → Shipments, then the Container Control tab.",
-        "Use Freight charge, Broker, and Local courier the same way as Manage: companies created on a shipment card appear here to edit. Click Add company and choose Standalone or Consolidate, then which charges the company covers. Click a saved company in the table to highlight it and switch the tab bar to that company's type. Add or edit name, address, location, payment IDs, Ad image, the note to customer, and Charge rate tables (including pickup fees). Freight and broker container rows need a destination so How it works can show that destination as a button.",
+        "Use Freight charge, Broker, and Local courier the same way as Manage: companies created on a shipment card appear here to edit. Click Add company, choose a destination country, then Standalone or Consolidate and which charges apply in that country. The same company name can be saved again for another country with a different mix (for example freight-only, freight + broker, or freight + broker + local courier). Click a saved row to highlight it and switch the tab bar to that record's type. Add or edit name, address, location, payment IDs, Ad image, the note to customer, and Charge rate tables (including pickup fees). Freight and broker container rate rows also need a destination so How it works can show that destination as a button.",
         "Publish a company to How it works from the company record when the public rate schedule should show it.",
         "When a customer container is ready, open Shipments → Manage on that card to publish the charge for Dashboard → Shipping.",
       ],
@@ -568,7 +568,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       donts: [
         "Do not treat catalog save as publishing a customer invoice.",
-        "Do not duplicate companies with slightly different names if they are the same vendor.",
+        "Do not create misspelled extra names for the same vendor—reuse the company name and add a new record per destination country instead.",
       ],
     },
   },

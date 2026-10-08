@@ -18,6 +18,7 @@ import {
   isBarrelOutboundShippingChargeKind,
   outboundChargeBundleHost,
   outboundShippingCompanyKey,
+  outboundShippingCountryKey,
   parseOutboundChargeBundle,
   type BarrelOutboundShippingChargeKind,
   type OutboundShippingPartnerRecord,
@@ -114,15 +115,21 @@ async function propagateCompanyProfile(input: {
   );
   if (keys.size === 0) return;
   const db = getDb();
+  const destKey = outboundShippingCountryKey(input.country);
   const rows = await db
     .select({
       id: barrelOutboundShippingPartners.id,
       name: barrelOutboundShippingPartners.name,
+      country: barrelOutboundShippingPartners.country,
     })
     .from(barrelOutboundShippingPartners)
     .where(eq(barrelOutboundShippingPartners.chargeKind, input.chargeKind));
   const ids = rows
-    .filter((row) => keys.has(partnerNameKey(row.name)))
+    .filter(
+      (row) =>
+        keys.has(partnerNameKey(row.name)) &&
+        outboundShippingCountryKey(row.country) === destKey,
+    )
     .map((row) => row.id);
   if (ids.length === 0) return;
   await db
@@ -131,7 +138,7 @@ async function propagateCompanyProfile(input: {
       name: input.name,
       location: input.chargeKind === "freight" ? null : input.location,
       address: input.address,
-      country: input.chargeKind === "freight" ? null : input.country,
+      country: input.country,
       phone: input.phone,
       cashappId: input.cashappId,
       cashappAccount: input.cashappAccount,
@@ -181,8 +188,13 @@ async function resolvePartnerImageUrl(input: {
   return findCompanyImageUrl(input.chargeKind, input.name);
 }
 
-function partnerCatalogKey(partner: Pick<OutboundShippingPartnerRecord, "chargeKind" | "name">): string {
-  return `${partner.chargeKind}:${partner.name.trim().toLowerCase()}`;
+function partnerCatalogKey(
+  partner: Pick<OutboundShippingPartnerRecord, "chargeKind" | "name" | "country">,
+): string {
+  const dest = outboundShippingCountryKey(partner.country);
+  return dest
+    ? `${partner.chargeKind}:${partner.name.trim().toLowerCase()}:${dest}`
+    : `${partner.chargeKind}:${partner.name.trim().toLowerCase()}`;
 }
 
 function partnerBarrelIdFilter(barrelId: string | null) {
@@ -363,20 +375,24 @@ export async function copyPrimaryPartnerToChargeKind(input: {
 async function companyChargeKindsAtScope(
   barrelId: string | null,
   name: string,
+  country?: string | null,
 ): Promise<BarrelOutboundShippingChargeKind[]> {
   const key = partnerNameKey(name);
   if (!key) return [];
+  const destKey = outboundShippingCountryKey(country);
   const db = getDb();
   const rows = await db
     .select({
       chargeKind: barrelOutboundShippingPartners.chargeKind,
       name: barrelOutboundShippingPartners.name,
+      country: barrelOutboundShippingPartners.country,
     })
     .from(barrelOutboundShippingPartners)
     .where(partnerBarrelIdFilter(barrelId));
   const found = new Set<BarrelOutboundShippingChargeKind>();
   for (const row of rows) {
     if (partnerNameKey(row.name) !== key) continue;
+    if (outboundShippingCountryKey(row.country) !== destKey) continue;
     if (isBarrelOutboundShippingChargeKind(row.chargeKind)) {
       found.add(row.chargeKind);
     }
@@ -388,25 +404,27 @@ export async function removeCompanyFromOtherChargeKinds(input: {
   barrelId: string | null;
   name: string;
   keepKind: BarrelOutboundShippingChargeKind;
+  country?: string | null;
 }): Promise<void> {
   const key = partnerNameKey(input.name);
   if (!key) return;
+  const destKey = outboundShippingCountryKey(input.country);
   const db = getDb();
-  const scoped = db
+  const rows = await db
     .select({
       id: barrelOutboundShippingPartners.id,
       name: barrelOutboundShippingPartners.name,
       chargeKind: barrelOutboundShippingPartners.chargeKind,
+      country: barrelOutboundShippingPartners.country,
     })
-    .from(barrelOutboundShippingPartners);
-  const rows =
-    input.barrelId === null
-      ? await scoped
-      : await scoped.where(partnerBarrelIdFilter(input.barrelId));
+    .from(barrelOutboundShippingPartners)
+    .where(partnerBarrelIdFilter(input.barrelId));
   const ids = rows
     .filter(
       (row) =>
-        partnerNameKey(row.name) === key && row.chargeKind !== input.keepKind,
+        partnerNameKey(row.name) === key &&
+        outboundShippingCountryKey(row.country) === destKey &&
+        row.chargeKind !== input.keepKind,
     )
     .map((row) => row.id);
   if (ids.length === 0) return;
@@ -461,7 +479,11 @@ export async function syncBundlePartnersFromHost(
   if (!host) return;
   const source = await getPrimaryOutboundShippingPartner(barrelId, host);
   if (!source?.name.trim()) return;
-  const existingKinds = await companyChargeKindsAtScope(barrelId, source.name);
+  const existingKinds = await companyChargeKindsAtScope(
+    barrelId,
+    source.name,
+    source.country,
+  );
   const alreadyConsolidated = existingKinds.some(
     (kind) => kind !== host && bundle.includes(kind),
   );
@@ -532,17 +554,30 @@ async function syncPrimaryPartnerOntoCharge(
 async function clearPrimaryForKind(
   barrelId: string | null,
   chargeKind: BarrelOutboundShippingChargeKind,
+  country?: string | null,
 ): Promise<void> {
   const db = getDb();
-  await db
-    .update(barrelOutboundShippingPartners)
-    .set({ isPrimary: false, updatedAt: new Date().toISOString() })
+  const destKey = outboundShippingCountryKey(country);
+  const rows = await db
+    .select({
+      id: barrelOutboundShippingPartners.id,
+      country: barrelOutboundShippingPartners.country,
+    })
+    .from(barrelOutboundShippingPartners)
     .where(
       and(
         partnerBarrelIdFilter(barrelId),
         eq(barrelOutboundShippingPartners.chargeKind, chargeKind),
       ),
     );
+  const ids = rows
+    .filter((row) => outboundShippingCountryKey(row.country) === destKey)
+    .map((row) => row.id);
+  if (ids.length === 0) return;
+  await db
+    .update(barrelOutboundShippingPartners)
+    .set({ isPrimary: false, updatedAt: new Date().toISOString() })
+    .where(inArray(barrelOutboundShippingPartners.id, ids));
 }
 
 export async function addOutboundShippingPartner(input: {
@@ -572,7 +607,7 @@ export async function addOutboundShippingPartner(input: {
         eq(barrelOutboundShippingPartners.chargeKind, input.chargeKind),
       ),
     );
-  const [sameName] = await db
+  const sameNameCandidates = await db
     .select()
     .from(barrelOutboundShippingPartners)
     .where(
@@ -581,8 +616,12 @@ export async function addOutboundShippingPartner(input: {
         eq(barrelOutboundShippingPartners.chargeKind, input.chargeKind),
         eq(barrelOutboundShippingPartners.name, input.name),
       ),
-    )
-    .limit(1);
+    );
+  const destKey = outboundShippingCountryKey(input.country);
+  const sameName =
+    sameNameCandidates.find(
+      (row) => outboundShippingCountryKey(row.country) === destKey,
+    ) ?? null;
   const makePrimary = input.isPrimary || existing.length === 0 || Boolean(sameName?.isPrimary);
   const imageUrl = await resolvePartnerImageUrl({
     chargeKind: input.chargeKind,
@@ -590,7 +629,7 @@ export async function addOutboundShippingPartner(input: {
     imageUrl: input.imageUrl,
   });
   if (makePrimary) {
-    await clearPrimaryForKind(input.barrelId, input.chargeKind);
+    await clearPrimaryForKind(input.barrelId, input.chargeKind, input.country);
   }
 
   if (sameName) {
@@ -627,6 +666,7 @@ export async function addOutboundShippingPartner(input: {
         barrelId: input.barrelId,
         name: input.name,
         keepKind: input.chargeKind,
+        country: input.country,
       });
     }
     return mapPartner(updated);
@@ -667,6 +707,7 @@ export async function addOutboundShippingPartner(input: {
       barrelId: input.barrelId,
       name: input.name,
       keepKind: input.chargeKind,
+      country: input.country,
     });
   }
 
@@ -741,7 +782,7 @@ export async function updateOutboundShippingPartner(input: {
   const makePrimary = input.isPrimary || row.isPrimary;
   const imageUrl = input.imageUrl?.trim() || null;
   if (makePrimary) {
-    await clearPrimaryForKind(row.barrelId, kind);
+    await clearPrimaryForKind(row.barrelId, kind, input.country);
   }
   await db
     .update(barrelOutboundShippingPartners)
@@ -749,7 +790,7 @@ export async function updateOutboundShippingPartner(input: {
       name: input.name,
       location: kind === "freight" ? null : input.location,
       address: input.address,
-      country: kind === "freight" ? null : input.country,
+      country: input.country,
       phone: input.phone,
       cashappId: input.cashappId,
       cashappAccount: input.cashappAccount,
@@ -766,7 +807,7 @@ export async function updateOutboundShippingPartner(input: {
     name: input.name,
     location: kind === "freight" ? null : input.location,
     address: input.address,
-    country: kind === "freight" ? null : input.country,
+    country: input.country,
     phone: input.phone,
     cashappId: input.cashappId,
     cashappAccount: input.cashappAccount,
@@ -781,7 +822,7 @@ export async function updateOutboundShippingPartner(input: {
       name: input.name,
       location: kind === "freight" ? null : input.location,
       address: input.address,
-      country: kind === "freight" ? null : input.country,
+      country: input.country,
       phone: input.phone,
       cashappId: input.cashappId,
       cashappAccount: input.cashappAccount,
@@ -798,6 +839,7 @@ export async function updateOutboundShippingPartner(input: {
       barrelId: row.barrelId,
       name: input.name,
       keepKind: kind,
+      country: input.country,
     });
   }
   return { ok: true };
@@ -839,7 +881,7 @@ export async function setOutboundShippingPartnerPrimary(
     await maybeSyncPartnerOntoBarrel(catalog.barrelId, kind);
     return { ok: true };
   }
-  await clearPrimaryForKind(row.barrelId, kind);
+  await clearPrimaryForKind(row.barrelId, kind, row.country);
   await db
     .update(barrelOutboundShippingPartners)
     .set({ isPrimary: true, updatedAt: new Date().toISOString() })

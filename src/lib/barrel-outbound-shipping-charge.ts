@@ -39,6 +39,22 @@ export function outboundShippingCompanyKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
+export function outboundShippingCountryKey(
+  country: string | null | undefined,
+): string {
+  return country?.trim().toLowerCase() ?? "";
+}
+
+/** One catalog record: same company name may exist once per destination country. */
+export function outboundShippingPartnerOfferingKey(
+  name: string,
+  country?: string | null,
+): string {
+  const company = outboundShippingCompanyKey(name);
+  const dest = outboundShippingCountryKey(country);
+  return dest ? `${company}::${dest}` : company;
+}
+
 export function outboundShippingRateRowKey(
   label: string,
   destination?: string | null,

@@ -8,17 +8,14 @@ import {
   ensureBarrelOutboundShippingChargesSchema,
   ensureOutboundPartnerPublicPricingColumn,
 } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
-import {
-  getOutboundShippingCatalogDefaults,
-  type OutboundShippingCatalogDefaults,
-} from "@/data/outbound-shipping-catalog-defaults";
 import { listOutboundShippingCompanyRates } from "@/data/outbound-shipping-company-rates";
 import { isMissingBarrelOutboundShippingChargesTableError } from "@/lib/db-column-missing";
 import {
   BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS,
   isBarrelOutboundShippingChargeKind,
-  outboundChargeBundleHost,
   outboundShippingCompanyKey,
+  outboundShippingCountryKey,
+  outboundShippingPartnerOfferingKey,
   outboundShippingRateTableKindsForTabs,
 } from "@/lib/barrel-outbound-shipping-charge";
 import {
@@ -72,20 +69,11 @@ export async function listPublicOutboundCompanyPricing(): Promise<
     throw e;
   }
 
-  const [rates, catalog] = await Promise.all([
-    listOutboundShippingCompanyRates().catch(() => []),
-    getOutboundShippingCatalogDefaults().catch(
-      (): OutboundShippingCatalogDefaults => ({
-        chargeBundle: [],
-        companyRateKinds: [],
-      }),
-    ),
-  ]);
-  const catalogHost = outboundChargeBundleHost(catalog.chargeBundle);
+  const rates = await listOutboundShippingCompanyRates().catch(() => []);
   const grouped = new Map<string, typeof partners>();
   for (const row of partners) {
-    const key = outboundShippingCompanyKey(row.name);
-    if (!key) continue;
+    const key = outboundShippingPartnerOfferingKey(row.name, row.country);
+    if (!outboundShippingCompanyKey(row.name)) continue;
     const list = grouped.get(key) ?? [];
     list.push(row);
     grouped.set(key, list);
@@ -103,13 +91,6 @@ export async function listPublicOutboundCompanyPricing(): Promise<
         .map((row) => row.chargeKind)
         .filter(isBarrelOutboundShippingChargeKind),
     );
-    if (
-      catalogHost &&
-      publishedKinds.has(catalogHost) &&
-      catalog.chargeBundle.length >= 2
-    ) {
-      for (const kind of catalog.chargeBundle) publishedKinds.add(kind);
-    }
     const kinds = BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS.filter((kind) =>
       publishedKinds.has(kind),
     );
@@ -117,7 +98,14 @@ export async function listPublicOutboundCompanyPricing(): Promise<
     const headings = publicCompanyVendorHeadings(kinds);
     if (headings.length === 0) continue;
     const tableKinds = outboundShippingRateTableKindsForTabs(kinds);
-    const companyRates = rates.filter((row) => row.companyKey === companyKey);
+    const nameKey = outboundShippingCompanyKey(display.name);
+    const destKey = outboundShippingCountryKey(display.country);
+    const companyRates = rates.filter((row) => {
+      if (row.companyKey !== nameKey) return false;
+      if (!destKey || row.tableKind === "transport") return true;
+      const rowDest = outboundShippingCountryKey(row.destination);
+      return !rowDest || rowDest === destKey;
+    });
     const rateTables = tableKinds
       .map((tableKind) => ({
         tableKind,
