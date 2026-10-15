@@ -4,10 +4,18 @@ import { sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { ensureBarrelOutboundShippingChargesSchema } from "@/data/ensure-barrel-outbound-shipping-charges-schema";
+import {
+  markSchemaEnsureFailed,
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
+
+const ENSURE_KEY = "barrel-outbound-shipment-tracking";
 
 let trackingSchemaReady = false;
 
 export async function ensureBarrelOutboundShipmentTrackingSchema(): Promise<boolean> {
+  if (schemaEnsureFastPath(ENSURE_KEY)) return true;
   if (trackingSchemaReady) {
     return true;
   }
@@ -72,9 +80,11 @@ export async function ensureBarrelOutboundShipmentTrackingSchema(): Promise<bool
     `);
 
     trackingSchemaReady = true;
+    markSchemaEnsureReady(ENSURE_KEY);
     return true;
   } catch {
     trackingSchemaReady = false;
+    markSchemaEnsureFailed(ENSURE_KEY);
     return false;
   }
 }

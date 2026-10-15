@@ -2,13 +2,21 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import {
+  markSchemaEnsureFailed,
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
+
+const ENSURE_KEY = "page-visits";
 
 let attempted = false;
 let ready = false;
 
 /** Adds `page_visits` when Drizzle schema is ahead of Neon (idempotent). */
 export async function ensurePageVisitsSchema(): Promise<boolean> {
+  if (schemaEnsureFastPath(ENSURE_KEY)) return true;
   if (ready) return true;
   if (attempted) return ready;
   attempted = true;
@@ -42,10 +50,12 @@ export async function ensurePageVisitsSchema(): Promise<boolean> {
       ON "page_visits" USING btree ("created_at")
     `);
     ready = true;
+    markSchemaEnsureReady(ENSURE_KEY);
     return true;
   } catch (error) {
     attempted = false;
     ready = false;
+    markSchemaEnsureFailed(ENSURE_KEY);
     console.warn(
       "[Amani Cart2Barrel] page_visits schema ensure failed:",
       error instanceof Error ? error.message : String(error),

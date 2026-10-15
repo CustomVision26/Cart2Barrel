@@ -42,7 +42,8 @@ const viewCopy = {
         <span className="font-medium text-foreground">
           {orderSlideLaneNamesList()}
         </span>{" "}
-        — with a product preview on each card. Double-click a card to open the full table grouped
+        — with a product preview on each card. Use Thumbnail or Table on each lane to switch
+        layout. Double-click a card (or click a table row) to open the full table grouped
         by batch and single items. Tracking and fulfillment actions are in that table.
       </>
     ),

@@ -2,7 +2,13 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import {
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
+
+const ENSURE_KEY = "container-offering-cargo-box";
 
 let schemaReady = false;
 
@@ -11,6 +17,7 @@ let schemaReady = false;
  * `drizzle/0114_container_offering_cargo_box_note.sql`.
  */
 export async function ensureContainerOfferingCargoBoxSchema(): Promise<void> {
+  if (schemaEnsureFastPath(ENSURE_KEY)) return;
   if (schemaReady) return;
 
   const db = getDb();
@@ -31,4 +38,5 @@ export async function ensureContainerOfferingCargoBoxSchema(): Promise<void> {
     ADD COLUMN IF NOT EXISTS "dimension_label" text
   `);
   schemaReady = true;
+  markSchemaEnsureReady(ENSURE_KEY);
 }

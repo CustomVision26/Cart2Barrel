@@ -24,6 +24,9 @@ export async function getOrCreateProfile(
   clerkUserId: string,
   email: string | null
 ): Promise<Profile> {
+  const existing = await getProfileByClerkId(clerkUserId);
+  if (existing) return existing;
+
   const db = getDb();
   const now = new Date().toISOString();
   const normalizedEmail =

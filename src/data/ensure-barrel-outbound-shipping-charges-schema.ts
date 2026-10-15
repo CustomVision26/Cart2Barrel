@@ -2,6 +2,11 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import {
+  markSchemaEnsureFailed,
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
 
 let schemaReady = false;
@@ -11,6 +16,7 @@ let schemaReady = false;
  * Idempotent until `npm run db:push` / migrate has run.
  */
 export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boolean> {
+  if (schemaEnsureFastPath("outbound-shipping-charges")) return true;
   if (schemaReady) {
     return true;
   }
@@ -284,10 +290,12 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
     await ensureOutboundShippingRefundRequestsTable();
 
     schemaReady = true;
+    markSchemaEnsureReady("outbound-shipping-charges");
     return true;
   } catch (e) {
     console.error("[ensureBarrelOutboundShippingChargesSchema]", e);
     schemaReady = false;
+    markSchemaEnsureFailed("outbound-shipping-charges");
     return false;
   }
 }
@@ -295,6 +303,7 @@ export async function ensureBarrelOutboundShippingChargesSchema(): Promise<boole
 let publicPricingColumnReady = false;
 
 export async function ensureOutboundPartnerPublicPricingColumn(): Promise<void> {
+  if (schemaEnsureFastPath("outbound-partner-public-pricing")) return;
   if (publicPricingColumnReady) return;
   const db = getDb();
   await db.execute(sql`
@@ -306,10 +315,12 @@ export async function ensureOutboundPartnerPublicPricingColumn(): Promise<void> 
     ADD COLUMN IF NOT EXISTS "customer_note" text
   `);
   publicPricingColumnReady = true;
+  markSchemaEnsureReady("outbound-partner-public-pricing");
 }
 
 /** Idempotent even after the parent ensure already ran in this process. */
 export async function ensureOutboundShippingCompanyRatesTable(): Promise<void> {
+  if (schemaEnsureFastPath("outbound-company-rates")) return;
   const db = getDb();
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "outbound_shipping_company_rates" (
@@ -343,10 +354,12 @@ export async function ensureOutboundShippingCompanyRatesTable(): Promise<void> {
     ALTER TABLE "barrels"
     ADD COLUMN IF NOT EXISTS "outbound_company_rate_kinds" text
   `);
+  markSchemaEnsureReady("outbound-company-rates");
 }
 
 /** Idempotent even after the parent ensure already ran in this process. */
 export async function ensureOutboundShippingCompanyRateLinksTable(): Promise<void> {
+  if (schemaEnsureFastPath("outbound-company-rate-links")) return;
   const db = getDb();
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "outbound_shipping_company_rate_links" (
@@ -366,9 +379,11 @@ export async function ensureOutboundShippingCompanyRateLinksTable(): Promise<voi
     CREATE INDEX IF NOT EXISTS "outbound_shipping_company_rate_links_user_idx"
     ON "outbound_shipping_company_rate_links" ("clerk_user_id")
   `);
+  markSchemaEnsureReady("outbound-company-rate-links");
 }
 
 export async function ensureOutboundShippingCatalogDefaultsTable(): Promise<void> {
+  if (schemaEnsureFastPath("outbound-catalog-defaults")) return;
   const db = getDb();
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "outbound_shipping_catalog_defaults" (
@@ -378,9 +393,11 @@ export async function ensureOutboundShippingCatalogDefaultsTable(): Promise<void
       "updated_at" timestamp with time zone DEFAULT now() NOT NULL
     )
   `);
+  markSchemaEnsureReady("outbound-catalog-defaults");
 }
 
 export async function ensureOutboundShippingRefundRequestsTable(): Promise<void> {
+  if (schemaEnsureFastPath("outbound-refund-requests")) return;
   const db = getDb();
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "barrel_outbound_shipping_refund_requests" (
@@ -436,4 +453,5 @@ export async function ensureOutboundShippingRefundRequestsTable(): Promise<void>
       WHEN duplicate_object THEN null;
     END $$
   `);
+  markSchemaEnsureReady("outbound-refund-requests");
 }

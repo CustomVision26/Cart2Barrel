@@ -875,6 +875,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Active orders: in-progress hub fulfillment.",
         "History: completed or closed orders.",
+        "Each lane (Waiting for purchase, In progress, Corrections & requests) has Thumbnail and Table — toggle to switch layout.",
         "Line details, tracking, refund/return actions.",
         "In-hub catalog photos appear on order cards. Paid in-hub US packages show as Awaiting shipment in In progress until staff generate a Shippo label (or enter tracking), then In transit to you. Order products keeps one Track shipment control in the header for the warehouse package (not on each product card), plus live carrier status from Shippo. After the package is delivered, it moves to Orders history as Delivered to you. Request return from history for in-hub US items; the line returns to Orders while staff generate a return label. Print the label from Preview request, drop the package at a carrier location, and watch live return tracking until the warehouse receives it.",
         "Preview checkout charges groups in-hub products as a warehouse package, shows the destination US address, lists merchandise and package shipping separately, and does not repeat the product list in a second breakdown.",
@@ -900,6 +901,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open Orders from the sidebar for in-progress purchases.",
         "Visit Orders history for completed or closed orders.",
+        "Active orders sit in Waiting for purchase, In progress, and Corrections & requests. Use Thumbnail or Table on each lane to switch between cards and a table of the same orders; the choice is remembered in this browser. Double-click a card or click a table row to open line details.",
         "Select an order to view line details, tracking numbers, and status. In-hub catalog photos appear on each product card when staff uploaded them on the SKU. Paid in-hub US packages in transit show as In transit to you; Track shipment sits in the Order products header for the warehouse package. After delivery they appear in Orders history as Delivered to you.",
         "For an in-hub US product in Orders history, Request return submits a warehouse return. After staff generate the label, open Preview request to download the PDF, then drop the package at USPS, UPS, or FedEx. Live return tracking appears on the order; you are notified when the warehouse receives it.",
         "Preview checkout charges shows the warehouse package, destination US address, merchandise, and package shipping.",

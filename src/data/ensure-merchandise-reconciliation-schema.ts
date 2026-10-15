@@ -2,6 +2,10 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import {
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
 
 let schemaReady = false;
@@ -15,6 +19,7 @@ let schemaReadyInFlight: Promise<boolean> | null = null;
  * block for a long time under concurrent traffic and stall RSC renders).
  */
 export async function ensureMerchandiseReconciliationSchema(): Promise<boolean> {
+  if (schemaEnsureFastPath("merchandise-reconciliation")) return true;
   if (schemaReady) {
     return true;
   }
@@ -308,6 +313,7 @@ async function ensureMerchandiseReconciliationSchemaInner(): Promise<boolean> {
         );
       }
       schemaReady = true;
+      markSchemaEnsureReady("merchandise-reconciliation");
       return true;
     } catch {
       // Table missing — continue with create path.
@@ -478,6 +484,7 @@ async function ensureMerchandiseReconciliationSchemaInner(): Promise<boolean> {
     await ensureMerchandiseTopupChargeBreakdownsTable();
 
     schemaReady = true;
+    markSchemaEnsureReady("merchandise-reconciliation");
     return true;
   } catch (e) {
     console.error("[Amani Cart2Barrel] ensureMerchandiseReconciliationSchema failed:", e);

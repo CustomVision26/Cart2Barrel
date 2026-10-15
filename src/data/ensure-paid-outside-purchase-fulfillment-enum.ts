@@ -2,8 +2,14 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import {
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
 import { isLikelyOrderFulfillmentEnumInQueryFailure } from "@/lib/db-column-missing";
+
+const ENSURE_KEY = "paid-outside-purchase-fulfillment-enums";
 
 let fulfillmentEnumAttempted = false;
 let fulfillmentEnumAvailable = false;
@@ -11,6 +17,7 @@ let snapshotPhaseAttempted = false;
 let snapshotPhaseAvailable = false;
 
 export async function ensurePaidOutsidePurchaseFulfillmentEnums(): Promise<boolean> {
+  if (schemaEnsureFastPath(ENSURE_KEY)) return true;
   const db = getDb();
 
   if (!fulfillmentEnumAttempted) {
@@ -51,5 +58,7 @@ export async function ensurePaidOutsidePurchaseFulfillmentEnums(): Promise<boole
     }
   }
 
-  return fulfillmentEnumAvailable && snapshotPhaseAvailable;
+  const ok = fulfillmentEnumAvailable && snapshotPhaseAvailable;
+  if (ok) markSchemaEnsureReady(ENSURE_KEY);
+  return ok;
 }

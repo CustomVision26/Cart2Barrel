@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { currentUser } from "@clerk/nextjs/server";
 
 import {
   AdminCustomerFilterBar,
@@ -21,24 +20,16 @@ export async function AdminLayoutWithData({
   userId: string;
   children: React.ReactNode;
 }) {
-  try {
-    const user = await currentUser();
-    const email =
-      user?.primaryEmailAddress?.emailAddress ??
-      user?.emailAddresses?.[0]?.emailAddress ??
-      null;
-    await getOrCreateProfile(userId, email);
-  } catch (error) {
-    console.warn(
-      "[Amani Cart2Barrel] Could not ensure admin profile:",
-      error instanceof Error ? error.message : String(error),
-    );
-  }
-
   const [adminPickerUsers, activitySummary, openSupportCount] = await Promise.all([
     listProfilesForAdminPicker(),
     loadAdminActivityNotificationSummary(userId),
     countOpenSupportTickets(),
+    getOrCreateProfile(userId, null).catch((error: unknown) => {
+      console.warn(
+        "[Amani Cart2Barrel] Could not ensure admin profile:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }),
   ]);
 
   return (

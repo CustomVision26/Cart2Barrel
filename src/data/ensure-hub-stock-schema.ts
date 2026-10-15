@@ -2,14 +2,22 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import {
+  markSchemaEnsureFailed,
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
 import { isLikelyOrderFulfillmentEnumInQueryFailure } from "@/lib/db-column-missing";
+
+const ENSURE_KEY = "hub-stock";
 
 let attempted = false;
 let available = false;
 
 /** Adds hub-stock enum values when missing (idempotent). */
 export async function ensureHubStockSchemaEnums(): Promise<boolean> {
+  if (schemaEnsureFastPath(ENSURE_KEY)) return true;
   if (attempted) return available;
   attempted = true;
 
@@ -160,17 +168,21 @@ export async function ensureHubStockSchemaEnums(): Promise<boolean> {
       ON "hub_ship_from_addresses" ("is_primary")
     `);
     available = true;
+    markSchemaEnsureReady(ENSURE_KEY);
     return true;
   } catch (e) {
     const low = String(e).toLowerCase();
     if (low.includes("already exists")) {
       available = true;
+      markSchemaEnsureReady(ENSURE_KEY);
       return true;
     }
     if (isLikelyOrderFulfillmentEnumInQueryFailure(e)) {
       available = false;
+      markSchemaEnsureFailed(ENSURE_KEY);
       return false;
     }
+    markSchemaEnsureFailed(ENSURE_KEY);
     throw e;
   }
 }

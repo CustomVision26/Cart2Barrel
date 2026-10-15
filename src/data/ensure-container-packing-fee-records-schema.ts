@@ -2,12 +2,19 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import {
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
+
+const ENSURE_KEY = "container-packing-fee-records";
 
 let schemaReady = false;
 
 /** Creates packing-fee record table when missing. Idempotent until db:push. */
 export async function ensureContainerPackingFeeRecordsSchema(): Promise<boolean> {
+  if (schemaEnsureFastPath(ENSURE_KEY)) return true;
   if (schemaReady) return true;
   const db = getDb();
   try {
@@ -98,6 +105,7 @@ export async function ensureContainerPackingFeeRecordsSchema(): Promise<boolean>
       )
     `);
     schemaReady = true;
+    markSchemaEnsureReady(ENSURE_KEY);
     return true;
   } catch {
     return false;

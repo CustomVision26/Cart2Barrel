@@ -2,7 +2,14 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import {
+  markSchemaEnsureFailed,
+  markSchemaEnsureReady,
+  schemaEnsureFastPath,
+} from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
+
+const ENSURE_KEY = "barrel-shipping-intakes";
 
 let schemaReady = false;
 
@@ -11,6 +18,7 @@ let schemaReady = false;
  * Idempotent — safe on every cold start until `npm run db:push` / migrate has run.
  */
 export async function ensureBarrelShippingIntakesSchema(): Promise<boolean> {
+  if (schemaEnsureFastPath(ENSURE_KEY)) return true;
   if (schemaReady) {
     return true;
   }
@@ -97,9 +105,11 @@ export async function ensureBarrelShippingIntakesSchema(): Promise<boolean> {
     `);
 
     schemaReady = true;
+    markSchemaEnsureReady(ENSURE_KEY);
     return true;
   } catch {
     schemaReady = false;
+    markSchemaEnsureFailed(ENSURE_KEY);
     return false;
   }
 }

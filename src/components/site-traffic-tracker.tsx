@@ -25,6 +25,7 @@ export function SiteTrafficTracker() {
   const last = useRef<{ path: string; at: number }>({ path: "", at: 0 });
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "development") return;
     if (!pathname || isInternalSiteTrafficPath(pathname)) return;
 
     const path = `${window.location.pathname}${window.location.search}`;

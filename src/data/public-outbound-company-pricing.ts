@@ -56,19 +56,23 @@ export async function listPublicOutboundCompanyPricing(): Promise<
   await ensureOutboundPartnerPublicPricingColumn();
   const db = getDb();
   let partners: (typeof barrelOutboundShippingPartners.$inferSelect)[] = [];
+  let rates: Awaited<ReturnType<typeof listOutboundShippingCompanyRates>> = [];
   try {
-    partners = await db
-      .select()
-      .from(barrelOutboundShippingPartners)
-      .orderBy(desc(barrelOutboundShippingPartners.publicPricingPublishedAt));
+    const [partnerRows, rateRows] = await Promise.all([
+      db
+        .select()
+        .from(barrelOutboundShippingPartners)
+        .orderBy(desc(barrelOutboundShippingPartners.publicPricingPublishedAt)),
+      listOutboundShippingCompanyRates().catch(() => []),
+    ]);
+    partners = partnerRows;
+    rates = rateRows;
   } catch (e) {
     if (isMissingBarrelOutboundShippingChargesTableError(e)) {
       return [];
     }
     throw e;
   }
-
-  const rates = await listOutboundShippingCompanyRates().catch(() => []);
   const grouped = new Map<string, typeof partners>();
   for (const row of partners) {
     const key = outboundShippingPartnerOfferingKey(row.name, row.country);

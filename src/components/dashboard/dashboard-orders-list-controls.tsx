@@ -133,7 +133,8 @@ export function DashboardOrdersListControls(props: {
         Orders appear in horizontal lanes below —{" "}
         <span className="font-medium text-foreground">{orderSlideLaneNamesList()}</span> —
         newest first in each
-        lane. Double-click a card to open the full table grouped by batch and single. Pagination
+        lane. Use Thumbnail or Table on each lane to switch layout. Double-click a card (or click a
+        table row) to open the full table grouped by batch and single. Pagination
         counts orders across all lanes.
       </p>
 
