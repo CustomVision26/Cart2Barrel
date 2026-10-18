@@ -317,13 +317,13 @@ function DestinationRateCards({
     );
   }
   return (
-    <div className="space-y-4">
+    <div className="grid gap-5 sm:grid-cols-2">
       {rows.map((row, rowIndex) => {
         const showPickup = row.tableKind === "container";
         return (
           <article
             key={`${row.tableKind}:${row.rowLabel}:${row.destination ?? ""}`}
-            className="destination-rate-card space-y-4 px-5 py-5"
+            className="destination-rate-card space-y-5 px-6 py-6"
             style={
               {
                 "--destination-card-index": rowIndex,
@@ -333,16 +333,16 @@ function DestinationRateCards({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <span
-                  className="pickup-charge-icon inline-flex size-11 shrink-0 items-center justify-center rounded-xl"
+                  className="pickup-charge-icon inline-flex size-14 shrink-0 items-center justify-center rounded-2xl"
                   aria-hidden
                 >
-                  <Package className="size-5" />
+                  <Package className="size-6" />
                 </span>
                 <div className="min-w-0">
-                  <p className="pickup-charge-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+                  <p className="pickup-charge-kicker text-[11px] font-semibold uppercase tracking-[0.16em]">
                     {row.tableKind === "zone" ? "Local courier zone" : "Container"}
                   </p>
-                  <h3 className="font-heading text-xl font-semibold tracking-tight text-foreground">
+                  <h3 className="font-heading text-2xl font-semibold tracking-tight text-foreground">
                     {row.rowLabel}
                   </h3>
                 </div>
@@ -355,26 +355,26 @@ function DestinationRateCards({
                 />
               : null}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="pickup-charge-fee-card space-y-2 px-4 py-4">
-                <p className="pickup-charge-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="pickup-charge-fee-card space-y-2 px-5 py-5">
+                <p className="pickup-charge-kicker text-[11px] font-semibold uppercase tracking-[0.16em]">
                   1 container
                 </p>
-                <p className="pricing-overview-fee font-heading text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
+                <p className="pricing-overview-fee font-heading text-4xl font-semibold tabular-nums tracking-tight sm:text-5xl">
                   {formatUsd(row.costOneCents)}
                 </p>
-                <p className="text-sm leading-relaxed text-muted-foreground">
+                <p className="text-base leading-relaxed text-muted-foreground">
                   First unpaid {row.rowLabel.toLowerCase()} on this destination.
                 </p>
               </div>
-              <div className="pickup-charge-fee-card space-y-2 px-4 py-4">
-                <p className="pickup-charge-kicker text-[10px] font-semibold uppercase tracking-[0.16em]">
+              <div className="pickup-charge-fee-card space-y-2 px-5 py-5">
+                <p className="pickup-charge-kicker text-[11px] font-semibold uppercase tracking-[0.16em]">
                   Each extra
                 </p>
-                <p className="pricing-overview-fee font-heading text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
+                <p className="pricing-overview-fee font-heading text-4xl font-semibold tabular-nums tracking-tight sm:text-5xl">
                   {formatUsd(row.costTwoPlusCents)}
                 </p>
-                <p className="text-sm leading-relaxed text-muted-foreground">
+                <p className="text-base leading-relaxed text-muted-foreground">
                   Added for every extra linked unpaid container.
                 </p>
               </div>
@@ -600,8 +600,8 @@ function CompanyCard({
           if (!open) setOpenDestination(null);
         }}
       >
-        <DialogContent className="destination-charge-dialog pickup-charge-dialog max-h-[min(94vh,56rem)] gap-0 overflow-y-auto p-0 text-base sm:max-w-2xl">
-          <div className="pickup-charge-hero px-6 pb-6 pt-7 sm:px-8">
+        <DialogContent className="destination-charge-dialog pickup-charge-dialog flex max-h-[min(96vh,90rem)] w-[min(92rem,calc(100%-1.25rem))] max-w-none flex-col gap-0 overflow-y-auto p-0 text-base sm:max-w-none">
+          <div className="pickup-charge-hero px-6 pb-6 pt-7 sm:px-10">
             <DialogHeader className="relative z-10 gap-4">
               <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
                 <span
@@ -618,10 +618,10 @@ function CompanyCard({
                 <p className="pickup-charge-kicker text-[11px] font-semibold uppercase tracking-[0.2em]">
                   {serviceOnly ? "Destination freight" : "Destination charges"}
                 </p>
-                <DialogTitle className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+                <DialogTitle className="font-heading text-4xl font-semibold tracking-tight sm:text-5xl">
                   {openDestination ?? "Destination charges"}
                 </DialogTitle>
-                <DialogDescription className="max-w-xl text-base leading-relaxed">
+                <DialogDescription className="max-w-3xl text-lg leading-relaxed">
                   Formal published rates for{" "}
                   {openDestination ?? "this destination"} only. The first unpaid
                   container uses the 1-container cost; each extra linked unpaid
@@ -647,7 +647,7 @@ function CompanyCard({
               </div>
             </div>
           </div>
-          <div className="space-y-6 px-6 py-6 sm:px-8">
+          <div className="space-y-6 px-6 py-7 sm:px-10">
             {serviceOnly ? null : <CompanyIdentity company={company} />}
             <DestinationRateCards
               tables={openTables}

@@ -1040,6 +1040,7 @@
 
 .destination-charge-dialog {
   --section-accent: color-mix(in oklch, oklch(0.55 0.12 230) 82%, var(--primary));
+  overflow: auto;
 }
 
 .dark .destination-charge-dialog {
