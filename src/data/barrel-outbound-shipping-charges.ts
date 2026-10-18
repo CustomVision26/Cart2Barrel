@@ -137,6 +137,8 @@ async function loadChargeViewsForBarrelIds(
       outboundChargeBundle: barrels.outboundChargeBundle,
       outboundCompanyRateKinds: barrels.outboundCompanyRateKinds,
       kindSnapshot: orderContainerItems.kindSnapshot,
+      nameSnapshot: orderContainerItems.nameSnapshot,
+      sizeSnapshot: orderContainerItems.sizeSnapshot,
       createdAt: barrels.createdAt,
     })
     .from(barrels)
@@ -162,6 +164,12 @@ async function loadChargeViewsForBarrelIds(
       row.id,
       parseContainerOfferingKind(row.kindSnapshot ?? "barrel"),
     ]),
+  );
+  const containerNameByBarrel = new Map(
+    bundleRows.map((row) => [row.id, row.nameSnapshot?.trim() || null]),
+  );
+  const containerSizeByBarrel = new Map(
+    bundleRows.map((row) => [row.id, row.sizeSnapshot?.trim() || null]),
   );
   const userActiveBarrels = await db
     .select({
@@ -325,6 +333,8 @@ async function loadChargeViewsForBarrelIds(
             companyRateKinds,
           }),
           containerKind: containerKindByBarrel.get(charge.barrelId) ?? "barrel",
+          containerName: containerNameByBarrel.get(charge.barrelId),
+          containerSizeLabel: containerSizeByBarrel.get(charge.barrelId),
           destinationHints: courierZoneHints,
           containerCount,
         });
@@ -576,6 +586,8 @@ export async function listUserOutboundShippingCartLines(
           companyRateKinds,
         }),
         containerKind: kind,
+        containerName: oci?.nameSnapshot?.trim() || null,
+        containerSizeLabel: oci?.sizeSnapshot?.trim() || null,
         destinationHints: courierZoneHints,
         containerCount,
       });

@@ -42,13 +42,55 @@ import { JAMAICA_PARISHES } from "@/lib/parishes";
 import {
   containerOfferingKindLabel,
   containerOfferingKindSchema,
+  isGenericContainerKindLabel,
   type ContainerOfferingKind,
+  type PublishedCargoBoxChargeOption,
 } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
 
 const CONTAINER_TYPE_OPTIONS = containerOfferingKindSchema.options.map(
   (kind) => containerOfferingKindLabel(kind),
 );
+const CARGO_BOX_KIND_LABEL = containerOfferingKindLabel("cargo_box");
+
+function containerRateLabelOptions(
+  publishedCargoBoxes: readonly PublishedCargoBoxChargeOption[],
+  current?: string,
+): string[] {
+  const names = publishedCargoBoxes.map((row) => row.name).filter(Boolean);
+  const seen = new Set<string>();
+  const options: string[] = [];
+  for (const option of [...CONTAINER_TYPE_OPTIONS, ...names, current?.trim() ?? ""]) {
+    if (!option || seen.has(option)) continue;
+    seen.add(option);
+    options.push(option);
+  }
+  return options;
+}
+
+function kindLabelFromRateRowLabel(
+  rowLabel: string,
+  publishedCargoBoxes: readonly PublishedCargoBoxChargeOption[],
+): string {
+  const trimmed = rowLabel.trim();
+  if (CONTAINER_TYPE_OPTIONS.includes(trimmed)) return trimmed;
+  if (publishedCargoBoxes.some((row) => row.name === trimmed)) {
+    return CARGO_BOX_KIND_LABEL;
+  }
+  if (trimmed && !isGenericContainerKindLabel(trimmed)) {
+    return CARGO_BOX_KIND_LABEL;
+  }
+  return trimmed || CONTAINER_TYPE_OPTIONS[0];
+}
+
+function cargoBoxSelectValue(
+  rowLabel: string,
+  publishedCargoBoxes: readonly PublishedCargoBoxChargeOption[],
+): string {
+  const trimmed = rowLabel.trim();
+  if (publishedCargoBoxes.some((row) => row.name === trimmed)) return trimmed;
+  return publishedCargoBoxes[0]?.name ?? trimmed;
+}
 
 function centsToUsdInput(cents: number): string {
   return (cents / 100).toFixed(2);
@@ -81,9 +123,9 @@ function tableHelp(kind: OutboundShippingCompanyRateTableKind): string {
     return "Name each zone after the destination parish (for example St. Catherine). The matching zone is billed automatically from the customer's shipping address. The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost (for example $10,000 + $5,000 + $5,000 = $20,000 for three).";
   }
   if (kind === "transport") {
-    return "Pickup fee to move a container from the hub to this company's freight office. One billed container uses the 1-container pickup fee. Two or more barrels on the same freight quote use the extra-container fee for every container (2 linked barrels = 2 × extra-container fee).";
+    return "Pickup fee to move a container from the hub to this company's freight office. One billed container uses the 1-container pickup fee. Two or more barrels on the same freight quote use the extra-container fee for every container (2 linked barrels = 2 × extra-container fee). When Container type is Cargo box, pick a published catalog cargo box so Pickup matches that SKU on How it works.";
   }
-  return "Name the destination this rate applies to (for example Jamaica or Kingston Container Terminal). The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost (for example $10,000 + $5,000 + $5,000 = $20,000 for three).";
+  return "Name the destination this rate applies to (for example Jamaica or Kingston Container Terminal). The first unpaid container uses the 1-container cost. Each extra linked unpaid container adds the extra-container cost (for example $10,000 + $5,000 + $5,000 = $20,000 for three). When Container type is Cargo box, pick a published catalog cargo box (for example E, EH, or D) so How it works shows that SKU.";
 }
 
 function RateTableEditor({
@@ -93,6 +135,7 @@ function RateTableEditor({
   destinationParish,
   destinationCityOrTown,
   destinationCountry,
+  publishedCargoBoxes = [],
 }: {
   companyName: string;
   tableKind: OutboundShippingCompanyRateTableKind;
@@ -100,6 +143,7 @@ function RateTableEditor({
   destinationParish?: string | null;
   destinationCityOrTown?: string | null;
   destinationCountry?: string | null;
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -129,6 +173,9 @@ function RateTableEditor({
   const [newLabel, setNewLabel] = useState(
     tableKind === "zone" ? "" : CONTAINER_TYPE_OPTIONS[0],
   );
+  const [newCargoBoxName, setNewCargoBoxName] = useState(
+    publishedCargoBoxes[0]?.name ?? "",
+  );
   const [newDestination, setNewDestination] = useState(
     destinationCountry?.trim() ?? "",
   );
@@ -152,13 +199,21 @@ function RateTableEditor({
   function saveExisting(id: string) {
     const draft = drafts[id];
     if (!draft) return;
+    const usesContainerSelect =
+      tableKind === "container" || tableKind === "transport";
+    const rowLabel =
+      usesContainerSelect &&
+      kindLabelFromRateRowLabel(draft.rowLabel, publishedCargoBoxes) ===
+        CARGO_BOX_KIND_LABEL
+        ? cargoBoxSelectValue(draft.rowLabel, publishedCargoBoxes)
+        : draft.rowLabel;
     startTransition(async () => {
       try {
         const res = await updateOutboundShippingCompanyRateAction({
           id,
           companyName,
           tableKind,
-          rowLabel: draft.rowLabel,
+          rowLabel,
           destination: draft.destination,
           destinationCountry: destinationCountry ?? "",
           costOneUsd: draft.costOneUsd,
@@ -201,12 +256,28 @@ function RateTableEditor({
   }
 
   function addRow() {
+    const usesContainerSelect =
+      tableKind === "container" || tableKind === "transport";
+    const rowLabel =
+      usesContainerSelect && newLabel === CARGO_BOX_KIND_LABEL
+        ? newCargoBoxName.trim()
+        : newLabel.trim();
+    if (
+      usesContainerSelect &&
+      newLabel === CARGO_BOX_KIND_LABEL &&
+      !rowLabel
+    ) {
+      toast.error(
+        "Select a published cargo box from the container catalog.",
+      );
+      return;
+    }
     startTransition(async () => {
       try {
         const res = await addOutboundShippingCompanyRateAction({
           companyName,
           tableKind,
-          rowLabel: newLabel,
+          rowLabel,
           destination: newDestination,
           destinationCountry: destinationCountry ?? "",
           costOneUsd: newOne,
@@ -218,6 +289,7 @@ function RateTableEditor({
         }
         toast.success(res.message);
         setNewLabel(tableKind === "zone" ? "" : CONTAINER_TYPE_OPTIONS[0]);
+        setNewCargoBoxName(publishedCargoBoxes[0]?.name ?? "");
         setNewDestination(destinationCountry?.trim() ?? "");
         setNewOne("");
         setNewTwoPlus("");
@@ -272,17 +344,96 @@ function RateTableEditor({
                   <tr key={row.id} className={appTableRowHover}>
                     <td className="px-3 py-2">
                       <div className="space-y-1">
-                        <Input
-                          list={listId}
-                          value={draft.rowLabel}
-                          disabled={busy}
-                          onChange={(e) =>
-                            setDrafts((current) => ({
-                              ...current,
-                              [row.id]: { ...draft, rowLabel: e.target.value },
-                            }))
-                          }
-                        />
+                        {tableKind === "container" || tableKind === "transport" ?
+                          <div className="space-y-1.5">
+                            <select
+                              className={nativeSelectFieldClassName}
+                              value={kindLabelFromRateRowLabel(
+                                draft.rowLabel,
+                                publishedCargoBoxes,
+                              )}
+                              disabled={busy}
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                const nextLabel =
+                                  next === CARGO_BOX_KIND_LABEL
+                                    ? cargoBoxSelectValue(
+                                        draft.rowLabel,
+                                        publishedCargoBoxes,
+                                      ) || next
+                                    : next;
+                                setDrafts((current) => ({
+                                  ...current,
+                                  [row.id]: { ...draft, rowLabel: nextLabel },
+                                }));
+                              }}
+                            >
+                              {CONTAINER_TYPE_OPTIONS.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                            {kindLabelFromRateRowLabel(
+                              draft.rowLabel,
+                              publishedCargoBoxes,
+                            ) === CARGO_BOX_KIND_LABEL ?
+                              publishedCargoBoxes.length > 0 ?
+                                <select
+                                  className={nativeSelectFieldClassName}
+                                  value={cargoBoxSelectValue(
+                                    draft.rowLabel,
+                                    publishedCargoBoxes,
+                                  )}
+                                  disabled={busy}
+                                  aria-label="Published cargo box"
+                                  onChange={(e) =>
+                                    setDrafts((current) => ({
+                                      ...current,
+                                      [row.id]: {
+                                        ...draft,
+                                        rowLabel: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                >
+                                  {publishedCargoBoxes.map((option) => (
+                                    <option key={option.id} value={option.name}>
+                                      {option.sizeLabel
+                                        ? `${option.name} · ${option.sizeLabel}`
+                                        : option.name}
+                                    </option>
+                                  ))}
+                                  {draft.rowLabel.trim() &&
+                                  !publishedCargoBoxes.some(
+                                    (option) => option.name === draft.rowLabel.trim(),
+                                  ) &&
+                                  draft.rowLabel.trim() !== CARGO_BOX_KIND_LABEL ?
+                                    <option value={draft.rowLabel}>
+                                      {draft.rowLabel}
+                                    </option>
+                                  : null}
+                                </select>
+                              : (
+                                <p className="text-[11px] leading-snug text-muted-foreground">
+                                  Publish a cargo box in the container catalog first.
+                                </p>
+                              )
+                            : null}
+                          </div>
+                        : (
+                          <Input
+                            list={listId}
+                            value={draft.rowLabel}
+                            disabled={busy}
+                            onChange={(e) =>
+                              setDrafts((current) => ({
+                                ...current,
+                                [row.id]: { ...draft, rowLabel: e.target.value },
+                              }))
+                            }
+                          />
+                        )}
                         {matchedZoneLabel === row.rowLabel ?
                           <p className="text-[11px] text-primary">
                             Matches destination parish
@@ -365,18 +516,52 @@ function RateTableEditor({
             <tr className={appTableRowHover}>
               <td className="px-3 py-2">
                 {tableKind === "container" || tableKind === "transport" ?
-                  <select
-                    className={nativeSelectFieldClassName}
-                    value={newLabel}
-                    disabled={busy}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                  >
-                    {CONTAINER_TYPE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-1.5">
+                    <select
+                      className={nativeSelectFieldClassName}
+                      value={newLabel}
+                      disabled={busy}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setNewLabel(next);
+                        if (
+                          next === CARGO_BOX_KIND_LABEL &&
+                          !newCargoBoxName
+                        ) {
+                          setNewCargoBoxName(publishedCargoBoxes[0]?.name ?? "");
+                        }
+                      }}
+                    >
+                      {CONTAINER_TYPE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                    {newLabel === CARGO_BOX_KIND_LABEL ?
+                      publishedCargoBoxes.length > 0 ?
+                        <select
+                          className={nativeSelectFieldClassName}
+                          value={newCargoBoxName}
+                          disabled={busy}
+                          aria-label="Published cargo box"
+                          onChange={(e) => setNewCargoBoxName(e.target.value)}
+                        >
+                          {publishedCargoBoxes.map((option) => (
+                            <option key={option.id} value={option.name}>
+                              {option.sizeLabel
+                                ? `${option.name} · ${option.sizeLabel}`
+                                : option.name}
+                            </option>
+                          ))}
+                        </select>
+                      : (
+                        <p className="text-[11px] leading-snug text-muted-foreground">
+                          Publish a cargo box in the container catalog first.
+                        </p>
+                      )
+                    : null}
+                  </div>
                 : (
                   <Input
                     list={listId}
@@ -420,7 +605,12 @@ function RateTableEditor({
                   type="button"
                   size="sm"
                   className="bg-primary text-primary-foreground"
-                  disabled={pending}
+                  disabled={
+                    pending ||
+                    ((tableKind === "container" || tableKind === "transport") &&
+                      newLabel === CARGO_BOX_KIND_LABEL &&
+                      publishedCargoBoxes.length === 0)
+                  }
                   onClick={addRow}
                 >
                   {pending ? "Adding…" : "Add record"}
@@ -435,7 +625,7 @@ function RateTableEditor({
           ? JAMAICA_PARISHES.map((parish) => (
               <option key={parish} value={parish} />
             ))
-          : CONTAINER_TYPE_OPTIONS.map((option) => (
+          : containerRateLabelOptions(publishedCargoBoxes).map((option) => (
               <option key={option} value={option} />
             ))}
       </datalist>
@@ -473,6 +663,8 @@ export function ChargeLabelWithCompanyPricing({
   destinationCountry = null,
   showRateCardToggle = true,
   dialogVariant = "company",
+  publishedCargoBoxes = [],
+  containerName = null,
 }: {
   htmlFor: string;
   label: string;
@@ -491,6 +683,8 @@ export function ChargeLabelWithCompanyPricing({
   /** When false, only the Charge button (no rate-card checkbox). */
   showRateCardToggle?: boolean;
   dialogVariant?: "company" | "hub-transport";
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
+  containerName?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -521,6 +715,7 @@ export function ChargeLabelWithCompanyPricing({
     rates: companyRates,
     companyName,
     containerKind,
+    containerName,
     containerCount: hubTransportCount,
   });
 
@@ -627,6 +822,7 @@ export function ChargeLabelWithCompanyPricing({
                 destinationParish={destinationParish}
                 destinationCityOrTown={destinationCityOrTown}
                 destinationCountry={destinationCountry}
+                publishedCargoBoxes={publishedCargoBoxes}
               />
             ))}
           </div>

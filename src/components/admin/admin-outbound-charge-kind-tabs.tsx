@@ -59,6 +59,7 @@ import {
   type BarrelOutboundShippingChargeKind,
 } from "@/lib/barrel-outbound-shipping-charge";
 import { parseUsdInputToCents } from "@/lib/validations/barrel-outbound-shipping-charge";
+import type { PublishedCargoBoxChargeOption } from "@/lib/validations/container-offering";
 import { cn } from "@/lib/utils";
 
 function centsToUsdInput(cents: number): string {
@@ -199,6 +200,7 @@ function hubTransportQuote(row: AdminBarrelOutboundShippingChargeRow): {
       rates: row.companyRates ?? [],
       companyName,
       containerKind: row.kind,
+      containerName: row.containerName,
       containerCount,
     }),
   };
@@ -1151,6 +1153,7 @@ function AdminChargeKindForm({
   lockMessage,
   selectedCompanyKey = null,
   onSelectCompany,
+  publishedCargoBoxes = [],
 }: {
   row: AdminBarrelOutboundShippingChargeRow;
   chargeKind: BarrelOutboundShippingChargeKind;
@@ -1160,6 +1163,7 @@ function AdminChargeKindForm({
   onSelectCompany?: (
     record: AdminBarrelOutboundShippingChargeRow["partners"][number],
   ) => void;
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
 }) {
   const router = useRouter();
   const existing = chargeViewForKind(row.charges, chargeKind);
@@ -1330,6 +1334,8 @@ function AdminChargeKindForm({
                 linkableContainers={row.rateLinkableContainers ?? []}
                 companyRateLinks={row.companyRateLinks ?? []}
                 containerKind={row.kind}
+                containerName={row.containerName}
+                publishedCargoBoxes={publishedCargoBoxes}
                 destinationParish={row.destinationParish}
                 destinationCityOrTown={row.destinationCityOrTown}
               />
@@ -1371,6 +1377,8 @@ function AdminChargeKindForm({
                 linkableContainers={row.rateLinkableContainers ?? []}
                 companyRateLinks={row.companyRateLinks ?? []}
                 containerKind={row.kind}
+                containerName={row.containerName}
+                publishedCargoBoxes={publishedCargoBoxes}
                 destinationParish={row.destinationParish}
                 destinationCityOrTown={row.destinationCityOrTown}
               />
@@ -1428,6 +1436,8 @@ function AdminChargeKindForm({
               linkableContainers={row.rateLinkableContainers ?? []}
               companyRateLinks={row.companyRateLinks ?? []}
               containerKind={row.kind}
+              containerName={row.containerName}
+              publishedCargoBoxes={publishedCargoBoxes}
               destinationParish={row.destinationParish}
               destinationCityOrTown={row.destinationCityOrTown}
             />
@@ -1479,6 +1489,7 @@ function AdminMergedBundleForm({
   lockMessage,
   selectedCompanyKey = null,
   onSelectCompany,
+  publishedCargoBoxes = [],
 }: {
   row: AdminBarrelOutboundShippingChargeRow;
   bundledKinds: BarrelOutboundShippingChargeKind[];
@@ -1488,6 +1499,7 @@ function AdminMergedBundleForm({
   onSelectCompany?: (
     record: AdminBarrelOutboundShippingChargeRow["partners"][number],
   ) => void;
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
 }) {
   const router = useRouter();
   const host = outboundChargeBundleHost(bundledKinds) ?? bundledKinds[0] ?? "freight";
@@ -1725,6 +1737,8 @@ function AdminMergedBundleForm({
                 linkableContainers={row.rateLinkableContainers ?? []}
                 companyRateLinks={row.companyRateLinks ?? []}
                 containerKind={row.kind}
+                containerName={row.containerName}
+                publishedCargoBoxes={publishedCargoBoxes}
                 destinationParish={row.destinationParish}
                 destinationCityOrTown={row.destinationCityOrTown}
               />
@@ -1766,6 +1780,8 @@ function AdminMergedBundleForm({
                 linkableContainers={row.rateLinkableContainers ?? []}
                 companyRateLinks={row.companyRateLinks ?? []}
                 containerKind={row.kind}
+                containerName={row.containerName}
+                publishedCargoBoxes={publishedCargoBoxes}
                 destinationParish={row.destinationParish}
                 destinationCityOrTown={row.destinationCityOrTown}
               />
@@ -1816,6 +1832,8 @@ function AdminMergedBundleForm({
               linkableContainers={row.rateLinkableContainers ?? []}
               companyRateLinks={row.companyRateLinks ?? []}
               containerKind={row.kind}
+              containerName={row.containerName}
+              publishedCargoBoxes={publishedCargoBoxes}
               destinationParish={row.destinationParish}
               destinationCityOrTown={row.destinationCityOrTown}
             />
@@ -1910,10 +1928,12 @@ export function AdminOutboundChargeKindTabs({
   row,
   publishEnabled,
   lockMessage,
+  publishedCargoBoxes = [],
 }: {
   row: AdminBarrelOutboundShippingChargeRow;
   publishEnabled: boolean;
   lockMessage?: string;
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
 }) {
   const kinds = useMemo(() => [...BARREL_OUTBOUND_SHIPPING_CHARGE_KINDS], []);
   const [selectedCompanyKey, setSelectedCompanyKey] = useState<string | null>(
@@ -2051,6 +2071,7 @@ export function AdminOutboundChargeKindTabs({
             lockMessage={lockMessage}
             selectedCompanyKey={selectedCompanyKey}
             onSelectCompany={selectCompany}
+            publishedCargoBoxes={publishedCargoBoxes}
           />
         : (
           <AdminChargeKindForm
@@ -2061,6 +2082,7 @@ export function AdminOutboundChargeKindTabs({
             lockMessage={lockMessage}
             selectedCompanyKey={selectedCompanyKey}
             onSelectCompany={selectCompany}
+            publishedCargoBoxes={publishedCargoBoxes}
           />
         )
       : null}

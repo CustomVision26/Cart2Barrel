@@ -4,6 +4,9 @@ import { isOwnTransportCourierKey } from "@/lib/destination-clearance-partners";
 import type { BarrelShippingDeliveryMethod } from "@/lib/validations/barrel-shipping-intake";
 import {
   containerOfferingKindLabel,
+  isGenericContainerKindLabel,
+  parseCargoBoxPackingSize,
+  packingFeeContainerLabel,
   type ContainerOfferingKind,
 } from "@/lib/validations/container-offering";
 
@@ -870,13 +873,7 @@ export function resolveCompanyRateLine(input: {
       destMatches.length > 0 ? destMatches
       : unlabeled.length > 0 ? unlabeled
       : rows;
-    const hint = (input.rowHint ?? "").trim().toLowerCase();
-    match =
-      pool.find((row) => row.rowLabel.trim().toLowerCase() === hint) ??
-      pool.find((row) => {
-        const label = row.rowLabel.trim().toLowerCase();
-        return Boolean(hint) && (label.includes(hint) || hint.includes(label));
-      });
+    match = matchRateRowByContainerHint(pool, input.rowHint);
   }
   if (!match && input.tableKind !== "zone" && rows.length === 1) {
     match = rows[0];
@@ -978,12 +975,18 @@ export function resolveCompanyRateLinesForKinds(input: {
   companyName: string | null | undefined;
   kinds: readonly BarrelOutboundShippingChargeKind[];
   containerKind: ContainerOfferingKind;
+  containerName?: string | null;
+  containerSizeLabel?: string | null;
   destinationHints?: readonly string[];
   containerCount: number;
 }): OutboundShippingChargeLineView[] {
   const tableKinds = outboundShippingRateTableKindsForTabs(input.kinds);
   const lines: OutboundShippingChargeLineView[] = [];
   const seen = new Set<string>();
+  const containerHint = containerTypeRateHint(input.containerKind, {
+    name: input.containerName,
+    sizeLabel: input.containerSizeLabel,
+  });
   for (const tableKind of tableKinds) {
     const line = resolveCompanyRateLine({
       rates: input.rates,
@@ -991,7 +994,7 @@ export function resolveCompanyRateLinesForKinds(input: {
       tableKind,
       rowHint:
         tableKind === "container"
-          ? containerTypeRateHint(input.containerKind)
+          ? containerHint
           : (input.destinationHints?.[0] ?? null),
       destinationHints: input.destinationHints,
       containerCount: input.containerCount,
@@ -1007,7 +1010,7 @@ export function resolveCompanyRateLinesForKinds(input: {
       rates: input.rates,
       companyName: input.companyName,
       tableKind: "transport",
-      rowHint: containerTypeRateHint(input.containerKind),
+      rowHint: containerHint,
       destinationHints: input.destinationHints,
       containerCount: input.containerCount,
     });
@@ -1022,21 +1025,64 @@ export function resolveCompanyRateLinesForKinds(input: {
   return lines;
 }
 
-export function containerTypeRateHint(kind: ContainerOfferingKind): string {
+export function containerTypeRateHint(
+  kind: ContainerOfferingKind,
+  options?: { name?: string | null; sizeLabel?: string | null },
+): string {
+  if (kind === "cargo_box") {
+    const name = options?.name?.trim();
+    if (name) return name;
+    return packingFeeContainerLabel(kind, options?.sizeLabel);
+  }
   return containerOfferingKindLabel(kind);
+}
+
+/** Match a Charge/Pickup row to a catalog container without collapsing all cargo boxes onto "Cargo box". */
+export function matchRateRowByContainerHint<T extends { rowLabel: string }>(
+  rows: readonly T[],
+  hint: string | null | undefined,
+): T | undefined {
+  if (rows.length === 0) return undefined;
+  const h = (hint ?? "").trim().toLowerCase();
+  if (!h) return rows.length === 1 ? rows[0] : undefined;
+
+  const exact = rows.find((row) => row.rowLabel.trim().toLowerCase() === h);
+  if (exact) return exact;
+
+  const hintSize = parseCargoBoxPackingSize(hint);
+  if (hintSize) {
+    const bySize = rows.find(
+      (row) => parseCargoBoxPackingSize(row.rowLabel) === hintSize,
+    );
+    if (bySize) return bySize;
+  }
+
+  if (isGenericContainerKindLabel(h)) {
+    return undefined;
+  }
+
+  return rows.find((row) => {
+    const label = row.rowLabel.trim().toLowerCase();
+    return label.includes(h) || h.includes(label);
+  });
 }
 
 export function quotedHubTransportFeeCents(input: {
   rates: readonly OutboundShippingCompanyRateRow[];
   companyName: string | null | undefined;
   containerKind: ContainerOfferingKind;
+  containerName?: string | null;
+  containerSizeLabel?: string | null;
   containerCount: number;
 }): number | null {
   const line = resolveCompanyRateLine({
     rates: input.rates,
     companyName: input.companyName,
     tableKind: "transport",
-    rowHint: containerTypeRateHint(input.containerKind),
+    rowHint: containerTypeRateHint(input.containerKind, {
+      name: input.containerName,
+      sizeLabel: input.containerSizeLabel,
+    }),
     containerCount: input.containerCount,
   });
   return line ? line.amountCents : null;

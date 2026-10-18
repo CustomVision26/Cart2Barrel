@@ -16,6 +16,7 @@ import {
   type BarrelOutboundShipmentStage,
 } from "@/lib/barrel-shipment-tracking";
 import { cn } from "@/lib/utils";
+import type { PublishedCargoBoxChargeOption } from "@/lib/validations/container-offering";
 
 const NOT_READY_LOCK_MESSAGE =
   "Container is still being packed. Publish charges after it is full and the customer confirms shipping on Dashboard → Shipping.";
@@ -60,6 +61,7 @@ function CustomerShipmentSection({
   onLinePageSizeChange,
   panelIds,
   staffProfilesByClerkUserId = {},
+  publishedCargoBoxes = [],
 }: {
   group: AdminShipmentCustomerGroup;
   expanded: boolean;
@@ -72,6 +74,7 @@ function CustomerShipmentSection({
   onLinePageSizeChange: (size: 5 | 10 | 25 | 50) => void;
   panelIds: { switchId: string; searchId: string; pageSizeId: string };
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
 }) {
   const allContainers = [
     ...group.readyContainers.map((row) => ({ row, ready: true as const })),
@@ -180,6 +183,7 @@ function CustomerShipmentSection({
                       row={row}
                       publishEnabled={false}
                       staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+                      publishedCargoBoxes={publishedCargoBoxes}
                     />
                   ))}
                 </div>
@@ -199,6 +203,7 @@ function CustomerShipmentSection({
                     row={row}
                     publishEnabled={!row.paidAt}
                     staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+                    publishedCargoBoxes={publishedCargoBoxes}
                   />
                 ))}
               </div>
@@ -222,6 +227,7 @@ function CustomerShipmentSection({
                     publishEnabled={false}
                     lockMessage={NOT_READY_LOCK_MESSAGE}
                     staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+                    publishedCargoBoxes={publishedCargoBoxes}
                   />
                 ))}
               </div>
@@ -238,11 +244,13 @@ export function AdminShipmentsPanel({
   showPreview,
   previewRow,
   staffProfilesByClerkUserId = {},
+  publishedCargoBoxes = [],
 }: {
   customerGroups: AdminShipmentCustomerGroup[];
   showPreview: boolean;
   previewRow: AdminBarrelOutboundShippingChargeRow;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
 }) {
   const baseId = useId();
   const [openCustomerId, setOpenCustomerId] = useState<string | null>(null);
@@ -274,6 +282,7 @@ export function AdminShipmentsPanel({
             publishEnabled={false}
             lockMessage="Save companies now. Publish unlocks when a customer has a full container on Dashboard → Shipping."
             staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+            publishedCargoBoxes={publishedCargoBoxes}
           />
         </section>
       ) : null}
@@ -304,6 +313,7 @@ export function AdminShipmentsPanel({
             pageSizeId: `${baseId}-line-page-size-${group.clerkUserId}`,
           }}
           staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+          publishedCargoBoxes={publishedCargoBoxes}
         />
       ))}
     </div>

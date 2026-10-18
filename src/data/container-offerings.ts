@@ -14,6 +14,7 @@ import {
   isUndefinedColumnError,
 } from "@/lib/db-column-missing";
 import { resolveSpecialFeatureForContainer } from "@/lib/special-feature-container-link";
+import type { PublishedCargoBoxChargeOption } from "@/lib/validations/container-offering";
 
 export type ContainerOfferingWithImages = {
   offering: ContainerOffering;
@@ -139,6 +140,21 @@ export async function listActiveContainerOfferingsWithImages(): Promise<
     offering,
     images: imgMap.get(offering.id) ?? [],
   }));
+}
+
+/** Published cargo-box SKUs for company Charge and Pickup rate rows. */
+export async function listPublishedCargoBoxChargeOptions(): Promise<
+  PublishedCargoBoxChargeOption[]
+> {
+  const catalog = await listActiveContainerOfferingsWithImages();
+  return catalog
+    .filter((row) => row.offering.kind === "cargo_box")
+    .map((row) => ({
+      id: row.offering.id,
+      name: row.offering.name.trim(),
+      sizeLabel: row.offering.sizeLabel.trim(),
+    }))
+    .filter((row) => row.name.length > 0);
 }
 
 export async function listAllContainerOfferingsWithImagesForAdmin(): Promise<

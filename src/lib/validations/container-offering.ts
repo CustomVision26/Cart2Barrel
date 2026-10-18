@@ -36,6 +36,20 @@ export function isShopperCatalogContainerKind(
 export const CARGO_BOX_PACKING_SIZES = ["E", "EH", "D"] as const;
 export type CargoBoxPackingSize = (typeof CARGO_BOX_PACKING_SIZES)[number];
 
+/** Published catalog cargo boxes that Charge / Pickup rows can bill. */
+export type PublishedCargoBoxChargeOption = {
+  id: string;
+  name: string;
+  sizeLabel: string;
+};
+
+export function isGenericContainerKindLabel(label: string): boolean {
+  const normalized = label.trim().toLowerCase();
+  return containerOfferingKindSchema.options.some(
+    (kind) => containerOfferingKindLabel(kind).trim().toLowerCase() === normalized,
+  );
+}
+
 export const cargoBoxPackingSizeSchema = z.enum(CARGO_BOX_PACKING_SIZES);
 
 /** Packing fees apply to barrels, bins, and cargo boxes. */

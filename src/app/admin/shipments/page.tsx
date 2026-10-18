@@ -2,6 +2,7 @@ import { AdminPageTitleWithHelp } from "@/components/admin/admin-page-title-with
 import { AdminShipmentsPanel } from "@/components/admin/admin-shipments-panel";
 import { AdminShipmentsTabNav } from "@/components/admin/admin-shipments-tab-nav";
 import { listAdminShipmentChargePageData } from "@/data/admin-barrel-outbound-shipping-charges";
+import { listPublishedCargoBoxChargeOptions } from "@/data/container-offerings";
 import { parseAdminCustomerFilter } from "@/lib/admin-customer-filter";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { buildAdminShippingCatalogPreviewRow } from "@/lib/barrel-outbound-shipping-charge";
@@ -52,6 +53,10 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
     0,
   );
   const showPreview = admin && totalContainers === 0;
+  const publishedCargoBoxes =
+    admin ?
+      await listPublishedCargoBoxChargeOptions().catch(() => [])
+    : [];
 
   return (
     <div className="space-y-8">
@@ -93,6 +98,7 @@ export default async function AdminShipmentsPage({ searchParams }: PageProps) {
             companyRateKinds: catalogCompanyRateKinds,
           })}
           staffProfilesByClerkUserId={staffProfilesByClerkUserId}
+          publishedCargoBoxes={publishedCargoBoxes}
         />
       )}
     </div>

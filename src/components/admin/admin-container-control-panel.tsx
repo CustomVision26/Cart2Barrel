@@ -1,14 +1,17 @@
 import { AdminOutboundChargeKindTabs } from "@/components/admin/admin-outbound-charge-kind-tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AdminBarrelOutboundShippingChargeRow } from "@/lib/barrel-outbound-shipping-charge";
+import type { PublishedCargoBoxChargeOption } from "@/lib/validations/container-offering";
 
 const CATALOG_LOCK_MESSAGE =
   "Save freight, broker, and courier companies and rate tables here. Publish a charge on a customer container from Shipments → Manage after that container is confirmed on Dashboard → Shipping.";
 
 export function AdminContainerControlPanel({
   row,
+  publishedCargoBoxes = [],
 }: {
   row: AdminBarrelOutboundShippingChargeRow;
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
 }) {
   return (
     <div className="grid max-w-6xl gap-4">
@@ -31,6 +34,7 @@ export function AdminContainerControlPanel({
             row={row}
             publishEnabled={false}
             lockMessage={CATALOG_LOCK_MESSAGE}
+            publishedCargoBoxes={publishedCargoBoxes}
           />
         </CardContent>
       </Card>

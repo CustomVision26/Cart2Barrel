@@ -27,6 +27,7 @@ import {
 import { formatUsd } from "@/lib/admin-markup";
 import { containerFullnessLabel } from "@/lib/barrel-shipping-intake";
 import { BARREL_OUTBOUND_SHIPMENT_STAGE_LABELS } from "@/lib/barrel-shipment-tracking";
+import type { PublishedCargoBoxChargeOption } from "@/lib/validations/container-offering";
 
 type AdminShippingChargeIntakeCardProps = {
   row: AdminBarrelOutboundShippingChargeRow;
@@ -34,6 +35,7 @@ type AdminShippingChargeIntakeCardProps = {
   publishEnabled?: boolean;
   lockMessage?: string;
   staffProfilesByClerkUserId?: AdminStaffProfilesByClerkUserId;
+  publishedCargoBoxes?: readonly PublishedCargoBoxChargeOption[];
 };
 
 function chargeChipTone(charge: BarrelOutboundShippingChargeView): string {
@@ -59,6 +61,7 @@ export function AdminShippingChargeIntakeCard({
   publishEnabled = true,
   lockMessage,
   staffProfilesByClerkUserId = {},
+  publishedCargoBoxes = [],
 }: AdminShippingChargeIntakeCardProps) {
   const pendingReviewCharges = chargesPendingOffPlatformReview(row.charges);
   const pendingReviewCount = pendingReviewCharges.length;
@@ -252,6 +255,7 @@ export function AdminShippingChargeIntakeCard({
                 row={row}
                 publishEnabled={publishEnabled}
                 lockMessage={lockMessage}
+                publishedCargoBoxes={publishedCargoBoxes}
               />
             )}
           </div>

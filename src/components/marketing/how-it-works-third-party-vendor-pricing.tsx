@@ -27,6 +27,7 @@ import {
   type PublicOutboundCompanyPricingCard,
 } from "@/lib/public-outbound-company-pricing";
 import { formatUsd } from "@/lib/admin-markup";
+import { matchRateRowByContainerHint } from "@/lib/barrel-outbound-shipping-charge";
 
 type PublicRateTable = PublicOutboundCompanyPricingCard["rateTables"][number];
 type PublicPickupRate = PublicOutboundCompanyPricingCard["pickupRates"][number];
@@ -35,16 +36,7 @@ function pickupRateForContainer(
   pickupRates: readonly PublicPickupRate[],
   containerLabel: string,
 ): PublicPickupRate | null {
-  const hint = containerLabel.trim().toLowerCase();
-  if (!hint) return null;
-  return (
-    pickupRates.find((row) => row.rowLabel.trim().toLowerCase() === hint) ??
-    pickupRates.find((row) => {
-      const label = row.rowLabel.trim().toLowerCase();
-      return label.includes(hint) || hint.includes(label);
-    }) ??
-    null
-  );
+  return matchRateRowByContainerHint(pickupRates, containerLabel) ?? null;
 }
 
 function uniqueRateDestinations(tables: PublicRateTable[]): string[] {
