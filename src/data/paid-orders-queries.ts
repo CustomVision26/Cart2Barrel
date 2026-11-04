@@ -109,6 +109,8 @@ const orderItemSelectWithFulfillment = {
   warehouseReceivedAt: orderItems.warehouseReceivedAt,
   warehouseReceivedQty: orderItems.warehouseReceivedQty,
   warehouseReceivedCondition: orderItems.warehouseReceivedCondition,
+  warehouseReceivedMissingReason: orderItems.warehouseReceivedMissingReason,
+  warehouseReceivedConditionNotes: orderItems.warehouseReceivedConditionNotes,
   warehouseShelfLocation: orderItems.warehouseShelfLocation,
   warehouseReceivedBarcode: orderItems.warehouseReceivedBarcode,
   warehouseReceivedBarcodeImageUrl: orderItems.warehouseReceivedBarcodeImageUrl,

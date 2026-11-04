@@ -641,6 +641,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Requested items, or Home → Get an estimate.",
       bullets: [
         "AI-assisted request: paste Amazon, Walmart, Target, eBay, Temu, or SHEIN product URLs.",
+        "Shopping list: upload a handwritten list, screenshot, or collage. AI fills an editable table (name, quantity, size, color, notes, product photo). Submit for staff to price.",
         "Select a variant row to copy that row's photo into Request details.",
         "Staff publish quotes you accept into the cart.",
         "Statuses: pending, estimate ready, out of stock, withdrawn.",
@@ -668,6 +669,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       walkthrough: [
         "Open Requested items from the dashboard sidebar, or click Get an estimate on Home to open the AI-assisted request flow.",
         "Choose AI-assisted request to paste US retailer URLs and build a structured submission.",
+        "Or open Shopping list, upload one image of the products you want, edit the generated table, and submit the list for a staff estimate.",
         "Select a store variant in the list to copy that row's name, price, product link, size, color, and photo into Request details—not the parent listing.",
         "Click Submit for staff review to send the request to staff for a quote.",
         "Staff review your request and publish quotes when ready.",
@@ -693,6 +695,55 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
   },
   {
+    id: "shopping-list-request",
+    title: "Requested items — Shopping list",
+    category: "Shopping",
+    quickReference: {
+      summary: "Upload a list photo, edit the AI table, and send it for a staff quote.",
+      location:
+        "Sidebar → Requested items → Shopping list card (/dashboard/items/requested-items/shopping-list-request).",
+      bullets: [
+        "Upload a handwritten list, screenshot, receipt, or product collage.",
+        "AI fills product name, quantity, size, color, and notes. Every field is editable. Delete any extra row.",
+        "Add a product photo on any row, then submit the list.",
+        "Staff price merchandise, shipping, sales tax, and service & handling. When the estimate is ready, preview and accept it on Add item → Batch quotes.",
+      ],
+      requirements: ["Signed-in account.", "A clear JPEG, PNG, WebP, or GIF photo of the list."],
+      dos: [
+        "Check every AI-filled row before submitting.",
+        "Add a product photo when the list image is not the item itself.",
+        "Accept the estimate on Add item before the quote window expires.",
+      ],
+      donts: [
+        "Don't submit an empty table or rows without a product name.",
+        "Don't treat a submitted list as paid until you accept the quote and check out.",
+      ],
+    },
+    article: {
+      overview: [
+        "Shopping list is for shoppers who already have a written or photographed list of products. Upload one image; AI builds an editable table; staff send a combined estimate you accept into cart.",
+      ],
+      walkthrough: [
+        "Open Requested items and choose Shopping list.",
+        "Upload the list image. Review name, quantity, size, color, and notes, delete extra rows, and attach a product photo per row if you have one.",
+        "Submit list for quote. Staff see it on Overview → List quotes.",
+        "When the estimate is ready, open Add item → Batch quotes, preview totals, and accept into cart to pay.",
+      ],
+      requirements: [
+        "Signed-in account.",
+        "A readable list photo (JPEG, PNG, WebP, or GIF).",
+      ],
+      dos: [
+        "Correct any AI mistakes before submitting.",
+        "Watch notifications for estimate-ready updates.",
+      ],
+      donts: [
+        "Do not upload unrelated images—the reader needs a product list.",
+        "Do not skip checkout after accepting; the cart still needs payment.",
+      ],
+    },
+  },
+  {
     id: "add-item",
     title: "Add item — Products & batch quotes",
     category: "Shopping",
@@ -703,7 +754,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Products → Active: Accept estimate is pinned on the right in Actions; Quote expiry shows Time left, live HH:MM:SS, and remaining time under it.",
         "Products → Expired Quotes: estimates that passed the payment window — preview or resubmit.",
         "Products → History: past quote sessions.",
-        "Batch quotes → Active: Quote expiry card (Time left, live HH:MM:SS, remainder under it) on each line.",
+        "Batch quotes → Active: Quote expiry card (Time left, live HH:MM:SS, remainder under it) on each line. Shopping-list photo quotes also land here after staff send the estimate—Preview estimate opens a large dialog with product photos when available (click a photo to enlarge it), then Accept into cart.",
         "If a quoted batch has any line expire before pay/checkout, the batch ends and products return as singles.",
         "Accepting adds lines to cart at quoted price.",
       ],
@@ -735,7 +786,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Products → Active: review quotes you can accept, compare, or withdraw. Accept estimate and Preview stay visible in the pinned Actions column on the right; check Quote expiry before you accept.",
         "Products → Expired Quotes: preview expired estimates or resubmit as a new pending request.",
         "Products → History: browse past product quote sessions.",
-        "Batch quotes → Active: manage bundled multi-item estimate sessions; check Quote expiry on each product.",
+        "Batch quotes → Active: manage bundled multi-item estimate sessions; check Quote expiry on each product. After staff price a shopping-list photo, open Preview estimate for a large view of each product (photo when available—click it to enlarge), merchandise, shipping, sales tax, and service & handling, then accept the quote into cart to pay.",
         "If any line in a staff-quoted batch expires before you pay, the batch closes and each product returns as an individual quote (expired ones appear under Expired Quotes).",
         "Accept a quote to add the line to your cart (subject to stock at purchase time).",
         "Withdraw quotes you no longer want to keep your cart accurate.",
@@ -876,7 +927,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Active orders: in-progress hub fulfillment.",
         "History: completed or closed orders.",
         "Each lane (Waiting for purchase, In progress, Corrections & requests) has Thumbnail and Table — toggle to switch layout.",
-        "Line details, tracking, refund/return actions.",
+        "Line details, tracking, refund/return actions. Store-pickup products show Preview condition (how the item was received at the retailer) instead of Track shipment.",
         "In-hub catalog photos appear on order cards. Paid in-hub US packages show as Awaiting shipment in In progress until staff generate a Shippo label (or enter tracking), then In transit to you. Order products keeps one Track shipment control in the header for the warehouse package (not on each product card), plus live carrier status from Shippo. After the package is delivered, it moves to Orders history as Delivered to you. Request return from history for in-hub US items; the line returns to Orders while staff generate a return label. Print the label from Preview request, drop the package at a carrier location, and watch live return tracking until the warehouse receives it.",
         "Preview checkout charges groups in-hub products as a warehouse package, shows the destination US address, lists merchandise and package shipping separately, and does not repeat the product list in a second breakdown.",
         "Opening Line charges for one in-hub SKU shows that product's share of the warehouse package shipping (split by catalog price), not the full package rate on a single line.",

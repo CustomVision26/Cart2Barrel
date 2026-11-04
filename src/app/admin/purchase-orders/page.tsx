@@ -119,7 +119,10 @@ export default async function AdminPurchaseOrdersPage({ searchParams }: PageProp
           <span className="font-medium text-foreground">Tracking product</span> to edit inbound link /
           carrier / number (or{" "}
           <span className="font-medium text-foreground">Return product</span> when a receipt needs
-          correction and you are logging return shipment tracking. Replacement returns remain here until
+          correction and you are logging return shipment tracking). Store-pickup lines use{" "}
+          <span className="font-medium text-foreground">Preview condition</span> and{" "}
+          <span className="font-medium text-foreground">Update intake</span> instead of tracking.
+          Replacement returns remain here until
           receipt is logged; money-back lines stay here for{" "}
           <span className="font-medium text-foreground">Refund line</span> once return tracking is saved.
           Purchase

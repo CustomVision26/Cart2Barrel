@@ -31,6 +31,7 @@ import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-fi
 import { HelpBalloon } from "@/components/ui/help-balloon";
 import { useAdminNestedPanelFocus } from "@/components/admin/admin-nested-panel-focus-context";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
+import { AdminStorePickupIntakeButtons } from "@/components/admin/admin-store-pickup-intake-buttons";
 import {
   CONDITION_OPTIONS,
   type WarehouseReceiveCondition,
@@ -56,6 +57,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import type { PurchaseQueueLineRow } from "@/data/admin-purchase-queue";
 import type { ItemRequestLineSnapshot } from "@/db/schema";
 import { formatUsd } from "@/lib/admin-markup";
+import {
+  isStorePickupOrderLine,
+  orderLineHasStorePickupIntake,
+} from "@/lib/company-purchase-inbound";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { buildAdminOrdersListHref } from "@/lib/paid-orders-list-params";
@@ -1191,9 +1196,16 @@ function PurchaseQueueRow(props: {
             fulfilledProductReturnRequest={row.fulfilledProductReturnRequest}
             warehouseReceivedCondition={row.orderItem.warehouseReceivedCondition}
             isHubStockUsLine={isHubStockProductUrl(row.request.productUrl)}
+            isStorePickup={isStorePickupOrderLine(row.orderItem)}
           />
-          {fulfillment === "delivery_received_item_missing" &&
-          row.orderItem.warehouseReceivedAt ?
+          {orderLineHasStorePickupIntake(row.orderItem) ?
+            <AdminStorePickupIntakeButtons
+              productLabel={productTitle}
+              orderItem={row.orderItem}
+              snapshots={snapshotsByRequestId[r.id] ?? []}
+            />
+          : fulfillment === "delivery_received_item_missing" &&
+            row.orderItem.warehouseReceivedAt ?
             <WarehouseIntakePreviewDialog
               productLabel={productTitle}
               orderItem={row.orderItem}

@@ -20,6 +20,10 @@ import {
 import { insertItemRequestLineSnapshot, lineSnapshotPayloadFromItemRequest } from "@/data/item-request-line-snapshots";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
 import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
+import {
+  isShoppingListSiteKey,
+  SHOPPING_LIST_PERSONAL_QUOTE_BLOCKED_MESSAGE,
+} from "@/lib/shopping-list-quote";
 import { saveAdminBatchQuoteEstimateSchema } from "@/lib/validations/batch-quote";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 
@@ -77,6 +81,9 @@ export async function getAdminBatchQuoteEstimateDraftAction(
   if (!session) return { ok: false, message: "Batch not found." };
   if (session.status !== "submitted" && session.status !== "estimated") {
     return { ok: false, message: "This batch is not ready for an estimate." };
+  }
+  if (isShoppingListSiteKey(session.siteKey)) {
+    return { ok: false, message: SHOPPING_LIST_PERSONAL_QUOTE_BLOCKED_MESSAGE };
   }
 
   const requests = await listItemRequestsForBatchSession(session.id);
@@ -167,6 +174,9 @@ export async function saveAdminBatchQuoteEstimateAction(
   if (!session) return { ok: false, message: "Batch not found." };
   if (session.status !== "submitted" && session.status !== "estimated") {
     return { ok: false, message: "Cannot save estimate for this batch." };
+  }
+  if (isShoppingListSiteKey(session.siteKey)) {
+    return { ok: false, message: SHOPPING_LIST_PERSONAL_QUOTE_BLOCKED_MESSAGE };
   }
 
   const requests = await listItemRequestsForBatchSession(session.id);

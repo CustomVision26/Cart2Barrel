@@ -9,6 +9,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import type { AdminSubmittedBatchBundle } from "@/data/batch-quote-sessions";
 import { useAdminCustomerFilter } from "@/components/admin/admin-customer-filter-provider";
 import { AdminBatchQuoteEstimateDialog } from "@/components/admin/admin-batch-quote-estimate-dialog";
+import { AdminShoppingListPriceLink } from "@/components/admin/admin-shopping-list-price-link";
 import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
@@ -30,6 +31,7 @@ import {
   adminSubmittedBatchListHrefMerge,
   type AdminSubmittedBatchListQuery,
 } from "@/lib/admin-submitted-batch-list-params";
+import { isShoppingListSiteKey } from "@/lib/shopping-list-quote";
 import { displaySiteName } from "@/lib/site-name";
 import { cn } from "@/lib/utils";
 import type { ItemRequest } from "@/db/schema";
@@ -493,10 +495,12 @@ export function AdminBatchItemsTable({
                           className="px-3 py-3 align-top"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <AdminBatchQuoteEstimateDialog
-                            batchSessionId={session.id}
-                            onSaved={() => router.refresh()}
-                          />
+                          {isShoppingListSiteKey(session.siteKey) ?
+                            <AdminShoppingListPriceLink batchSessionId={session.id} />
+                          : <AdminBatchQuoteEstimateDialog
+                              batchSessionId={session.id}
+                              onSaved={() => router.refresh()}
+                            />}
                         </td>
                       </tr>
                       {expanded ? (

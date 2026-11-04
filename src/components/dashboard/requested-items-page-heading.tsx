@@ -10,8 +10,9 @@ export function RequestedItemsPageHeading() {
         Requested items
       </h1>
       <p className="text-sm text-muted-foreground">
-        Paste a product link, optionally run AI to pull listing details, then submit for
-        staff to review and quote. You can edit every field yourself.{" "}
+        Paste a product link or upload a photo of the products you want quoted. AI can
+        draft the details, then submit for staff to review. You can edit every field
+        yourself.{" "}
         <Link
           href={DASHBOARD_ADD_ITEM_ROUTES.productsActive}
           className="font-medium text-foreground underline-offset-2 hover:underline"

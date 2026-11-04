@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { itemRequestLineSnapshots, orderItems, orders } from "@/db/schema";
@@ -22,18 +22,26 @@ import {
 } from "@/data/order-list-select";
 import { recordWarehouseDeliveryReceivedActivity } from "@/data/user-status-update-events";
 import { ITEM_QUOTE_CHECKOUT_SNAPSHOT_COMPANY_PURCHASE } from "@/lib/checkout-snapshot-kind";
-import { COMPANY_PURCHASE_INBOUND_STORE_PICKUP } from "@/lib/company-purchase-inbound";
+import {
+  COMPANY_PURCHASE_INBOUND_STORE_PICKUP,
+  orderLineHasStorePickupIntake,
+} from "@/lib/company-purchase-inbound";
 import {
   isInvalidOrderItemFulfillmentStatusEnumError,
   isMissingOrderItemWarehouseReceiptColumnsError,
 } from "@/lib/db-column-missing";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
-import type { ConfirmCompanyPurchaseStorePickupInput } from "@/lib/validations/admin-order-item";
+import type {
+  ConfirmCompanyPurchaseStorePickupInput,
+  UpdateStorePickupIntakeInput,
+} from "@/lib/validations/admin-order-item";
 import type { WarehouseReceiptMemoV2 } from "@/lib/validations/admin-warehouse-receipt";
 import {
   buildWarehouseReceiptAuditMemoV2,
+  parseWarehouseReceiptMemo,
   warehouseReceiptHumanNote,
+  warehouseReceiptV2FromOrderItemRow,
 } from "@/lib/warehouse-receipt-snapshot-memo";
 import { fulfillmentStatusAfterStorePickupIntake } from "@/lib/warehouse-receive-fulfillment";
 import { BARREL_PIPELINE_IN_CONTAINER } from "@/lib/barrel-pipeline-fulfillment";
@@ -257,6 +265,281 @@ export async function applyCompanyPurchaseStorePickup(
         ok: false,
         message:
           'Database is missing fulfillment statuses for store pickup. Run npm run db:push, then try again.',
+      };
+    }
+    throw e;
+  }
+}
+
+function maxWarehouseIntakeSequence(snapshotMemos: (string | null)[]): number {
+  let max = 0;
+  for (const memo of snapshotMemos) {
+    const parsed = parseWarehouseReceiptMemo(memo);
+    if (parsed?.intakeSequence != null) {
+      max = Math.max(max, parsed.intakeSequence);
+    }
+  }
+  return max;
+}
+
+function priorIntakeAlreadyArchived(
+  snapshotMemos: (string | null)[],
+  orderItemId: string,
+  recordedAt: string,
+): boolean {
+  return snapshotMemos.some((memo) => {
+    const parsed = parseWarehouseReceiptMemo(memo);
+    return (
+      parsed?.intakeRole === "prior" &&
+      parsed.orderItemId === orderItemId &&
+      parsed.recordedAt === recordedAt
+    );
+  });
+}
+
+/** Revise condition, proof, and pickup time on a line already recorded as store pickup. */
+export async function applyUpdateStorePickupIntake(
+  parsed: UpdateStorePickupIntakeInput,
+  adminClerkUserId: string,
+): Promise<ApplyCompanyPurchaseStorePickupResult> {
+  const db = getDb();
+
+  try {
+    const [row] = await db
+      .select({
+        orderItem: orderItemFulfillmentCoreSelectWithWarehouse,
+        order: orderListSelect,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(eq(orderItems.id, parsed.orderItemId))
+      .limit(1);
+
+    if (!row || row.order.status !== "paid") {
+      return { ok: false, message: "Order line not found." };
+    }
+
+    if (!orderLineHasStorePickupIntake(row.orderItem)) {
+      return {
+        ok: false,
+        message: "This line is not a recorded store pickup.",
+      };
+    }
+
+    let refunded = 0;
+    try {
+      const refundedMap = await sumRefundedCentsByOrderItemIds([
+        row.orderItem.id,
+      ]);
+      refunded = refundedMap.get(row.orderItem.id) ?? 0;
+    } catch {
+      refunded = 0;
+    }
+    if (
+      row.orderItem.fulfillmentStatus === "refunded" ||
+      refunded >= row.orderItem.price
+    ) {
+      return {
+        ok: false,
+        message: "This line was refunded and cannot be updated.",
+      };
+    }
+
+    const nextFulfillment = fulfillmentStatusAfterStorePickupIntake(parsed.condition);
+    if (nextFulfillment === BARREL_PIPELINE_IN_CONTAINER) {
+      const ready = await ensureInBarrelAwaitingShippingEnumValue();
+      if (!ready) {
+        return {
+          ok: false,
+          message:
+            "Database is missing fulfillment status in_barrel_awaiting_shipping. Run npm run db:push.",
+        };
+      }
+    }
+
+    const receivedAt = parsed.storePickupAt;
+    const orderedQty = row.orderItem.quantity;
+    const shelfTrim = parsed.shelfLocation.trim();
+    const conditionNotesTrim = parsed.conditionNotes?.trim() ?? "";
+    const barcodeTrim = parsed.barcodeValue?.trim();
+    const missingReason =
+      parsed.condition === "missing" ? parsed.missingReason : undefined;
+    const proofUrls = parsed.proofPhotoUrls;
+    const proofCount =
+      proofUrls !== undefined ? proofUrls.length : parsed.proofPhotoCount;
+
+    const req = await getItemRequestById(row.orderItem.itemRequestId);
+    if (!req) {
+      return { ok: false, message: "Request line not found for an order item." };
+    }
+
+    const payload = lineSnapshotPayloadFromItemRequest(req);
+    payload.quantity = parsed.receivedQty;
+
+    const existingSnapshots = await db
+      .select({
+        auditMemo: itemRequestLineSnapshots.auditMemo,
+        phase: itemRequestLineSnapshots.phase,
+      })
+      .from(itemRequestLineSnapshots)
+      .where(eq(itemRequestLineSnapshots.itemRequestId, row.orderItem.itemRequestId))
+      .orderBy(asc(itemRequestLineSnapshots.createdAt));
+    const existingMemos = existingSnapshots.map((s) => s.auditMemo);
+    const legacyIntakeCount = existingSnapshots.filter(
+      (s) =>
+        s.phase === "warehouse_delivery_received" ||
+        s.phase === "warehouse_delivery_received_prior",
+    ).length;
+    let maxSeq = Math.max(
+      maxWarehouseIntakeSequence(existingMemos),
+      legacyIntakeCount,
+    );
+
+    const priorRecordedAt =
+      row.orderItem.warehouseReceivedAt?.trim() ||
+      row.orderItem.storePickupAt?.trim() ||
+      "";
+
+    if (
+      priorRecordedAt &&
+      !priorIntakeAlreadyArchived(existingMemos, row.orderItem.id, priorRecordedAt)
+    ) {
+      const priorSeq = maxSeq > 0 ? maxSeq : 1;
+      const priorPack = warehouseReceiptV2FromOrderItemRow(row.orderItem, {
+        intakeSequence: priorSeq,
+        intakeRole: "prior",
+        intakeContext: "initial_inbound",
+        recordedAt: priorRecordedAt,
+      });
+      await db.insert(itemRequestLineSnapshots).values({
+        itemRequestId: row.orderItem.itemRequestId,
+        phase: "warehouse_delivery_received_prior",
+        itemQuoteId: null,
+        batchQuoteSessionId: null,
+        auditMemo: priorPack.memo,
+        recordedByClerkUserId: adminClerkUserId,
+        productUrl: payload.productUrl,
+        productName: payload.productName,
+        productSize: payload.productSize,
+        productColor: payload.productColor,
+        quantity: payload.quantity,
+        note: `${priorPack.note} · Store pickup (replaced).`,
+        productImageUrl: payload.productImageUrl,
+        siteName: payload.siteName,
+      });
+      maxSeq = Math.max(maxSeq, priorSeq);
+    }
+
+    const activeSeq = maxSeq + 1;
+    const activeMemoPayload: WarehouseReceiptMemoV2 = {
+      kind: "warehouse_receipt_v2",
+      orderItemId: row.orderItem.id,
+      intakeSequence: activeSeq,
+      intakeRole: "active",
+      intakeContext: "initial_inbound",
+      recordedAt: receivedAt,
+      orderedQty,
+      receivedQty: parsed.receivedQty,
+      condition: parsed.condition,
+      missingReason,
+      conditionNotes:
+        conditionNotesTrim === "" ? undefined : conditionNotesTrim,
+      shelfLocation: shelfTrim,
+      proofPhotoCount: proofCount,
+      proofPhotoUrls:
+        proofUrls && proofUrls.length > 0 ? proofUrls : undefined,
+      barcodeValue:
+        barcodeTrim === undefined || barcodeTrim === "" ? undefined : barcodeTrim,
+    };
+
+    const activeNote = warehouseReceiptHumanNote({
+      orderItemShortId: row.orderItem.id.slice(0, 8),
+      orderedQty,
+      receivedQty: parsed.receivedQty,
+      conditionKey: parsed.condition,
+      missingReason,
+      conditionNotes:
+        conditionNotesTrim === "" ? undefined : conditionNotesTrim,
+      shelfLocation: parsed.shelfLocation,
+      proofPhotoCount: proofCount,
+      barcodeValue: activeMemoPayload.barcodeValue,
+      intakeRole: "active",
+      intakeSequence: activeSeq,
+      intakeContext: "initial_inbound",
+    });
+
+    await db
+      .update(orderItems)
+      .set({
+        fulfillmentStatus: nextFulfillment,
+        companyPurchaseInboundMethod: COMPANY_PURCHASE_INBOUND_STORE_PICKUP,
+        storePickupAt: receivedAt,
+        companyPurchaseUpdatedByClerkUserId: adminClerkUserId,
+        warehouseReceivedAt: receivedAt,
+        warehouseReceivedQty: parsed.receivedQty,
+        warehouseReceivedCondition: parsed.condition,
+        warehouseReceivedMissingReason: missingReason ?? null,
+        warehouseReceivedConditionNotes:
+          conditionNotesTrim === "" ? null : conditionNotesTrim,
+        warehouseShelfLocation: shelfTrim === "" ? null : shelfTrim,
+        warehouseReceivedBarcode:
+          barcodeTrim === undefined || barcodeTrim === "" ? null : barcodeTrim,
+        warehouseReceivedProofPhotoCount: proofCount,
+        warehouseReceivedProofPhotoUrls:
+          proofUrls && proofUrls.length > 0 ? proofUrls : null,
+        warehouseReceivedByClerkUserId: adminClerkUserId,
+      })
+      .where(eq(orderItems.id, row.orderItem.id));
+
+    if (nextFulfillment === BARREL_PIPELINE_IN_CONTAINER) {
+      await ensureInboundPackageForOrderItem(row.orderItem.id, receivedAt);
+    }
+
+    await db.insert(itemRequestLineSnapshots).values({
+      itemRequestId: row.orderItem.itemRequestId,
+      phase: "warehouse_delivery_received",
+      itemQuoteId: null,
+      batchQuoteSessionId: null,
+      auditMemo: buildWarehouseReceiptAuditMemoV2(activeMemoPayload),
+      recordedByClerkUserId: adminClerkUserId,
+      productUrl: payload.productUrl,
+      productName: payload.productName,
+      productSize: payload.productSize,
+      productColor: payload.productColor,
+      quantity: payload.quantity,
+      note: `${activeNote} · Store pickup intake updated.`,
+      productImageUrl: payload.productImageUrl,
+      siteName: payload.siteName,
+    });
+
+    await recordWarehouseDeliveryReceivedActivity({
+      clerkUserId: row.order.clerkUserId,
+      orderId: row.order.id,
+      orderItemId: row.orderItem.id,
+      productName: req.productName,
+      statusLabel: adminOrderLineStatusLabel(nextFulfillment, {
+        warehouseReceivedCondition: parsed.condition,
+        companyPurchaseInboundMethod: COMPANY_PURCHASE_INBOUND_STORE_PICKUP,
+      }),
+    });
+
+    return {
+      ok: true,
+      message: "Updated store pickup intake and added an audit trail snapshot.",
+    };
+  } catch (e) {
+    if (isMissingOrderItemWarehouseReceiptColumnsError(e)) {
+      return {
+        ok: false,
+        message:
+          "Database is missing warehouse receipt or store pickup columns. Run npm run db:push, then try again.",
+      };
+    }
+    if (isInvalidOrderItemFulfillmentStatusEnumError(e)) {
+      return {
+        ok: false,
+        message:
+          "Database is missing fulfillment statuses for store pickup. Run npm run db:push, then try again.",
       };
     }
     throw e;

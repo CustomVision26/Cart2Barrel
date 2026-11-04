@@ -5,6 +5,7 @@ import { Fragment, type ReactNode } from "react";
 
 import { AdminBatchHeaderOps } from "@/components/admin/admin-batch-header-ops";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
+import { AdminStorePickupIntakeButtons } from "@/components/admin/admin-store-pickup-intake-buttons";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { CollapsibleOrderBatchBucket } from "@/components/orders/collapsible-order-batch-bucket";
 import { CollapsibleOrderTableSection } from "@/components/orders/collapsible-order-table-section";
@@ -34,6 +35,10 @@ import {
   type BatchGroupPartition,
 } from "@/lib/partition-paid-order-batch-groups";
 import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
+import {
+  isStorePickupOrderLine,
+  orderLineHasStorePickupIntake,
+} from "@/lib/company-purchase-inbound";
 import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOutsidePurchasePaidFulfillment } from "@/lib/outside-purchase-order-fulfillment";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
@@ -696,10 +701,17 @@ function AdminOrderDataRow(props: {
             isOutsidePurchase={isOutside}
             inBatchGroup={inBatchGroup}
             isHubStockUsLine={isHubStockProductUrl(r.productUrl)}
+            isStorePickup={isStorePickupOrderLine(row.orderItem)}
           />
         }
-        {warehouseFulfillment === "delivery_received_item_missing" &&
-        row.orderItem.warehouseReceivedAt ?
+        {orderLineHasStorePickupIntake(row.orderItem) ?
+          <AdminStorePickupIntakeButtons
+            productLabel={r.productName?.trim() || "Unnamed product"}
+            orderItem={row.orderItem}
+            snapshots={snapshotsByRequestId[r.id] ?? []}
+          />
+        : warehouseFulfillment === "delivery_received_item_missing" &&
+          row.orderItem.warehouseReceivedAt ?
           <WarehouseIntakePreviewDialog
             productLabel={r.productName?.trim() || "Unnamed product"}
             orderItem={row.orderItem}

@@ -9,6 +9,7 @@ import { AdminHubStockOrderPacking } from "@/components/admin/admin-hub-stock-or
 import { AdminNestedFindOrganizePanel } from "@/components/admin/admin-nested-find-organize-panel";
 import { AdminBatchHeaderOps } from "@/components/admin/admin-batch-header-ops";
 import { AdminOrderLineActions } from "@/components/admin/admin-order-line-actions";
+import { AdminStorePickupIntakeButtons } from "@/components/admin/admin-store-pickup-intake-buttons";
 import { AdminShipHubStockPackageForm } from "@/components/admin/admin-ship-hub-stock-package-form";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
 import { ItemRequestLineAuditDialog } from "@/components/admin/item-request-line-audit-dialog";
@@ -47,8 +48,12 @@ import {
   type BatchLineShare,
 } from "@/lib/batch-line-share";
 import { BARREL_PIPELINE_OUTSIDE_PURCHASE_PAID } from "@/lib/barrel-pipeline-fulfillment";
-import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
+import {
+  isStorePickupOrderLine,
+  orderLineHasStorePickupIntake,
+} from "@/lib/company-purchase-inbound";
 import { isHubStockProductUrl } from "@/lib/hub-stock";
+import { adminOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
 import { isOutsidePurchaseRequest } from "@/lib/outside-purchase";
 import { effectiveOutsidePurchasePaidFulfillment } from "@/lib/outside-purchase-order-fulfillment";
@@ -176,6 +181,7 @@ function DetailProductCard({
               refundedCents: row.refundedCents,
               linePriceCents: row.orderItem.price,
               warehouseReceivedCondition: row.orderItem.warehouseReceivedCondition,
+              companyPurchaseInboundMethod: row.orderItem.companyPurchaseInboundMethod,
             })}
           </StatusBadge>
           {updatedByClerkUserId ?
@@ -225,6 +231,14 @@ function DetailProductCard({
               isOutsidePurchase={isOutsidePurchase}
               inBatchGroup={inBatchGroup}
               isHubStockUsLine={isHubStockProductUrl(r.productUrl)}
+              isStorePickup={isStorePickupOrderLine(row.orderItem)}
+            />
+          : null}
+          {orderLineHasStorePickupIntake(row.orderItem) ?
+            <AdminStorePickupIntakeButtons
+              productLabel={r.productName?.trim() || "Unnamed product"}
+              orderItem={row.orderItem}
+              snapshots={snapshotsByRequestId[r.id] ?? []}
             />
           : null}
           <ItemRequestLineAuditDialog

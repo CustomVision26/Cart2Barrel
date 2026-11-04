@@ -14,6 +14,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import type { AdminSubmittedBatchBundle } from "@/data/batch-quote-sessions";
 import { AdminBatchQuoteEstimateDialog } from "@/components/admin/admin-batch-quote-estimate-dialog";
+import { AdminShoppingListPriceLink } from "@/components/admin/admin-shopping-list-price-link";
 import { AdminFindOrganizeVisibilityToggle } from "@/components/admin/admin-find-organize-visibility-toggle";
 import { AdminCustomerRecordLabel } from "@/components/admin/admin-customer-record-label";
 import { AdminUpdatedByCell } from "@/components/admin/admin-staff-record-label";
@@ -38,6 +39,7 @@ import {
   adminCustomerSortKey,
 } from "@/lib/admin-customer-group";
 import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
+import { isShoppingListSiteKey } from "@/lib/shopping-list-quote";
 import { displaySiteName } from "@/lib/site-name";
 import { compareLocale, compareNum, type SortDir } from "@/lib/table-sort";
 import { cn } from "@/lib/utils";
@@ -900,13 +902,18 @@ export function AdminBatchQuoteHistoryPanel({
                         </div>
                       </DialogContent>
                     </Dialog>
-                    {b.session.status === "estimated" ? (
-                      <AdminBatchQuoteEstimateDialog
-                        batchSessionId={b.session.id}
-                        triggerLabel="Edit estimate"
-                        onSaved={() => router.refresh()}
-                      />
-                    ) : null}
+                    {b.session.status === "estimated" ?
+                      isShoppingListSiteKey(b.session.siteKey) ?
+                        <AdminShoppingListPriceLink
+                          batchSessionId={b.session.id}
+                          label="Update list"
+                        />
+                      : <AdminBatchQuoteEstimateDialog
+                          batchSessionId={b.session.id}
+                          triggerLabel="Edit estimate"
+                          onSaved={() => router.refresh()}
+                        />
+                    : null}
                   </td>
                 </tr>
               );

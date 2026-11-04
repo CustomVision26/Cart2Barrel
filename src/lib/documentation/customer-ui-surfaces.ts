@@ -1,5 +1,8 @@
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
-import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
+import {
+  DASHBOARD_REQUESTED_ITEMS_ROUTE,
+  DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE,
+} from "@/lib/dashboard-items-routes";
 import { DASHBOARD_SUPPORT_ROUTES } from "@/lib/admin-support-routes";
 import { HOW_IT_WORKS_ROUTES } from "@/lib/how-it-works-routes";
 import type {
@@ -162,6 +165,15 @@ const CUSTOMER_EXTRA_SURFACES: UiSurfaceDefinition[] = [
     category: "Getting started",
     route: HOW_IT_WORKS_ROUTES.userGuide,
     location: "How it works → User guide tab, or dashboard header → Documentation.",
+    kind: "tab",
+  },
+  {
+    id: "shopping-list-request",
+    title: "Requested items — Shopping list",
+    category: "Shopping",
+    route: DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE,
+    location:
+      "Sidebar → Requested items → Shopping list card (/dashboard/items/requested-items/shopping-list-request).",
     kind: "tab",
   },
   {

@@ -13,7 +13,8 @@ export type AdminOverviewTab =
   | "shipping-containers"
   | "special-features"
   | "quote-expiry"
-  | "in-hub-products";
+  | "in-hub-products"
+  | "list-quotes";
 
 const tabs: { id: AdminOverviewTab; label: string; extra?: Record<string, string> }[] =
   [
@@ -24,6 +25,7 @@ const tabs: { id: AdminOverviewTab; label: string; extra?: Record<string, string
     { id: "shipping-containers", label: "Shipping containers" },
     { id: "special-features", label: "Special features" },
     { id: "in-hub-products", label: "In-hub products" },
+    { id: "list-quotes", label: "List quotes" },
     { id: "quote-expiry", label: "Quote Expiry Settings" },
   ];
 

@@ -41,6 +41,7 @@ import {
   isProblemDeliveryReceiptFulfillment,
   problemDeliveryWarehouseCondition,
 } from "@/lib/delivery-condition-acceptance";
+import { orderLineHasStorePickupIntake } from "@/lib/company-purchase-inbound";
 import { collectOrderHeaderTrackings } from "@/lib/dashboard-line-tracking";
 import { dashboardOrderLineStatusLabel } from "@/lib/order-fulfillment-labels";
 import { effectiveOrderItemFulfillmentStatus } from "@/lib/order-item-read-compat";
@@ -203,8 +204,16 @@ function DashboardOrderProductCard({
             </p>
           : null}
           <DashboardAcceptDeliveryConditionDialog row={row} />
-          {fulfillment === "delivery_received_item_missing" &&
-          row.orderItem.warehouseReceivedAt ?
+          {orderLineHasStorePickupIntake(row.orderItem) ?
+            <WarehouseIntakePreviewDialog
+              productLabel={r.productName?.trim() || "Unnamed product"}
+              orderItem={row.orderItem}
+              snapshots={snapshotsByRequestId[r.id] ?? []}
+              triggerLabel="Preview condition"
+              dialogTitle="Store pickup condition"
+            />
+          : fulfillment === "delivery_received_item_missing" &&
+            row.orderItem.warehouseReceivedAt ?
             <WarehouseIntakePreviewDialog
               productLabel={r.productName?.trim() || "Unnamed product"}
               orderItem={row.orderItem}

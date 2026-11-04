@@ -591,6 +591,63 @@ export const batchQuoteEstimates = pgTable(
   (t) => [index("batch_quote_estimates_session_id_idx").on(t.batchQuoteSessionId)],
 );
 
+/** Shopper-uploaded shopping list (photo) converted into a batch quote session. */
+export const shoppingListQuotes = pgTable(
+  "shopping_list_quotes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    sourceImageUrl: text("source_image_url").notNull(),
+    status: text("status").notNull().default("draft"),
+    batchQuoteSessionId: uuid("batch_quote_session_id").references(
+      () => batchQuoteSessions.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("shopping_list_quotes_clerk_user_id_created_at_idx").on(
+      t.clerkUserId,
+      t.createdAt,
+    ),
+    index("shopping_list_quotes_status_idx").on(t.status),
+    index("shopping_list_quotes_batch_session_idx").on(t.batchQuoteSessionId),
+  ],
+);
+
+export const shoppingListQuoteLines = pgTable(
+  "shopping_list_quote_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shoppingListQuoteId: uuid("shopping_list_quote_id")
+      .notNull()
+      .references(() => shoppingListQuotes.id, { onDelete: "cascade" }),
+    sortIndex: integer("sort_index").notNull().default(0),
+    productName: text("product_name"),
+    quantity: integer("quantity").notNull().default(1),
+    productSize: text("product_size"),
+    productColor: text("product_color"),
+    note: text("note"),
+    productImageUrl: text("product_image_url"),
+    itemRequestId: uuid("item_request_id").references(() => itemRequests.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("shopping_list_quote_lines_list_id_idx").on(t.shoppingListQuoteId),
+  ],
+);
+
 /** Admin pricing for an item request. */
 export const itemQuotes = pgTable(
   "item_quotes",
@@ -2824,6 +2881,7 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
   addresses: many(addresses),
   batchQuoteSessions: many(batchQuoteSessions),
   itemRequests: many(itemRequests),
+  shoppingListQuotes: many(shoppingListQuotes),
   orders: many(orders),
   barrels: many(barrels),
   payments: many(payments),
@@ -2908,6 +2966,7 @@ export const batchQuoteSessionsRelations = relations(
       references: [batchQuoteEstimates.id],
     }),
     statusEvents: many(batchQuoteSessionStatusEvents),
+    shoppingListQuotes: many(shoppingListQuotes),
   }),
 );
 
@@ -2945,6 +3004,35 @@ export const batchQuoteEstimatesRelations = relations(
   }),
 );
 
+export const shoppingListQuotesRelations = relations(
+  shoppingListQuotes,
+  ({ one, many }) => ({
+    profile: one(profiles, {
+      fields: [shoppingListQuotes.clerkUserId],
+      references: [profiles.clerkUserId],
+    }),
+    batchQuoteSession: one(batchQuoteSessions, {
+      fields: [shoppingListQuotes.batchQuoteSessionId],
+      references: [batchQuoteSessions.id],
+    }),
+    lines: many(shoppingListQuoteLines),
+  }),
+);
+
+export const shoppingListQuoteLinesRelations = relations(
+  shoppingListQuoteLines,
+  ({ one }) => ({
+    list: one(shoppingListQuotes, {
+      fields: [shoppingListQuoteLines.shoppingListQuoteId],
+      references: [shoppingListQuotes.id],
+    }),
+    itemRequest: one(itemRequests, {
+      fields: [shoppingListQuoteLines.itemRequestId],
+      references: [itemRequests.id],
+    }),
+  }),
+);
+
 export const itemRequestsRelations = relations(itemRequests, ({ one, many }) => ({
   profile: one(profiles, {
     fields: [itemRequests.clerkUserId],
@@ -2956,6 +3044,7 @@ export const itemRequestsRelations = relations(itemRequests, ({ one, many }) => 
   }),
   quotes: many(itemQuotes),
   lineSnapshots: many(itemRequestLineSnapshots),
+  shoppingListQuoteLines: many(shoppingListQuoteLines),
   orderItems: many(orderItems),
   outsidePurchaseReturnRequest: one(outsidePurchaseReturnRequests),
 }));
@@ -3593,6 +3682,11 @@ export type SupportTicketMessage = typeof supportTicketMessages.$inferSelect;
 export type NewSupportTicketMessage = typeof supportTicketMessages.$inferInsert;
 
 export type SupportTicketStatus = SupportTicket["status"];
+
+export type ShoppingListQuote = typeof shoppingListQuotes.$inferSelect;
+export type NewShoppingListQuote = typeof shoppingListQuotes.$inferInsert;
+export type ShoppingListQuoteLine = typeof shoppingListQuoteLines.$inferSelect;
+export type NewShoppingListQuoteLine = typeof shoppingListQuoteLines.$inferInsert;
 
 export type SerpApiSearchEvent = typeof serpApiSearchEvents.$inferSelect;
 export type NewSerpApiSearchEvent = typeof serpApiSearchEvents.$inferInsert;

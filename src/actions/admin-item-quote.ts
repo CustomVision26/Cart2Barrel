@@ -20,6 +20,10 @@ import {
 import { ITEM_QUOTE_VOID_REASON_STAFF_REPLACEMENT } from "@/lib/item-quote-void-reason";
 import { revalidateDashboardAddItem } from "@/lib/revalidate-dashboard-add-item";
 import { isClerkAdmin } from "@/lib/is-clerk-admin";
+import {
+  isShoppingListItemRequest,
+  SHOPPING_LIST_PERSONAL_QUOTE_BLOCKED_MESSAGE,
+} from "@/lib/shopping-list-quote";
 import { parseSaveAdminItemQuoteInput } from "@/lib/validations/admin-item-quote";
 import { recordEstimateReadyActivity } from "@/data/user-status-update-events";
 
@@ -57,6 +61,9 @@ export async function saveAdminItemQuoteAction(
     const reqBefore = await getItemRequestById(d.itemRequestId);
     if (!reqBefore) {
       return { ok: false, message: "Item request not found." };
+    }
+    if (isShoppingListItemRequest(reqBefore)) {
+      return { ok: false, message: SHOPPING_LIST_PERSONAL_QUOTE_BLOCKED_MESSAGE };
     }
     const totalPrice = d.itemCost + d.serviceFee + d.estimatedShipping + d.tax;
     const merchandiseSavingsCents =

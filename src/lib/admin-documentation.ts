@@ -174,6 +174,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Shipping containers: solid-colored Catalog accordion and color-coded table; double-click a row to edit, then Publish / Unpublish.",
         "In-hub products: Hub ship-from addresses and Add in-hub product sub-tabs (warehouse origins, one primary; SKUs with packed weight/size for Shippo).",
         "Special features: catalog table of timed suitcase offers; double-click a row to edit, then Publish.",
+        "List quotes: shopping-list photo submissions. Click a photo to enlarge it; double-click a field to edit it in a dialog. Add merchandise price, service & handling, sales tax, and shipping, then send the estimate to Add item.",
         "Quote Expiry Settings: Hub / Customer / Product sub-tabs for default window, per-customer overrides, and per-product overrides (1 minute–90 days).",
       ],
       requirements: ["Admin access."],
@@ -191,7 +192,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, service & handling tiers, barrel/cargo box/bin packing packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, and the quote expiry window for shoppers.",
+        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, service & handling tiers, barrel/cargo box/bin packing packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, shopping-list photo quotes, and the quote expiry window for shoppers.",
       ],
       walkthrough: [
         "Summary tab: starting point with refund-awaiting banner and orientation copy.",
@@ -201,6 +202,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Shipping containers tab: add barrels, bins, cargo boxes, and special-feature suitcases with prices and photos. Every container has a shopper-facing note; cargo box size uses the same Size field as barrels and bins. Catalog is a solid-colored accordion so the table stays readable over the page watermark. Rows are color-coded (amber barrel, blue bin, emerald cargo box, violet suitcase). Double-click a row to open the editor, then Publish / Unpublish to show or hide the SKU on the shopper Barrels page.",
         "In-hub products tab: Hub ship-from addresses sub-tab to add US warehouse origins (double-click or Open to edit; only one can be primary for Shippo). Add in-hub product sub-tab to add SKUs with packed weight (ounces) and outer length/width/height (inches), then Publish so they appear on Home. Shippo uses those parcel fields plus SHIPPO_API_KEY to rate US delivery and to buy domestic labels from Orders. Set SHIPPO_WEBHOOK_TOKEN and a track_updated webhook so customer tracking stays current (production example: https://amanicart2-barrel.vercel.app/api/webhooks/shippo?token=<SHIPPO_WEBHOOK_TOKEN>). Overseas-container destination does not call Shippo.",
         "Special features tab: catalog table of timed suitcase specials; double-click a row to open the editor.",
+        "List quotes tab: open a shopper’s uploaded list, click a photo to enlarge it, double-click a cramped field to edit it in a dialog, enter price, service & handling, sales tax, and shipping per line, then Send estimate. Totals show merchandise, shipping, sales tax, and service & handling. The shopper accepts on Add item → Batch quotes.",
         "Quote Expiry Settings tab: Hub / Customer / Product sub-tabs. Publish the hub default (1 minute–90 days), assign a customer override for all of that shopper’s quotes, or search a quoted product and set a product-only override. Priority: product → customer → hub. Shorter windows reduce refunds and add-payment requests when retailer prices move.",
       ],
       notes: [
@@ -217,6 +219,52 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Do not delete or disable container offerings that customers already purchased without a migration plan.",
         "Do not change fee tiers without understanding impact on open cart lines and unpublished quotes.",
         "Do not add a packing fee to quote lines; packing is charged on barrels, cargo boxes, and bins only.",
+      ],
+    },
+  },
+  {
+    id: "overview-list-quotes",
+    title: "Overview — List quotes",
+    category: "Commerce",
+    quickReference: {
+      summary: "Price shopping-list photo submissions and send combined estimates.",
+      location: "Sidebar → Overview → List quotes tab.",
+      bullets: [
+        "Lists submitted from Requested items → Shopping list.",
+        "Edit name, quantity, size, color, and notes (double-click a field to edit it in a larger dialog). Click the list photo or a product photo to enlarge it. Upload a product photo on any row that has none. Enter merchandise, service & handling, sales tax, and shipping per product.",
+        "Footer totals: merchandise, shipping, sales tax, service & handling.",
+        "Send estimate publishes a batch quote the shopper previews and accepts on Add item.",
+      ],
+      requirements: ["Admin access."],
+      dos: [
+        "Check the original list photo against each row before pricing.",
+        "Upload a product photo when the shopper did not attach one.",
+        "Let service & handling auto-fill from published tiers, then adjust if needed.",
+      ],
+      donts: [
+        "Don't send an estimate with $0 merchandise unless the item is free.",
+        "Don't skip sales tax or shipping when the shopper should pay them.",
+      ],
+    },
+    article: {
+      overview: [
+        "List quotes is the staff desk for photo shopping lists. Each submission becomes a batch of product lines. After you save the estimate, the shopper accepts the bundle on Add item and pays in cart.",
+      ],
+      walkthrough: [
+        "Open Overview → List quotes. Select a shopper’s list to see the uploaded photo and product table. Click the list photo or a product thumbnail to view a large preview.",
+        "Edit product details if AI or the shopper got them wrong. Double-click a table field to type in a larger dialog. If a row has no product photo, upload one. Enter merchandise price; service & handling and sales tax suggest from Fees & rates / tax settings. Set shipping per line.",
+        "Review the four totals, add an optional staff note, and Send estimate.",
+        "The shopper is notified and can preview/accept on Add item → Batch quotes (Preview estimate shows product photos; they can click a photo to enlarge it).",
+      ],
+      requirements: ["Admin access.", "A submitted shopping list from a signed-in shopper."],
+      dos: [
+        "Use the customer filter when helping one shopper.",
+        "Revise with Update estimate if a price changes before they accept.",
+      ],
+      donts: [
+        "Do not price from memory when the list photo is unclear—ask the shopper via Messages.",
+        "Do not add packing on these lines; packing is charged on barrels, cargo boxes, and bins.",
+        "Do not create a personal Active requests estimate for each shopping-list product.",
       ],
     },
   },
@@ -240,6 +288,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Don't publish quotes without verifying URL, variant, and fees.",
         "Don't confuse Queue lines with Batch Items bundles.",
+        "Don't quote shopping-list products here—price them on Overview → List quotes.",
       ],
     },
     article: {
@@ -273,7 +322,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Multi-item bundle estimates submitted as one customer session.",
       location: "Sidebar → Item requests → Batch Items tab.",
       bullets: [
-        "Submitted: new batch sessions awaiting staff estimates.",
+        "Submitted: retailer batches await a combined estimate. Shopping-list batches use Price list (Overview → List quotes) instead of a personal line quote.",
         "Batch estimates: active bundled quote work.",
         "Batch history: archived batch sessions.",
         "Badge on tab shows pending batch count.",
@@ -286,6 +335,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Don't publish partial batches without documenting which lines are excluded.",
         "Don't mix batch and single-line queues when searching for a customer line.",
+        "Don't open Batch estimate on a shopping-list batch—price each product on List quotes, then send the quote back.",
       ],
     },
     article: {
@@ -294,7 +344,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Click Batch Items in the Item requests tab bar; badge shows pending count.",
-        "Submitted sub-tab: newly submitted bundles needing staff review.",
+        "Submitted sub-tab: newly submitted bundles needing staff review. For shopping-list batches, click Price list and enter each product on Overview → List quotes instead of Batch estimate.",
         "Batch estimates sub-tab: in-progress bundled estimate sessions.",
         "Batch history sub-tab: completed or archived batch work.",
         "Publish batch estimates so the customer can accept lines into their cart.",
@@ -318,9 +368,9 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       summary: "Paid customer order lines—fulfillment, refunds, and tracking.",
       location: "Sidebar → Orders; history at /admin/orders-history.",
       bullets: [
-        "Active orders: carousel/table of paid lines needing hub action.",
+        "Active orders: carousel/table of paid lines needing hub action. Each stage (Waiting for purchase, In progress, Corrections & requests) has Thumbnail and Table — toggle to switch layout; the choice is remembered in this browser.",
         "Orders history: closed or completed admin order views.",
-        "Refund, tracking, purchase confirmation, and warehouse flows per line.",
+        "Refund, tracking, purchase confirmation, and warehouse flows per line. Store-pickup lines hide Tracking product and show Preview condition plus Update intake so staff can revise the received-condition record.",
         "Double-click an order card to open products. In-hub US warehouse orders sit in In progress as Awaiting shipment (not Waiting for purchase). On Order products, the packing card has Shippo dashboard, Generate label (buys a domestic PDF via Shippo), and Download label after purchase. After a label or tracking is saved, the card shows In transit to customer. After delivery, the line moves to Orders history; if the customer requests a return it reappears on Orders as Return requested. Open View return and Generate return label (customer address → warehouse; pick USPS/UPS/FedEx). After the label is bought, the line moves to Purchase orders as a return in transit. Preview shows the checkout receipt including the destination US address. View order receipt for in-hub US orders lists From as Amani Cart2Barrel at the primary hub ship-from, Bill to as the warehouse package US ship-to (not the Jamaica barrel address), and warehouse package shipping as its own line and totals row. Update tracking remains a fallback (Open tracking, Check delivery, Save tracking, Next). Shippo track_updated webhooks keep live status current, mark outbound packages delivered, and mark warehouse returns received (restock + notify) without clicking Next.",
       ],
       requirements: ["Admin access."],
@@ -339,12 +389,12 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Admin Orders is the control plane for paid customer purchases after checkout. Staff confirm hub buying, enter tracking, record warehouse receipt, process refunds and returns, and move lines through fulfillment states.",
       ],
       walkthrough: [
-        "Open Orders from the sidebar for active paid lines.",
+        "Open Orders from the sidebar for active paid lines. Use Thumbnail or Table on each fulfillment stage to switch between cards and a table of the same orders; click a table row or double-click a card to open line details.",
         "Use Orders history for completed or archived views.",
         "Open a line to see payment details, customer info, and available staff actions.",
         "For in-hub US products, the order appears under In progress as Awaiting shipment. Open Order products: the In-hub warehouse packing card has Shippo dashboard (apps.goshippo.com unless SHIPPO_DASHBOARD_URL is set), Generate label to recreate the shipment and buy the shopper's checkout rate as a domestic PDF, and Download label after a successful purchase. If that rate expired, pick a current USPS/UPS/FedEx rate. After a label is bought (or tracking is saved), the card shows In transit to customer (not In transit to you). Preview opens the checkout receipt, including the destination US address. Update tracking remains a manual fallback; Open tracking opens the carrier page; Check delivery asks Shippo for the latest carrier status (live Shippo key required — test keys cannot look up FedEx); Next marks the package delivered. Configure Shippo Dashboard → Webhooks → track_updated to POST https://amanicart2-barrel.vercel.app/api/webhooks/shippo?token=<SHIPPO_WEBHOOK_TOKEN> (or https://<host>/api/webhooks/shippo?token=…) so live status updates on the customer order and delivered packages notify the shopper without staff clicking Next. When a delivered in-hub US customer requests a return, the line returns to Orders as Return requested. Open View return, edit the customer note, and Generate return label (customer US address → primary hub ship-from). Pick a USPS/UPS/FedEx rate; the customer prints the PDF from Orders. That line then appears on Purchase orders as a return in transit. When Shippo reports DELIVERED on the return tracking (or staff click Mark return received), the customer is notified and hub stock is restored. Issue the Stripe refund from Purchase orders when the requested outcome is money back.",
         "On the packing card, View order receipt (HTML or PDF) for in-hub US orders shows From as Amani Cart2Barrel at the primary hub ship-from, Bill to as the warehouse package US ship-to—not the Jamaica barrel address—and warehouse package shipping as a separate line and totals row.",
-        "Record company purchase, tracking updates, and warehouse delivery as operations progress.",
+        "Record company purchase, tracking updates, and warehouse delivery as operations progress. After a store pickup, the product card shows Preview condition (the intake record) and Update intake instead of Tracking product—revise quantity, condition photos, notes, and pickup time without entering a carrier shipment.",
         "Process refund or return flows when policy and status allow.",
       ],
       requirements: ["Admin access.", "Paid order lines exist for data to appear."],
@@ -369,7 +419,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Lists lines ready for staff to buy from US retailers.",
         "Coordinates purchasing after customer payment.",
-        "Works with order fulfillment status updates.",
+        "Works with order fulfillment status updates. Store-pickup purchases skip Tracking product; use Preview condition and Update intake on the line.",
         "In-hub US returns appear here after a warehouse return label is bought (return in transit). Use Mark return received if Shippo has not already recorded warehouse receipt, then refund when the outcome is money back.",
       ],
       requirements: ["Admin access."],
@@ -384,7 +434,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Open Purchase orders from the Fulfillment section.",
         "Review lines awaiting hub purchase with retailer and variant details.",
         "Complete purchases according to internal buying procedures.",
-        "Update corresponding order lines with purchase confirmation and tracking.",
+        "Update corresponding order lines with purchase confirmation and tracking. For store pickup, record the condition intake at approval; later use Preview condition and Update intake on the line instead of Tracking product.",
         "For in-hub US product returns, confirm the package arrived (Shippo delivered webhook or Mark return received) before issuing a refund or shipping a replacement.",
       ],
       requirements: ["Admin access.", "Customer payment confirmed for the line."],

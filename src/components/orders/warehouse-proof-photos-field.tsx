@@ -75,6 +75,8 @@ export function WarehouseProofPhotosField({
   const removePhoto = useCallback(
     (imageUrl: string) => {
       if (disabled || pending) return;
+      const previous = urls;
+      onUrlsChange?.(previous.filter((u) => u !== imageUrl));
       startTransition(async () => {
         const res = await removeWarehouseProofPhotoAction({
           orderItemId,
@@ -85,11 +87,12 @@ export function WarehouseProofPhotosField({
           toast.success(res.message);
           router.refresh();
         } else {
+          onUrlsChange?.(previous);
           toast.error(res.message);
         }
       });
     },
-    [disabled, onUrlsChange, orderItemId, pending, router],
+    [disabled, onUrlsChange, orderItemId, pending, router, urls],
   );
 
   return (

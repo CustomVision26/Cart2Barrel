@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { requestBatchEstimateRevisionAction } from "@/actions/customer-batch-quote";
+import { ProductRequestThumbnail } from "@/components/product-request-thumbnail";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,6 +33,7 @@ type BatchLineEstimate = {
   productName: string | null;
   siteName: string | null;
   productUrl: string;
+  productImageUrl: string | null;
   quantity: number;
   size: string | null;
   color: string | null;
@@ -41,6 +43,8 @@ type BatchLineEstimate = {
   tax: number;
   total: number;
 };
+
+type ImagePreview = { src: string; alt: string };
 
 function latestQuoteForList(quotes: ItemQuote[]): ItemQuote | null {
   if (quotes.length === 0) return null;
@@ -82,6 +86,7 @@ function buildBatchLineEstimates(
     productName: r.productName,
     siteName: r.siteName,
     productUrl: r.productUrl,
+    productImageUrl: r.productImageUrl?.trim() || null,
     quantity: r.quantity,
     size: r.productSize?.trim() || null,
     color: r.productColor?.trim() || null,
@@ -94,15 +99,45 @@ function buildBatchLineEstimates(
   }));
 }
 
-function BatchLineEstimateCard({ line }: { line: BatchLineEstimate }) {
+function BatchLineEstimateCard({
+  line,
+  onPreviewImage,
+}: {
+  line: BatchLineEstimate;
+  onPreviewImage: (preview: ImagePreview) => void;
+}) {
+  const name = line.productName?.trim() || "Product";
+  const imageUrl = line.productImageUrl;
+
   return (
     <li className="rounded-md border border-border bg-muted px-3 py-2.5">
-      <p className="font-medium text-foreground">
-        {line.productName?.trim() || "Product"}
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {displaySiteName(line.siteName, line.productUrl)}
-      </p>
+      <div className="flex items-start gap-3">
+        {imageUrl ?
+          <button
+            type="button"
+            title="View larger product photo"
+            className="shrink-0 rounded-lg"
+            onClick={() => onPreviewImage({ src: imageUrl, alt: name })}
+          >
+            <ProductRequestThumbnail
+              variant="dialog"
+              imageUrl={imageUrl}
+              productLabel={name}
+              className="cursor-zoom-in"
+            />
+          </button>
+        : <ProductRequestThumbnail
+            variant="dialog"
+            imageUrl={null}
+            productLabel={name}
+          />}
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-foreground">{name}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {displaySiteName(line.siteName, line.productUrl)}
+          </p>
+        </div>
+      </div>
       <dl className="mt-2 grid gap-1 border-t border-border pt-2 text-xs tabular-nums">
         <div className="flex justify-between gap-2">
           <dt className="text-muted-foreground">Qty</dt>
@@ -172,6 +207,7 @@ export function BatchEstimatePreviewDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmRevisionOpen, setConfirmRevisionOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
   const [revisionPending, revisionStart] = useTransition();
 
   const subtotalCalc =
@@ -210,7 +246,10 @@ export function BatchEstimatePreviewDialog({
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (!next) setConfirmRevisionOpen(false);
+          if (!next) {
+            setConfirmRevisionOpen(false);
+            setImagePreview(null);
+          }
         }}
       >
         <DialogTrigger
@@ -220,113 +259,153 @@ export function BatchEstimatePreviewDialog({
           <EyeIcon className="size-3.5 shrink-0 opacity-80" aria-hidden />
           Preview estimate
         </DialogTrigger>
-        <DialogContent className="max-h-[min(85vh,560px)] w-[min(96vw,26rem)] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Batch estimate</DialogTitle>
-            <DialogDescription>
-              Batch{" "}
-              <span className="font-mono font-medium text-foreground">{batchNumber}</span>
-              {" · "}
-              <span className="text-muted-foreground">{siteKey}</span>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 text-sm tabular-nums">
-            {lineEstimates.length > 0 ? (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Individual product estimates
-                </p>
-                <ul className="space-y-2 text-sm">
-                  {lineEstimates.map((line) => (
-                    <BatchLineEstimateCard key={line.productUrl} line={line} />
-                  ))}
-                </ul>
-                <Separator />
+        <DialogContent className="max-h-[min(92vh,48rem)] w-[min(96vw,42rem)] overflow-y-auto sm:max-w-2xl">
+          {imagePreview ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Image preview</DialogTitle>
+                <DialogDescription>{imagePreview.alt}</DialogDescription>
+              </DialogHeader>
+              <div className="overflow-hidden rounded-lg border border-border bg-muted">
+                {/* eslint-disable-next-line @next/next/no-img-element -- retailer or uploaded product URLs */}
+                <img
+                  src={imagePreview.src}
+                  alt={imagePreview.alt}
+                  className="mx-auto max-h-[min(70vh,36rem)] w-full object-contain"
+                />
               </div>
-            ) : null}
-
-            <ul className="space-y-2 text-muted-foreground">
-              <li className="flex justify-between gap-2">
-                <span>Site merchandise</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.siteMerchandiseTotalCents)}
-                </span>
-              </li>
-              <li className="flex justify-between gap-2">
-                <span>Service &amp; handling</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.serviceHandlingTotalCents)}
-                </span>
-              </li>
-              <li className="flex justify-between gap-2">
-                <span>Site shipping</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.siteShippingTotalCents)}
-                </span>
-              </li>
-              <li className="flex justify-between gap-2">
-                <span>Site sale tax</span>
-                <span className="text-foreground">
-                  {formatUsd(estimate.siteSaleTaxTotalCents)}
-                </span>
-              </li>
-              <li className="flex justify-between gap-2 border-t border-border pt-2 font-semibold text-foreground">
-                <span>Customer subtotal</span>
-                <span>{formatUsd(subtotalCalc)}</span>
-              </li>
-            </ul>
-
-            <div className={cn("flex justify-between text-xs tabular-nums", dashItemsTimelineCard)}>
-              <span className="text-muted-foreground">Saved subtotal (staff)</span>
-              <span className="font-medium text-foreground">
-                {formatUsd(estimate.subtotalCents)}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Customer subtotal is site merchandise + service &amp; handling + site sale tax +
-              site shipping. The saved subtotal is what staff recorded for this batch.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Saved{" "}
-              <time dateTime={estimate.createdAt}>
-                {new Date(estimate.createdAt).toLocaleString()}
-              </time>
-              .
-            </p>
-
-            {estimate.staffNote?.trim() ? (
-              <div className={cn(dashItemsTimelineCard)}>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Batch estimate notes
-                </p>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                  {estimate.staffNote.trim()}
-                </p>
-              </div>
-            ) : null}
-
-            <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full sm:min-w-0 sm:flex-1"
-                onClick={() => setConfirmRevisionOpen(true)}
-              >
-                Request estimate
-              </Button>
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="w-full sm:min-w-0 sm:flex-1"
-                onClick={() => setOpen(false)}
+                className="w-full"
+                onClick={() => setImagePreview(null)}
               >
-                Close
+                Back to estimate
               </Button>
-            </div>
-          </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Batch estimate</DialogTitle>
+                <DialogDescription>
+                  Batch{" "}
+                  <span className="font-mono font-medium text-foreground">
+                    {batchNumber}
+                  </span>
+                  {" · "}
+                  <span className="text-muted-foreground">{siteKey}</span>
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 text-sm tabular-nums">
+                {lineEstimates.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Individual product estimates
+                    </p>
+                    <ul className="space-y-2 text-sm">
+                      {lineEstimates.map((line) => (
+                        <BatchLineEstimateCard
+                          key={line.productUrl}
+                          line={line}
+                          onPreviewImage={setImagePreview}
+                        />
+                      ))}
+                    </ul>
+                    <Separator />
+                  </div>
+                ) : null}
+
+                <ul className="space-y-2 text-muted-foreground">
+                  <li className="flex justify-between gap-2">
+                    <span>Site merchandise</span>
+                    <span className="text-foreground">
+                      {formatUsd(estimate.siteMerchandiseTotalCents)}
+                    </span>
+                  </li>
+                  <li className="flex justify-between gap-2">
+                    <span>Service &amp; handling</span>
+                    <span className="text-foreground">
+                      {formatUsd(estimate.serviceHandlingTotalCents)}
+                    </span>
+                  </li>
+                  <li className="flex justify-between gap-2">
+                    <span>Site shipping</span>
+                    <span className="text-foreground">
+                      {formatUsd(estimate.siteShippingTotalCents)}
+                    </span>
+                  </li>
+                  <li className="flex justify-between gap-2">
+                    <span>Site sale tax</span>
+                    <span className="text-foreground">
+                      {formatUsd(estimate.siteSaleTaxTotalCents)}
+                    </span>
+                  </li>
+                  <li className="flex justify-between gap-2 border-t border-border pt-2 font-semibold text-foreground">
+                    <span>Customer subtotal</span>
+                    <span>{formatUsd(subtotalCalc)}</span>
+                  </li>
+                </ul>
+
+                <div
+                  className={cn(
+                    "flex justify-between text-xs tabular-nums",
+                    dashItemsTimelineCard,
+                  )}
+                >
+                  <span className="text-muted-foreground">Saved subtotal (staff)</span>
+                  <span className="font-medium text-foreground">
+                    {formatUsd(estimate.subtotalCents)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Customer subtotal is site merchandise + service &amp; handling + site sale
+                  tax + site shipping. The saved subtotal is what staff recorded for this
+                  batch.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Saved{" "}
+                  <time dateTime={estimate.createdAt}>
+                    {new Date(estimate.createdAt).toLocaleString()}
+                  </time>
+                  .
+                </p>
+
+                {estimate.staffNote?.trim() ? (
+                  <div className={cn(dashItemsTimelineCard)}>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Batch estimate notes
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                      {estimate.staffNote.trim()}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:min-w-0 sm:flex-1"
+                    onClick={() => setConfirmRevisionOpen(true)}
+                  >
+                    Request estimate
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="w-full sm:min-w-0 sm:flex-1"
+                    onClick={() => setOpen(false)}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -337,7 +416,11 @@ export function BatchEstimatePreviewDialog({
           setConfirmRevisionOpen(next);
         }}
       >
-        <DialogContent showCloseButton={false} className="z-[60] sm:max-w-md">
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName="z-[70]"
+          className="z-[80] sm:max-w-md"
+        >
           <DialogHeader>
             <DialogTitle>Request a revised batch estimate?</DialogTitle>
             <DialogDescription className="text-pretty">

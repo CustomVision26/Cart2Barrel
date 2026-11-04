@@ -110,6 +110,14 @@ export type ConfirmCompanyPurchaseStorePickupInput = z.infer<
   typeof confirmCompanyPurchaseStorePickupSchema
 >;
 
+/** Revise condition / proof on a line already recorded as store pickup. */
+export const updateStorePickupIntakeSchema =
+  confirmCompanyPurchaseStorePickupSchema.omit({ deliveryMode: true });
+
+export type UpdateStorePickupIntakeInput = z.infer<
+  typeof updateStorePickupIntakeSchema
+>;
+
 /** Same fields as approving purchase — admins may clear or revise tracking anytime after purchase is recorded. */
 export const updateOrderItemPurchaseTrackingSchema = withRetailerTrackingPairRefine(
   companyPurchaseTrackingFields.extend({

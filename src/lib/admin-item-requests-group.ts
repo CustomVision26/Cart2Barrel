@@ -2,6 +2,7 @@ import type {
   AdminItemRequestWithUserRow,
   AdminRequestQueueKind,
 } from "@/data/admin-item-requests";
+import { isShoppingListItemRequest } from "@/lib/shopping-list-quote";
 
 export type AdminItemRequestGroup = {
   clerkUserId: string;
@@ -65,7 +66,9 @@ export function buildAdminItemRequestGroups(
 
   const groups: AdminItemRequestGroup[] = Array.from(map.values()).map((b) => {
     const pendingCount = b.requests.filter(
-      (r) => r.request.status === "pending"
+      (r) =>
+        r.request.status === "pending" &&
+        !isShoppingListItemRequest(r.request),
     ).length;
     const quotedCount = b.requests.filter(
       (r) => r.request.status === "quoted"
@@ -78,6 +81,8 @@ export function buildAdminItemRequestGroups(
         if (s === "quoted" && r.request.batchQuoteSessionId != null) {
           return false;
         }
+        // Shopping-list lines are priced on Overview → List quotes, not as personal estimates.
+        if (isShoppingListItemRequest(r.request)) return false;
         return true;
       })
       .sort((a, b) => {

@@ -104,6 +104,14 @@ const ADMIN_HEADER_AND_EXTRA_SURFACES: UiSurfaceDefinition[] = [
     kind: "admin-header",
   },
   {
+    id: "overview-list-quotes",
+    title: "Overview — List quotes",
+    category: "Commerce",
+    route: "/admin/overview?tab=list-quotes",
+    location: "Sidebar → Overview → List quotes tab.",
+    kind: "tab",
+  },
+  {
     id: "item-requests-batch",
     title: "Item requests — Batch items",
     category: "Commerce",

@@ -36,6 +36,10 @@ export function markSchemaEnsureFailed(key: string): void {
   delete statusMap()[key];
 }
 
+export function isSchemaEnsureReady(key: string): boolean {
+  return statusMap()[key] === "ready";
+}
+
 /** True when the caller should return immediately (already done this process, or skipped in dev). */
 export function schemaEnsureFastPath(key: string): boolean {
   if (statusMap()[key] === "ready") return true;

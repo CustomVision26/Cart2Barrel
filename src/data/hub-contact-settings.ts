@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 
 import { ensureHubContactSettingsSchema } from "@/data/ensure-hub-contact-schema";
 import { getDb } from "@/db";
+import { isMissingHubContactSettingsTableError } from "@/lib/db-column-missing";
 import {
   hubContactSettings,
   type HubContactSetting,
@@ -90,14 +91,40 @@ function mapHubRow(row: HubContactSetting | undefined): HubContactPublic {
 export { googleMapsSearchUrl, hubContactHasPublicDetails } from "@/lib/hub-contact-display";
 
 export const loadHubContactSettings = cache(async (): Promise<HubContactPublic> => {
-  await ensureHubContactSettingsSchema();
-  const db = getDb();
-  const [row] = await db
-    .select()
-    .from(hubContactSettings)
-    .where(eq(hubContactSettings.singletonKey, HUB_KEY))
-    .limit(1);
-  return mapHubRow(row);
+  const ready = await ensureHubContactSettingsSchema();
+  if (!ready) return EMPTY_HUB_CONTACT;
+  try {
+    const db = getDb();
+    const [row] = await db
+      .select()
+      .from(hubContactSettings)
+      .where(eq(hubContactSettings.singletonKey, HUB_KEY))
+      .limit(1);
+    return mapHubRow(row);
+  } catch (error) {
+    if (isMissingHubContactSettingsTableError(error)) {
+      const retried = await ensureHubContactSettingsSchema();
+      if (retried) {
+        try {
+          const db = getDb();
+          const [row] = await db
+            .select()
+            .from(hubContactSettings)
+            .where(eq(hubContactSettings.singletonKey, HUB_KEY))
+            .limit(1);
+          return mapHubRow(row);
+        } catch {
+          return EMPTY_HUB_CONTACT;
+        }
+      }
+      return EMPTY_HUB_CONTACT;
+    }
+    console.warn(
+      "[Amani Cart2Barrel] loadHubContactSettings failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return EMPTY_HUB_CONTACT;
+  }
 });
 
 export async function upsertHubContactSettings(params: {
@@ -113,7 +140,12 @@ export async function upsertHubContactSettings(params: {
   businessAddress: string | null;
   updatedByClerkUserId: string;
 }): Promise<void> {
-  await ensureHubContactSettingsSchema();
+  const ready = await ensureHubContactSettingsSchema();
+  if (!ready) {
+    throw new Error(
+      "Hub contact settings table is missing. From the project root run `npm run db:push`, then retry.",
+    );
+  }
   const db = getDb();
   const [existing] = await db
     .select({ k: hubContactSettings.singletonKey })

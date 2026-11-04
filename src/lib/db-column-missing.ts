@@ -483,6 +483,17 @@ export function isMissingUserStatusUpdateTablesError(e: unknown): boolean {
 }
 
 /** `page_visits` — `npm run db:ensure-page-visits` or `npm run db:push`. */
+/** `hub_contact_settings` — create via ensure helper or `npm run db:push`. */
+export function isMissingHubContactSettingsTableError(e: unknown): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("hub_contact_settings")) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01" || code === PG_UNDEFINED_COLUMN) return true;
+  return (
+    /does not exist|relation\b|undefined column|failed query/i.test(msg)
+  );
+}
+
 export function isMissingPageVisitsTableError(e: unknown): boolean {
   const msg = combinedErrorText(e).toLowerCase();
   if (!msg.includes("page_visits")) return false;

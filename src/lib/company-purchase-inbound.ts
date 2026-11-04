@@ -24,6 +24,29 @@ export function isStorePickupInbound(
   return method === COMPANY_PURCHASE_INBOUND_STORE_PICKUP;
 }
 
+/** True when company purchase was collected at the retailer (not a carrier shipment). */
+export function isStorePickupOrderLine(item: {
+  companyPurchaseInboundMethod?: string | null;
+  storePickupAt?: string | null;
+}): boolean {
+  return (
+    isStorePickupInbound(item.companyPurchaseInboundMethod) ||
+    Boolean(item.storePickupAt?.trim())
+  );
+}
+
+/** Store pickup with a recorded condition / proof intake. */
+export function orderLineHasStorePickupIntake(item: {
+  companyPurchaseInboundMethod?: string | null;
+  storePickupAt?: string | null;
+  warehouseReceivedAt?: string | null;
+}): boolean {
+  if (!isStorePickupOrderLine(item)) return false;
+  return Boolean(
+    item.warehouseReceivedAt?.trim() || item.storePickupAt?.trim(),
+  );
+}
+
 /** Display label when a store-pickup line is in the barrel packing pipeline. */
 export const STORE_PICKUP_IN_BARREL_AWAITING_SHIPPING_LABEL =
   "In Barrel: awaiting shipping: (Pickup)" as const;

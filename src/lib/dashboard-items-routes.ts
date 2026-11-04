@@ -8,3 +8,6 @@ export const DASHBOARD_REQUESTED_ITEMS_ROUTE =
 
 export const DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE =
   "/dashboard/items/requested-items/ai-assisted-request" as const;
+
+export const DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE =
+  "/dashboard/items/requested-items/shopping-list-request" as const;

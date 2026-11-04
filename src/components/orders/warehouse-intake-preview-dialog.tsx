@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 export type WarehouseIntakePreviewOrderItem = {
   quantity: number;
+  storePickupAt?: string | null;
   warehouseReceivedAt?: string | null;
   warehouseReceivedQty?: number | null;
   warehouseReceivedCondition?: string | null;
@@ -48,7 +49,8 @@ function WarehouseIntakeFromOrderItem({
 }: {
   orderItem: WarehouseIntakePreviewOrderItem;
 }) {
-  const receivedAt = orderItem.warehouseReceivedAt?.trim();
+  const receivedAt =
+    orderItem.warehouseReceivedAt?.trim() || orderItem.storePickupAt?.trim();
   if (!receivedAt) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -170,12 +172,14 @@ export function WarehouseIntakePreviewDialog({
   snapshots = [],
   triggerLabel = "Preview intake",
   triggerClassName,
+  dialogTitle = "Warehouse delivery intake",
 }: {
   productLabel: string;
   orderItem: WarehouseIntakePreviewOrderItem;
   snapshots?: ItemRequestLineSnapshot[];
   triggerLabel?: string;
   triggerClassName?: string;
+  dialogTitle?: string;
 }) {
   const intakeSnapshot = latestWarehouseDeliverySnapshot(snapshots);
 
@@ -185,7 +189,6 @@ export function WarehouseIntakePreviewDialog({
         type="button"
         className={cn(
           buttonVariants({ variant: "outline", size: "sm" }),
-          "mt-2 w-full",
           triggerClassName,
         )}
       >
@@ -193,7 +196,7 @@ export function WarehouseIntakePreviewDialog({
       </DialogTrigger>
       <DialogContent className="max-h-[min(90vh,720px)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Warehouse delivery intake</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription className="line-clamp-2">{productLabel}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm">

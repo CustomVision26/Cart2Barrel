@@ -64,6 +64,7 @@ export function AdminOrderLineActions({
   /** Batch header owns Review and approve + Refund for batch members. */
   inBatchGroup = false,
   isHubStockUsLine = false,
+  isStorePickup = false,
 }: {
   orderItemId: string;
   fulfillmentStatus: OrderItem["fulfillmentStatus"];
@@ -86,6 +87,8 @@ export function AdminOrderLineActions({
   inBatchGroup?: boolean;
   /** US in-hub warehouse line — return label / warehouse receipt actions. */
   isHubStockUsLine?: boolean;
+  /** Store pickup lines skip inbound carrier tracking. */
+  isStorePickup?: boolean;
 }) {
   const refundableCents = Math.max(0, linePriceCents - refundedCents);
   const returnRefundContext = {
@@ -299,25 +302,29 @@ export function AdminOrderLineActions({
           />
         : null}
         <div className="flex flex-wrap items-center gap-2">
-          <AdminPurchaseTrackingLink trackingUrl={purchaseTracking?.trackingUrl} />
-          <AdminPurchaseTrackingDialog
-            orderItemId={orderItemId}
-            productLabel={productLabel}
-            initialTrackingUrl={purchaseTracking?.trackingUrl ?? null}
-            initialRetailerTrackingCompany={
-              purchaseTracking?.retailerTrackingCompany ?? null
-            }
-            initialRetailerTrackingNumber={
-              purchaseTracking?.retailerTrackingNumber ?? null
-            }
-            initialReceiptImageUrls={retailerReceiptImageUrls}
-            variant={showReturnProductTracking ? "return" : "inbound"}
-            triggerLabel={
-              fulfillmentStatus === "product_return_awaiting_delivery" ?
-                "tracking"
-              : undefined
-            }
-          />
+          {isStorePickup ? null : (
+            <>
+              <AdminPurchaseTrackingLink trackingUrl={purchaseTracking?.trackingUrl} />
+              <AdminPurchaseTrackingDialog
+                orderItemId={orderItemId}
+                productLabel={productLabel}
+                initialTrackingUrl={purchaseTracking?.trackingUrl ?? null}
+                initialRetailerTrackingCompany={
+                  purchaseTracking?.retailerTrackingCompany ?? null
+                }
+                initialRetailerTrackingNumber={
+                  purchaseTracking?.retailerTrackingNumber ?? null
+                }
+                initialReceiptImageUrls={retailerReceiptImageUrls}
+                variant={showReturnProductTracking ? "return" : "inbound"}
+                triggerLabel={
+                  fulfillmentStatus === "product_return_awaiting_delivery" ?
+                    "tracking"
+                  : undefined
+                }
+              />
+            </>
+          )}
           {fulfillmentStatus === "product_return_awaiting_delivery" &&
           isHubStockUsLine ?
             <AdminMarkHubStockReturnReceivedButton orderItemId={orderItemId} />

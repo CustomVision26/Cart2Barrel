@@ -40,6 +40,8 @@ export function defaultWarehouseReceiptIntakeDraft(
 
 type WarehouseReceiptIntakeFieldsProps = {
   idPrefix: string;
+  /** Order line UUID for proof photo upload/remove. Defaults to `idPrefix` when that is already the id. */
+  orderItemId?: string;
   orderedQty: number;
   draft: WarehouseReceiptIntakeDraft;
   disabled?: boolean;
@@ -50,6 +52,7 @@ type WarehouseReceiptIntakeFieldsProps = {
 /** Shared warehouse intake fields for received delivery / store pickup. */
 export function WarehouseReceiptIntakeFields({
   idPrefix,
+  orderItemId = idPrefix,
   orderedQty,
   draft,
   disabled = false,
@@ -157,7 +160,7 @@ export function WarehouseReceiptIntakeFields({
       />
 
       <WarehouseProofPhotosField
-        orderItemId={idPrefix}
+        orderItemId={orderItemId}
         imageUrls={draft.proofPhotoUrls}
         disabled={disabled}
         title="Received product proof"

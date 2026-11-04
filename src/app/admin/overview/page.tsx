@@ -5,6 +5,7 @@ import { AdminOverviewShippingContainersSection } from "../_components/admin-ove
 import { AdminOverviewSpecialFeaturesSection } from "../_components/admin-overview-special-features-section";
 import { AdminOverviewHubStockSection } from "../_components/admin-overview-hub-stock-section";
 import { AdminOverviewQuoteExpirySection } from "../_components/admin-overview-quote-expiry-section";
+import { AdminOverviewShoppingListsSection } from "../_components/admin-overview-shopping-lists-section";
 import { AdminOverviewSubnav } from "../_components/admin-overview-subnav";
 import { AdminRefundQueueBanner } from "@/components/admin/admin-refund-queue-banner";
 import { parseFinanceDateRange } from "@/data/admin-finance-summary";
@@ -52,6 +53,7 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
     : tabRaw === "special-features" ? "special-features"
     : tabRaw === "quote-expiry" ? "quote-expiry"
     : tabRaw === "in-hub-products" ? "in-hub-products"
+    : tabRaw === "list-quotes" ? "list-quotes"
     : "summary";
   const range = parseFinanceDateRange({
     from: first(rawSp.from)?.trim(),
@@ -92,6 +94,11 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
         />
       ) : tab === "in-hub-products" ? (
         <AdminOverviewHubStockSection hubStockTab={hubStockTab} />
+      ) : tab === "list-quotes" ? (
+        <AdminOverviewShoppingListsSection
+          selectedClerkUserId={selectedUserId}
+          initialBatchSessionId={first(rawSp.batch)?.trim() || undefined}
+        />
       ) : (
         <div className="space-y-4">
           <AdminRefundQueueBanner />
@@ -107,7 +114,9 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
             <span className="font-medium text-foreground">Special features</span> for timed
             suitcase offers,{" "}
             <span className="font-medium text-foreground">In-hub products</span> for inventory
-            already at the warehouse, and{" "}
+            already at the warehouse,{" "}
+            <span className="font-medium text-foreground">List quotes</span> for shopping-list
+            photo submissions, and{" "}
             <span className="font-medium text-foreground">Quote Expiry Settings</span> for the
             hub default, per-customer, and per-product quote windows.
           </p>

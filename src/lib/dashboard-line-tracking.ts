@@ -1,4 +1,5 @@
 import type { Order } from "@/db/schema";
+import { isStorePickupOrderLine } from "@/lib/company-purchase-inbound";
 import {
   effectiveOrderItemFulfillmentStatus,
   type OrderItemReadCore,
