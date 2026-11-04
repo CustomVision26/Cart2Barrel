@@ -511,3 +511,14 @@ export function isMissingContainerPackingFeeRecordsTableError(
   if (code === "42P01") return true;
   return /does not exist|relation\b/i.test(msg);
 }
+
+/** `starter_bundle_marquee_settings` — migration `0117_starter_bundle_marquee_settings`. */
+export function isMissingStarterBundleMarqueeSettingsTableError(
+  e: unknown,
+): boolean {
+  const msg = combinedErrorText(e).toLowerCase();
+  if (!msg.includes("starter_bundle_marquee_settings")) return false;
+  const code = getPgErrorCode(e);
+  if (code === "42P01") return true;
+  return /does not exist|relation\b/i.test(msg);
+}

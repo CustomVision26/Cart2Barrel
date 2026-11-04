@@ -599,7 +599,14 @@ export const shoppingListQuotes = pgTable(
     clerkUserId: text("clerk_user_id")
       .notNull()
       .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
-    sourceImageUrl: text("source_image_url").notNull(),
+    sourceImageUrl: text("source_image_url"),
+    /** `photo` (uploaded list) or `starter_bundle`. */
+    sourceKind: text("source_kind").notNull().default("photo"),
+    starterBundleId: uuid("starter_bundle_id"),
+    starterBundleSnapshot: jsonb("starter_bundle_snapshot").$type<
+      import("@/lib/starter-bundles").StarterBundleSnapshot | null
+    >(),
+    customerNote: text("customer_note"),
     status: text("status").notNull().default("draft"),
     batchQuoteSessionId: uuid("batch_quote_session_id").references(
       () => batchQuoteSessions.id,
@@ -619,6 +626,7 @@ export const shoppingListQuotes = pgTable(
     ),
     index("shopping_list_quotes_status_idx").on(t.status),
     index("shopping_list_quotes_batch_session_idx").on(t.batchQuoteSessionId),
+    index("shopping_list_quotes_source_kind_idx").on(t.sourceKind),
   ],
 );
 
@@ -646,6 +654,73 @@ export const shoppingListQuoteLines = pgTable(
   (t) => [
     index("shopping_list_quote_lines_list_id_idx").on(t.shoppingListQuoteId),
   ],
+);
+
+/** Admin-authored fixed shopping lists shown as Starter Bundles. */
+export const starterBundles = pgTable(
+  "starter_bundles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    imageUrl: text("image_url"),
+    barrelSize: text("barrel_size"),
+    barrelFillLevel: text("barrel_fill_level"),
+    status: text("status").notNull().default("draft"),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    publishedAt: timestamp("published_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("starter_bundles_status_updated_at_idx").on(t.status, t.updatedAt),
+  ],
+);
+
+export const starterBundleItems = pgTable(
+  "starter_bundle_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    starterBundleId: uuid("starter_bundle_id")
+      .notNull()
+      .references(() => starterBundles.id, { onDelete: "cascade" }),
+    sortIndex: integer("sort_index").notNull().default(0),
+    productName: text("product_name").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    estimatedUnitPriceCents: integer("estimated_unit_price_cents").notNull(),
+    productSize: text("product_size"),
+    productColor: text("product_color"),
+    retailerUrl: text("retailer_url"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("starter_bundle_items_bundle_id_sort_idx").on(
+      t.starterBundleId,
+      t.sortIndex,
+    ),
+  ],
+);
+
+/** Singleton: whether the Shop Starter Bundles marquee is shown on Home. */
+export const starterBundleMarqueeSettings = pgTable(
+  "starter_bundle_marquee_settings",
+  {
+    singletonKey: text("singleton_key").primaryKey().default("default"),
+    published: boolean("published").notNull().default(false),
+    updatedByClerkUserId: text("updated_by_clerk_user_id"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
 );
 
 /** Admin pricing for an item request. */
@@ -3033,6 +3108,20 @@ export const shoppingListQuoteLinesRelations = relations(
   }),
 );
 
+export const starterBundlesRelations = relations(starterBundles, ({ many }) => ({
+  items: many(starterBundleItems),
+}));
+
+export const starterBundleItemsRelations = relations(
+  starterBundleItems,
+  ({ one }) => ({
+    bundle: one(starterBundles, {
+      fields: [starterBundleItems.starterBundleId],
+      references: [starterBundles.id],
+    }),
+  }),
+);
+
 export const itemRequestsRelations = relations(itemRequests, ({ one, many }) => ({
   profile: one(profiles, {
     fields: [itemRequests.clerkUserId],
@@ -3687,6 +3776,13 @@ export type ShoppingListQuote = typeof shoppingListQuotes.$inferSelect;
 export type NewShoppingListQuote = typeof shoppingListQuotes.$inferInsert;
 export type ShoppingListQuoteLine = typeof shoppingListQuoteLines.$inferSelect;
 export type NewShoppingListQuoteLine = typeof shoppingListQuoteLines.$inferInsert;
+
+export type StarterBundle = typeof starterBundles.$inferSelect;
+export type NewStarterBundle = typeof starterBundles.$inferInsert;
+export type StarterBundleItem = typeof starterBundleItems.$inferSelect;
+export type NewStarterBundleItem = typeof starterBundleItems.$inferInsert;
+export type StarterBundleMarqueeSettings =
+  typeof starterBundleMarqueeSettings.$inferSelect;
 
 export type SerpApiSearchEvent = typeof serpApiSearchEvents.$inferSelect;
 export type NewSerpApiSearchEvent = typeof serpApiSearchEvents.$inferInsert;

@@ -5,6 +5,7 @@ import type {
   ShoppingListQuoteLine,
 } from "@/db/schema";
 import { lineSaleTaxCentsFromQuote } from "@/lib/quote-line-tax";
+import { STARTER_BUNDLE_SITE_NAME } from "@/lib/starter-bundles";
 
 export const SHOPPING_LIST_SITE_KEY = "shopping-list" as const;
 export const SHOPPING_LIST_SITE_NAME = "Shopping list" as const;
@@ -37,8 +38,9 @@ export function isShoppingListItemRequest(request: {
   productUrl?: string | null;
 }): boolean {
   if (request.siteName === SHOPPING_LIST_SITE_NAME) return true;
+  if (request.siteName === STARTER_BUNDLE_SITE_NAME) return true;
   const url = request.productUrl?.trim() ?? "";
-  return url.includes("/shopping-list/");
+  return url.includes("/shopping-list/") || url.includes("/starter-bundle/");
 }
 
 export function adminListQuotesHref(opts?: { batchSessionId?: string }): string {

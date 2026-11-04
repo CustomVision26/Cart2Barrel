@@ -9,7 +9,7 @@ import {
 } from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
 
-const ENSURE_KEY = "shopping-list-quotes";
+const ENSURE_KEY = "shopping-list-quotes-v2";
 
 let inFlight: Promise<boolean> | null = null;
 
@@ -67,6 +67,30 @@ async function ensureShoppingListQuoteSchemaInner(): Promise<boolean> {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS "shopping_list_quote_lines_list_id_idx"
       ON "shopping_list_quote_lines" ("shopping_list_quote_id")
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quotes"
+      ALTER COLUMN "source_image_url" DROP NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quotes"
+      ADD COLUMN IF NOT EXISTS "source_kind" text DEFAULT 'photo' NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quotes"
+      ADD COLUMN IF NOT EXISTS "starter_bundle_id" uuid
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quotes"
+      ADD COLUMN IF NOT EXISTS "starter_bundle_snapshot" jsonb
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quotes"
+      ADD COLUMN IF NOT EXISTS "customer_note" text
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS "shopping_list_quotes_source_kind_idx"
+      ON "shopping_list_quotes" ("source_kind")
     `);
     markSchemaEnsureReady(ENSURE_KEY);
     return true;

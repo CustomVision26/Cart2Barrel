@@ -48,11 +48,25 @@ import {
   type AdminShoppingListQuoteView,
   type ShoppingListQuoteStatus,
 } from "@/lib/shopping-list-quote";
+import {
+  SHOPPING_LIST_PHOTO_SOURCE_KIND,
+  STARTER_BUNDLE_SITE_NAME,
+  STARTER_BUNDLE_SOURCE_KIND,
+  starterBundleItemProductUrl,
+} from "@/lib/starter-bundles";
 import type {
   SaveShoppingListEstimateInput,
   SubmitShoppingListQuoteInput,
 } from "@/lib/validations/shopping-list-quote";
+import type { SubmitStarterBundleQuoteInput } from "@/lib/validations/starter-bundle";
 import { batchQuoteSessions, batchQuoteSessionLines } from "@/db/schema";
+import { ensureStarterBundlesSchema } from "@/data/ensure-starter-bundles-schema";
+import {
+  getStarterBundleById,
+  starterBundleSnapshotFromRecord,
+  timestampsMatch,
+  type PublishedStarterBundleDetail,
+} from "@/data/starter-bundles";
 
 export type ShoppingListQuoteLineDraft = {
   clientKey: string;
@@ -79,6 +93,7 @@ export async function submitShoppingListQuoteForOwner(params: {
     .values({
       clerkUserId: params.clerkUserId,
       sourceImageUrl: params.input.sourceImageUrl,
+      sourceKind: SHOPPING_LIST_PHOTO_SOURCE_KIND,
       status: "submitted",
       updatedAt: submittedAt,
     })
@@ -213,6 +228,226 @@ export async function submitShoppingListQuoteForOwner(params: {
   await notifyAdminsOfBatchQuoteSubmitted(session.id, params.clerkUserId);
 
   return { listId: list.id, batchSessionId: session.id };
+}
+
+export type SubmitStarterBundleQuoteResult =
+  | { ok: true; listId: string; batchSessionId: string }
+  | {
+      ok: false;
+      code: "stale";
+      message: string;
+      bundle: PublishedStarterBundleDetail;
+    }
+  | { ok: false; code: "archived" | "missing"; message: string };
+
+export async function submitStarterBundleQuoteForOwner(params: {
+  clerkUserId: string;
+  input: SubmitStarterBundleQuoteInput;
+}): Promise<SubmitStarterBundleQuoteResult> {
+  await ensureShoppingListQuoteSchema();
+  await ensureStarterBundlesSchema();
+
+  const record = await getStarterBundleById(params.input.bundleId);
+  if (!record) {
+    return {
+      ok: false,
+      code: "missing",
+      message: "This starter bundle is no longer available.",
+    };
+  }
+  if (record.bundle.status === "archived") {
+    return {
+      ok: false,
+      code: "archived",
+      message: "This starter bundle is no longer available. Choose another bundle.",
+    };
+  }
+  if (record.bundle.status !== "published") {
+    return {
+      ok: false,
+      code: "missing",
+      message: "This starter bundle is no longer available.",
+    };
+  }
+  if (record.items.length === 0) {
+    throw new Error("This bundle has no products to quote.");
+  }
+  if (!timestampsMatch(record.bundle.updatedAt, params.input.bundleUpdatedAt)) {
+    const snapshot = starterBundleSnapshotFromRecord(record.bundle, record.items);
+    return {
+      ok: false,
+      code: "stale",
+      message:
+        "This bundle was updated since you opened it. Review the current products and prices before submitting.",
+      bundle: {
+        id: record.bundle.id,
+        name: record.bundle.name,
+        description: record.bundle.description,
+        imageUrl: record.bundle.imageUrl,
+        barrelSize: record.bundle.barrelSize,
+        barrelFillLevel: record.bundle.barrelFillLevel,
+        updatedAt: record.bundle.updatedAt,
+        merchandiseSubtotalCents: snapshot.merchandiseSubtotalCents,
+        itemCount: record.items.length,
+        items: snapshot.items.map((item, index) => ({
+          id: record.items[index]?.id ?? `${record.bundle.id}-${index}`,
+          ...item,
+        })),
+      },
+    };
+  }
+
+  const snapshot = starterBundleSnapshotFromRecord(record.bundle, record.items);
+  const db = getDb();
+  const submittedAt = new Date().toISOString();
+  const customerNote = params.input.customerNote?.trim() || null;
+
+  const [list] = await db
+    .insert(shoppingListQuotes)
+    .values({
+      clerkUserId: params.clerkUserId,
+      sourceImageUrl: record.bundle.imageUrl,
+      sourceKind: STARTER_BUNDLE_SOURCE_KIND,
+      starterBundleId: record.bundle.id,
+      starterBundleSnapshot: snapshot,
+      customerNote,
+      status: "submitted",
+      updatedAt: submittedAt,
+    })
+    .returning();
+  if (!list) throw new Error("Could not save this starter bundle request.");
+
+  const lineRows: ShoppingListQuoteLine[] = [];
+  for (const item of record.items) {
+    const [row] = await db
+      .insert(shoppingListQuoteLines)
+      .values({
+        shoppingListQuoteId: list.id,
+        sortIndex: item.sortIndex,
+        productName: item.productName,
+        quantity: item.quantity,
+        productSize: item.productSize,
+        productColor: item.productColor,
+        note: null,
+        productImageUrl: null,
+      })
+      .returning();
+    if (row) lineRows.push(row);
+  }
+  if (lineRows.length === 0) {
+    throw new Error("This bundle has no products to quote.");
+  }
+
+  let session;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const [created] = await db
+        .insert(batchQuoteSessions)
+        .values({
+          clerkUserId: params.clerkUserId,
+          batchNumber: randomBatchDisplayNumber(),
+          siteKey: SHOPPING_LIST_SITE_KEY,
+          status: "submitted",
+          submittedAt,
+        })
+        .returning();
+      session = created;
+      break;
+    } catch (e) {
+      const code =
+        typeof e === "object" &&
+        e !== null &&
+        "code" in e &&
+        typeof (e as { code: unknown }).code === "string"
+          ? (e as { code: string }).code
+          : "";
+      const msg = e instanceof Error ? e.message : "";
+      if (code === "23505" && msg.toLowerCase().includes("batch_number")) {
+        continue;
+      }
+      throw e;
+    }
+  }
+  if (!session) throw new Error("Could not assign a batch number.");
+
+  const requestIds: string[] = [];
+  for (const [index, line] of lineRows.entries()) {
+    const item = record.items[index];
+    const [req] = await db
+      .insert(itemRequests)
+      .values({
+        clerkUserId: params.clerkUserId,
+        productUrl: item?.retailerUrl?.trim()
+          ? item.retailerUrl
+          : starterBundleItemProductUrl(list.id, line.id),
+        productName: line.productName,
+        productSize: line.productSize,
+        productColor: line.productColor,
+        quantity: line.quantity,
+        note: null,
+        productImageUrl: line.productImageUrl,
+        siteName: STARTER_BUNDLE_SITE_NAME,
+        status: "pending",
+        source: "customer_url",
+        batchQuoteSessionId: session.id,
+      })
+      .returning();
+    if (!req) continue;
+    requestIds.push(req.id);
+    await db
+      .update(shoppingListQuoteLines)
+      .set({ itemRequestId: req.id })
+      .where(eq(shoppingListQuoteLines.id, line.id));
+    await insertItemRequestLineSnapshot({
+      itemRequestId: req.id,
+      phase: "customer_submission",
+      batchQuoteSessionId: session.id,
+      line: lineSnapshotPayloadFromItemRequest(req),
+    });
+    await insertItemRequestLineSnapshot({
+      itemRequestId: req.id,
+      phase: "batch_request_submitted_to_staff",
+      batchQuoteSessionId: session.id,
+      line: lineSnapshotPayloadFromItemRequest(req),
+    });
+  }
+
+  if (requestIds.length === 0) {
+    throw new Error("Could not create product lines from this bundle.");
+  }
+
+  await db.insert(batchQuoteSessionLines).values(
+    requestIds.map((itemRequestId) => ({
+      batchQuoteSessionId: session.id,
+      itemRequestId,
+    })),
+  );
+
+  await db
+    .update(shoppingListQuotes)
+    .set({
+      batchQuoteSessionId: session.id,
+      updatedAt: submittedAt,
+    })
+    .where(eq(shoppingListQuotes.id, list.id));
+
+  await appendBatchQuoteSessionStatusEvent({
+    batchQuoteSessionId: session.id,
+    clerkUserId: params.clerkUserId,
+    kind: "new_batch_request",
+    detail: {
+      snapshot: buildBatchQuoteHistorySnapshot({
+        kind: "new_batch_request",
+        session,
+        requests: await listItemRequestsForBatchSession(session.id),
+        estimate: null,
+      }),
+    },
+  });
+
+  await notifyAdminsOfBatchQuoteSubmitted(session.id, params.clerkUserId);
+
+  return { ok: true, listId: list.id, batchSessionId: session.id };
 }
 
 export async function listSubmittedShoppingListQuotesForAdmin(opts?: {

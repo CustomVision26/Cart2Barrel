@@ -174,7 +174,8 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Shipping containers: solid-colored Catalog accordion and color-coded table; double-click a row to edit, then Publish / Unpublish.",
         "In-hub products: Hub ship-from addresses and Add in-hub product sub-tabs (warehouse origins, one primary; SKUs with packed weight/size for Shippo).",
         "Special features: catalog table of timed suitcase offers; double-click a row to edit, then Publish.",
-        "List quotes: shopping-list photo submissions. Click a photo to enlarge it; double-click a field to edit it in a dialog. Add merchandise price, service & handling, sales tax, and shipping, then send the estimate to Add item.",
+        "List quotes: shopping-list photo and Starter Bundle submissions. Click a photo to enlarge it; double-click a field to edit it in a dialog. Add merchandise price, service & handling, sales tax, and shipping, then send the estimate to Add item.",
+        "Starter Bundles: create, draft, preview, publish, and archive fixed shopping lists at different price points.",
         "Quote Expiry Settings: Hub / Customer / Product sub-tabs for default window, per-customer overrides, and per-product overrides (1 minute–90 days).",
       ],
       requirements: ["Admin access."],
@@ -192,7 +193,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, service & handling tiers, barrel/cargo box/bin packing packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, shopping-list photo quotes, and the quote expiry window for shoppers.",
+        "Admin Overview centralizes configuration and reporting that affects the whole platform. Sub-tabs split operational summary, financial reporting, service & handling tiers, barrel/cargo box/bin packing packages, the container catalog, in-hub warehouse SKUs (Shippo US shipping), special suitcase offers, shopping-list photo and Starter Bundle quotes, Starter Bundle catalog, and the quote expiry window for shoppers.",
       ],
       walkthrough: [
         "Summary tab: starting point with refund-awaiting banner and orientation copy.",
@@ -202,7 +203,8 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Shipping containers tab: add barrels, bins, cargo boxes, and special-feature suitcases with prices and photos. Every container has a shopper-facing note; cargo box size uses the same Size field as barrels and bins. Catalog is a solid-colored accordion so the table stays readable over the page watermark. Rows are color-coded (amber barrel, blue bin, emerald cargo box, violet suitcase). Double-click a row to open the editor, then Publish / Unpublish to show or hide the SKU on the shopper Barrels page.",
         "In-hub products tab: Hub ship-from addresses sub-tab to add US warehouse origins (double-click or Open to edit; only one can be primary for Shippo). Add in-hub product sub-tab to add SKUs with packed weight (ounces) and outer length/width/height (inches), then Publish so they appear on Home. Shippo uses those parcel fields plus SHIPPO_API_KEY to rate US delivery and to buy domestic labels from Orders. Set SHIPPO_WEBHOOK_TOKEN and a track_updated webhook so customer tracking stays current (production example: https://amanicart2-barrel.vercel.app/api/webhooks/shippo?token=<SHIPPO_WEBHOOK_TOKEN>). Overseas-container destination does not call Shippo.",
         "Special features tab: catalog table of timed suitcase specials; double-click a row to open the editor.",
-        "List quotes tab: open a shopper’s uploaded list, click a photo to enlarge it, double-click a cramped field to edit it in a dialog, enter price, service & handling, sales tax, and shipping per line, then Send estimate. Totals show merchandise, shipping, sales tax, and service & handling. The shopper accepts on Add item → Batch quotes.",
+        "List quotes tab: open a shopper’s uploaded list or Starter Bundle request, click a photo to enlarge it, double-click a cramped field to edit it in a dialog, enter price, service & handling, sales tax, and shipping per line, then Send estimate. Totals show merchandise, shipping, sales tax, and service & handling. The shopper accepts on Add item → Batch quotes.",
+        "Starter Bundles tab: create a bundle, add product rows with quantities and estimated unit prices, then Save draft, Preview, Publish, Edit, or Archive. Published bundles appear at /starter-bundles. Click Published next to the heading to show the Home marquee.",
         "Quote Expiry Settings tab: Hub / Customer / Product sub-tabs. Publish the hub default (1 minute–90 days), assign a customer override for all of that shopper’s quotes, or search a quoted product and set a product-only override. Priority: product → customer → hub. Shorter windows reduce refunds and add-payment requests when retailer prices move.",
       ],
       notes: [
@@ -227,10 +229,10 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     title: "Overview — List quotes",
     category: "Commerce",
     quickReference: {
-      summary: "Price shopping-list photo submissions and send combined estimates.",
+      summary: "Price shopping-list photo and Starter Bundle submissions and send combined estimates.",
       location: "Sidebar → Overview → List quotes tab.",
       bullets: [
-        "Lists submitted from Requested items → Shopping list.",
+        "Lists submitted from Requested items → Shopping list or from a published Starter Bundle (source Starter Bundle). Shopping list photo upload remains available.",
         "Edit name, quantity, size, color, and notes (double-click a field to edit it in a larger dialog). Click the list photo or a product photo to enlarge it. Upload a product photo on any row that has none. Enter merchandise, service & handling, sales tax, and shipping per product.",
         "Footer totals: merchandise, shipping, sales tax, service & handling.",
         "Send estimate publishes a batch quote the shopper previews and accepts on Add item.",
@@ -248,15 +250,15 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "List quotes is the staff desk for photo shopping lists. Each submission becomes a batch of product lines. After you save the estimate, the shopper accepts the bundle on Add item and pays in cart.",
+        "List quotes is the staff desk for photo shopping lists and Starter Bundle requests. Shoppers start on Requested items → Shopping list or on /starter-bundles. Each submission becomes a batch of product lines. After you save the estimate, the shopper accepts the quote on Add item and pays in cart.",
       ],
       walkthrough: [
-        "Open Overview → List quotes. Select a shopper’s list to see the uploaded photo and product table. Click the list photo or a product thumbnail to view a large preview.",
+        "Open Overview → List quotes. Select a shopper’s list to see the uploaded photo or the submitted Starter Bundle copy (name, item list, customer note) and the product table. Click the list photo or a product thumbnail to view a large preview.",
         "Edit product details if AI or the shopper got them wrong. Double-click a table field to type in a larger dialog. If a row has no product photo, upload one. Enter merchandise price; service & handling and sales tax suggest from Fees & rates / tax settings. Set shipping per line.",
         "Review the four totals, add an optional staff note, and Send estimate.",
         "The shopper is notified and can preview/accept on Add item → Batch quotes (Preview estimate shows product photos; they can click a photo to enlarge it).",
       ],
-      requirements: ["Admin access.", "A submitted shopping list from a signed-in shopper."],
+      requirements: ["Admin access.", "A submitted shopping list or Starter Bundle from a signed-in shopper."],
       dos: [
         "Use the customer filter when helping one shopper.",
         "Revise with Update estimate if a price changes before they accept.",
@@ -265,6 +267,53 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Do not price from memory when the list photo is unclear—ask the shopper via Messages.",
         "Do not add packing on these lines; packing is charged on barrels, cargo boxes, and bins.",
         "Do not create a personal Active requests estimate for each shopping-list product.",
+      ],
+    },
+  },
+  {
+    id: "overview-starter-bundles",
+    title: "Overview — Starter Bundles",
+    category: "Commerce",
+    quickReference: {
+      summary: "Create and publish fixed shopping lists shoppers can compare and submit for an estimate.",
+      location: "Sidebar → Overview → Starter Bundles tab.",
+      bullets: [
+        "Create bundle, then enter name, description, optional image, optional barrel size and approximate fill.",
+        "Add, edit, reorder, and remove product rows. Each row needs a name, positive quantity, and estimated unit price. Size, color or variant, and retailer link are optional.",
+        "Line totals and the estimated merchandise subtotal update from item prices. Publish more than one bundle at different price points.",
+        "Save draft, Preview, Publish, Edit, and Archive. Publishing requires at least one valid product. Draft and archived bundles stay hidden from shoppers.",
+        "Click Published next to the Starter Bundles heading to show the Home marquee. Click it again to hide the marquee. At least one published bundle is required before the marquee can go live.",
+        "Shopper submissions appear on List quotes as source Starter Bundle. Later edits or archiving do not change already submitted requests.",
+      ],
+      requirements: ["Admin access."],
+      dos: [
+        "Set each bundle’s price through its item unit prices.",
+        "Preview before publishing.",
+        "Keep Upload My Shopping List available for shoppers who choose their own products.",
+      ],
+      donts: [
+        "Don't publish an empty bundle.",
+        "Don't expect archiving a bundle to remove quote requests already submitted.",
+      ],
+    },
+    article: {
+      overview: [
+        "Starter Bundles are admin-authored shopping lists. Published bundles appear at /starter-bundles. Click Published to show them on the Home marquee. Shoppers request an estimate; staff price it on List quotes using the existing shopping-list workflow.",
+      ],
+      walkthrough: [
+        "Open Overview → Starter Bundles and choose Create bundle.",
+        "Enter name and description. Optionally upload an image and enter barrel size and approximate fill.",
+        "Add product rows with quantity and estimated unit price. Reorder or remove rows as needed. Save draft, Preview on the shopper page, then Publish. Click Published next to the tab heading to show the Home marquee.",
+        "When a shopper submits a bundle, open List quotes, review the submitted item copy and customer note, then send the estimate as usual.",
+      ],
+      requirements: ["Admin access."],
+      dos: [
+        "Publish at least two price points when you want shoppers to compare bundles.",
+        "Archive a bundle instead of deleting it so historical quotes stay intact.",
+      ],
+      donts: [
+        "Do not skip item prices—those prices are the bundle’s merchandise subtotal.",
+        "Do not grant bundle management to non-admins; every action is checked on the server.",
       ],
     },
   },

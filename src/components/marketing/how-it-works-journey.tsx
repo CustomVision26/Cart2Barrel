@@ -35,8 +35,8 @@ const JOURNEY_STEPS: JourneyStep[] = [
     step: 2,
     title: "Browse, request, and get a quote",
     description:
-      "Shop from the spotlight catalog or paste a product link for an AI-assisted request. Staff review each item and send an agreed estimate before anything is purchased.",
-    liveNote: "Quote history and active requests stay in your dashboard.",
+      "Shop from the spotlight catalog, paste a product link for an AI-assisted request, or upload a shopping-list photo. AI turns the photo into an editable table (name, quantity, size, color, notes, and a product photo). Staff price the list; you preview and accept the quote on Add item before anything is purchased.",
+    liveNote: "Quote history, shopping-list batches, and active requests stay in your dashboard.",
     icon: ShoppingBag,
   },
   {

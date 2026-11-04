@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE } from "@/lib/dashboard-items-routes";
 
 /** Static hero shown immediately on the marketing home page (no data dependencies). */
-export function HomeMarketingHero({ promo }: { promo?: ReactNode }) {
+export function HomeMarketingHero({
+  promo,
+}: {
+  promo?: ReactNode;
+}) {
   return (
     <section className="space-y-6">
       {promo}
@@ -37,7 +41,7 @@ export function HomeMarketingHero({ promo }: { promo?: ReactNode }) {
           </Button>
         </div>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/40 shadow-sm ring-1 ring-foreground/5">
+      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/40 shadow-sm ring-1 ring-foreground/5">
         <Image
           src="/homepage-img-cart2barrel.png"
           alt="Amani Cart2Barrel — shop US stores and ship consolidated orders to the Caribbean and the world"

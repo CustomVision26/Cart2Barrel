@@ -73,7 +73,7 @@ export function HowItWorksPageMain({
         <p className="max-w-3xl text-base leading-relaxed text-muted-foreground md:text-lg">
           {isUserGuide ?
             "Formal reference for every customer page, header control, and account feature. Each topic includes a quick reference for scanning and a full article for deeper reading—no sign-in required."
-          : "Amani Cart2Barrel helps you shop US retailers, consolidate packages at our hub, and ship everything in a barrel or bin to your address. When a special-feature suitcase offer is in season, you can also send a bag with a company courier traveler. This page explains our services, seasonal specials, the step-by-step process, and typical costs—so you know what to expect before you sign up."}
+          : "Amani Cart2Barrel helps you shop US retailers, consolidate packages at our hub, and ship everything in a barrel or bin to your address. Request a quote by pasting a product link or uploading a shopping-list photo. When a special-feature suitcase offer is in season, you can also send a bag with a company courier traveler. This page explains our services, seasonal specials, the step-by-step process, and typical costs—so you know what to expect before you sign up."}
         </p>
       </RevealOnScroll>
 

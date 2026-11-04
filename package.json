@@ -16,6 +16,7 @@
     "db:ensure-user-status-updates": "node scripts/ensure-user-status-update-schema.mjs",
     "db:ensure-support": "node scripts/ensure-support-schema.mjs",
     "db:ensure-quote-expiry": "node scripts/ensure-quote-expiry-settings.mjs",
+    "db:ensure-starter-bundles": "node scripts/ensure-starter-bundles-schema.mjs",
     "db:ensure-merchandise-reconciliation": "node scripts/ensure-merchandise-reconciliation-schema.mjs",
     "db:ensure-missing-resolved": "node scripts/ensure-missing-resolved-column.mjs",
     "db:ensure-outside-purchase-published": "node scripts/ensure-outside-purchase-published.mjs",

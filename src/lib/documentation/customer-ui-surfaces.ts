@@ -168,6 +168,14 @@ const CUSTOMER_EXTRA_SURFACES: UiSurfaceDefinition[] = [
     kind: "tab",
   },
   {
+    id: "starter-bundles",
+    title: "Starter Bundles",
+    category: "Shopping",
+    route: "/starter-bundles",
+    location: "Home, Shop Starter Bundles marquee above Featured & spotlight, or visit /starter-bundles.",
+    kind: "public",
+  },
+  {
     id: "shopping-list-request",
     title: "Requested items — Shopping list",
     category: "Shopping",

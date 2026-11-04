@@ -1,0 +1,103 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+
+import { buttonVariants } from "@/components/ui/button";
+import { formatUsd } from "@/lib/admin-markup";
+import { STARTER_BUNDLES_ROUTES } from "@/lib/starter-bundles";
+import { cn } from "@/lib/utils";
+import type { PublishedStarterBundleCard } from "@/data/starter-bundles";
+
+export function StarterBundlesListing({
+  bundles,
+  notice,
+}: {
+  bundles: PublishedStarterBundleCard[];
+  notice?: string | null;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Link
+          href="/"
+          prefetch={false}
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "-ml-2 w-fit gap-1.5 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          Back to home
+        </Link>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Shop Starter Bundles
+        </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Compare ready-made bundles at different price points. Each bundle is a fixed
+          shopping list. Request an estimate and staff will add service, freight, and broker
+          fees in the quote. Destination pickup charges are separate.
+        </p>
+      </div>
+
+      {notice ?
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+          {notice}
+        </p>
+      : null}
+
+      {bundles.length === 0 ?
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+          No starter bundles are published yet. You can still upload your own list from
+          Requested items → Shopping list.
+        </p>
+      : <ul className="grid gap-4 sm:grid-cols-2">
+          {bundles.map((bundle) => (
+            <li
+              key={bundle.id}
+              className="flex flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-foreground/5"
+            >
+              {bundle.imageUrl ?
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={bundle.imageUrl}
+                  alt=""
+                  className="h-40 w-full object-cover"
+                />
+              : null}
+              <div className="flex flex-1 flex-col gap-3 p-4">
+                <div className="space-y-1">
+                  <h2 className="text-base font-semibold text-foreground">{bundle.name}</h2>
+                  <p className="text-sm text-muted-foreground">{bundle.description}</p>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Estimated merchandise subtotal
+                  </p>
+                  <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+                    {formatUsd(bundle.merchandiseSubtotalCents)}
+                  </p>
+                </div>
+                {bundle.barrelSize || bundle.barrelFillLevel ?
+                  <p className="text-xs text-muted-foreground">
+                    {bundle.barrelSize ? `Barrel size: ${bundle.barrelSize}` : null}
+                    {bundle.barrelSize && bundle.barrelFillLevel ? " · " : null}
+                    {bundle.barrelFillLevel
+                      ? `Approximate fill: ${bundle.barrelFillLevel}`
+                      : null}
+                  </p>
+                : null}
+                <div className="mt-auto">
+                  <Link
+                    href={STARTER_BUNDLES_ROUTES.detail(bundle.id)}
+                    prefetch={false}
+                    className={buttonVariants()}
+                  >
+                    View bundle
+                  </Link>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>}
+    </div>
+  );
+}

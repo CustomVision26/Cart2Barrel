@@ -8,6 +8,10 @@ import {
 } from "@/lib/documentation/customer-ui-surfaces";
 import type { DocumentationContentEntry } from "@/lib/documentation/ui-surface-types";
 import {
+  SHOPPING_LIST_CARD_DESCRIPTION,
+  SHOPPING_LIST_CARD_TITLE,
+} from "@/lib/shopping-list-copy";
+import {
   assertDocumentationSync,
   assertSidebarNavMatchesSurfaces,
   buildDocumentationSections,
@@ -53,7 +57,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Public storefront landing page with featured products and sign-in entry.",
       location: "Visit / or click Home in the dashboard header.",
       bullets: [
-        "Hero section and spotlight carousel highlight US retailer products.",
+        "Hero section and spotlight carousel highlight US retailer products. When staff click Published on Overview → Starter Bundles and at least one bundle is published, a Shop Starter Bundles marquee sits above Featured & spotlight, scrolls right to left, and opens /starter-bundles.",
         "Spotlight carousel cards stay compact. Double-click a product with color or size options to open the swatch and size picker; View and Request follow the selected variant.",
         "Category catalogs use compact cards (two per row on larger screens) with Previous / Next when there are more than six products. Open Retailers and pick a store tab to show that retailer's listings.",
         "Guests see Sign in / Sign up; signed-in users see Dashboard. Sign up collects first name, last name, email, password, and confirm password on a glass card over Home. Back to home, clicking outside the card, or Escape returns to Home. On the email verification step, Back to sign up returns to the filled sign-up form. If the code is missing, use Resend code and check junk. iCloud often never receives Clerk development mail; for local testing use an address like you+clerk_test@gmail.com and code 424242.",
@@ -77,10 +81,11 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The Home page is Amani Cart2Barrel's public marketing storefront. It introduces the service, showcases featured US retailer products in a spotlight carousel, and gives visitors a clear path to sign in or create an account.",
+        "The Home page is Amani Cart2Barrel's public marketing storefront. It introduces the service, showcases featured US retailer products in a spotlight carousel, links to published Starter Bundles when staff have created them, and gives visitors a clear path to sign in or create an account.",
         "For signed-in customers, Home acts as a bridge between marketing content and the dashboard. Depending on your onboarding status, you may be routed to complete contact details—or you can skip onboarding to explore first.",
       ],
       walkthrough: [
+        "If Shop Starter Bundles cards are visible above Featured & spotlight (after staff publish the Home marquee), they scroll right to left. Click the marquee or View all bundles to open the full listing at /starter-bundles.",
         "Browse featured spotlight products. Cards show photo, price, View, and Request. Double-click a product that has colors or sizes to open a larger dialog with swatches and size pills—the photo, price, View link, and Request follow the selected variant. Use View all N when there are many colors. In a category catalog, cards stay compact (two per row on larger screens). Use Previous / Next when there are more than six products. Open Retailers and pick a store tab to show that retailer's listings. Retailer prices can change—open the official product page and update the product description if needed before requesting an estimate.",
         "Scroll to In-hub products to add warehouse stock to your cart. For US delivery, the item uses your default saved United States address. Shipping is one warehouse-package rate from Shippo for all in-hub items going to that address. Overseas packing does not require a US address and has no carrier shipping charge.",
         "Use the header: How it works (public guide), Sign in, Sign up (first name, last name, email, password, and confirm password on a glass card over Home; Back to home, click outside, or Escape returns to Home; after Continue, Back to sign up returns to the filled form), or Dashboard (when signed in).",
@@ -110,7 +115,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Public guide explaining the full Amani Cart2Barrel journey from quote to delivery.",
       location: "Marketing header → How it works, or visit /how-it-works.",
       bullets: [
-        "Overview tab: services, journey, typical costs, and seasonal special-feature offers in a formal panel next to Pricing overview. User guide tab: full customer documentation.",
+        "Overview tab: services (including Shopping list photo quotes), journey, typical costs, and seasonal special-feature offers in a formal panel next to Pricing overview. User guide tab: full customer documentation.",
         "Pricing overview is a rate schedule: in-app and outside-purchase service & handling, container catalog (info button for notes and cargo-box size; double-click a photo), packing fees, and third-party vendors.",
         "In-US vendor lists one row per destination-country mix, with a divider between them. Freight-only to Guyana is its own Freight charge row; freight + broker to Jamaica is a separate Freight charge + Broker row. Each has an info button and a destination button. Open the destination to see rates for that country only, including named cargo boxes from the published catalog when staff set those rates. Pickup next to a container type shows that type's hub-to-office pickup fee (1 container and each extra).",
         "Overseas third-party vendors are destination brokers and local couriers. Freight+broker companies are not repeated there. Courier cards lead with a Local courier heading, then the company name. Open the country destination button to see Operate from, contact details, and charges for that country only.",
@@ -132,12 +137,12 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "How it works is Amani Cart2Barrel's public explainer. Overview describes how US retailer shopping, hub processing, barrel consolidation, international delivery, and seasonal special-feature suitcase offers fit together. User guide is the same customer documentation signed-in shoppers open from Documentation in the dashboard header.",
+        "How it works is Amani Cart2Barrel's public explainer. Overview describes how US retailer shopping, shopping-list photo quotes, hub processing, barrel consolidation, international delivery, and seasonal special-feature suitcase offers fit together. User guide is the same customer documentation signed-in shoppers open from Documentation in the dashboard header.",
         "Anyone can read both tabs without signing in. Overview includes a Pricing overview of current published rates; your signed-in dashboard shows exact totals at checkout. The page surface follows your light, dark, and interface-color theme so the rate schedule stays readable against the background.",
       ],
       walkthrough: [
         "Open How it works from the marketing header or go to /how-it-works (Overview tab by default). Use the Overview / User guide pills to switch tabs.",
-        "On Overview, read From cart to barrel (services, journey, four cost phases, and seasonal specials) beside Pricing overview.",
+        "On Overview, read From cart to barrel (services — including Shopping list: upload a product photo, AI builds an editable table, staff prices it, you preview and accept on Add item — journey, four cost phases, and seasonal specials) beside Pricing overview.",
         "Review the rate schedule: in-app service & handling, outside-purchase service & handling, container catalog prices (info button for the container note and cargo-box size; double-click a photo to browse images), packing fees (exactly 1 vs 2+ of each published type, labeled like 1 Cargo Box EH Container in cart), and third-party vendors.",
         "In-US vendor lists freight companies that move a container from the US warehouse to the destination port. A vendor can appear more than once when it offers a different mix per country (freight-only to one destination, freight + broker to another), with a divider between those rows. The card shows the service badge for that destination (Freight charge, Freight charge + Broker, or all three), an info button, and a destination button. Open the info button to read that company's note. Open the destination button to see 1-container and extra-container freight rates for that destination only—barrel, bin, suitcase, and each published cargo box SKU staff priced. Next to each container type, Pickup opens the matching hub-to-office pickup fee (1 container and each extra) from that record's pickup rate card. Company name, street, and phone are not shown on this public card. Freight table amounts do not include the pickup fee.",
         "Overseas third-party vendor lists destination-country brokers and standalone local couriers after arrival. A freight+broker company already listed under In-US is not shown again here. Courier cards use Local courier as the heading, then the company name and Ad button, then a destination button for the country on the company record. Open the destination to see Operate from, address, phone, and zone or container charges for that country only. Open Ad to see the company image and that company's note to customer.",
@@ -641,7 +646,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Requested items, or Home → Get an estimate.",
       bullets: [
         "AI-assisted request: paste Amazon, Walmart, Target, eBay, Temu, or SHEIN product URLs.",
-        "Shopping list: upload a handwritten list, screenshot, or collage. AI fills an editable table (name, quantity, size, color, notes, product photo). Submit for staff to price.",
+        `${SHOPPING_LIST_CARD_TITLE}: ${SHOPPING_LIST_CARD_DESCRIPTION}`,
         "Select a variant row to copy that row's photo into Request details.",
         "Staff publish quotes you accept into the cart.",
         "Statuses: pending, estimate ready, out of stock, withdrawn.",
@@ -663,13 +668,14 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Requested items is where you start the quoting process. Paste US retailer product links, provide variant details when needed, and wait for staff to review and publish estimates you can accept into your cart.",
+        "Requested items is where you start the quoting process. Choose Start a request to paste US retailer product links, or Shopping list to upload a photo of the products you want quoted. Ready-made Starter Bundles are a separate public listing at /starter-bundles; Shopping list upload stays available for your own products.",
+        SHOPPING_LIST_CARD_DESCRIPTION,
         "This area also tracks everything already in the pipeline—so you can see which requests are waiting, ready, out of stock, or withdrawn.",
       ],
       walkthrough: [
         "Open Requested items from the dashboard sidebar, or click Get an estimate on Home to open the AI-assisted request flow.",
         "Choose AI-assisted request to paste US retailer URLs and build a structured submission.",
-        "Or open Shopping list, upload one image of the products you want, edit the generated table, and submit the list for a staff estimate.",
+        `Or open ${SHOPPING_LIST_CARD_TITLE}: ${SHOPPING_LIST_CARD_DESCRIPTION}`,
         "Select a store variant in the list to copy that row's name, price, product link, size, color, and photo into Request details—not the parent listing.",
         "Click Submit for staff review to send the request to staff for a quote.",
         "Staff review your request and publish quotes when ready.",
@@ -695,15 +701,67 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
   },
   {
+    id: "starter-bundles",
+    title: "Starter Bundles",
+    category: "Shopping",
+    quickReference: {
+      summary:
+        "Compare published ready-made shopping lists at different estimated merchandise subtotals, then request an estimate.",
+      location: "Home, Shop Starter Bundles marquee above Featured & spotlight, or visit /starter-bundles.",
+      bullets: [
+        "Listing shows published bundles only, ordered from lowest estimated merchandise subtotal to highest.",
+        "Each card shows name, description, estimated merchandise subtotal, and View bundle. Barrel size and approximate fill appear when staff entered them.",
+        "The detail view is read-only except Add a note (optional). Line totals are quantity × estimated unit price.",
+        "Request an estimate uses the Shopping list quote path. Sign in if needed. Track the request on Add item → Batch quotes.",
+        "Upload My Shopping List remains available on Requested items for custom products.",
+      ],
+      requirements: [
+        "No account needed to browse.",
+        "Signed-in account required to request an estimate.",
+      ],
+      dos: [
+        "Compare bundles before requesting an estimate.",
+        "Add a note if you need staff to know a substitution or destination detail.",
+      ],
+      donts: [
+        "Don't treat the estimated merchandise subtotal as the full quote—service, freight, broker, and destination pickup charges are separate.",
+        "Don't expect draft or archived bundles, or an unpublished Home marquee, to appear on Home.",
+      ],
+    },
+    article: {
+      overview: [
+        "Starter Bundles are fixed shopping lists created by staff. Shoppers compare published bundles, open one, add an optional note, and request an estimate. Staff price the request on Overview → List quotes with source Starter Bundle.",
+      ],
+      walkthrough: [
+        "Open /starter-bundles from Home (Shop Starter Bundles marquee above Featured & spotlight) or by visiting that URL.",
+        "Compare cards ordered by estimated merchandise subtotal. Open View bundle to see each product, quantity, color or variant, size, estimated unit price, and line total.",
+        "Add a note if you want, then Request an estimate. Sign in if you are not already signed in. If the bundle changed since you opened it, review the updated list before submitting again.",
+        "When the estimate is ready, preview and accept it on Add item → Batch quotes, the same confirmation used for Shopping list photo requests.",
+      ],
+      requirements: [
+        "No account is required to browse published bundles.",
+        "A signed-in account is required to submit a request.",
+      ],
+      dos: [
+        "Read the estimated merchandise subtotal disclaimer before submitting.",
+        "Use Requested items → Shopping list when you want to choose your own products.",
+      ],
+      donts: [
+        "Do not assume you can edit bundle products or prices—the list is fixed.",
+        "Do not treat a submitted bundle as paid until you accept the quote and check out.",
+      ],
+    },
+  },
+  {
     id: "shopping-list-request",
     title: "Requested items — Shopping list",
     category: "Shopping",
     quickReference: {
-      summary: "Upload a list photo, edit the AI table, and send it for a staff quote.",
+      summary: SHOPPING_LIST_CARD_DESCRIPTION,
       location:
         "Sidebar → Requested items → Shopping list card (/dashboard/items/requested-items/shopping-list-request).",
       bullets: [
-        "Upload a handwritten list, screenshot, receipt, or product collage.",
+        "Upload a handwritten list, screenshot, receipt, or product collage. This custom-list path stays available alongside published Starter Bundles.",
         "AI fills product name, quantity, size, color, and notes. Every field is editable. Delete any extra row.",
         "Add a product photo on any row, then submit the list.",
         "Staff price merchandise, shipping, sales tax, and service & handling. When the estimate is ready, preview and accept it on Add item → Batch quotes.",
@@ -721,7 +779,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Shopping list is for shoppers who already have a written or photographed list of products. Upload one image; AI builds an editable table; staff send a combined estimate you accept into cart.",
+        SHOPPING_LIST_CARD_DESCRIPTION,
       ],
       walkthrough: [
         "Open Requested items and choose Shopping list.",
@@ -1180,7 +1238,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Public on /how-it-works?tab=user-guide (no sign-in required).",
         "Also available as Documentation in the signed-in dashboard header.",
         "The User guide tab opens a Customer handbook panel: search, category topics, and a preview of the selected article.",
-        "Each topic has Quick reference (summary, location, do / do not) and Full article (walkthrough) views.",
+        "Each topic has Quick reference (summary, location, do / do not) and Full article (walkthrough) views. Requested items — Shopping list documents the photo-to-table quote path also shown on Overview.",
       ],
       requirements: ["None for the public How it works tab."],
       dos: [
@@ -1193,7 +1251,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "The User guide is Amani Cart2Barrel's customer documentation. It explains every shopper-facing page, header control, and account feature with scannable quick references and deeper articles. How it works → Overview is the public service explainer (From cart to barrel plus Pricing overview); this User guide tab is the formal page-by-page handbook.",
+        "The User guide is Amani Cart2Barrel's customer documentation. It explains every shopper-facing page, header control, and account feature with scannable quick references and deeper articles. How it works → Overview is the public service explainer (From cart to barrel plus Pricing overview, including Shopping list photo quotes); this User guide tab is the formal page-by-page handbook. Open Requested items — Shopping list in this handbook for the same photo-to-table quote path shown on Requested items.",
         "Guests can read it on How it works → User guide without an account. Signed-in customers can open the same content from the dashboard Documentation button. The handbook panel uses the same theme contrast as Overview so it stays readable in light and dark mode.",
       ],
       walkthrough: [

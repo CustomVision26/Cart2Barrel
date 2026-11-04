@@ -1720,6 +1720,56 @@
   animation-play-state: paused;
 }
 
+@keyframes starter-bundle-marquee-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.starter-bundle-marquee__viewport {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 6%,
+    black 94%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 6%,
+    black 94%,
+    transparent
+  );
+}
+
+.starter-bundle-marquee__track {
+  animation: starter-bundle-marquee-x 32s linear infinite;
+  will-change: transform;
+}
+
+.starter-bundle-marquee:hover .starter-bundle-marquee__track,
+.starter-bundle-marquee:focus-within .starter-bundle-marquee__track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .starter-bundle-marquee__track {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
+
+  .starter-bundle-marquee__viewport {
+    overflow-x: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
 /* Clerk Sign-in footer is a dark strip; keep “Sign up” and branding readable. */
 .cl-signIn-root .cl-footer,
 .cl-signUp-root .cl-footer,

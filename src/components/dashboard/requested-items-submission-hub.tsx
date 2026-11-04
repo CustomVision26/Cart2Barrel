@@ -5,6 +5,10 @@ import {
   DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE,
   DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE,
 } from "@/lib/dashboard-items-routes";
+import {
+  SHOPPING_LIST_CARD_DESCRIPTION,
+  SHOPPING_LIST_CARD_TITLE,
+} from "@/lib/shopping-list-copy";
 import { cn } from "@/lib/utils";
 
 const cardClass = cn(
@@ -31,12 +35,10 @@ export function RequestedItemsSubmissionHub() {
       <Link href={DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE} className={cardClass}>
         <span className="flex items-center gap-2 text-base font-semibold text-foreground">
           <ClipboardList className="size-4 shrink-0 text-primary" aria-hidden />
-          Shopping list
+          {SHOPPING_LIST_CARD_TITLE}
         </span>
         <p className="mt-2 text-sm text-muted-foreground">
-          Upload a photo of the products you want quoted. AI turns it into an editable table
-          (name, quantity, size, color, notes, and a product photo). Submit the list for
-          staff to price, then preview and accept the quote on Add item.
+          {SHOPPING_LIST_CARD_DESCRIPTION}
         </p>
       </Link>
     </div>

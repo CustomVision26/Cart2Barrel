@@ -24,6 +24,10 @@ import {
   type AdminShoppingListQuoteView,
 } from "@/lib/shopping-list-quote";
 import {
+  isStarterBundleSourceKind,
+  type StarterBundleSnapshot,
+} from "@/lib/starter-bundles";
+import {
   computeLineEstimateCents,
   formatUsd,
   type AdminMarkupSettings,
@@ -110,20 +114,38 @@ function LineCellInput({
   );
 }
 
+function snapshotLineTotal(
+  snapshot: StarterBundleSnapshot | null | undefined,
+  productName: string,
+  quantity: number,
+): number | null {
+  if (!snapshot) return null;
+  const match = snapshot.items.find(
+    (item) =>
+      item.productName.trim().toLowerCase() === productName.trim().toLowerCase() &&
+      item.quantity === quantity,
+  );
+  return match?.lineTotalCents ?? null;
+}
+
 function lineFromView(
   row: AdminShoppingListQuoteView["lines"][number],
   settings: AdminMarkupSettings,
+  snapshot?: StarterBundleSnapshot | null,
 ): LineEdit {
   const quote = row.quote;
+  const productName =
+    row.request.productName?.trim() || row.line.productName?.trim() || "";
+  const snapshotTotal = snapshotLineTotal(snapshot, productName, row.request.quantity);
   return {
     itemRequestId: row.request.id,
-    productName: row.request.productName?.trim() || row.line.productName?.trim() || "",
+    productName,
     quantity: row.request.quantity,
     productSize: row.request.productSize ?? row.line.productSize ?? "",
     productColor: row.request.productColor ?? row.line.productColor ?? "",
     note: row.request.note ?? row.line.note ?? "",
     productImageUrl: row.request.productImageUrl ?? row.line.productImageUrl,
-    itemCost$: centsToDollarInput(quote?.itemCost ?? 0),
+    itemCost$: centsToDollarInput(quote?.itemCost ?? snapshotTotal ?? 0),
     serviceFee$: centsToDollarInput(quote?.serviceFee ?? 0),
     estimatedShipping$: centsToDollarInput(
       quote?.estimatedShipping ?? settings.defaultShippingCents,
@@ -188,7 +210,9 @@ export function AdminShoppingListQuotesPanel({
   const [edits, setEdits] = useState<Record<string, LineEdit[]>>(() => {
     const next: Record<string, LineEdit[]> = {};
     for (const list of lists) {
-      next[list.list.id] = list.lines.map((row) => lineFromView(row, settings));
+      next[list.list.id] = list.lines.map((row) =>
+        lineFromView(row, settings, list.list.starterBundleSnapshot),
+      );
     }
     return next;
   });
@@ -354,7 +378,7 @@ export function AdminShoppingListQuotesPanel({
     return (
       <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         No shopping-list quotes yet. When a shopper submits a list photo from Requested
-        items, it appears here for pricing.
+        items or a Starter Bundle, it appears here for pricing.
       </p>
     );
   }
@@ -384,6 +408,9 @@ export function AdminShoppingListQuotesPanel({
                     {row.customerFullName?.trim() || row.customerEmail || "Shopper"}
                   </span>
                   <span className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+                    {isStarterBundleSourceKind(row.list.sourceKind) ?
+                      <StatusBadge kind="inCart">Starter Bundle</StatusBadge>
+                    : <StatusBadge kind="neutral">Shopping list</StatusBadge>}
                     <StatusBadge
                       kind={row.list.status === "estimated" ? "quoted" : "newRequest"}
                     >
@@ -407,32 +434,53 @@ export function AdminShoppingListQuotesPanel({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-foreground">
-                  {active.customerFullName?.trim() || "Shopping list"}
+                  {active.customerFullName?.trim() ||
+                    (isStarterBundleSourceKind(active.list.sourceKind)
+                      ? "Starter Bundle"
+                      : "Shopping list")}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {active.customerEmail ?? "No email on file"}
                   {active.batchNumber ? ` · Batch ${active.batchNumber}` : ""}
+                  {isStarterBundleSourceKind(active.list.sourceKind)
+                    ? " · Source: Starter Bundle"
+                    : " · Source: Shopping list"}
                 </p>
               </div>
-              <button
-                type="button"
-                title="View larger shopping list photo"
-                className="overflow-hidden rounded-md border border-border"
-                onClick={() =>
-                  setImagePreview({
-                    src: active.list.sourceImageUrl,
-                    alt: "Uploaded shopping list",
-                  })
-                }
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={active.list.sourceImageUrl}
-                  alt="Uploaded shopping list"
-                  className="h-20 w-28 cursor-zoom-in object-cover"
-                />
-              </button>
+              {active.list.sourceImageUrl ?
+                <button
+                  type="button"
+                  title="View larger shopping list photo"
+                  className="overflow-hidden rounded-md border border-border"
+                  onClick={() =>
+                    setImagePreview({
+                      src: active.list.sourceImageUrl!,
+                      alt: isStarterBundleSourceKind(active.list.sourceKind)
+                        ? "Starter bundle image"
+                        : "Uploaded shopping list",
+                    })
+                  }
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={active.list.sourceImageUrl}
+                    alt={
+                      isStarterBundleSourceKind(active.list.sourceKind)
+                        ? "Starter bundle image"
+                        : "Uploaded shopping list"
+                    }
+                    className="h-20 w-28 cursor-zoom-in object-cover"
+                  />
+                </button>
+              : null}
             </div>
+
+            {isStarterBundleSourceKind(active.list.sourceKind) ?
+              <StarterBundleSubmittedCopy
+                snapshot={active.list.starterBundleSnapshot ?? null}
+                customerNote={active.list.customerNote}
+              />
+            : null}
 
             <div className="overflow-x-auto rounded-lg border border-border/80">
               <table className="w-full min-w-[72rem] text-left text-sm">
@@ -838,6 +886,75 @@ export function AdminShoppingListQuotesPanel({
           </DialogContent>
         : null}
       </Dialog>
+    </div>
+  );
+}
+
+function StarterBundleSubmittedCopy({
+  snapshot,
+  customerNote,
+}: {
+  snapshot: StarterBundleSnapshot | null;
+  customerNote: string | null;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border border-border/80 bg-muted/30 p-3">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Submitted starter bundle
+        </p>
+        <p className="text-sm font-medium text-foreground">
+          {snapshot?.name ?? "Starter Bundle"}
+        </p>
+        {snapshot ?
+          <p className="text-xs text-muted-foreground">
+            Estimated merchandise subtotal at submit:{" "}
+            {formatUsd(snapshot.merchandiseSubtotalCents)}
+          </p>
+        : null}
+      </div>
+      {snapshot && snapshot.items.length > 0 ?
+        <div className="overflow-x-auto rounded-md border border-border/70">
+          <table className="w-full min-w-[36rem] text-left text-xs">
+            <thead className="border-b border-border bg-muted text-muted-foreground">
+              <tr>
+                <th className="px-2 py-1.5 font-medium">Product</th>
+                <th className="px-2 py-1.5 font-medium">Qty</th>
+                <th className="px-2 py-1.5 font-medium">Color / variant</th>
+                <th className="px-2 py-1.5 font-medium">Size</th>
+                <th className="px-2 py-1.5 font-medium">Unit</th>
+                <th className="px-2 py-1.5 font-medium">Line total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {snapshot.items.map((item, index) => (
+                <tr key={`${item.productName}-${index}`} className="border-b border-border/60">
+                  <td className="px-2 py-1.5 text-foreground">{item.productName}</td>
+                  <td className="px-2 py-1.5 tabular-nums">{item.quantity}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground">
+                    {item.productColor || "—"}
+                  </td>
+                  <td className="px-2 py-1.5 text-muted-foreground">
+                    {item.productSize || "—"}
+                  </td>
+                  <td className="px-2 py-1.5 tabular-nums">
+                    {formatUsd(item.estimatedUnitPriceCents)}
+                  </td>
+                  <td className="px-2 py-1.5 tabular-nums">
+                    {formatUsd(item.lineTotalCents)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      : null}
+      {customerNote?.trim() ?
+        <p className="text-sm text-foreground">
+          <span className="font-medium">Customer note: </span>
+          {customerNote.trim()}
+        </p>
+      : <p className="text-xs text-muted-foreground">No customer note.</p>}
     </div>
   );
 }

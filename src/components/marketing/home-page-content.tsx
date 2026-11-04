@@ -5,6 +5,7 @@ import { HomePageHeader } from "@/components/marketing/home-page-header";
 import { HomeHubStockSection } from "@/components/marketing/home-hub-stock-section";
 import { HomeSpotlightCarouselFallback } from "@/components/marketing/home-spotlight-carousel-fallback";
 import { HomeSpotlightSection } from "@/components/marketing/home-spotlight-section";
+import { HomeStarterBundlesMarquee } from "@/components/marketing/home-starter-bundles-marquee";
 import { SiteContactFooter } from "@/components/marketing/site-contact-footer";
 import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
 
@@ -30,9 +31,14 @@ export function HomePageContent({ userId }: Props) {
         <Suspense fallback={null}>
           <HomeHubStockSection isSignedIn={isSignedIn} />
         </Suspense>
-        <Suspense fallback={<HomeSpotlightCarouselFallback />}>
-          <HomeSpotlightSection isSignedIn={isSignedIn} />
-        </Suspense>
+        <div className="flex flex-col gap-6">
+          <Suspense fallback={null}>
+            <HomeStarterBundlesMarquee />
+          </Suspense>
+          <Suspense fallback={<HomeSpotlightCarouselFallback />}>
+            <HomeSpotlightSection isSignedIn={isSignedIn} />
+          </Suspense>
+        </div>
       </main>
       <Suspense fallback={null}>
         <SiteContactFooter />

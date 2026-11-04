@@ -14,6 +14,7 @@ import {
 const isPublicRoute = createRouteMatcher([
   "/",
   "/how-it-works",
+  "/starter-bundles(.*)",
   "/login(.*)",
   "/signup(.*)",
   "/api/site-traffic",

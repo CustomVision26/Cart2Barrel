@@ -6,6 +6,7 @@ import { AdminOverviewSpecialFeaturesSection } from "../_components/admin-overvi
 import { AdminOverviewHubStockSection } from "../_components/admin-overview-hub-stock-section";
 import { AdminOverviewQuoteExpirySection } from "../_components/admin-overview-quote-expiry-section";
 import { AdminOverviewShoppingListsSection } from "../_components/admin-overview-shopping-lists-section";
+import { AdminOverviewStarterBundlesSection } from "../_components/admin-overview-starter-bundles-section";
 import { AdminOverviewSubnav } from "../_components/admin-overview-subnav";
 import { AdminRefundQueueBanner } from "@/components/admin/admin-refund-queue-banner";
 import { parseFinanceDateRange } from "@/data/admin-finance-summary";
@@ -54,6 +55,7 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
     : tabRaw === "quote-expiry" ? "quote-expiry"
     : tabRaw === "in-hub-products" ? "in-hub-products"
     : tabRaw === "list-quotes" ? "list-quotes"
+    : tabRaw === "starter-bundles" ? "starter-bundles"
     : "summary";
   const range = parseFinanceDateRange({
     from: first(rawSp.from)?.trim(),
@@ -99,6 +101,8 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
           selectedClerkUserId={selectedUserId}
           initialBatchSessionId={first(rawSp.batch)?.trim() || undefined}
         />
+      ) : tab === "starter-bundles" ? (
+        <AdminOverviewStarterBundlesSection />
       ) : (
         <div className="space-y-4">
           <AdminRefundQueueBanner />
@@ -116,7 +120,9 @@ export default async function AdminOverviewPage({ searchParams }: PageProps) {
             <span className="font-medium text-foreground">In-hub products</span> for inventory
             already at the warehouse,{" "}
             <span className="font-medium text-foreground">List quotes</span> for shopping-list
-            photo submissions, and{" "}
+            photo and Starter Bundle submissions,{" "}
+            <span className="font-medium text-foreground">Starter Bundles</span> for
+            ready-made shopping lists, and{" "}
             <span className="font-medium text-foreground">Quote Expiry Settings</span> for the
             hub default, per-customer, and per-product quote windows.
           </p>

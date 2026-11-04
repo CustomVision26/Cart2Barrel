@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ClipboardList,
   Globe2,
   Luggage,
   PackageSearch,
@@ -12,6 +13,10 @@ import {
 } from "lucide-react";
 
 import { RevealOnScroll } from "@/components/marketing/reveal-on-scroll";
+import {
+  SHOPPING_LIST_CARD_DESCRIPTION,
+  SHOPPING_LIST_CARD_TITLE,
+} from "@/lib/shopping-list-copy";
 
 type Service = {
   title: string;
@@ -25,6 +30,11 @@ const SERVICES: Service[] = [
     description:
       "Paste a product link or pick from our spotlight catalog. Amani Cart2Barrel staff review each request and send an estimate before anything is purchased on your behalf.",
     icon: PackageSearch,
+  },
+  {
+    title: SHOPPING_LIST_CARD_TITLE,
+    description: SHOPPING_LIST_CARD_DESCRIPTION,
+    icon: ClipboardList,
   },
   {
     title: "Pay when you are ready",
