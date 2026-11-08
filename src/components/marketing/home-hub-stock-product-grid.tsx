@@ -290,7 +290,7 @@ export function HomeHubStockProductGrid({
   if (products.length === 0) return null;
 
   return (
-    <section className="space-y-4">
+    <section id="in-hub-products" className="scroll-mt-24 space-y-4">
       <div>
         <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
           In-hub products

@@ -6,7 +6,10 @@ import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 export function RequestedItemsPageHeading() {
   return (
     <div className="space-y-1">
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+      <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+        Start a Request
+      </p>
+      <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
         Requested items
       </h1>
       <p className="text-sm text-muted-foreground">

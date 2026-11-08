@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { AlertCircle, ShoppingCart } from "lucide-react";
+import { AlertCircle, Box, Package, ShoppingCart } from "lucide-react";
 
 import {
   Card,
@@ -52,7 +52,9 @@ import {
   isCheckoutProcessingSurchargeEnabled,
   processingFeeRegionFromShippingCountry,
 } from "@/lib/checkout-processing-surcharge";
-import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
+import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
+import { IllustrationEmptyCart } from "@/components/brand/amani-illustrations";
+import { CustomerEmptyState } from "@/components/dashboard/customer-empty-state";
 import { isStripeCartCheckoutConfigured } from "@/lib/stripe-server";
 import { cn } from "@/lib/utils";
 
@@ -252,7 +254,7 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
             </span>
             <div>
               <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                Your cart
+                Cart — Your Items
               </h1>
               {hasAny ?
                 <p className="text-sm text-muted-foreground">
@@ -285,34 +287,61 @@ export default async function DashboardCartPage({ searchParams }: PageProps) {
       </header>
 
       {!hasAny ?
-        <Card className="overflow-hidden rounded-xl border-dashed shadow-sm">
-          <CardContent className="flex flex-col items-center gap-4 px-6 py-14 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
-              <ShoppingCart className="size-7" aria-hidden />
-            </span>
-            <div className="space-y-1">
-              <CardTitle className="font-heading text-xl">Your cart is empty</CardTitle>
-              <CardDescription className="max-w-md text-sm leading-relaxed">
-                Accept a quote on a requested item, add an in-hub product from the home page,
-                or add barrels and bins from the Barrels page.
-              </CardDescription>
+        <div className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
+              <p className="flex items-center gap-2 font-medium text-foreground">
+                <Package className="size-4 text-primary" aria-hidden />
+                Accepted Estimates
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Approved item estimates are ready to add to your cart.
+              </p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Link
-                href={DASHBOARD_ADD_ITEM_ROUTES.productsActive}
-                className={buttonVariants()}
-              >
-                View requests
-              </Link>
-              <Link
-                href="/dashboard/barrels"
-                className={buttonVariants({ variant: "outline" })}
-              >
-                Browse containers
-              </Link>
+            <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
+              <p className="flex items-center gap-2 font-medium text-foreground">
+                <ShoppingCart className="size-4 text-primary" aria-hidden />
+                In-Hub Products
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Shop products that are already in our hub.
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
+              <p className="flex items-center gap-2 font-medium text-foreground">
+                <Box className="size-4 text-primary" aria-hidden />
+                Containers
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Add boxes and barrels for your shipment.
+              </p>
+            </div>
+          </div>
+          <CustomerEmptyState
+            title="Your cart is empty"
+            description="You haven’t added any items yet. Add accepted estimates, in-hub products, or containers to get started."
+            illustration={<IllustrationEmptyCart />}
+            actions={
+              <>
+                <Link
+                  href={DASHBOARD_REQUESTED_ITEMS_ROUTE}
+                  className={cn(buttonVariants({ size: "lg" }), "rounded-full")}
+                >
+                  View Requests
+                </Link>
+                <Link
+                  href="/dashboard/barrels"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "lg" }),
+                    "rounded-full",
+                  )}
+                >
+                  Browse Containers
+                </Link>
+              </>
+            }
+          />
+        </div>
       : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-start xl:gap-10">
           <div className="min-w-0 space-y-8">

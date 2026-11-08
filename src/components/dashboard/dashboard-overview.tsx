@@ -25,12 +25,12 @@ import { cn } from "@/lib/utils";
 
 const QUICK_ACTIONS = [
   {
-    href: DASHBOARD_ADD_ITEM_ROUTES.productsActive,
-    label: "Add product",
-    description: "Paste a retailer URL and request a quote",
+    href: DASHBOARD_REQUESTED_ITEMS_ROUTE,
+    label: "Start a Request",
+    description: "Paste a retailer URL or upload a shopping list",
     icon: PlusCircle,
-    accent: "from-sky-500/20 via-sky-500/5 to-transparent",
-    iconClass: "text-sky-400",
+    accent: "from-primary/20 via-primary/5 to-transparent",
+    iconClass: "text-primary",
   },
   {
     href: "/dashboard/cart",
@@ -136,6 +136,25 @@ export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }
     <div className="space-y-8">
       <DashboardRefundAwaitingBanner clerkUserId={clerkUserId} />
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Overview
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Your cart, quotes, orders, and shipments at a glance.
+          </p>
+        </div>
+        <Button
+          size="lg"
+          className="rounded-full"
+          nativeButton={false}
+          render={<Link href={DASHBOARD_REQUESTED_ITEMS_ROUTE} prefetch={false} />}
+        >
+          Start a Request
+        </Button>
+      </div>
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label="Cart"
@@ -189,15 +208,13 @@ export async function DashboardOverview({ clerkUserId }: { clerkUserId: string }
       </section>
 
       <section className="space-y-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
-              Quick actions
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Jump to the tools you use most while shopping.
-            </p>
-          </div>
+        <div>
+          <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
+            Quick actions
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Jump to the tools you use most while shopping.
+          </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {QUICK_ACTIONS.map((action) => {

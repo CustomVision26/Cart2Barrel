@@ -15,8 +15,8 @@ export function StarterBundlesListing({
   notice?: string | null;
 }) {
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
+    <div className="space-y-8">
+      <div className="space-y-3">
         <Link
           href="/"
           prefetch={false}
@@ -28,10 +28,10 @@ export function StarterBundlesListing({
           <ArrowLeft className="size-4" aria-hidden />
           Back to home
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
           Shop Starter Bundles
         </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Compare ready-made bundles at different price points. Each bundle is a fixed
           shopping list. Request an estimate and staff will add service, freight, and broker
           fees in the quote. Destination pickup charges are separate.
@@ -39,62 +39,68 @@ export function StarterBundlesListing({
       </div>
 
       {notice ?
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+        <p className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
           {notice}
         </p>
       : null}
 
       {bundles.length === 0 ?
-        <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground shadow-sm">
           No starter bundles are published yet. You can still upload your own list from
           Requested items → Shopping list.
         </p>
       : <ul className="grid gap-4 sm:grid-cols-2">
           {bundles.map((bundle) => (
-            <li
-              key={bundle.id}
-              className="flex flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-foreground/5"
-            >
-              {bundle.imageUrl ?
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={bundle.imageUrl}
-                  alt=""
-                  className="h-40 w-full object-cover"
-                />
-              : null}
-              <div className="flex flex-1 flex-col gap-3 p-4">
-                <div className="space-y-1">
-                  <h2 className="text-base font-semibold text-foreground">{bundle.name}</h2>
-                  <p className="text-sm text-muted-foreground">{bundle.description}</p>
-                </div>
-                <div className="space-y-0.5">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Estimated merchandise subtotal
-                  </p>
-                  <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
-                    {formatUsd(bundle.merchandiseSubtotalCents)}
-                  </p>
-                </div>
-                {bundle.barrelSize || bundle.barrelFillLevel ?
-                  <p className="text-xs text-muted-foreground">
-                    {bundle.barrelSize ? `Barrel size: ${bundle.barrelSize}` : null}
-                    {bundle.barrelSize && bundle.barrelFillLevel ? " · " : null}
-                    {bundle.barrelFillLevel
-                      ? `Approximate fill: ${bundle.barrelFillLevel}`
-                      : null}
-                  </p>
+            <li key={bundle.id}>
+              <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                {bundle.imageUrl ?
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={bundle.imageUrl}
+                    alt=""
+                    className="h-44 w-full object-cover"
+                  />
                 : null}
-                <div className="mt-auto">
-                  <Link
-                    href={STARTER_BUNDLES_ROUTES.detail(bundle.id)}
-                    prefetch={false}
-                    className={buttonVariants()}
-                  >
-                    View bundle
-                  </Link>
+                <div className="flex flex-1 flex-col gap-4 p-5">
+                  <div className="space-y-1.5">
+                    <h2 className="font-heading text-lg font-semibold text-foreground">
+                      {bundle.name}
+                    </h2>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {bundle.description}
+                    </p>
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Estimated merchandise subtotal
+                    </p>
+                    <p className="font-heading text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+                      {formatUsd(bundle.merchandiseSubtotalCents)}
+                    </p>
+                  </div>
+                  {bundle.barrelSize || bundle.barrelFillLevel ?
+                    <p className="text-xs text-muted-foreground">
+                      {bundle.barrelSize ? `Barrel size: ${bundle.barrelSize}` : null}
+                      {bundle.barrelSize && bundle.barrelFillLevel ? " · " : null}
+                      {bundle.barrelFillLevel
+                        ? `Approximate fill: ${bundle.barrelFillLevel}`
+                        : null}
+                    </p>
+                  : null}
+                  <div className="mt-auto pt-1">
+                    <Link
+                      href={STARTER_BUNDLES_ROUTES.detail(bundle.id)}
+                      prefetch={false}
+                      className={cn(
+                        buttonVariants(),
+                        "h-11 rounded-full px-5 text-sm font-semibold",
+                      )}
+                    >
+                      View bundle
+                    </Link>
+                  </div>
                 </div>
-              </div>
+              </article>
             </li>
           ))}
         </ul>}

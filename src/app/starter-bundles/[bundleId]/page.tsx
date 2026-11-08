@@ -39,7 +39,7 @@ export default async function StarterBundleDetailPage({
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
+    <div className="amani-storefront flex min-h-full flex-1 flex-col">
       <HomePageHeader userId={userId} />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10 md:py-14">
         <StarterBundleRequestForm

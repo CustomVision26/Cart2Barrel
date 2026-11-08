@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import { SpotlightCategoryProductsDialog } from "@/components/marketing/spotligh
 import { SpotlightProductOffersCarousel } from "@/components/marketing/spotlight-product-offers-carousel";
 import { buildOffersForProduct } from "@/components/marketing/spotlight-category-offers-panel";
 import type { PublicSpotlightProduct } from "@/data/spotlight-category-products";
+import { MARKETING_CATEGORY_ART } from "@/lib/marketing-category-art";
 import {
   SPOTLIGHT_RETAILER_PRICE_NOTICE,
   spotlightCategoryIcon,
@@ -78,7 +80,7 @@ export function HomeSpotlightCarousel({
   if (slides.length === 0) return null;
 
   return (
-    <section className="space-y-5">
+    <section id="spotlight" className="space-y-5 scroll-mt-24">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">
@@ -109,13 +111,34 @@ export function HomeSpotlightCarousel({
               const Icon = spotlightCategoryIcon(slide.iconName);
               const products = productsByCategory[slide.slug] ?? [];
               const slideOffers = categorySlideOffers(products, isSignedIn);
+              const art = MARKETING_CATEGORY_ART[slide.slug];
 
               return (
                 <CarouselItem
                   key={slide.slug}
-                  className="basis-[92%] pl-3 sm:basis-[78%] md:basis-[62%] md:pl-4 lg:basis-[48%] xl:basis-[40%]"
+                  id={`spotlight-${slide.slug}`}
+                  className="scroll-mt-24 basis-[92%] pl-3 sm:basis-[78%] md:basis-[62%] md:pl-4 lg:basis-[48%] xl:basis-[40%]"
                 >
                   <Card className="flex h-full flex-col overflow-hidden border-border/80 shadow-sm">
+                    {art ? (
+                      <div className="relative aspect-[16/9] shrink-0 bg-muted">
+                        <Image
+                          src={art.src}
+                          alt={art.alt}
+                          fill
+                          sizes="(max-width: 768px) 90vw, 40vw"
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-4">
+                          <div className="mb-1 inline-block rounded-md bg-card/90 px-2 py-1 text-xs font-medium text-foreground shadow-sm">
+                            {slide.tag}
+                          </div>
+                          <CardTitle className="text-lg text-white">
+                            {slide.title}
+                          </CardTitle>
+                        </div>
+                      </div>
+                    ) : (
                     <div
                       className={cn(
                         "relative flex shrink-0 items-start justify-between bg-gradient-to-br p-4",
@@ -135,6 +158,7 @@ export function HomeSpotlightCarousel({
                         aria-hidden
                       />
                     </div>
+                    )}
 
                     <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pt-4">
                       <CardDescription className="line-clamp-2">

@@ -22,7 +22,7 @@ export default async function DashboardLayout({
   const userId = gate.ok ? gate.userId : null;
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
+    <div className="amani-storefront flex min-h-full flex-1 flex-col">
       {userId ?
         <Suspense
           fallback={<DashboardHeaderFallback showAdminEntry={showAdminEntry} />}
@@ -34,7 +34,7 @@ export default async function DashboardLayout({
         </Suspense>
       : <DashboardHeaderFallback showAdminEntry={false} />}
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1 gap-6 px-4 py-6 lg:gap-8 lg:py-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-1 gap-6 px-4 py-6 lg:gap-8 lg:py-8">
         {userId ?
           <Suspense fallback={<DashboardNavFallback variant="desktop" />}>
             <DashboardNavWithBadges userId={userId} variant="desktop" />

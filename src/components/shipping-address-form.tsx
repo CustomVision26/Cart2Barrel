@@ -91,7 +91,7 @@ export function ShippingAddressForm({
       <CardContent className={variant === "embedded" ? "px-0" : undefined}>
         <FieldSet className="gap-6">
           <FieldLegend variant="label">Recipient contact</FieldLegend>
-          <FieldGroup>
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="fullName">Full name</FieldLabel>
               <Input
@@ -127,7 +127,7 @@ export function ShippingAddressForm({
 
         <FieldSet className="mt-8 gap-6">
           <FieldLegend variant="label">Delivery address</FieldLegend>
-          <FieldGroup>
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="label">
                 Label{" "}
@@ -162,8 +162,8 @@ export function ShippingAddressForm({
               </select>
               <FieldError errors={fieldErr(state.fieldErrors?.country)} />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="line1">Street address</FieldLabel>
+            <Field className="sm:col-span-2">
+              <FieldLabel htmlFor="line1">Street</FieldLabel>
               <Input
                 id="line1"
                 name="line1"
@@ -174,7 +174,7 @@ export function ShippingAddressForm({
               />
               <FieldError errors={fieldErr(state.fieldErrors?.line1)} />
             </Field>
-            <Field>
+            <Field className="sm:col-span-2">
               <FieldLabel htmlFor="line2">
                 Address line 2{" "}
                 <span className="font-normal text-muted-foreground">
@@ -280,7 +280,7 @@ export function ShippingAddressForm({
               <FieldError errors={fieldErr(state.fieldErrors?.postalCode)} />
             </Field>
             {!forcePrimary ?
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
                 <input
                   type="checkbox"
                   name="isPrimary"
@@ -313,7 +313,12 @@ export function ShippingAddressForm({
             Cancel
           </Button>
         : null}
-        <Button type="submit" disabled={pending || !country} size="lg">
+        <Button
+          type="submit"
+          disabled={pending || !country}
+          size="lg"
+          className="rounded-full"
+        >
           {pending ? "Saving…" : address ? "Save address" : "Save shipping address"}
         </Button>
       </CardFooter>
@@ -325,7 +330,7 @@ export function ShippingAddressForm({
   }
 
   return (
-    <Card className="w-full max-w-lg border-border/80 shadow-sm">
+    <Card className="w-full max-w-3xl border-border/80 shadow-sm">
       <CardHeader>
         <CardTitle className="inline-flex items-center gap-2">
           Contact &amp; shipping address

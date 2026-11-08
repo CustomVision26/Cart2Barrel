@@ -14,6 +14,7 @@ import { HowItWorksSpecialFeatures } from "@/components/marketing/how-it-works-s
 import { HowItWorksSubTabNav } from "@/components/marketing/how-it-works-sub-tab-nav";
 import { HowItWorksPanel, HowItWorksPricingOverview } from "@/components/marketing/how-it-works-pricing-overview";
 import { HowItWorksThirdPartyVendorPricing } from "@/components/marketing/how-it-works-third-party-vendor-pricing";
+import { RetailerToShippingSteps } from "@/components/marketing/retailer-to-shipping-steps";
 import { RevealOnScroll } from "@/components/marketing/reveal-on-scroll";
 import { ServiceHandlingFeeChart } from "@/components/marketing/service-handling-fee-chart";
 import { UserDocumentationBrowser } from "@/components/documentation/user-documentation-browser";
@@ -57,7 +58,7 @@ export function HowItWorksPageMain({
   }, [isUserGuide]);
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10 md:gap-10 md:py-12">
+    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-4 py-10 md:gap-10 md:py-12">
       <RevealOnScroll variant="load" delayMs={0} className="space-y-4">
         <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           How it works
@@ -78,6 +79,18 @@ export function HowItWorksPageMain({
       </RevealOnScroll>
 
       <HowItWorksSubTabNav activeTab={activeTab} />
+
+      {!isUserGuide ?
+        <RevealOnScroll variant="load" delayMs={80} className="space-y-4">
+          <RetailerToShippingSteps />
+          <p className="mx-auto max-w-3xl text-center text-sm leading-relaxed text-muted-foreground">
+            Already buying on your own? Ship those packages to our U.S. hub for packing.
+            Compare in-app handling rates with outside-purchase handling in the pricing
+            charts on this page—the two fee schedules stay side by side so you can choose
+            the path that matches how you shop.
+          </p>
+        </RevealOnScroll>
+      : null}
 
       {isUserGuide ?
         <RevealOnScroll variant="load" delayMs={80}>

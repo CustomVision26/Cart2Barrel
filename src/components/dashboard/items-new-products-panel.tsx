@@ -43,6 +43,10 @@ import {
   dashItemsTableScroll,
 } from "@/lib/app-table-surfaces";
 import {
+  customerPillTabClass,
+  customerPillTablistClass,
+} from "@/lib/customer-pill-tabs";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -613,19 +617,14 @@ export function ItemsNewProductsPanel({ productsSubTab }: ItemsNewProductsPanelP
   };
 
   const subTabLinkClass = (tab: "active" | "history" | "expired") =>
-    cn(
-      "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-      productsSubTab === tab
-        ? "border-primary text-foreground"
-        : "border-transparent text-muted-foreground hover:text-foreground"
-    );
+    customerPillTabClass(productsSubTab === tab);
 
   return (
     <>
       <div
         role="tablist"
         aria-label="Active product requests, expired quotes, and product history"
-        className="flex flex-wrap gap-1 border-b border-border"
+        className={customerPillTablistClass}
       >
         <Link
           href={DASHBOARD_ADD_ITEM_ROUTES.productsActive}

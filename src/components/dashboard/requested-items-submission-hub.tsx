@@ -12,8 +12,8 @@ import {
 import { cn } from "@/lib/utils";
 
 const cardClass = cn(
-  "group block rounded-xl border border-border/80 bg-card p-6 shadow-sm ring-1 ring-foreground/5 transition-all",
-  "outline-none hover:border-primary/35 hover:shadow-md hover:ring-primary/15",
+  "group block rounded-2xl border border-border bg-card p-6 shadow-sm transition-all",
+  "outline-none hover:border-primary/50 hover:shadow-md",
   "focus-visible:ring-2 focus-visible:ring-ring",
 );
 
@@ -22,9 +22,12 @@ export function RequestedItemsSubmissionHub() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 sm:max-w-4xl">
       <Link href={DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE} className={cardClass}>
-        <span className="flex items-center gap-2 text-base font-semibold text-foreground">
+        <span className="inline-flex items-center rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary-foreground">
+          Start a Request
+        </span>
+        <span className="mt-3 flex items-center gap-2 text-base font-semibold text-foreground">
           <Sparkles className="size-4 shrink-0 text-primary" aria-hidden />
-          Start a request
+          Product link
         </span>
         <p className="mt-2 text-sm text-muted-foreground">
           Paste a product URL, preview the listing, optionally run AI to draft details and
@@ -33,7 +36,10 @@ export function RequestedItemsSubmissionHub() {
         </p>
       </Link>
       <Link href={DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE} className={cardClass}>
-        <span className="flex items-center gap-2 text-base font-semibold text-foreground">
+        <span className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Start a Request
+        </span>
+        <span className="mt-3 flex items-center gap-2 text-base font-semibold text-foreground">
           <ClipboardList className="size-4 shrink-0 text-primary" aria-hidden />
           {SHOPPING_LIST_CARD_TITLE}
         </span>

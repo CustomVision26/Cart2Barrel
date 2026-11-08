@@ -115,16 +115,17 @@ function NavLinkItem({
       aria-current={active ? "page" : undefined}
       className={cn(
         "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         active
-          ? "bg-sidebar-primary/15 text-sidebar-foreground shadow-sm ring-1 ring-sidebar-primary/25"
-          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
       )}
     >
       <span
         className={cn(
           "flex size-8 shrink-0 items-center justify-center rounded-md border transition-colors",
           active
-            ? "border-sidebar-primary/30 bg-sidebar-primary/20 text-sidebar-primary"
+            ? "border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground"
             : "border-sidebar-border/80 bg-sidebar-accent/50 text-sidebar-foreground/60 group-hover:border-sidebar-border group-hover:text-sidebar-foreground",
         )}
       >
@@ -132,7 +133,14 @@ function NavLinkItem({
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {badgeCount != null && badgeCount > 0 ? (
-        <span className="inline-flex min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+        <span
+          className={cn(
+            "inline-flex min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
+            active
+              ? "bg-primary-foreground text-primary"
+              : "bg-primary text-primary-foreground",
+          )}
+        >
           {badgeCount > 99 ? "99+" : badgeCount}
         </span>
       ) : null}
@@ -161,16 +169,24 @@ function MobileNavLink({
       prefetch={false}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors",
+        "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         active
-          ? "border-sidebar-primary/40 bg-sidebar-primary/15 text-sidebar-foreground"
-          : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/70 hover:text-sidebar-foreground",
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-sidebar-border bg-card text-sidebar-foreground/70 hover:text-sidebar-foreground",
       )}
     >
       <Icon className="size-3.5 shrink-0" aria-hidden />
       {label}
       {badgeCount != null && badgeCount > 0 ? (
-        <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+        <span
+          className={cn(
+            "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+            active
+              ? "bg-primary-foreground text-primary"
+              : "bg-primary/20 text-primary",
+          )}
+        >
           {badgeCount > 99 ? "99+" : badgeCount}
         </span>
       ) : null}

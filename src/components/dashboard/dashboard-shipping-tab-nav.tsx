@@ -3,18 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import {
+  customerPillTabClass,
+  customerPillTablistClass,
+} from "@/lib/customer-pill-tabs";
 import { DASHBOARD_SHIPPING_ROUTES } from "@/lib/dashboard-shipping-routes";
 import { cn } from "@/lib/utils";
 
 export type DashboardShippingTab = "tracking" | "pricing" | "address" | "history";
-
-const tabLinkClass = (selected: boolean) =>
-  cn(
-    "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-    selected
-      ? "border-primary text-foreground"
-      : "border-transparent text-muted-foreground hover:text-foreground",
-  );
 
 type DashboardShippingTabNavProps = {
   showPricingTab: boolean;
@@ -43,15 +39,15 @@ export function DashboardShippingTabNav({
     <div
       role="tablist"
       aria-label="Shipping views"
-      className="flex flex-wrap gap-1 border-b border-border"
+      className={customerPillTablistClass}
     >
       <Link
         href={DASHBOARD_SHIPPING_ROUTES.tracking}
         role="tab"
         aria-selected={activeTab === "tracking"}
-        className={tabLinkClass(activeTab === "tracking")}
+        className={customerPillTabClass(activeTab === "tracking")}
       >
-        Shipment tracking
+        Shipment Tracking
       </Link>
       {showPricingTab ?
         <Link
@@ -59,8 +55,8 @@ export function DashboardShippingTabNav({
           role="tab"
           aria-selected={activeTab === "pricing"}
           className={cn(
-            tabLinkClass(activeTab === "pricing"),
-            "inline-flex items-center gap-1.5",
+            customerPillTabClass(activeTab === "pricing"),
+            "gap-1.5",
           )}
         >
           Pricing
@@ -76,15 +72,15 @@ export function DashboardShippingTabNav({
         href={DASHBOARD_SHIPPING_ROUTES.address}
         role="tab"
         aria-selected={activeTab === "address"}
-        className={tabLinkClass(activeTab === "address")}
+        className={customerPillTabClass(activeTab === "address")}
       >
-        Profile &amp; address
+        Profile &amp; Address
       </Link>
       <Link
         href={DASHBOARD_SHIPPING_ROUTES.history}
         role="tab"
         aria-selected={activeTab === "history"}
-        className={tabLinkClass(activeTab === "history")}
+        className={customerPillTabClass(activeTab === "history")}
       >
         Shipping History
       </Link>

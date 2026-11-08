@@ -80,10 +80,10 @@ export default async function HowItWorksPage({
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border/80 px-4 py-4 md:py-5">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <BrandLogoLink />
+    <div className="amani-storefront flex min-h-full flex-1 flex-col">
+      <header className="border-b border-border/80 bg-card/80 px-4 py-4 md:py-5">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
+          <BrandLogoLink showWordmark />
           <nav className="flex items-center gap-2 sm:gap-3">
             {userId ?
               <>

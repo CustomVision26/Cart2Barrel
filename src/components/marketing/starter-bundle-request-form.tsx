@@ -70,7 +70,7 @@ export function StarterBundleRequestForm({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Button
         variant="ghost"
         size="sm"
@@ -82,30 +82,34 @@ export function StarterBundleRequestForm({
         Back to home
       </Button>
       {preview ?
-        <p className="rounded-lg border border-border/80 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+        <p className="rounded-2xl border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
           Admin preview. Shoppers only see this bundle after it is published.
         </p>
       : null}
       {staleMessage ?
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+        <p className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
           {staleMessage}
         </p>
       : null}
 
-      <div className="flex flex-col gap-4 sm:flex-row">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
         {bundle.imageUrl ?
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={bundle.imageUrl}
             alt=""
-            className="h-40 w-full rounded-xl border border-border object-cover sm:h-44 sm:w-56"
+            className="h-44 w-full rounded-2xl border border-border object-cover shadow-sm sm:h-48 sm:w-60"
           />
         : null}
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {bundle.name}
-          </h1>
-          <p className="text-sm text-muted-foreground">{bundle.description}</p>
+        <div className="min-w-0 space-y-3">
+          <div className="space-y-1.5">
+            <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+              {bundle.name}
+            </h1>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {bundle.description}
+            </p>
+          </div>
           {bundle.barrelSize || bundle.barrelFillLevel ?
             <p className="text-sm text-muted-foreground">
               {bundle.barrelSize ? `Barrel size: ${bundle.barrelSize}` : null}
@@ -119,39 +123,41 @@ export function StarterBundleRequestForm({
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Estimated merchandise subtotal
             </p>
-            <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+            <p className="font-heading text-3xl font-semibold tabular-nums tracking-tight text-foreground">
               {formatUsd(bundle.merchandiseSubtotalCents)}
             </p>
           </div>
-          <p className="max-w-2xl text-xs text-muted-foreground">
+          <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
             {STARTER_BUNDLE_FEE_DISCLAIMER}
           </p>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border/80">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
         <table className="w-full min-w-[40rem] text-left text-sm">
-          <thead className="border-b border-border bg-muted text-xs text-muted-foreground">
+          <thead className="border-b border-border bg-muted/70 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 font-medium">Product</th>
-              <th className="px-3 py-2 font-medium">Qty</th>
-              <th className="px-3 py-2 font-medium">Color / variant</th>
-              <th className="px-3 py-2 font-medium">Size</th>
-              <th className="px-3 py-2 font-medium">Estimated unit price</th>
-              <th className="px-3 py-2 font-medium">Line total</th>
+              <th className="px-4 py-3 font-medium">Product</th>
+              <th className="px-4 py-3 font-medium">Qty</th>
+              <th className="px-4 py-3 font-medium">Color / variant</th>
+              <th className="px-4 py-3 font-medium">Size</th>
+              <th className="px-4 py-3 font-medium">Estimated unit price</th>
+              <th className="px-4 py-3 font-medium">Line total</th>
             </tr>
           </thead>
           <tbody>
             {bundle.items.map((item) => (
-              <tr key={item.id} className="border-b border-border/60">
-                <td className="px-3 py-2 font-medium text-foreground">{item.productName}</td>
-                <td className="px-3 py-2 tabular-nums">{item.quantity}</td>
-                <td className="px-3 py-2 text-muted-foreground">{item.productColor || "—"}</td>
-                <td className="px-3 py-2 text-muted-foreground">{item.productSize || "—"}</td>
-                <td className="px-3 py-2 tabular-nums">
+              <tr key={item.id} className="border-b border-border last:border-b-0">
+                <td className="px-4 py-3 font-medium text-foreground">{item.productName}</td>
+                <td className="px-4 py-3 tabular-nums">{item.quantity}</td>
+                <td className="px-4 py-3 text-muted-foreground">{item.productColor || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{item.productSize || "—"}</td>
+                <td className="px-4 py-3 tabular-nums">
                   {formatUsd(item.estimatedUnitPriceCents)}
                 </td>
-                <td className="px-3 py-2 tabular-nums">{formatUsd(item.lineTotalCents)}</td>
+                <td className="px-4 py-3 tabular-nums font-medium">
+                  {formatUsd(item.lineTotalCents)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -167,24 +173,34 @@ export function StarterBundleRequestForm({
           value={customerNote}
           disabled={pending || preview}
           rows={3}
-          className={cn(inputFieldClassName, "min-h-20 py-2")}
+          className={cn(inputFieldClassName, "min-h-24 rounded-2xl px-3.5 py-3")}
           onChange={(e) => setCustomerNote(e.target.value)}
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         {isSignedIn || preview ?
-          <Button type="button" disabled={pending || preview} onClick={submit}>
+          <Button
+            type="button"
+            disabled={pending || preview}
+            className="h-11 rounded-full px-5 text-sm font-semibold"
+            onClick={submit}
+          >
             {pending ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
             Request an estimate
           </Button>
-        : <Button nativeButton={false} render={<Link href={signInHref} prefetch={false} />}>
+        : <Button
+            nativeButton={false}
+            className="h-11 rounded-full px-5 text-sm font-semibold"
+            render={<Link href={signInHref} prefetch={false} />}
+          >
             Sign in to request an estimate
           </Button>}
         <Button
           type="button"
           variant="ghost"
           nativeButton={false}
+          className="h-11 rounded-full px-4 text-muted-foreground hover:text-foreground"
           render={<Link href={STARTER_BUNDLES_ROUTES.listing} prefetch={false} />}
         >
           Back to bundles

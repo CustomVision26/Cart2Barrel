@@ -6,6 +6,7 @@ import { HomeHubStockSection } from "@/components/marketing/home-hub-stock-secti
 import { HomeSpotlightCarouselFallback } from "@/components/marketing/home-spotlight-carousel-fallback";
 import { HomeSpotlightSection } from "@/components/marketing/home-spotlight-section";
 import { HomeStarterBundlesMarquee } from "@/components/marketing/home-starter-bundles-marquee";
+import { RetailerToShippingSteps } from "@/components/marketing/retailer-to-shipping-steps";
 import { SiteContactFooter } from "@/components/marketing/site-contact-footer";
 import { SpecialFeaturePromoBanner } from "@/components/marketing/special-feature-promo-banner";
 
@@ -13,14 +14,14 @@ type Props = {
   userId: string | null;
 };
 
-/** Shared Home storefront (header, hero, in-hub, spotlight). */
+/** Shared Home storefront (header, hero, steps, categories, in-hub, spotlight). */
 export function HomePageContent({ userId }: Props) {
   const isSignedIn = Boolean(userId);
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
+    <div className="amani-storefront flex min-h-full flex-1 flex-col">
       <HomePageHeader userId={userId} />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-12 px-4 py-10 md:py-14">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-10 px-4 py-8 md:gap-12 md:py-10">
         <HomeMarketingHero
           promo={
             <Suspense fallback={null}>
@@ -28,6 +29,7 @@ export function HomePageContent({ userId }: Props) {
             </Suspense>
           }
         />
+        <RetailerToShippingSteps />
         <Suspense fallback={null}>
           <HomeHubStockSection isSignedIn={isSignedIn} />
         </Suspense>

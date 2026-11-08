@@ -56,12 +56,12 @@ export default async function DashboardBarrelsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Choose a container
+          <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Barrels — Shop Containers and Build Barrels
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Browse photos, pick a quantity, and add to your cart. Containers are paid together
-            with quoted items at checkout.
+            Choose from our standard boxes and barrels to pack and ship your items.
+            Browse photos, pick a quantity, and add to your cart.
           </p>
         </div>
         <Link
@@ -142,7 +142,11 @@ export default async function DashboardBarrelsPage() {
           </CardContent>
         </Card>
       : catalog.length > 0 ?
-        <ul className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-4">
+          <h2 className="font-heading text-xl font-semibold text-foreground">
+            Shop Containers
+          </h2>
+        <ul className="grid gap-6 sm:grid-cols-2">
           {catalog.map(({ offering, images }) => (
             <li key={offering.id}>
               <DashboardBarrelOfferingCard
@@ -164,6 +168,7 @@ export default async function DashboardBarrelsPage() {
             </li>
           ))}
         </ul>
+        </div>
       : null}
     </div>
   );

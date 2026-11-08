@@ -29,8 +29,8 @@ export default async function DashboardShippingHistoryPage({
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Shipping history
+        <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          Shipping History
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Containers you shipped through Amani Cart2Barrel, newest first. Double-click

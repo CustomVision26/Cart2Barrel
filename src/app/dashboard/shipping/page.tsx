@@ -29,9 +29,12 @@ export default async function DashboardShippingPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Shipment tracking
+        <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          Shipping
         </h1>
+        <h2 className="font-heading text-lg font-semibold text-foreground">
+          Shipment Tracking
+        </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
           When you add a container, freight, customs clearance, and pickup
           charges appear below. Continue to the{" "}

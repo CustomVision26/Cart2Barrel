@@ -59,8 +59,8 @@ function mapOfferToBannerData(
 }
 
 /**
- * Sitewide promo banner for published suitcase specials — compact strip with one
- * colored segment per offer. Click a segment for full details.
+ * Sitewide promo marquee for published suitcase specials — scrolling cards,
+ * matching Shop Starter Bundles. Click a card for full details.
  */
 export async function SpecialFeaturePromoBanner({
   className,

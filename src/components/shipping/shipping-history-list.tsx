@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { IllustrationShippingHistory } from "@/components/brand/amani-illustrations";
+import { CustomerEmptyState } from "@/components/dashboard/customer-empty-state";
 import { BarrelContentsPreviewDialog } from "@/components/shipping/barrel-contents-preview-dialog";
 import { CustomsClearanceDocumentsPanel } from "@/components/shipping/customs-clearance-documents-panel";
 import { OutboundChargePaymentStatus } from "@/components/shipping/outbound-charge-payment-status";
@@ -297,13 +299,23 @@ export function ShippingHistoryList({
   }, [openBarrelId, rows]);
 
   if (rows.length === 0) {
+    if (audience === "admin") {
+      return (
+        <p className="rounded-lg border border-border/80 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+          {emptyMessage ??
+            "Containers shipped through Amani Cart2Barrel appear here with freight, broker, courier, and customs documents."}
+        </p>
+      );
+    }
     return (
-      <p className="rounded-lg border border-border/80 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
-        {emptyMessage ??
-          (audience === "admin"
-            ? "Containers shipped through Amani Cart2Barrel appear here with freight, broker, courier, and customs documents."
-            : "Containers you ship through Amani Cart2Barrel will appear here with freight, broker, courier, and customs documents.")}
-      </p>
+      <CustomerEmptyState
+        title="No shipped containers yet."
+        description={
+          emptyMessage ??
+          "Your completed shipments will appear here, including freight details, broker information, courier tracking, and related customs documents (e.g., invoices, packing lists, and customs declarations)."
+        }
+        illustration={<IllustrationShippingHistory />}
+      />
     );
   }
 

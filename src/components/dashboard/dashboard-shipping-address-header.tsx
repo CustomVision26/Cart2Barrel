@@ -5,7 +5,7 @@ import { DashboardPageTitleWithHelp } from "@/components/dashboard/dashboard-pag
 export function DashboardShippingAddressHeader() {
   return (
     <DashboardPageTitleWithHelp
-      title="Profile & address"
+      title="Profile & Address"
       tooltipClassName="w-80"
       help={
         <>

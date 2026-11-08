@@ -18,9 +18,14 @@ export function DashboardHeaderFallback({
   showAdminEntry?: boolean;
 }) {
   return (
-    <header className="border-b border-border/80 px-4 py-3">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-        <BrandLogoLink priority />
+    <header className="border-b border-border/80 bg-card/90 px-4 py-3">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
+        <div className="min-w-0">
+          <BrandLogoLink priority showWordmark />
+          <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">
+            Shop · Pack · Ship by Barrel
+          </p>
+        </div>
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -62,9 +67,14 @@ export async function DashboardHeader({
   ]);
 
   return (
-    <header className="border-b border-border/80 px-4 py-3">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-        <BrandLogoLink priority />
+    <header className="border-b border-border/80 bg-card/90 px-4 py-3">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
+        <div className="min-w-0">
+          <BrandLogoLink priority showWordmark />
+          <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">
+            Shop · Pack · Ship by Barrel
+          </p>
+        </div>
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -110,8 +120,8 @@ export function DashboardNavFallback({
   }
 
   return (
-    <aside className="hidden w-60 shrink-0 lg:block">
-      <div className="sticky top-6 rounded-xl border border-sidebar-border bg-sidebar/95 p-3 shadow-sm ring-1 ring-sidebar-border/60 backdrop-blur-sm">
+    <aside className="hidden w-64 shrink-0 lg:block">
+      <div className="sticky top-6 rounded-2xl border border-sidebar-border bg-card p-3 shadow-sm">
         <DashboardNav />
       </div>
     </aside>
@@ -148,8 +158,8 @@ export async function DashboardNavWithBadges({
   }
 
   return (
-    <aside className="hidden w-60 shrink-0 lg:block">
-      <div className="sticky top-6 rounded-xl border border-sidebar-border bg-sidebar/95 p-3 shadow-sm ring-1 ring-sidebar-border/60 backdrop-blur-sm">
+    <aside className="hidden w-64 shrink-0 lg:block">
+      <div className="sticky top-6 rounded-2xl border border-sidebar-border bg-card p-3 shadow-sm">
         <DashboardNav badges={badges} />
       </div>
     </aside>

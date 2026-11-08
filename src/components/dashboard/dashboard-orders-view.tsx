@@ -24,6 +24,8 @@ import {
 import { orderSlideLaneNamesList } from "@/lib/admin-orders-slide-filters";
 import { parseOrderHighlightId } from "@/lib/order-notification-highlight";
 import { parsePaidOrdersQuery } from "@/lib/paid-orders-list-params";
+import { IllustrationEmptyOrders } from "@/components/brand/amani-illustrations";
+import { CustomerEmptyState } from "@/components/dashboard/customer-empty-state";
 
 type DashboardOrdersViewMode = "orders" | "history";
 
@@ -48,7 +50,7 @@ const viewCopy = {
       </>
     ),
     empty:
-      "No paid orders yet. Complete checkout from your cart to see lines here while staff prepares your purchase.",
+      "When you complete a purchase and make payment, your orders will appear here.",
   },
   history: {
     title: "Order History",
@@ -114,7 +116,7 @@ export async function DashboardOrdersView({
     <div className="space-y-4">
       <div className="space-y-1">
         <DashboardPageTitleWithHelp
-          title={copy.title}
+          title={mode === "orders" ? "Orders — Track and Manage" : copy.title}
           tooltipClassName="w-80"
           help={copy.description}
         />
@@ -137,16 +139,19 @@ export async function DashboardOrdersView({
           </AdminParentControlsShell>
 
           {noOrdersAtAll ?
-            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-              {copy.empty}
-            </p>
+            <CustomerEmptyState
+              title="No paid orders yet"
+              description={copy.empty}
+              illustration={<IllustrationEmptyOrders />}
+            />
           : null}
 
           {noSearchHits ?
-            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-              No orders match your search. Try batch number, order UUID, request or line UUID, Stripe
-              reference, note text, or product wording.
-            </p>
+            <CustomerEmptyState
+              title="No orders match your filters"
+              description="Try batch number, order UUID, request or line UUID, Stripe reference, note text, or product wording."
+              illustration={<IllustrationEmptyOrders />}
+            />
           : null}
 
           {!noOrdersAtAll && !noSearchHits ? (
@@ -171,16 +176,19 @@ export async function DashboardOrdersView({
           />
 
           {noOrdersAtAll ?
-            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-              {copy.empty}
-            </p>
+            <CustomerEmptyState
+              title="No paid orders yet"
+              description={copy.empty}
+              illustration={<IllustrationEmptyOrders />}
+            />
           : null}
 
           {noSearchHits ?
-            <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-              No orders match your search. Try batch number, order UUID, request or line UUID, Stripe
-              reference, note text, or product wording.
-            </p>
+            <CustomerEmptyState
+              title="No orders match your filters"
+              description="Try batch number, order UUID, request or line UUID, Stripe reference, note text, or product wording."
+              illustration={<IllustrationEmptyOrders />}
+            />
           : null}
 
           {!noOrdersAtAll && !noSearchHits ? (

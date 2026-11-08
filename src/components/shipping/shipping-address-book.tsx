@@ -37,7 +37,7 @@ export function ShippingAddressBook({
   const editing = addresses.find((row) => row.id === editingId);
 
   return (
-    <div className="flex w-full max-w-lg flex-col gap-6">
+    <div className="flex w-full max-w-3xl flex-col gap-6">
       {addresses.length > 0 ?
         <ul className="space-y-3" role="list">
           {addresses.map((address) => (

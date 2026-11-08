@@ -1,13 +1,9 @@
 import Link from "next/link";
 
+import { IllustrationCargoShip } from "@/components/brand/amani-illustrations";
+import { CustomerEmptyState } from "@/components/dashboard/customer-empty-state";
 import { BarrelShippingIntakeForm } from "@/components/shipping/barrel-shipping-intake-form";
 import { BarrelShippingIntakeSubmittedCard } from "@/components/shipping/barrel-shipping-intake-submitted-card";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import type { BarrelShippingIntakePageData } from "@/data/barrel-shipping-intake";
 import type { Address } from "@/db/schema";
 import { linkableContainersFromChargeRows } from "@/lib/barrel-outbound-shipping-charge";
@@ -156,22 +152,19 @@ export function BarrelShippingIntakeSection({
       {unpaidGroups.length === 0 &&
       submitted.length === 0 &&
       trackingStages.length === 0 ?
-        <Card className="max-w-2xl border-dashed border-border/80">
-          <CardHeader>
-            <CardTitle className="text-base">No containers yet</CardTitle>
-            <CardDescription>
-              After you buy a container, freight, customs clearance, and pickup
-              options appear here. Shop containers from{" "}
-              <Link
-                href="/dashboard/barrels"
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                My containers
-              </Link>
-              .
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <CustomerEmptyState
+          title="No containers yet."
+          description="You don’t have any containers in transit right now. Browse available containers to start a shipment."
+          illustration={<IllustrationCargoShip />}
+          actions={
+            <Link
+              href="/dashboard/barrels"
+              className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              Browse Containers
+            </Link>
+          }
+        />
       : null}
     </div>
   );

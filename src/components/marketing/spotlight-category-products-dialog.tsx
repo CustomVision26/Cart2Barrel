@@ -37,7 +37,7 @@ export function SpotlightCategoryProductsDialog({
       <DialogContent
         showCloseButton
         className={cn(
-          "flex max-h-[min(94vh,960px)] w-[min(98vw,72rem)] max-w-none flex-col gap-0 overflow-hidden p-0",
+          "amani-storefront flex max-h-[min(94vh,960px)] w-[min(98vw,72rem)] max-w-none flex-col gap-0 overflow-hidden border-border bg-card p-0 text-foreground",
           "sm:max-w-none",
         )}
       >

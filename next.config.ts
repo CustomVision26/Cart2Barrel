@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
+    qualities: [75, 95],
     localPatterns: [
       {
         pathname: "/amani-cart2barrel-logo.png",
@@ -17,6 +18,10 @@ const nextConfig: NextConfig = {
       },
       {
         pathname: "/homepage-img-cart2barrel.png",
+        search: "",
+      },
+      {
+        pathname: "/marketing/**",
         search: "",
       },
     ],

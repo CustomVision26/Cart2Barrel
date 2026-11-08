@@ -1729,6 +1729,15 @@
   }
 }
 
+@keyframes starter-bundle-marquee-x-reverse {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 .starter-bundle-marquee__viewport {
   -webkit-mask-image: linear-gradient(
     to right,
@@ -1749,6 +1758,10 @@
 .starter-bundle-marquee__track {
   animation: starter-bundle-marquee-x 32s linear infinite;
   will-change: transform;
+}
+
+.starter-bundle-marquee--reverse .starter-bundle-marquee__track {
+  animation-name: starter-bundle-marquee-x-reverse;
 }
 
 .starter-bundle-marquee:hover .starter-bundle-marquee__track,
@@ -1818,4 +1831,70 @@
 .cl-cardBox > .cl-footer svg {
   color: #d4d4d8 !important;
   opacity: 1 !important;
+}
+
+/* Customer storefront: navy, teal, ivory (homepage + dashboard). */
+.amani-storefront {
+  --background: #f6f1e8;
+  --foreground: #123b4a;
+  --card: #ffffff;
+  --card-foreground: #123b4a;
+  --popover: #ffffff;
+  --popover-foreground: #123b4a;
+  --primary: #0d7a6c;
+  --primary-foreground: #ffffff;
+  --secondary: #e7f3f0;
+  --secondary-foreground: #0d7a6c;
+  --muted: #efe8dc;
+  --muted-foreground: #4a6570;
+  --accent: #efe8dc;
+  --accent-foreground: #123b4a;
+  --border: #e2d6c6;
+  --input: #e2d6c6;
+  --ring: #0d7a6c;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #123b4a;
+  --sidebar-primary: #0d7a6c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e7f3f0;
+  --sidebar-accent-foreground: #0d7a6c;
+  --sidebar-border: #e2d6c6;
+  --sidebar-ring: #0d7a6c;
+  --destructive: #b42318;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Follow html theme mode with navy/teal surfaces and high-contrast type. */
+.dark .amani-storefront {
+  --background: #0e1c21;
+  --foreground: #f6f1e8;
+  --card: #173038;
+  --card-foreground: #f6f1e8;
+  --popover: #173038;
+  --popover-foreground: #f6f1e8;
+  --primary: #3db8a8;
+  --primary-foreground: #06221e;
+  --secondary: #1a353c;
+  --secondary-foreground: #8ee6d8;
+  --muted: #1c333a;
+  --muted-foreground: #c5d4d8;
+  --accent: #1c333a;
+  --accent-foreground: #f6f1e8;
+  --border: #2f4e56;
+  --input: #2f4e56;
+  --ring: #3db8a8;
+  --sidebar: #13282e;
+  --sidebar-foreground: #f6f1e8;
+  --sidebar-primary: #3db8a8;
+  --sidebar-primary-foreground: #06221e;
+  --sidebar-accent: #1a353c;
+  --sidebar-accent-foreground: #8ee6d8;
+  --sidebar-border: #2f4e56;
+  --sidebar-ring: #3db8a8;
+  --destructive: #f97066;
+}
+
+.amani-storefront .brand-logo-watermark {
+  display: none;
 }

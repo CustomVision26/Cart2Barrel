@@ -281,6 +281,7 @@ export function SpotlightCategoryOffersPanel({
           any item from your dashboard.
         </p>
         <Button
+          className="w-fit rounded-full"
           nativeButton={false}
           render={<Link href={isSignedIn ? "/dashboard" : "/signup"} />}
         >

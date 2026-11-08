@@ -141,11 +141,11 @@ export default async function DashboardAddItemLayout({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Add item
+        <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          Add item — Products &amp; batch quotes
         </h1>
         <p className="text-sm text-muted-foreground">
-          Track product requests and history. Submit new items from{" "}
+          Start new requests from Requested items. Track product requests and history from{" "}
           <Link
             href={DASHBOARD_REQUESTED_ITEMS_ROUTE}
             className="font-medium text-foreground underline-offset-2 hover:underline"

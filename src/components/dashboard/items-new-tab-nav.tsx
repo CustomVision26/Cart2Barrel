@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { customerPillTabClass, customerPillTablistClass } from "@/lib/customer-pill-tabs";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +21,7 @@ export function ItemsNewTabNav() {
     <div
       role="tablist"
       aria-label="Products and batch quotes"
-      className="flex flex-wrap gap-1 border-b border-border"
+      className={customerPillTablistClass}
     >
       <Link
         href={DASHBOARD_ADD_ITEM_ROUTES.productsActive}
@@ -28,11 +29,8 @@ export function ItemsNewTabNav() {
         aria-selected={pathname.startsWith(
           `${DASHBOARD_ADD_ITEM_ROUTES.products}/`
         )}
-        className={cn(
-          "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-          pathname.startsWith(`${DASHBOARD_ADD_ITEM_ROUTES.products}/`)
-            ? "border-primary text-foreground"
-            : "border-transparent text-muted-foreground hover:text-foreground"
+        className={customerPillTabClass(
+          pathname.startsWith(`${DASHBOARD_ADD_ITEM_ROUTES.products}/`),
         )}
       >
         Products
@@ -44,10 +42,9 @@ export function ItemsNewTabNav() {
           `${DASHBOARD_ADD_ITEM_ROUTES.batchQuotes}/`
         )}
         className={cn(
-          "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-          pathname.startsWith(`${DASHBOARD_ADD_ITEM_ROUTES.batchQuotes}/`)
-            ? "border-primary text-foreground"
-            : "border-transparent text-muted-foreground hover:text-foreground"
+          customerPillTabClass(
+            pathname.startsWith(`${DASHBOARD_ADD_ITEM_ROUTES.batchQuotes}/`),
+          ),
         )}
       >
         Batch Quotes

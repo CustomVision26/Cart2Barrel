@@ -20,7 +20,6 @@ import {
   CardContent,
   CardDescription,
   CardFooter,
-  CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { formatUsd } from "@/lib/admin-markup";
@@ -96,21 +95,10 @@ export function DashboardBarrelOfferingCard({
   const priceLabel = formatUsd(offering.priceUsdCents);
 
   return (
-    <Card className="overflow-hidden border-border/80">
-      <CardHeader className="space-y-1 pb-2">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <CardTitle className="text-lg">{offering.name}</CardTitle>
-          <span className="shrink-0 rounded-full border border-border/80 bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
-            {containerOfferingKindLabel(offering.kind)}
-          </span>
-        </div>
-        <CardDescription>
-          {offering.sizeLabel} · {priceLabel} each
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Card className="overflow-hidden border-border/80 shadow-sm">
+      <CardContent className="space-y-4 p-4">
         {images.length > 0 ?
-          <div className="relative px-10 pb-2">
+          <div className="relative">
             <Carousel className="w-full" opts={{ loop: images.length > 1 }}>
               <CarouselContent>
                 {images.map((im) => (
@@ -145,6 +133,14 @@ export function DashboardBarrelOfferingCard({
           </div>
         )}
 
+        <div className="space-y-1">
+          <CardTitle className="text-lg">{offering.name}</CardTitle>
+          <CardDescription>
+            {offering.sizeLabel} · {priceLabel} each ·{" "}
+            {containerOfferingKindLabel(offering.kind)}
+          </CardDescription>
+        </div>
+
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <label
@@ -169,7 +165,7 @@ export function DashboardBarrelOfferingCard({
           </div>
           <Button
             type="button"
-            className="min-w-[8rem]"
+            className="min-w-[8rem] rounded-full"
             disabled={pending}
             onClick={handleAddToCart}
           >

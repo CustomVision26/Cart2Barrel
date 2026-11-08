@@ -3,17 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { cn } from "@/lib/utils";
+import { customerPillTabClass, customerPillTablistClass } from "@/lib/customer-pill-tabs";
 
 export type DashboardBarrelsTab = "shop" | "product_to_barrel" | "history";
-
-const tabLinkClass = (selected: boolean) =>
-  cn(
-    "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-    selected
-      ? "border-primary text-foreground"
-      : "border-transparent text-muted-foreground hover:text-foreground",
-  );
 
 export function DashboardBarrelsTabNav() {
   const path = usePathname() ?? "";
@@ -26,31 +18,31 @@ export function DashboardBarrelsTabNav() {
     <div
       role="tablist"
       aria-label="Barrels views"
-      className="flex flex-wrap gap-1 border-b border-border"
+      className={customerPillTablistClass}
     >
       <Link
         href="/dashboard/barrels"
         role="tab"
         aria-selected={activeTab === "shop"}
-        className={tabLinkClass(activeTab === "shop")}
+        className={customerPillTabClass(activeTab === "shop")}
       >
-        Shop containers
+        Shop Containers
       </Link>
       <Link
         href="/dashboard/barrels/product-to-barrel"
         role="tab"
         aria-selected={activeTab === "product_to_barrel"}
-        className={tabLinkClass(activeTab === "product_to_barrel")}
+        className={customerPillTabClass(activeTab === "product_to_barrel")}
       >
-        Product to barrel
+        Product to Barrel
       </Link>
       <Link
         href="/dashboard/barrels/product-to-barrel-history"
         role="tab"
         aria-selected={activeTab === "history"}
-        className={tabLinkClass(activeTab === "history")}
+        className={customerPillTabClass(activeTab === "history")}
       >
-        Product to barrel history
+        Product to Barrel History
       </Link>
     </div>
   );
