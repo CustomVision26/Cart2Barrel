@@ -27,6 +27,7 @@ export const starterBundleItemInputSchema = z.object({
   productSize: optionalTrimmed(200),
   productColor: optionalTrimmed(200),
   retailerUrl: optionalHttpsUrl,
+  productImageUrl: optionalHttpsUrl,
 });
 
 export const adminSaveStarterBundleSchema = z.object({

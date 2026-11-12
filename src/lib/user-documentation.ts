@@ -713,7 +713,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       bullets: [
         "Listing shows published bundles only, ordered from lowest estimated merchandise subtotal to highest.",
         "Each card shows name, description, estimated merchandise subtotal, and View bundle. Barrel size and approximate fill appear when staff entered them.",
-        "The detail view is read-only except Add a note (optional). Line totals are quantity × estimated unit price.",
+        "Each product row shows its image. Click a product to see size, color, price, quantity, and a link to the retailer page. You can adjust those details while you review. Request an estimate sends the bundle as staff posted it and returns the list to those values.",
         "Request an estimate uses the Shopping list quote path. Sign in if needed. Track the request on Add item → Batch quotes.",
         "Upload My Shopping List remains available on Requested items for custom products.",
       ],
@@ -737,7 +737,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       ],
       walkthrough: [
         "Open /starter-bundles from Home (Shop Starter Bundles marquee above Featured & spotlight) or by visiting that URL.",
-        "Compare cards ordered by estimated merchandise subtotal. Open View bundle to see each product, quantity, color or variant, size, estimated unit price, and line total.",
+        "Compare cards ordered by estimated merchandise subtotal. Open View bundle to see each product image, quantity, color or variant, size, estimated unit price, and line total. Click a product for size, color, price, quantity, and the retailer page.",
         "Add a note if you want, then Request an estimate. Sign in if you are not already signed in. If the bundle changed since you opened it, review the updated list before submitting again.",
         "When the estimate is ready, preview and accept it on Add item → Batch quotes, the same confirmation used for Shopping list photo requests.",
       ],
@@ -750,7 +750,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Use Requested items → Shopping list when you want to choose your own products.",
       ],
       donts: [
-        "Do not assume you can edit bundle products or prices—the list is fixed.",
+        "Do not expect a size, color, price, or quantity change to replace the posted bundle. Request an estimate uses the products staff posted and puts the list back.",
         "Do not treat a submitted bundle as paid until you accept the quote and check out.",
       ],
     },

@@ -27,6 +27,7 @@ export async function AdminOverviewStarterBundlesSection() {
       productSize: item.productSize ?? "",
       productColor: item.productColor ?? "",
       retailerUrl: item.retailerUrl ?? "",
+      productImageUrl: item.productImageUrl ?? "",
     })),
   }));
 

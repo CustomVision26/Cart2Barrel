@@ -59,6 +59,7 @@ export type BudgetBarrelPickedProduct = {
   productSize: string;
   productColor: string;
   retailerUrl: string;
+  imageUrl: string;
 };
 
 const EMPTY_ATTRIBUTE: AttributeDraft = { size: "", color: "", packSize: "", brand: "" };
@@ -796,6 +797,7 @@ function pickedProducts(lines: PricedBudgetLine[]): BudgetBarrelPickedProduct[] 
         productSize: line.offer.size ?? line.offer.packSize ?? "",
         productColor: line.offer.color ?? "",
         retailerUrl: line.offer.productUrl,
+        imageUrl: line.offer.imageUrl ?? "",
       },
     ];
   });

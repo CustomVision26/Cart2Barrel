@@ -281,7 +281,7 @@ const ADMIN_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Overview → Starter Bundles tab.",
       bullets: [
         "Create bundle, then enter name, description, optional image, optional barrel size and approximate fill.",
-        "Add product opens a Budget Barrel builder. Build a list, hold the products to include, then Add products. Those held products become rows with name, quantity, size, color, unit price, and retailer link. Edit, reorder, or remove rows afterward.",
+        "Add product opens a Budget Barrel builder. Build a list, hold the products to include, then Add products. Those held products become rows with the product image, name, quantity, size, color, unit price, and retailer link. Edit, reorder, or remove rows afterward.",
         "Line totals and the estimated merchandise subtotal update from item prices. Publish more than one bundle at different price points.",
         "Save draft, Preview, Publish, Edit, and Archive. Publishing requires at least one valid product. Draft and archived bundles stay hidden from shoppers.",
         "Click Published next to the Starter Bundles heading to show the Home marquee. Click it again to hide the marquee. At least one published bundle is required before the marquee can go live.",

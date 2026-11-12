@@ -10,7 +10,7 @@ import {
 } from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
 
-const ENSURE_KEY = "starter-bundles";
+const ENSURE_KEY = "starter-bundles-v2";
 const MARQUEE_ENSURE_KEY = "starter-bundle-marquee-settings";
 
 let inFlight: Promise<boolean> | null = null;
@@ -55,6 +55,7 @@ async function ensureStarterBundlesSchemaInner(): Promise<boolean> {
         "product_size" text,
         "product_color" text,
         "retailer_url" text,
+        "product_image_url" text,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       )
     `);
@@ -65,6 +66,10 @@ async function ensureStarterBundlesSchemaInner(): Promise<boolean> {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS "starter_bundle_items_bundle_id_sort_idx"
       ON "starter_bundle_items" ("starter_bundle_id", "sort_index")
+    `);
+    await db.execute(sql`
+      ALTER TABLE "starter_bundle_items"
+      ADD COLUMN IF NOT EXISTS "product_image_url" text
     `);
     await db.execute(sql`
       ALTER TABLE "shopping_list_quotes"

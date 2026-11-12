@@ -42,6 +42,7 @@ export type StarterBundleSnapshotItem = {
   productSize: string | null;
   productColor: string | null;
   retailerUrl: string | null;
+  productImageUrl: string | null;
   lineTotalCents: number;
 };
 

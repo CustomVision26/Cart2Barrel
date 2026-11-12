@@ -766,6 +766,7 @@ export const starterBundleItems = pgTable(
     productSize: text("product_size"),
     productColor: text("product_color"),
     retailerUrl: text("retailer_url"),
+    productImageUrl: text("product_image_url"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),

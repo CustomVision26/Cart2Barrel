@@ -330,7 +330,7 @@ export async function submitStarterBundleQuoteForOwner(params: {
         productSize: item.productSize,
         productColor: item.productColor,
         note: null,
-        productImageUrl: null,
+        productImageUrl: item.productImageUrl,
       })
       .returning();
     if (row) lineRows.push(row);

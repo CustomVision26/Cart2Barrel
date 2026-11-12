@@ -50,6 +50,7 @@ export type PublishedStarterBundleDetail = PublishedStarterBundleCard & {
     productSize: string | null;
     productColor: string | null;
     retailerUrl: string | null;
+    productImageUrl: string | null;
     lineTotalCents: number;
   }[];
 };
@@ -69,6 +70,7 @@ function snapshotItemsFromRows(
     productSize: item.productSize,
     productColor: item.productColor,
     retailerUrl: item.retailerUrl,
+    productImageUrl: item.productImageUrl,
     lineTotalCents: starterBundleLineTotalCents(
       item.quantity,
       item.estimatedUnitPriceCents,
@@ -218,6 +220,7 @@ export async function getPublishedStarterBundleDetail(
       productSize: item.productSize,
       productColor: item.productColor,
       retailerUrl: item.retailerUrl,
+      productImageUrl: item.productImageUrl,
       lineTotalCents: starterBundleLineTotalCents(
         item.quantity,
         item.estimatedUnitPriceCents,
@@ -255,6 +258,7 @@ export async function getStarterBundleDetailForViewer(params: {
         productSize: item.productSize,
         productColor: item.productColor,
         retailerUrl: item.retailerUrl,
+        productImageUrl: item.productImageUrl,
         lineTotalCents: starterBundleLineTotalCents(
           item.quantity,
           item.estimatedUnitPriceCents,
@@ -274,6 +278,7 @@ function replaceItemRows(
   productSize: string | null;
   productColor: string | null;
   retailerUrl: string | null;
+  productImageUrl: string | null;
 }[] {
   return items.map((item, index) => ({
     sortIndex: index,
@@ -283,6 +288,7 @@ function replaceItemRows(
     productSize: item.productSize?.trim() || null,
     productColor: item.productColor?.trim() || null,
     retailerUrl: item.retailerUrl?.trim() || null,
+    productImageUrl: item.productImageUrl?.trim() || null,
   }));
 }
 

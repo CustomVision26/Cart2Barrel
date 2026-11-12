@@ -56,6 +56,7 @@ export type AdminStarterBundleListItem = {
     productSize: string;
     productColor: string;
     retailerUrl: string;
+    productImageUrl: string;
   }[];
 };
 
@@ -67,6 +68,7 @@ type ItemDraft = {
   productSize: string;
   productColor: string;
   retailerUrl: string;
+  productImageUrl: string;
 };
 
 type FormState = {
@@ -85,6 +87,7 @@ function isBlankItem(item: ItemDraft): boolean {
     item.productSize.trim() === "" &&
     item.productColor.trim() === "" &&
     item.retailerUrl.trim() === "" &&
+    item.productImageUrl.trim() === "" &&
     parseUsdToCents(item.unitPrice$) === 0
   );
 }
@@ -98,6 +101,7 @@ function emptyItem(): ItemDraft {
     productSize: "",
     productColor: "",
     retailerUrl: "",
+    productImageUrl: "",
   };
 }
 
@@ -130,6 +134,7 @@ function formFromBundle(row: AdminStarterBundleListItem): FormState {
             productSize: item.productSize,
             productColor: item.productColor,
             retailerUrl: item.retailerUrl,
+            productImageUrl: item.productImageUrl,
           }))
         : [emptyItem()],
   };
@@ -145,6 +150,9 @@ function payloadFromForm(form: FormState) {
       productSize: item.productSize.trim() || undefined,
       productColor: item.productColor.trim() || undefined,
       retailerUrl: item.retailerUrl.trim() || undefined,
+      productImageUrl: /^https:\/\//i.test(item.productImageUrl.trim())
+        ? item.productImageUrl.trim()
+        : undefined,
     }))
     .filter((item) => item.productName.length > 0);
   return {
@@ -203,6 +211,7 @@ export function AdminStarterBundlesManager({
       productSize: product.productSize,
       productColor: product.productColor,
       retailerUrl: /^https:\/\//i.test(product.retailerUrl) ? product.retailerUrl : "",
+      productImageUrl: /^https:\/\//i.test(product.imageUrl) ? product.imageUrl : "",
     }));
     setForm({ ...form, items: [...kept, ...rows] });
     setPickerOpen(false);
@@ -526,13 +535,25 @@ export function AdminStarterBundlesManager({
                   {form.items.map((item, index) => (
                     <tr key={item.clientKey} className="border-b border-border/60 align-top">
                       <td className="px-2 py-2">
-                        <Input
-                          value={item.productName}
-                          disabled={pending}
-                          onChange={(e) =>
-                            patchItem(item.clientKey, { productName: e.target.value })
-                          }
-                        />
+                        <div className="flex items-center gap-2">
+                          {/^https:\/\//i.test(item.productImageUrl) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.productImageUrl}
+                              alt=""
+                              className="size-10 shrink-0 rounded border border-border object-cover"
+                            />
+                          ) : (
+                            <span className="size-10 shrink-0 rounded border border-dashed border-border bg-muted" />
+                          )}
+                          <Input
+                            value={item.productName}
+                            disabled={pending}
+                            onChange={(e) =>
+                              patchItem(item.clientKey, { productName: e.target.value })
+                            }
+                          />
+                        </div>
                       </td>
                       <td className="w-20 px-2 py-2">
                         <Input
