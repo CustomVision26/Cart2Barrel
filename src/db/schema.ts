@@ -600,13 +600,22 @@ export const shoppingListQuotes = pgTable(
       .notNull()
       .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
     sourceImageUrl: text("source_image_url"),
-    /** `photo` (uploaded list) or `starter_bundle`. */
+    /** `photo` (uploaded list), `starter_bundle`, or `budget_barrel`. */
     sourceKind: text("source_kind").notNull().default("photo"),
     starterBundleId: uuid("starter_bundle_id"),
     starterBundleSnapshot: jsonb("starter_bundle_snapshot").$type<
       import("@/lib/starter-bundles").StarterBundleSnapshot | null
     >(),
+    /** Merchandise budget and request context for Budget Barrel Builder. */
+    merchandiseBudgetCents: integer("merchandise_budget_cents"),
+    builderSnapshot: jsonb("builder_snapshot").$type<
+      import("@/lib/budget-barrel/types").BudgetBarrelBuilderSnapshot | null
+    >(),
     customerNote: text("customer_note"),
+    /** Unsent staff pricing. Cleared when the estimate is sent. */
+    staffDraft: jsonb("staff_draft").$type<
+      import("@/lib/shopping-list-quote").ShoppingListStaffDraft | null
+    >(),
     status: text("status").notNull().default("draft"),
     batchQuoteSessionId: uuid("batch_quote_session_id").references(
       () => batchQuoteSessions.id,
@@ -644,6 +653,19 @@ export const shoppingListQuoteLines = pgTable(
     productColor: text("product_color"),
     note: text("note"),
     productImageUrl: text("product_image_url"),
+    retailer: text("retailer"),
+    sellerName: text("seller_name"),
+    retailerProductUrl: text("retailer_product_url"),
+    packSize: text("pack_size"),
+    observedPriceCents: integer("observed_price_cents"),
+    currency: text("currency"),
+    availability: text("availability"),
+    priceRetrievedAt: timestamp("price_retrieved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    needsStaffReview: boolean("needs_staff_review").notNull().default(false),
+    retailerDeliveryCents: integer("retailer_delivery_cents"),
     itemRequestId: uuid("item_request_id").references(() => itemRequests.id, {
       onDelete: "set null",
     }),
@@ -653,6 +675,52 @@ export const shoppingListQuoteLines = pgTable(
   },
   (t) => [
     index("shopping_list_quote_lines_list_id_idx").on(t.shoppingListQuoteId),
+  ],
+);
+
+/** Server-held Budget Barrel Builder search. Prices live here until submit. */
+export const budgetBarrelDrafts = pgTable(
+  "budget_barrel_drafts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clerkUserId: text("clerk_user_id")
+      .notNull()
+      .references(() => profiles.clerkUserId, { onDelete: "cascade" }),
+    status: text("status").notNull().default("open"),
+    idempotencyKey: text("idempotency_key"),
+    merchandiseBudgetCents: integer("merchandise_budget_cents").notNull(),
+    request: jsonb("request")
+      .$type<import("@/lib/budget-barrel/types").BudgetBarrelRequest>()
+      .notNull(),
+    offers: jsonb("offers")
+      .$type<import("@/lib/budget-barrel/types").BudgetBarrelOffer[]>()
+      .notNull(),
+    oneStore: jsonb("one_store").$type<
+      import("@/lib/budget-barrel/types").BudgetBarrelListPlan | null
+    >(),
+    multiStore: jsonb("multi_store").$type<
+      import("@/lib/budget-barrel/types").BudgetBarrelListPlan | null
+    >(),
+    providerNotes: jsonb("provider_notes").$type<string[]>().notNull(),
+    priceCheckedAt: timestamp("price_checked_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    shoppingListQuoteId: uuid("shopping_list_quote_id"),
+    batchQuoteSessionId: uuid("batch_quote_session_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("budget_barrel_drafts_clerk_user_id_idx").on(t.clerkUserId),
+    uniqueIndex("budget_barrel_drafts_user_idempotency_uidx").on(
+      t.clerkUserId,
+      t.idempotencyKey,
+    ),
   ],
 );
 
@@ -2957,6 +3025,7 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
   batchQuoteSessions: many(batchQuoteSessions),
   itemRequests: many(itemRequests),
   shoppingListQuotes: many(shoppingListQuotes),
+  budgetBarrelDrafts: many(budgetBarrelDrafts),
   orders: many(orders),
   barrels: many(barrels),
   payments: many(payments),
@@ -3776,6 +3845,9 @@ export type ShoppingListQuote = typeof shoppingListQuotes.$inferSelect;
 export type NewShoppingListQuote = typeof shoppingListQuotes.$inferInsert;
 export type ShoppingListQuoteLine = typeof shoppingListQuoteLines.$inferSelect;
 export type NewShoppingListQuoteLine = typeof shoppingListQuoteLines.$inferInsert;
+
+export type BudgetBarrelDraft = typeof budgetBarrelDrafts.$inferSelect;
+export type NewBudgetBarrelDraft = typeof budgetBarrelDrafts.$inferInsert;
 
 export type StarterBundle = typeof starterBundles.$inferSelect;
 export type NewStarterBundle = typeof starterBundles.$inferInsert;

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE } from "@/lib/dashboard-items-routes";
+import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
 import { cn } from "@/lib/utils";
 
 const ROTATE_MS = 60_000;
@@ -98,7 +98,7 @@ export function HomeHeroSlideshow() {
               nativeButton={false}
               render={
                 <Link
-                  href={DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE}
+                  href={DASHBOARD_REQUESTED_ITEMS_ROUTE}
                   prefetch={false}
                 />
               }

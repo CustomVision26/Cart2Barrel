@@ -8,6 +8,7 @@ import {
   Radar,
   Ship,
   ShoppingCart,
+  Wallet,
   Warehouse,
   type LucideIcon,
 } from "lucide-react";
@@ -35,6 +36,12 @@ const SERVICES: Service[] = [
     title: SHOPPING_LIST_CARD_TITLE,
     description: SHOPPING_LIST_CARD_DESCRIPTION,
     icon: ClipboardList,
+  },
+  {
+    title: "Build a Shopping List",
+    description:
+      "Set a merchandise budget, search US retailers, and edit the list before you request one estimate. Starter Bundles and photo upload stay available.",
+    icon: Wallet,
   },
   {
     title: "Pay when you are ready",

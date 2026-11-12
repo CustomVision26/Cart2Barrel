@@ -13,8 +13,8 @@ export function RequestedItemsPageHeading() {
         Requested items
       </h1>
       <p className="text-sm text-muted-foreground">
-        Paste a product link or upload a photo of the products you want quoted. AI can
-        draft the details, then submit for staff to review. You can edit every field
+        Paste a product link, upload a list photo, or build a list from a merchandise budget.
+        AI can draft details, then submit for staff to review. You can edit every field
         yourself.{" "}
         <Link
           href={DASHBOARD_ADD_ITEM_ROUTES.productsActive}

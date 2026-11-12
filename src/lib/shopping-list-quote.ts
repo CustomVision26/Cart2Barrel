@@ -19,6 +19,25 @@ export const SHOPPING_LIST_QUOTE_STATUSES = [
 export type ShoppingListQuoteStatus =
   (typeof SHOPPING_LIST_QUOTE_STATUSES)[number];
 
+/** Staff-only progress on a list quote. It is not sent to the shopper. */
+export type ShoppingListStaffDraft = {
+  savedAt: string;
+  staffNote: string | null;
+  lines: {
+    itemRequestId: string;
+    productName: string | null;
+    quantity: number;
+    productSize: string | null;
+    productColor: string | null;
+    note: string | null;
+    productImageUrl: string | null;
+    itemCostCents: number;
+    serviceFeeCents: number;
+    estimatedShippingCents: number;
+    taxCents: number;
+  }[];
+};
+
 export function isShoppingListQuoteStatus(
   value: string | null | undefined,
 ): value is ShoppingListQuoteStatus {
@@ -75,5 +94,7 @@ export type AdminShoppingListQuoteView = {
   customerFullName: string | null;
   customerEmail: string | null;
   batchNumber: string | null;
+  /** When the shopper's batch session was submitted. */
+  batchSubmittedAt: string | null;
   lines: AdminShoppingListQuoteLineView[];
 };

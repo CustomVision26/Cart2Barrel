@@ -1,5 +1,6 @@
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
 import {
+  DASHBOARD_BUDGET_BARREL_ROUTE,
   DASHBOARD_REQUESTED_ITEMS_ROUTE,
   DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE,
 } from "@/lib/dashboard-items-routes";
@@ -181,7 +182,16 @@ const CUSTOMER_EXTRA_SURFACES: UiSurfaceDefinition[] = [
     category: "Shopping",
     route: DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE,
     location:
-      "Sidebar → Requested items → Shopping list card (/dashboard/items/requested-items/shopping-list-request).",
+      "Sidebar → Requested items → Upload Shopping List card (/dashboard/items/requested-items/shopping-list-request).",
+    kind: "tab",
+  },
+  {
+    id: "budget-barrel",
+    title: "Requested items — Build a Shopping List",
+    category: "Shopping",
+    route: DASHBOARD_BUDGET_BARREL_ROUTE,
+    location:
+      "Sidebar → Requested items → Build a Shopping List card (/dashboard/items/requested-items/budget-barrel).",
     kind: "tab",
   },
   {

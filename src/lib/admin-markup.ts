@@ -45,7 +45,7 @@ function parseCents(raw: string | undefined, fallback: number): number {
 export function getAdminMarkupSettings(): AdminMarkupSettings {
   return {
     taxBps: parseBps(process.env.ADMIN_TAX_BPS, 0),
-    defaultShippingCents: parseCents(process.env.ADMIN_DEFAULT_SHIPPING_CENTS, 1500),
+    defaultShippingCents: parseCents(process.env.ADMIN_DEFAULT_SHIPPING_CENTS, 0),
   };
 }
 

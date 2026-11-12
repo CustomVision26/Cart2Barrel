@@ -7,7 +7,7 @@ import { CartHeaderLink } from "@/components/dashboard/cart-header-link";
 import { MarketingContactUs } from "@/components/marketing/marketing-contact-us";
 import { UserHeaderControls } from "@/components/user-header-controls";
 import { Button } from "@/components/ui/button";
-import { DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE } from "@/lib/dashboard-items-routes";
+import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
 
 type HomePageHeaderProps = {
   userId: string | null;
@@ -35,7 +35,7 @@ export function HomePageHeader({ userId }: HomePageHeaderProps) {
             </summary>
             <div className="absolute left-0 z-50 mt-1 w-max min-w-56 rounded-xl border border-border bg-card p-2 shadow-lg">
               <Link
-                href={DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE}
+                href={DASHBOARD_REQUESTED_ITEMS_ROUTE}
                 prefetch={false}
                 className="block whitespace-nowrap rounded-lg px-3 py-2 text-sm hover:bg-muted"
               >
@@ -87,7 +87,7 @@ export function HomePageHeader({ userId }: HomePageHeaderProps) {
             nativeButton={false}
             render={
               <Link
-                href={DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE}
+                href={DASHBOARD_REQUESTED_ITEMS_ROUTE}
                 prefetch={false}
               />
             }

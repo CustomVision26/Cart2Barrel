@@ -177,13 +177,84 @@ function collectAmazonAsinRows(
   return rows.slice(0, MAX_ASIN_FETCHES);
 }
 
-type AmazonSearchResponse = {
-  organic_results?: Array<{
-    asin?: string;
-    title?: string;
-    link?: string;
-  }>;
+type AmazonSearchPrice = string | { raw?: string; value?: number };
+
+type AmazonSearchResult = {
+  asin?: string;
+  title?: string;
+  link?: string;
+  thumbnail?: string;
+  image?: string;
+  price?: AmazonSearchPrice;
+  extracted_price?: number;
+  sponsored?: boolean;
 };
+
+type AmazonSearchResponse = {
+  organic_results?: AmazonSearchResult[];
+};
+
+function amazonSearchPrice(row: AmazonSearchResult): number | null {
+  if (
+    typeof row.extracted_price === "number" &&
+    Number.isFinite(row.extracted_price) &&
+    row.extracted_price > 0
+  ) {
+    return row.extracted_price;
+  }
+  const price = row.price;
+  if (price && typeof price === "object" && typeof price.value === "number" && price.value > 0) {
+    return price.value;
+  }
+  const text = typeof price === "string" ? price : price?.raw;
+  if (!text?.trim()) return null;
+  if (/€|£|¥|\b(?:cad|eur|gbp|aud)\b/i.test(text)) return null;
+  const parsed = Number.parseFloat(text.replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export type AmazonSearchHit = {
+  title: string;
+  asin: string;
+  link: string;
+  imageUrl: string | null;
+  priceUsd: number | null;
+};
+
+/** Amazon search results with a product page and a USD price when one is listed. */
+export async function searchAmazonProducts(
+  query: string,
+  maxResults = 8,
+): Promise<AmazonSearchHit[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const data = await serpApiGet<AmazonSearchResponse>({
+    engine: "amazon",
+    k: q,
+    amazon_domain: "amazon.com",
+  });
+  const rows = data.organic_results ?? [];
+  const ordered = [
+    ...rows.filter((row) => row.sponsored !== true),
+    ...rows.filter((row) => row.sponsored === true),
+  ];
+  const hits: AmazonSearchHit[] = [];
+  for (const row of ordered) {
+    if (hits.length >= maxResults) break;
+    const asin = row.asin?.trim().toUpperCase() ?? "";
+    const title = row.title?.trim() ?? "";
+    if (!/^[A-Z0-9]{10}$/.test(asin) || title.length < 2) continue;
+    const link = row.link?.trim();
+    hits.push({
+      title,
+      asin,
+      link: link && /^https:\/\//i.test(link) ? link : amazonProductUrl(asin, "amazon.com"),
+      imageUrl: row.thumbnail?.trim() || row.image?.trim() || null,
+      priceUsd: amazonSearchPrice(row),
+    });
+  }
+  return hits;
+}
 
 export async function searchAmazonFirstAsin(
   query: string,

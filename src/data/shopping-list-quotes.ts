@@ -47,6 +47,7 @@ import {
   type AdminShoppingListQuoteLineView,
   type AdminShoppingListQuoteView,
   type ShoppingListQuoteStatus,
+  type ShoppingListStaffDraft,
 } from "@/lib/shopping-list-quote";
 import {
   SHOPPING_LIST_PHOTO_SOURCE_KIND,
@@ -463,6 +464,7 @@ export async function listSubmittedShoppingListQuotesForAdmin(opts?: {
       customerFullName: profiles.fullName,
       customerEmail: profiles.email,
       batchNumber: batchQuoteSessions.batchNumber,
+      batchSubmittedAt: batchQuoteSessions.submittedAt,
     })
     .from(shoppingListQuotes)
     .innerJoin(profiles, eq(shoppingListQuotes.clerkUserId, profiles.clerkUserId))
@@ -522,8 +524,65 @@ export async function listSubmittedShoppingListQuotesForAdmin(opts?: {
     customerFullName: row.customerFullName,
     customerEmail: row.customerEmail,
     batchNumber: row.batchNumber,
+    batchSubmittedAt: row.batchSubmittedAt,
     lines: linesByList.get(row.list.id) ?? [],
   }));
+}
+
+export async function saveShoppingListStaffDraft(
+  input: SaveShoppingListEstimateInput,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await ensureShoppingListQuoteSchema();
+  const db = getDb();
+
+  const [list] = await db
+    .select()
+    .from(shoppingListQuotes)
+    .where(eq(shoppingListQuotes.id, input.shoppingListQuoteId))
+    .limit(1);
+  if (!list) return { ok: false, message: "Shopping list not found." };
+  if (list.status !== "submitted" && list.status !== "estimated") {
+    return { ok: false, message: "This list is not waiting for an estimate." };
+  }
+
+  const lineRows = await db
+    .select({ itemRequestId: shoppingListQuoteLines.itemRequestId })
+    .from(shoppingListQuoteLines)
+    .where(eq(shoppingListQuoteLines.shoppingListQuoteId, list.id));
+  const ownedIds = new Set(
+    lineRows.map((row) => row.itemRequestId).filter((id): id is string => Boolean(id)),
+  );
+  for (const line of input.lines) {
+    if (!ownedIds.has(line.itemRequestId)) {
+      return { ok: false, message: "A product line does not belong to this list." };
+    }
+  }
+
+  const savedAt = new Date().toISOString();
+  const draft: ShoppingListStaffDraft = {
+    savedAt,
+    staffNote: input.staffNote ?? null,
+    lines: input.lines.map((line) => ({
+      itemRequestId: line.itemRequestId,
+      productName: line.productName ?? null,
+      quantity: line.quantity ?? 1,
+      productSize: line.productSize ?? null,
+      productColor: line.productColor ?? null,
+      note: line.note ?? null,
+      productImageUrl: line.productImageUrl ?? null,
+      itemCostCents: line.itemCost,
+      serviceFeeCents: line.serviceFee,
+      estimatedShippingCents: line.estimatedShipping,
+      taxCents: line.tax,
+    })),
+  };
+
+  await db
+    .update(shoppingListQuotes)
+    .set({ staffDraft: draft, updatedAt: savedAt })
+    .where(eq(shoppingListQuotes.id, list.id));
+
+  return { ok: true };
 }
 
 export async function applySaveShoppingListEstimate(
@@ -728,7 +787,11 @@ export async function applySaveShoppingListEstimate(
   await detachItemRequestsFromBatchSession(sessionId);
   await db
     .update(shoppingListQuotes)
-    .set({ status: "estimated", updatedAt: new Date().toISOString() })
+    .set({
+      status: "estimated",
+      staffDraft: null,
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(shoppingListQuotes.id, list.id));
 
   return { ok: true };

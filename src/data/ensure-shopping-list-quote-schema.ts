@@ -9,7 +9,7 @@ import {
 } from "@/data/schema-ensure-gate";
 import { getDb } from "@/db";
 
-const ENSURE_KEY = "shopping-list-quotes-v2";
+const ENSURE_KEY = "shopping-list-quotes-v4";
 
 let inFlight: Promise<boolean> | null = null;
 
@@ -91,6 +91,58 @@ async function ensureShoppingListQuoteSchemaInner(): Promise<boolean> {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS "shopping_list_quotes_source_kind_idx"
       ON "shopping_list_quotes" ("source_kind")
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quotes"
+      ADD COLUMN IF NOT EXISTS "merchandise_budget_cents" integer
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quotes"
+      ADD COLUMN IF NOT EXISTS "builder_snapshot" jsonb
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quotes"
+      ADD COLUMN IF NOT EXISTS "staff_draft" jsonb
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "retailer" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "seller_name" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "retailer_product_url" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "pack_size" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "observed_price_cents" integer
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "currency" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "availability" text
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "price_retrieved_at" timestamp with time zone
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "needs_staff_review" boolean DEFAULT false NOT NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE "shopping_list_quote_lines"
+      ADD COLUMN IF NOT EXISTS "retailer_delivery_cents" integer
     `);
     markSchemaEnsureReady(ENSURE_KEY);
     return true;

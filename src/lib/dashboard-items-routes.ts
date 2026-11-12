@@ -11,3 +11,6 @@ export const DASHBOARD_AI_ASSISTED_ITEM_REQUEST_ROUTE =
 
 export const DASHBOARD_SHOPPING_LIST_REQUEST_ROUTE =
   "/dashboard/items/requested-items/shopping-list-request" as const;
+
+export const DASHBOARD_BUDGET_BARREL_ROUTE =
+  "/dashboard/items/requested-items/budget-barrel" as const;

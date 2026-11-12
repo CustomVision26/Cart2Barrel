@@ -6,7 +6,10 @@ import { DashboardPageTitleWithHelp } from "@/components/dashboard/dashboard-pag
 import { ShoppingListRequestWorkspace } from "@/components/dashboard/shopping-list-request-workspace";
 import { Button } from "@/components/ui/button";
 import { DASHBOARD_ADD_ITEM_ROUTES } from "@/lib/dashboard-add-item-routes";
-import { DASHBOARD_REQUESTED_ITEMS_ROUTE } from "@/lib/dashboard-items-routes";
+import {
+  DASHBOARD_BUDGET_BARREL_ROUTE,
+  DASHBOARD_REQUESTED_ITEMS_ROUTE,
+} from "@/lib/dashboard-items-routes";
 
 export const maxDuration = 60;
 
@@ -50,7 +53,7 @@ export default async function DashboardShoppingListRequestPage() {
           </li>
           <li className="flex items-center gap-1" aria-hidden>
             <ChevronRight className="size-3.5 shrink-0 opacity-50" />
-            <span className="font-medium text-foreground">Shopping list</span>
+            <span className="font-medium text-foreground">Upload Shopping List</span>
           </li>
         </ol>
       </nav>
@@ -61,7 +64,7 @@ export default async function DashboardShoppingListRequestPage() {
             New list quote
           </p>
           <DashboardPageTitleWithHelp
-            title="Shopping list"
+            title="Upload Shopping List"
             tooltipClassName="w-[28rem]"
             help={
               <>
@@ -91,6 +94,14 @@ export default async function DashboardShoppingListRequestPage() {
         </ol>
 
         <div className="flex flex-wrap items-center gap-3">
+          <Button
+            nativeButton={false}
+            render={<Link href={DASHBOARD_BUDGET_BARREL_ROUTE} />}
+            variant="outline"
+            size="sm"
+          >
+            Build a Shopping List
+          </Button>
           <Button
             nativeButton={false}
             render={<Link href={DASHBOARD_ADD_ITEM_ROUTES.batchQuotesActive} />}

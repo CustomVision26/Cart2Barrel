@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ComponentProps } from "react";
+import { useEffect, useMemo, useState, useTransition, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
-import { CameraIcon, Loader2Icon } from "lucide-react";
+import { CameraIcon, Loader2Icon, Maximize2Icon, Minimize2Icon } from "lucide-react";
 import { toast } from "sonner";
 
+import { saveShoppingListDraftAction } from "@/actions/admin-save-shopping-list-draft";
 import { saveShoppingListEstimateAction } from "@/actions/admin-save-shopping-list-estimate";
 import { uploadShoppingListLinePhotoAction } from "@/actions/upload-shopping-list-line-photo";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import {
   shoppingListLineTaxCents,
   type AdminShoppingListQuoteView,
+  type ShoppingListStaffDraft,
 } from "@/lib/shopping-list-quote";
 import {
   isStarterBundleSourceKind,
@@ -33,7 +35,25 @@ import {
   type AdminMarkupSettings,
   type MerchantServiceTierRow,
 } from "@/lib/admin-markup";
+import { isBudgetBarrelSourceKind } from "@/lib/budget-barrel/constants";
+import type { BudgetBarrelBuilderSnapshot } from "@/lib/budget-barrel/types";
 import { cn } from "@/lib/utils";
+
+function formatSentAt(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function sourceSentLabel(sourceKind: string): string {
+  if (isStarterBundleSourceKind(sourceKind)) return "Starter bundle sent";
+  if (isBudgetBarrelSourceKind(sourceKind)) return "Budget Barrel sent";
+  return "Shopping list sent";
+}
 
 function parseDollarsToCents(raw: string): number {
   const t = raw.trim().replace(/[$,]/g, "");
@@ -59,9 +79,27 @@ type LineEdit = {
   serviceFee$: string;
   estimatedShipping$: string;
   tax$: string;
+  retailer: string | null;
+  sellerName: string | null;
+  retailerProductUrl: string | null;
+  observedPriceCents: number | null;
+  currency: string | null;
+  availability: string | null;
+  priceRetrievedAt: string | null;
+  needsStaffReview: boolean;
+  packSize: string | null;
 };
 
-type LineField = Exclude<keyof LineEdit, "itemRequestId" | "productImageUrl">;
+type LineField =
+  | "productName"
+  | "quantity"
+  | "productSize"
+  | "productColor"
+  | "note"
+  | "itemCost$"
+  | "serviceFee$"
+  | "estimatedShipping$"
+  | "tax$";
 
 type ImagePreview = { src: string; alt: string };
 
@@ -132,25 +170,45 @@ function lineFromView(
   row: AdminShoppingListQuoteView["lines"][number],
   settings: AdminMarkupSettings,
   snapshot?: StarterBundleSnapshot | null,
+  draft?: ShoppingListStaffDraft | null,
 ): LineEdit {
   const quote = row.quote;
   const productName =
     row.request.productName?.trim() || row.line.productName?.trim() || "";
   const snapshotTotal = snapshotLineTotal(snapshot, productName, row.request.quantity);
+  const observedLine =
+    row.line.observedPriceCents != null
+      ? row.line.observedPriceCents * row.request.quantity
+      : null;
+  const saved = draft?.lines.find((line) => line.itemRequestId === row.request.id);
   return {
     itemRequestId: row.request.id,
-    productName,
-    quantity: row.request.quantity,
-    productSize: row.request.productSize ?? row.line.productSize ?? "",
-    productColor: row.request.productColor ?? row.line.productColor ?? "",
-    note: row.request.note ?? row.line.note ?? "",
-    productImageUrl: row.request.productImageUrl ?? row.line.productImageUrl,
-    itemCost$: centsToDollarInput(quote?.itemCost ?? snapshotTotal ?? 0),
-    serviceFee$: centsToDollarInput(quote?.serviceFee ?? 0),
-    estimatedShipping$: centsToDollarInput(
-      quote?.estimatedShipping ?? settings.defaultShippingCents,
+    productName: saved?.productName ?? productName,
+    quantity: saved?.quantity ?? row.request.quantity,
+    productSize: saved?.productSize ?? row.request.productSize ?? row.line.productSize ?? "",
+    productColor: saved?.productColor ?? row.request.productColor ?? row.line.productColor ?? "",
+    note: saved?.note ?? row.request.note ?? row.line.note ?? "",
+    productImageUrl:
+      saved?.productImageUrl ?? row.request.productImageUrl ?? row.line.productImageUrl,
+    itemCost$: centsToDollarInput(
+      saved?.itemCostCents ?? quote?.itemCost ?? observedLine ?? snapshotTotal ?? 0,
     ),
-    tax$: centsToDollarInput(shoppingListLineTaxCents(quote)),
+    serviceFee$: centsToDollarInput(saved?.serviceFeeCents ?? quote?.serviceFee ?? 0),
+    estimatedShipping$: centsToDollarInput(
+      saved?.estimatedShippingCents ??
+        quote?.estimatedShipping ??
+        settings.defaultShippingCents,
+    ),
+    tax$: centsToDollarInput(saved?.taxCents ?? shoppingListLineTaxCents(quote)),
+    retailer: row.line.retailer,
+    sellerName: row.line.sellerName,
+    retailerProductUrl: row.line.retailerProductUrl,
+    observedPriceCents: row.line.observedPriceCents,
+    currency: row.line.currency,
+    availability: row.line.availability,
+    priceRetrievedAt: row.line.priceRetrievedAt,
+    needsStaffReview: row.line.needsStaffReview,
+    packSize: row.line.packSize,
   };
 }
 
@@ -211,16 +269,46 @@ export function AdminShoppingListQuotesPanel({
     const next: Record<string, LineEdit[]> = {};
     for (const list of lists) {
       next[list.list.id] = list.lines.map((row) =>
-        lineFromView(row, settings, list.list.starterBundleSnapshot),
+        lineFromView(
+          row,
+          settings,
+          list.list.starterBundleSnapshot,
+          list.list.status === "estimated" ? null : list.list.staffDraft,
+        ),
       );
     }
     return next;
   });
-  const [staffNotes, setStaffNotes] = useState<Record<string, string>>({});
+  const [staffNotes, setStaffNotes] = useState<Record<string, string>>(() => {
+    const next: Record<string, string> = {};
+    for (const list of lists) {
+      const note = list.list.status === "estimated" ? null : list.list.staffDraft?.staffNote;
+      if (note) next[list.list.id] = note;
+    }
+    return next;
+  });
+  const [intent, setIntent] = useState<"save" | "send" | null>(null);
   const [pending, startTransition] = useTransition();
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
   const [fieldEditor, setFieldEditor] = useState<FieldEditor | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (document.querySelector("[data-slot='dialog-content']")) return;
+      setExpanded(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
 
   const active = lists.find((row) => row.list.id === openId) ?? null;
   const activeLines = openId ? (edits[openId] ?? []) : [];
@@ -326,45 +414,53 @@ export function AdminShoppingListQuotesPanel({
       ) ?? null)
     : null;
 
-  function save(list: AdminShoppingListQuoteView) {
+  function persist(list: AdminShoppingListQuoteView, mode: "save" | "send") {
     const lines = edits[list.list.id] ?? [];
     if (lines.length === 0) {
       toast.error("This list has no product lines.");
       return;
     }
-    for (const line of lines) {
-      if (!line.productName.trim()) {
-        toast.error("Every product needs a name.");
-        return;
+    if (mode === "send") {
+      for (const line of lines) {
+        if (!line.productName.trim()) {
+          toast.error("Every product needs a name.");
+          return;
+        }
       }
     }
+    const merch = lines.reduce((sum, line) => sum + parseDollarsToCents(line.itemCost$), 0);
+    const ship = lines.reduce(
+      (sum, line) => sum + parseDollarsToCents(line.estimatedShipping$),
+      0,
+    );
+    const tax = lines.reduce((sum, line) => sum + parseDollarsToCents(line.tax$), 0);
+    const payload = {
+      shoppingListQuoteId: list.list.id,
+      siteMerchandiseCents: merch,
+      siteShippingCents: ship,
+      siteSaleTaxCents: tax,
+      staffNote: staffNotes[list.list.id]?.trim() || undefined,
+      lines: lines.map((line) => ({
+        itemRequestId: line.itemRequestId,
+        productName: line.productName.trim() || undefined,
+        quantity: line.quantity,
+        productSize: line.productSize.trim() || undefined,
+        productColor: line.productColor.trim() || undefined,
+        note: line.note.trim() || undefined,
+        productImageUrl: line.productImageUrl?.trim() || undefined,
+        itemCost: parseDollarsToCents(line.itemCost$),
+        serviceFee: parseDollarsToCents(line.serviceFee$),
+        estimatedShipping: parseDollarsToCents(line.estimatedShipping$),
+        tax: parseDollarsToCents(line.tax$),
+      })),
+    };
+    setIntent(mode);
     startTransition(async () => {
-      const merch = lines.reduce((sum, line) => sum + parseDollarsToCents(line.itemCost$), 0);
-      const ship = lines.reduce(
-        (sum, line) => sum + parseDollarsToCents(line.estimatedShipping$),
-        0,
-      );
-      const tax = lines.reduce((sum, line) => sum + parseDollarsToCents(line.tax$), 0);
-      const res = await saveShoppingListEstimateAction({
-        shoppingListQuoteId: list.list.id,
-        siteMerchandiseCents: merch,
-        siteShippingCents: ship,
-        siteSaleTaxCents: tax,
-        staffNote: staffNotes[list.list.id]?.trim() || undefined,
-        lines: lines.map((line) => ({
-          itemRequestId: line.itemRequestId,
-          productName: line.productName.trim(),
-          quantity: line.quantity,
-          productSize: line.productSize.trim() || undefined,
-          productColor: line.productColor.trim() || undefined,
-          note: line.note.trim() || undefined,
-          productImageUrl: line.productImageUrl?.trim() || undefined,
-          itemCost: parseDollarsToCents(line.itemCost$),
-          serviceFee: parseDollarsToCents(line.serviceFee$),
-          estimatedShipping: parseDollarsToCents(line.estimatedShipping$),
-          tax: parseDollarsToCents(line.tax$),
-        })),
-      });
+      const res =
+        mode === "save"
+          ? await saveShoppingListDraftAction(payload)
+          : await saveShoppingListEstimateAction(payload);
+      setIntent(null);
       if (!res.ok) {
         toast.error(res.message);
         return;
@@ -377,17 +473,23 @@ export function AdminShoppingListQuotesPanel({
   if (lists.length === 0) {
     return (
       <p className="rounded-lg border border-border/80 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-        No shopping-list quotes yet. When a shopper submits a list photo from Requested
-        items or a Starter Bundle, it appears here for pricing.
+        No shopping-list quotes yet. When a shopper submits a list photo, a Budget Barrel
+        list, or a Starter Bundle, it appears here for pricing.
       </p>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div
+      className={cn(
+        "space-y-4",
+        expanded && "fixed inset-0 z-40 overflow-auto bg-background p-4 sm:p-6",
+      )}
+    >
       <p className="text-sm text-muted-foreground">
-        Price each product, then send the estimate. The shopper previews and accepts it on Add
-        item → Batch quotes, which adds the bundle to cart.
+        Price each product, then send the estimate. Save progress if you need to finish the
+        rest later. The shopper is not notified until you send it. They preview and accept it
+        on Add item → Batch quotes, which adds the bundle to cart.
       </p>
       <div className="grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)]">
         <ul className="space-y-1">
@@ -410,6 +512,8 @@ export function AdminShoppingListQuotesPanel({
                   <span className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
                     {isStarterBundleSourceKind(row.list.sourceKind) ?
                       <StatusBadge kind="inCart">Starter Bundle</StatusBadge>
+                    : isBudgetBarrelSourceKind(row.list.sourceKind) ?
+                      <StatusBadge kind="neutral">Budget Barrel</StatusBadge>
                     : <StatusBadge kind="neutral">Shopping list</StatusBadge>}
                     <StatusBadge
                       kind={row.list.status === "estimated" ? "quoted" : "newRequest"}
@@ -423,6 +527,15 @@ export function AdminShoppingListQuotesPanel({
                       {row.lines.length} product{row.lines.length === 1 ? "" : "s"}
                     </span>
                   </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {sourceSentLabel(row.list.sourceKind)}{" "}
+                    {formatSentAt(row.list.createdAt) ?? "time unavailable"}
+                  </span>
+                  {row.batchSubmittedAt ? (
+                    <span className="block text-xs text-muted-foreground">
+                      Batch sent {formatSentAt(row.batchSubmittedAt)}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             );
@@ -437,14 +550,37 @@ export function AdminShoppingListQuotesPanel({
                   {active.customerFullName?.trim() ||
                     (isStarterBundleSourceKind(active.list.sourceKind)
                       ? "Starter Bundle"
-                      : "Shopping list")}
+                      : isBudgetBarrelSourceKind(active.list.sourceKind)
+                        ? "Budget Barrel Builder"
+                        : "Shopping list")}
                 </h2>
-                <p className="text-sm text-muted-foreground">
-                  {active.customerEmail ?? "No email on file"}
-                  {active.batchNumber ? ` · Batch ${active.batchNumber}` : ""}
-                  {isStarterBundleSourceKind(active.list.sourceKind)
-                    ? " · Source: Starter Bundle"
-                    : " · Source: Shopping list"}
+                <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <span>
+                    {active.customerEmail ?? "No email on file"}
+                    {active.batchNumber ? ` · Batch ${active.batchNumber}` : ""}
+                    {isStarterBundleSourceKind(active.list.sourceKind)
+                      ? " · Source: Starter Bundle"
+                      : isBudgetBarrelSourceKind(active.list.sourceKind)
+                        ? " · Source: Budget Barrel Builder"
+                        : " · Source: Shopping list"}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-expanded={expanded}
+                    onClick={() => setExpanded((open) => !open)}
+                  >
+                    {expanded ? <Minimize2Icon /> : <Maximize2Icon />}
+                    {expanded ? "Collapse" : "Expand"}
+                  </Button>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {sourceSentLabel(active.list.sourceKind)}{" "}
+                  {formatSentAt(active.list.createdAt) ?? "time unavailable"}
+                  {active.batchSubmittedAt
+                    ? ` · Batch sent ${formatSentAt(active.batchSubmittedAt)}`
+                    : ""}
                 </p>
               </div>
               {active.list.sourceImageUrl ?
@@ -482,8 +618,15 @@ export function AdminShoppingListQuotesPanel({
               />
             : null}
 
+            {isBudgetBarrelSourceKind(active.list.sourceKind) ?
+              <BudgetBarrelSubmittedCopy
+                snapshot={active.list.builderSnapshot ?? null}
+                customerNote={active.list.customerNote}
+              />
+            : null}
+
             <div className="overflow-x-auto rounded-lg border border-border/80">
-              <table className="w-full min-w-[72rem] text-left text-sm">
+              <table className={cn("w-full text-left text-sm", expanded ? "min-w-[64rem]" : "min-w-[72rem]")}>
                 <thead className="border-b border-border bg-muted text-xs text-muted-foreground">
                   <tr>
                     <th className="px-2 py-2 font-medium">Product</th>
@@ -501,7 +644,7 @@ export function AdminShoppingListQuotesPanel({
                   {activeLines.map((line) => (
                     <tr key={line.itemRequestId} className="border-b border-border/60 align-top">
                       <td className="px-2 py-2">
-                        <div className="flex items-start gap-2">
+                        <div className="flex min-w-56 items-start gap-2">
                           {line.productImageUrl ?
                             <button
                               type="button"
@@ -550,22 +693,55 @@ export function AdminShoppingListQuotesPanel({
                                 }}
                               />
                             </label>}
-                          <LineCellInput
-                            value={line.productName}
-                            disabled={pending}
-                            onEnlarge={() =>
-                              setFieldEditor({
-                                listId: active.list.id,
-                                itemRequestId: line.itemRequestId,
-                                field: "productName",
-                              })
-                            }
-                            onChange={(e) =>
-                              patchLine(active.list.id, line.itemRequestId, {
-                                productName: e.target.value,
-                              })
-                            }
-                          />
+                          <div className="min-w-0 flex-1">
+                            <LineCellInput
+                              value={line.productName}
+                              disabled={pending}
+                              onEnlarge={() =>
+                                setFieldEditor({
+                                  listId: active.list.id,
+                                  itemRequestId: line.itemRequestId,
+                                  field: "productName",
+                                })
+                              }
+                              onChange={(e) =>
+                                patchLine(active.list.id, line.itemRequestId, {
+                                  productName: e.target.value,
+                                })
+                              }
+                            />
+                            {line.retailer ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {line.retailer}
+                                {line.sellerName ? ` · Sold by ${line.sellerName}` : ""}
+                                {line.packSize ? ` · ${line.packSize}` : ""}
+                                {line.observedPriceCents != null
+                                  ? ` · Snapshot ${formatUsd(line.observedPriceCents)} ${line.currency ?? "USD"}`
+                                  : " · No USD price in the snapshot"}
+                                {line.availability ? ` · ${line.availability}` : " · Availability not confirmed"}
+                              </p>
+                            ) : null}
+                            {line.priceRetrievedAt ? (
+                              <p className="text-xs text-muted-foreground">
+                                Price checked {new Date(line.priceRetrievedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                              </p>
+                            ) : null}
+                            {line.needsStaffReview ? (
+                              <p className="text-xs text-amber-200">
+                                Confirm the current price, variant, and availability before sending the quote.
+                              </p>
+                            ) : null}
+                            {line.retailerProductUrl ? (
+                              <a
+                                href={line.retailerProductUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-1 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+                              >
+                                Open retailer product
+                              </a>
+                            ) : null}
+                          </div>
                         </div>
                       </td>
                       <td className="w-20 px-2 py-2">
@@ -777,9 +953,24 @@ export function AdminShoppingListQuotesPanel({
               />
             </div>
 
-            <div className="flex justify-end">
-              <Button type="button" disabled={pending} onClick={() => save(active)}>
-                {pending ?
+            <div className="flex flex-wrap justify-end gap-2">
+              {active.list.status !== "estimated" ?
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => persist(active, "save")}
+                >
+                  {pending && intent === "save" ?
+                    <>
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                      Saving…
+                    </>
+                  : "Save progress"}
+                </Button>
+              : null}
+              <Button type="button" disabled={pending} onClick={() => persist(active, "send")}>
+                {pending && intent === "send" ?
                   <>
                     <Loader2Icon className="size-3.5 animate-spin" />
                     Sending…
@@ -886,6 +1077,52 @@ export function AdminShoppingListQuotesPanel({
           </DialogContent>
         : null}
       </Dialog>
+    </div>
+  );
+}
+
+function BudgetBarrelSubmittedCopy({
+  snapshot,
+  customerNote,
+}: {
+  snapshot: BudgetBarrelBuilderSnapshot | null;
+  customerNote: string | null;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-border/80 bg-muted/30 p-3 text-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Budget Barrel Builder
+      </p>
+      <p>
+        Merchandise budget: {snapshot ? formatUsd(snapshot.merchandiseBudgetCents) : "—"}
+        <span className="text-muted-foreground"> · merchandise only</span>
+      </p>
+      <p className="text-muted-foreground">
+        Snapshot merchandise subtotal:{" "}
+        {snapshot ? formatUsd(snapshot.merchandiseSubtotalCents) : "—"}
+        {" · "}
+        Retailer delivery to the U.S. hub:{" "}
+        {snapshot?.deliveryCents != null ? formatUsd(snapshot.deliveryCents) : "To be confirmed"}
+        {" · Taxes, Cart2Barrel fees, container, and freight: To be confirmed"}
+      </p>
+      {snapshot?.priceCheckedAt ? (
+        <p className="text-xs text-muted-foreground">
+          Customer prices checked{" "}
+          {new Date(snapshot.priceCheckedAt).toLocaleString("en-US", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
+          . Confirm current price, availability, and fees before sending the quote.
+        </p>
+      ) : null}
+      {customerNote ? <p>Shopper instructions: {customerNote}</p> : null}
+      {snapshot && snapshot.unsatisfied.length > 0 ? (
+        <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+          {snapshot.unsatisfied.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

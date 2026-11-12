@@ -7,8 +7,12 @@ export type SerpShoppingResult = {
   retailer: string;
   productUrl: string;
   priceUsd: number | null;
+  /** Original price text, used to reject non-USD amounts. */
+  priceText: string | null;
   imageUrl: string | null;
   immersiveProductPageToken: string | null;
+  /** Item-level delivery in cents when the result states one. Null when unknown. */
+  deliveryCents: number | null;
 };
 
 type SerpShoppingRaw = {
@@ -22,6 +26,8 @@ type SerpShoppingRaw = {
   thumbnails?: string[];
   serpapi_thumbnail?: string;
   immersive_product_page_token?: string;
+  delivery?: string;
+  extensions?: string[];
 };
 
 function shoppingResultUrl(raw: SerpShoppingRaw): string | null {
@@ -50,6 +56,21 @@ function shoppingResultImage(raw: SerpShoppingRaw): string | null {
   return serpApiHosted;
 }
 
+function parseDeliveryCents(raw: SerpShoppingRaw): number | null {
+  const chunks = [
+    raw.delivery,
+    ...(Array.isArray(raw.extensions) ? raw.extensions : []),
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const text = chunks.join(" ");
+  if (!text) return null;
+  if (/free\s+(delivery|shipping)/i.test(text)) return 0;
+  const match = text.match(/\$(\d+(?:\.\d{1,2})?)\s*(?:delivery|shipping)/i);
+  if (!match) return null;
+  const dollars = Number(match[1]);
+  if (!Number.isFinite(dollars) || dollars < 0) return null;
+  return Math.round(dollars * 100);
+}
+
 function parsePriceUsd(raw: SerpShoppingRaw): number | null {
   if (
     typeof raw.extracted_price === "number" &&
@@ -70,22 +91,26 @@ function parsePriceUsd(raw: SerpShoppingRaw): number | null {
  */
 export async function searchGoogleShopping(
   query: string,
-  opts?: { maxResults?: number },
+  opts?: { maxResults?: number; location?: string | null },
 ): Promise<SerpShoppingResult[]> {
   const q = query.trim();
   if (q.length < 2) {
     return [];
   }
 
+  const params: Record<string, string> = {
+    engine: "google_shopping",
+    q,
+    gl: "us",
+    hl: "en",
+    num: String(Math.min(opts?.maxResults ?? 12, 20)),
+  };
+  const location = opts?.location?.trim();
+  if (location) params.location = location;
+
   let data: { shopping_results?: SerpShoppingRaw[] };
   try {
-    data = await serpApiGet<{ shopping_results?: SerpShoppingRaw[] }>({
-      engine: "google_shopping",
-      q,
-      gl: "us",
-      hl: "en",
-      num: String(Math.min(opts?.maxResults ?? 12, 20)),
-    });
+    data = await serpApiGet<{ shopping_results?: SerpShoppingRaw[] }>(params);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Shopping search failed.";
     if (isSerpApiRateLimitError(msg) || isSerpApiTransientError(msg)) {
@@ -109,9 +134,11 @@ export async function searchGoogleShopping(
       retailer,
       productUrl,
       priceUsd: parsePriceUsd(row),
+      priceText: row.price?.trim() || null,
       imageUrl: shoppingResultImage(row),
       immersiveProductPageToken:
         row.immersive_product_page_token?.trim() || null,
+      deliveryCents: parseDeliveryCents(row),
     });
   }
 

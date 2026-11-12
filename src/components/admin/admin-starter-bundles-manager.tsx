@@ -12,7 +12,18 @@ import {
 } from "@/actions/admin-starter-bundles";
 import { uploadStarterBundleImageAction } from "@/actions/upload-starter-bundle-image";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import {
+  BudgetBarrelWorkspace,
+  type BudgetBarrelPickedProduct,
+} from "@/components/dashboard/budget-barrel-workspace";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input, inputFieldClassName } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -67,6 +78,16 @@ type FormState = {
   barrelFillLevel: string;
   items: ItemDraft[];
 };
+
+function isBlankItem(item: ItemDraft): boolean {
+  return (
+    item.productName.trim() === "" &&
+    item.productSize.trim() === "" &&
+    item.productColor.trim() === "" &&
+    item.retailerUrl.trim() === "" &&
+    parseUsdToCents(item.unitPrice$) === 0
+  );
+}
 
 function emptyItem(): ItemDraft {
   return {
@@ -154,6 +175,7 @@ export function AdminStarterBundlesManager({
   const [form, setForm] = useState<FormState | null>(null);
   const [archiveId, setArchiveId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const merchandiseSubtotalCents = form
     ? starterBundleMerchandiseSubtotalCents(
@@ -163,6 +185,35 @@ export function AdminStarterBundlesManager({
         })),
       )
     : 0;
+
+  function addPickedProducts(products: BudgetBarrelPickedProduct[]) {
+    if (!form || products.length === 0) return;
+    const kept = form.items.filter((item) => !isBlankItem(item));
+    const room = Math.max(0, STARTER_BUNDLE_MAX_ITEMS - kept.length);
+    const accepted = products.slice(0, room);
+    if (accepted.length === 0) {
+      toast.error(`A bundle can hold ${STARTER_BUNDLE_MAX_ITEMS} products.`);
+      return;
+    }
+    const rows: ItemDraft[] = accepted.map((product) => ({
+      clientKey: `row-${crypto.randomUUID()}`,
+      productName: product.productName,
+      quantity: product.quantity,
+      unitPrice$: centsToUsdInput(product.unitPriceCents),
+      productSize: product.productSize,
+      productColor: product.productColor,
+      retailerUrl: /^https:\/\//i.test(product.retailerUrl) ? product.retailerUrl : "",
+    }));
+    setForm({ ...form, items: [...kept, ...rows] });
+    setPickerOpen(false);
+    toast.success(
+      accepted.length === products.length
+        ? accepted.length === 1
+          ? "Added 1 product to this bundle."
+          : `Added ${accepted.length} products to this bundle.`
+        : `Added ${accepted.length} of ${products.length} products. A bundle can hold ${STARTER_BUNDLE_MAX_ITEMS}.`,
+    );
+  }
 
   function patchItem(clientKey: string, patch: Partial<ItemDraft>) {
     setForm((current) => {
@@ -347,7 +398,14 @@ export function AdminStarterBundlesManager({
                 Product prices set the estimated merchandise subtotal.
               </p>
             </div>
-            <Button type="button" variant="ghost" onClick={() => setForm(null)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setPickerOpen(false);
+                setForm(null);
+              }}
+            >
               Close
             </Button>
           </div>
@@ -443,10 +501,8 @@ export function AdminStarterBundlesManager({
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={pending || form.items.length >= STARTER_BUNDLE_MAX_ITEMS}
-                onClick={() =>
-                  setForm({ ...form, items: [...form.items, emptyItem()] })
-                }
+                disabled={pending || form.items.filter((item) => !isBlankItem(item)).length >= STARTER_BUNDLE_MAX_ITEMS}
+                onClick={() => setPickerOpen(true)}
               >
                 <Plus className="size-3.5" />
                 Add product
@@ -613,6 +669,20 @@ export function AdminStarterBundlesManager({
           </div>
         </div>
       : null}
+
+      <Dialog open={pickerOpen && form != null} onOpenChange={setPickerOpen}>
+        <DialogContent className="max-h-[min(92vh,56rem)] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Add products</DialogTitle>
+            <DialogDescription>
+              Build a list, hold the products to include, then add them to this bundle.
+            </DialogDescription>
+          </DialogHeader>
+          {pickerOpen ? (
+            <BudgetBarrelWorkspace onPickHeld={addPickedProducts} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <AdminConfirmDialog
         open={archiveId != null}

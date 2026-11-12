@@ -61,7 +61,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
         "Spotlight carousel cards stay compact. Double-click a product with color or size options to open the swatch and size picker; View and Request follow the selected variant.",
         "Category catalogs use compact cards (two per row on larger screens) with Previous / Next when there are more than six products. Open Retailers and pick a store tab to show that retailer's listings.",
         "Guests see Sign in / Sign up; signed-in users see Dashboard. Sign up collects first name, last name, email, password, and confirm password on a glass card over Home. Back to home, clicking outside the card, or Escape returns to Home. On the email verification step, Back to sign up returns to the filled sign-up form. If the code is missing, use Resend code and check junk. iCloud often never receives Clerk development mail; for local testing use an address like you+clerk_test@gmail.com and code 424242.",
-        "Get an estimate (next to the hero badge) opens the AI-assisted item request at /dashboard/items/requested-items/ai-assisted-request. Sign in is required if you are not already signed in.",
+        "Get a Quote in the header and on the hero opens Requested items at /dashboard/items/requested-items, where you can paste a product link, upload a list, or build a shopping list. Sign in is required if you are not already signed in.",
         "The page footer lists published hub contact details (address, email, phone, hours, and social links) when the hub team has filled them in.",
         "In-hub products can be added to cart from Home; US delivery uses a saved United States address. Multiple in-hub SKUs to the same address ship as one warehouse package with a single Shippo rate.",
         "After skip or complete onboarding, Home works normally.",
@@ -646,6 +646,8 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       location: "Sidebar → Requested items, or Home → Get an estimate.",
       bullets: [
         "AI-assisted request: paste Amazon, Walmart, Target, eBay, Temu, or SHEIN product URLs.",
+        "Upload Shopping List: upload a photo of the products you want quoted.",
+        "Build a Shopping List: set a merchandise budget, search US retailers, edit the list, and submit one estimate.",
         `${SHOPPING_LIST_CARD_TITLE}: ${SHOPPING_LIST_CARD_DESCRIPTION}`,
         "Select a variant row to copy that row's photo into Request details.",
         "Staff publish quotes you accept into the cart.",
@@ -668,14 +670,14 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
     },
     article: {
       overview: [
-        "Requested items is where you start the quoting process. Choose Start a request to paste US retailer product links, or Shopping list to upload a photo of the products you want quoted. Ready-made Starter Bundles are a separate public listing at /starter-bundles; Shopping list upload stays available for your own products.",
+        "Requested items is where you start the quoting process. Choose Start a request to paste US retailer product links, Upload Shopping List to send a photo, or Build a Shopping List to search US retailers from a merchandise budget. Ready-made Starter Bundles stay at /starter-bundles.",
         SHOPPING_LIST_CARD_DESCRIPTION,
         "This area also tracks everything already in the pipeline—so you can see which requests are waiting, ready, out of stock, or withdrawn.",
       ],
       walkthrough: [
         "Open Requested items from the dashboard sidebar, or click Get an estimate on Home to open the AI-assisted request flow.",
         "Choose AI-assisted request to paste US retailer URLs and build a structured submission.",
-        `Or open ${SHOPPING_LIST_CARD_TITLE}: ${SHOPPING_LIST_CARD_DESCRIPTION}`,
+        "Or open Upload Shopping List: upload a photo. Or open Build a Shopping List: enter a merchandise budget and search selected retailers.",
         "Select a store variant in the list to copy that row's name, price, product link, size, color, and photo into Request details—not the parent listing.",
         "Click Submit for staff review to send the request to staff for a quote.",
         "Staff review your request and publish quotes when ready.",
@@ -726,6 +728,7 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Don't treat the estimated merchandise subtotal as the full quote—service, freight, broker, and destination pickup charges are separate.",
         "Don't expect draft or archived bundles, or an unpublished Home marquee, to appear on Home.",
+        "Build a Shopping List is a separate customer-specific search. Starter Bundles stay staff-curated presets.",
       ],
     },
     article: {
@@ -798,6 +801,66 @@ const CUSTOMER_DOCUMENTATION_CONTENT_RAW: DocumentationSection[] = [
       donts: [
         "Do not upload unrelated images—the reader needs a product list.",
         "Do not skip checkout after accepting; the cart still needs payment.",
+      ],
+    },
+  },
+  {
+    id: "budget-barrel",
+    title: "Requested items — Build a Shopping List",
+    category: "Shopping",
+    quickReference: {
+      summary:
+        "Search US retailers from a merchandise budget, hold products you want, edit the list, and submit one estimate for staff review.",
+      location:
+        "Sidebar → Requested items → Build a Shopping List card (/dashboard/items/requested-items/budget-barrel).",
+      bullets: [
+        "Merchandise budget is merchandise only. Retailer delivery to the U.S. hub, taxes, Cart2Barrel fees, container cost, and freight show separately and say To be confirmed when they are not known yet.",
+        "Categories are Food, Clothing, Shoes, Electronics & tech, Household & kitchen, and Beauty & wellness. Each selected category shows its own size, color, pack, and brand fields.",
+        "Retailers include Walmart, Amazon, Target, Costco, Sam's Club, BJ's, Macy's, Dollar Tree, Dollar General, Best Buy, Home Depot, Walgreens, and Kroger.",
+        "The search returns up to 8 products, and every selected category is included. When more than one retailer is selected, the multi-store list includes a product from each retailer that returned a price. The result list is paged. Hold a product, then build the list again. The held product stays and is not searched again. The remaining budget is used to search for items that are still missing.",
+        "Estimated prices show the time they were checked. Edit quantities, remove items, or swap another returned offer.",
+        "A list over the merchandise budget must be adjusted or the budget increased before Submit for an Estimate.",
+        "Staff confirm current prices and fees on Overview → List quotes. Accept the quote on Add item → Batch quotes, then pay in cart.",
+        "Upload Shopping List and Starter Bundles stay available. Starter Bundles remain staff-curated presets.",
+      ],
+      requirements: [
+        "Signed-in account.",
+        "A merchandise budget of at least $1.",
+        "At least one category and one enabled retailer.",
+      ],
+      dos: [
+        "Check the remaining merchandise budget after every edit.",
+        "Read any note that a size, pack, or item could not be found.",
+        "Submit only when every line has an estimated USD price.",
+      ],
+      donts: [
+        "Don't treat estimated merchandise prices as the final quote.",
+        "Don't count a missing price as free.",
+        "Don't expect a different clothing size or pack size to be swapped in silently.",
+      ],
+    },
+    article: {
+      overview: [
+        "Build a Shopping List turns a merchandise budget and a few preferences into an editable list of real retailer offers. You submit that list once. Staff price it on List quotes, and the existing quote acceptance and checkout flow handles payment.",
+      ],
+      walkthrough: [
+        "Open Requested items and choose Build a Shopping List, next to Upload Shopping List.",
+        "Enter the merchandise budget, choose categories, and choose retailers. Clothing, shoes, and the other categories each open their own attribute fields when selected.",
+        "Review Estimated prices, the one-store list, and the multi-store list when both are available. Click a product to edit its name, size, color, price, and quantity, or open the retailer page. Hold products you want to keep, then build again. Change quantities, remove rows, or swap a product.",
+        "Hold the products that should be in the estimate. Submit for an Estimate appears after at least one product is held. The review lists only those held products and their merchandise total, then send the request. If a refreshed price puts the held products over budget, adjust them and submit again.",
+        "When staff send the quote, open Add item → Batch quotes, preview the totals, accept into cart, and pay.",
+      ],
+      requirements: [
+        "A signed-in account.",
+        "Retailer search has to return a product page link and a USD price for each line you keep.",
+      ],
+      dos: [
+        "Use Upload Shopping List when you already have a photo of the products.",
+        "Use Starter Bundles when you want a staff-curated preset instead of your own search.",
+      ],
+      donts: [
+        "Do not submit the same draft twice expecting two requests. A retry stays on the original request.",
+        "Do not treat the list as paid until you accept the quote and check out.",
       ],
     },
   },
